@@ -7,7 +7,7 @@
    "license": "0BSD (Zero-Clause BSD)",
    "where": "the program itself",
    "text": "quillbinder-0BSD.txt",
-   "source": "the source code of Quillbinder"
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public"
   },
   {
    "name": "Breeze icons (a subset)",
@@ -15,7 +15,7 @@
    "license": "LGPL-3.0-or-later",
    "where": "icons of the menus and toolbars",
    "text": "breeze-icons.txt",
-   "source": "https://invent.kde.org/frameworks/breeze-icons"
+   "source": "the SVG files themselves, in resources/icons of the Quillbinder source (https://github.com/Shelin-boop/Quillbinder_Public); upstream: https://invent.kde.org/frameworks/breeze-icons"
   },
   {
    "name": "AppImage type2-runtime",
@@ -23,7 +23,9 @@
    "license": "MIT",
    "where": "the start code at the beginning of the AppImage file",
    "text": "appimage-type2-runtime.txt",
-   "source": "https://github.com/AppImage/type2-runtime"
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file appimage-type2-runtime-fedfad5.src.tar (the AppImage runtime at commit fedfad5 with the sources of the libraries its build links in)",
+   "runtimePart": true,
+   "sourceFile": "appimage-type2-runtime-fedfad5.src.tar"
   },
   {
    "name": "musl libc (in the AppImage runtime)",
@@ -31,7 +33,9 @@
    "license": "MIT",
    "where": "linked into the AppImage runtime",
    "text": "runtime-musl.txt",
-   "source": "https://musl.libc.org"
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file appimage-type2-runtime-fedfad5.src.tar (the AppImage runtime at commit fedfad5 with the sources of the libraries its build links in)",
+   "runtimePart": true,
+   "sourceFile": "appimage-type2-runtime-fedfad5.src.tar"
   },
   {
    "name": "libfuse (in the AppImage runtime)",
@@ -39,7 +43,9 @@
    "license": "LGPL-2.1",
    "where": "linked into the AppImage runtime",
    "text": "runtime-libfuse3.txt",
-   "source": "https://github.com/libfuse/libfuse"
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file appimage-type2-runtime-fedfad5.src.tar (the AppImage runtime at commit fedfad5 with the sources of the libraries its build links in)",
+   "runtimePart": true,
+   "sourceFile": "appimage-type2-runtime-fedfad5.src.tar"
   },
   {
    "name": "squashfuse (in the AppImage runtime)",
@@ -47,7 +53,9 @@
    "license": "BSD-2-Clause",
    "where": "linked into the AppImage runtime",
    "text": "runtime-squashfuse.txt",
-   "source": "https://github.com/vasi/squashfuse"
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file appimage-type2-runtime-fedfad5.src.tar (the AppImage runtime at commit fedfad5 with the sources of the libraries its build links in)",
+   "runtimePart": true,
+   "sourceFile": "appimage-type2-runtime-fedfad5.src.tar"
   },
   {
    "name": "zstd (in the AppImage runtime)",
@@ -55,7 +63,9 @@
    "license": "BSD-3-Clause or GPL-2.0",
    "where": "linked into the AppImage runtime",
    "text": "runtime-zstd.txt",
-   "source": "https://github.com/facebook/zstd"
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file appimage-type2-runtime-fedfad5.src.tar (the AppImage runtime at commit fedfad5 with the sources of the libraries its build links in)",
+   "runtimePart": true,
+   "sourceFile": "appimage-type2-runtime-fedfad5.src.tar"
   },
   {
    "name": "zlib (in the AppImage runtime)",
@@ -63,207 +73,385 @@
    "license": "Zlib",
    "where": "linked into the AppImage runtime",
    "text": "runtime-zlib.txt",
-   "source": "https://zlib.net"
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file appimage-type2-runtime-fedfad5.src.tar (the AppImage runtime at commit fedfad5 with the sources of the libraries its build links in)",
+   "runtimePart": true,
+   "sourceFile": "appimage-type2-runtime-fedfad5.src.tar"
   },
   {
    "name": "double-conversion",
    "version": "3.3.0-1build1",
    "license": "BSD-3-clause",
    "where": "libdouble-conversion.so.3",
+   "files": [
+    "usr/lib/libdouble-conversion.so.3"
+   ],
    "text": "ubuntu-double-conversion.txt",
-   "source": "Ubuntu 24.04 source package double-conversion 3.3.0-1build1 (apt-get source double-conversion=3.3.0-1build1; https://launchpad.net/ubuntu/+source/double-conversion/3.3.0-1build1)"
+   "package": "double-conversion",
+   "sourceFile": "double-conversion_3.3.0-1build1.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file double-conversion_3.3.0-1build1.src.tar (the Ubuntu 24.04 source package double-conversion 3.3.0-1build1; also from Ubuntu: apt-get source double-conversion=3.3.0-1build1)"
   },
   {
    "name": "gcc-14",
    "version": "14.2.0-4ubuntu2~24.04.1",
    "license": "GPL-3.0-or-later with the GCC Runtime Library Exception (libgomp)",
    "where": "libgomp.so.1",
+   "files": [
+    "usr/lib/libgomp.so.1"
+   ],
    "text": "ubuntu-gcc-14.txt",
-   "source": "Ubuntu 24.04 source package gcc-14 14.2.0-4ubuntu2~24.04.1 (apt-get source gcc-14=14.2.0-4ubuntu2~24.04.1; https://launchpad.net/ubuntu/+source/gcc-14/14.2.0-4ubuntu2~24.04.1)"
+   "package": "gcc-14",
+   "sourceFile": "gcc-14_14.2.0-4ubuntu2_24.04.1.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file gcc-14_14.2.0-4ubuntu2_24.04.1.src.tar (the Ubuntu 24.04 source package gcc-14 14.2.0-4ubuntu2~24.04.1; also from Ubuntu: apt-get source gcc-14=14.2.0-4ubuntu2~24.04.1)"
   },
   {
    "name": "graphite2",
    "version": "1.3.14-2ubuntu0.24.04.1",
    "license": "LGPL-2.1+ or MPL-1.1 or GPL-2+, LGPL-2.1+, public-domain, Artistic or GPL-1+, LGPL-2.1+ or GPL-2+ or MPL-1.1, custom-sil-open-font-license, Artistic, GPL-1+ ...",
    "where": "libgraphite2.so.3",
+   "files": [
+    "usr/lib/libgraphite2.so.3"
+   ],
    "text": "ubuntu-graphite2.txt",
-   "source": "Ubuntu 24.04 source package graphite2 1.3.14-2ubuntu0.24.04.1 (apt-get source graphite2=1.3.14-2ubuntu0.24.04.1; https://launchpad.net/ubuntu/+source/graphite2/1.3.14-2ubuntu0.24.04.1)"
+   "package": "graphite2",
+   "sourceFile": "graphite2_1.3.14-2ubuntu0.24.04.1.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file graphite2_1.3.14-2ubuntu0.24.04.1.src.tar (the Ubuntu 24.04 source package graphite2 1.3.14-2ubuntu0.24.04.1; also from Ubuntu: apt-get source graphite2=1.3.14-2ubuntu0.24.04.1)"
   },
   {
    "name": "hunspell",
    "version": "1.7.2+really1.7.2-10build3",
    "license": "MPL 1.1/GPL 2.0/LGPL 2.1",
    "where": "libhunspell-1.7.so.0",
+   "files": [
+    "usr/lib/libhunspell-1.7.so.0"
+   ],
    "text": "ubuntu-hunspell.txt",
-   "source": "Ubuntu 24.04 source package hunspell 1.7.2+really1.7.2-10build3 (apt-get source hunspell=1.7.2+really1.7.2-10build3; https://launchpad.net/ubuntu/+source/hunspell/1.7.2+really1.7.2-10build3)"
+   "package": "hunspell",
+   "sourceFile": "hunspell_1.7.2_really1.7.2-10build3.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file hunspell_1.7.2_really1.7.2-10build3.src.tar (the Ubuntu 24.04 source package hunspell 1.7.2+really1.7.2-10build3; also from Ubuntu: apt-get source hunspell=1.7.2+really1.7.2-10build3)"
   },
   {
    "name": "icu",
    "version": "74.2-1ubuntu3.1",
    "license": "MIT, GPL-3",
    "where": "libicudata.so.74, libicui18n.so.74, libicuuc.so.74",
+   "files": [
+    "usr/lib/libicudata.so.74",
+    "usr/lib/libicui18n.so.74",
+    "usr/lib/libicuuc.so.74"
+   ],
    "text": "ubuntu-icu.txt",
-   "source": "Ubuntu 24.04 source package icu 74.2-1ubuntu3.1 (apt-get source icu=74.2-1ubuntu3.1; https://launchpad.net/ubuntu/+source/icu/74.2-1ubuntu3.1)"
+   "package": "icu",
+   "sourceFile": "icu_74.2-1ubuntu3.1.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file icu_74.2-1ubuntu3.1.src.tar (the Ubuntu 24.04 source package icu 74.2-1ubuntu3.1; also from Ubuntu: apt-get source icu=74.2-1ubuntu3.1)"
   },
   {
    "name": "libb2",
    "version": "0.98.1-1.1build1",
    "license": "CC0, public-domain",
    "where": "libb2.so.1",
+   "files": [
+    "usr/lib/libb2.so.1"
+   ],
    "text": "ubuntu-libb2.txt",
-   "source": "Ubuntu 24.04 source package libb2 0.98.1-1.1build1 (apt-get source libb2=0.98.1-1.1build1; https://launchpad.net/ubuntu/+source/libb2/0.98.1-1.1build1)"
+   "package": "libb2",
+   "sourceFile": "libb2_0.98.1-1.1build1.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file libb2_0.98.1-1.1build1.src.tar (the Ubuntu 24.04 source package libb2 0.98.1-1.1build1; also from Ubuntu: apt-get source libb2=0.98.1-1.1build1)"
   },
   {
    "name": "libjpeg-turbo",
    "version": "2.1.5-2ubuntu2",
    "license": "BSD-BY-LC-NE, Zlib, BSD-3-clause, Expat, NTP, zlib",
    "where": "libjpeg.so.8",
+   "files": [
+    "usr/lib/libjpeg.so.8"
+   ],
    "text": "ubuntu-libjpeg-turbo.txt",
-   "source": "Ubuntu 24.04 source package libjpeg-turbo 2.1.5-2ubuntu2 (apt-get source libjpeg-turbo=2.1.5-2ubuntu2; https://launchpad.net/ubuntu/+source/libjpeg-turbo/2.1.5-2ubuntu2)"
+   "package": "libjpeg-turbo",
+   "sourceFile": "libjpeg-turbo_2.1.5-2ubuntu2.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file libjpeg-turbo_2.1.5-2ubuntu2.src.tar (the Ubuntu 24.04 source package libjpeg-turbo 2.1.5-2ubuntu2; also from Ubuntu: apt-get source libjpeg-turbo=2.1.5-2ubuntu2)"
   },
   {
    "name": "libpng1.6",
    "version": "1.6.43-5ubuntu0.7",
    "license": "libpng, expat, GPL-2+ or BSD-like-with-advertising-clause, libpng OR Apache-2.0 OR BSD-3-clause, Apache-2.0, GPL-2+, BSD-like-with-advertising-clause, BSD-3-clause",
    "where": "libpng16.so.16",
+   "files": [
+    "usr/lib/libpng16.so.16"
+   ],
    "text": "ubuntu-libpng1.6.txt",
-   "source": "Ubuntu 24.04 source package libpng1.6 1.6.43-5ubuntu0.7 (apt-get source libpng1.6=1.6.43-5ubuntu0.7; https://launchpad.net/ubuntu/+source/libpng1.6/1.6.43-5ubuntu0.7)"
+   "package": "libpng1.6",
+   "sourceFile": "libpng1.6_1.6.43-5ubuntu0.7.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file libpng1.6_1.6.43-5ubuntu0.7.src.tar (the Ubuntu 24.04 source package libpng1.6 1.6.43-5ubuntu0.7; also from Ubuntu: apt-get source libpng1.6=1.6.43-5ubuntu0.7)"
   },
   {
    "name": "libwebp",
    "version": "1.3.2-0.4build3",
    "license": "BSD-3-Clause, Apache-2.0",
    "where": "libsharpyuv.so.0, libwebp.so.7, libwebpdemux.so.2, libwebpmux.so.3",
+   "files": [
+    "usr/lib/libsharpyuv.so.0",
+    "usr/lib/libwebp.so.7",
+    "usr/lib/libwebpdemux.so.2",
+    "usr/lib/libwebpmux.so.3"
+   ],
    "text": "ubuntu-libwebp.txt",
-   "source": "Ubuntu 24.04 source package libwebp 1.3.2-0.4build3 (apt-get source libwebp=1.3.2-0.4build3; https://launchpad.net/ubuntu/+source/libwebp/1.3.2-0.4build3)"
+   "package": "libwebp",
+   "sourceFile": "libwebp_1.3.2-0.4build3.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file libwebp_1.3.2-0.4build3.src.tar (the Ubuntu 24.04 source package libwebp 1.3.2-0.4build3; also from Ubuntu: apt-get source libwebp=1.3.2-0.4build3)"
   },
   {
    "name": "libxcb",
    "version": "1.15-1ubuntu2",
    "license": "MIT (X11 style)",
    "where": "libxcb-glx.so.0, libxcb-randr.so.0, libxcb-render.so.0, libxcb-shape.so.0, libxcb-shm.so.0, libxcb-sync.so.1, libxcb-xfixes.so.0, libxcb-xkb.so.1",
+   "files": [
+    "usr/lib/libxcb-glx.so.0",
+    "usr/lib/libxcb-randr.so.0",
+    "usr/lib/libxcb-render.so.0",
+    "usr/lib/libxcb-shape.so.0",
+    "usr/lib/libxcb-shm.so.0",
+    "usr/lib/libxcb-sync.so.1",
+    "usr/lib/libxcb-xfixes.so.0",
+    "usr/lib/libxcb-xkb.so.1"
+   ],
    "text": "ubuntu-libxcb.txt",
-   "source": "Ubuntu 24.04 source package libxcb 1.15-1ubuntu2 (apt-get source libxcb=1.15-1ubuntu2; https://launchpad.net/ubuntu/+source/libxcb/1.15-1ubuntu2)"
+   "package": "libxcb",
+   "sourceFile": "libxcb_1.15-1ubuntu2.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file libxcb_1.15-1ubuntu2.src.tar (the Ubuntu 24.04 source package libxcb 1.15-1ubuntu2; also from Ubuntu: apt-get source libxcb=1.15-1ubuntu2)"
   },
   {
    "name": "libxkbcommon",
    "version": "1.6.0-1build1",
    "license": "MIT (X11 style)",
    "where": "libxkbcommon-x11.so.0, libxkbcommon.so.0",
+   "files": [
+    "usr/lib/libxkbcommon-x11.so.0",
+    "usr/lib/libxkbcommon.so.0"
+   ],
    "text": "ubuntu-libxkbcommon.txt",
-   "source": "Ubuntu 24.04 source package libxkbcommon 1.6.0-1build1 (apt-get source libxkbcommon=1.6.0-1build1; https://launchpad.net/ubuntu/+source/libxkbcommon/1.6.0-1build1)"
+   "package": "libxkbcommon",
+   "sourceFile": "libxkbcommon_1.6.0-1build1.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file libxkbcommon_1.6.0-1build1.src.tar (the Ubuntu 24.04 source package libxkbcommon 1.6.0-1build1; also from Ubuntu: apt-get source libxkbcommon=1.6.0-1build1)"
   },
   {
    "name": "md4c",
    "version": "0.4.8-1build1",
    "license": "Expat, public-domain, BSD-2-clause, CC-BY-SA-4.0",
    "where": "libmd4c.so.0",
+   "files": [
+    "usr/lib/libmd4c.so.0"
+   ],
    "text": "ubuntu-md4c.txt",
-   "source": "Ubuntu 24.04 source package md4c 0.4.8-1build1 (apt-get source md4c=0.4.8-1build1; https://launchpad.net/ubuntu/+source/md4c/0.4.8-1build1)"
+   "package": "md4c",
+   "sourceFile": "md4c_0.4.8-1build1.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file md4c_0.4.8-1build1.src.tar (the Ubuntu 24.04 source package md4c 0.4.8-1build1; also from Ubuntu: apt-get source md4c=0.4.8-1build1)"
   },
   {
    "name": "openjpeg2",
    "version": "2.5.0-2ubuntu0.5",
    "license": "BSD-2, MIT, BSD-3, public-domain, LIBPNG, ZLIB, LIBTIFF, LIBTIFF-PIXAR ...",
    "where": "libopenjp2.so.7",
+   "files": [
+    "usr/lib/libopenjp2.so.7"
+   ],
    "text": "ubuntu-openjpeg2.txt",
-   "source": "Ubuntu 24.04 source package openjpeg2 2.5.0-2ubuntu0.5 (apt-get source openjpeg2=2.5.0-2ubuntu0.5; https://launchpad.net/ubuntu/+source/openjpeg2/2.5.0-2ubuntu0.5)"
+   "package": "openjpeg2",
+   "sourceFile": "openjpeg2_2.5.0-2ubuntu0.5.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file openjpeg2_2.5.0-2ubuntu0.5.src.tar (the Ubuntu 24.04 source package openjpeg2 2.5.0-2ubuntu0.5; also from Ubuntu: apt-get source openjpeg2=2.5.0-2ubuntu0.5)"
   },
   {
    "name": "pcre2",
    "version": "10.42-4ubuntu2.1",
    "license": "BSD-3-clause-Cambridge with BINARY LIBRARY-LIKE PACKAGES exception, BSD-3-clause, X11, BSD-2-clause, public-domain",
    "where": "libpcre2-16.so.0",
+   "files": [
+    "usr/lib/libpcre2-16.so.0"
+   ],
    "text": "ubuntu-pcre2.txt",
-   "source": "Ubuntu 24.04 source package pcre2 10.42-4ubuntu2.1 (apt-get source pcre2=10.42-4ubuntu2.1; https://launchpad.net/ubuntu/+source/pcre2/10.42-4ubuntu2.1)"
+   "package": "pcre2",
+   "sourceFile": "pcre2_10.42-4ubuntu2.1.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file pcre2_10.42-4ubuntu2.1.src.tar (the Ubuntu 24.04 source package pcre2 10.42-4ubuntu2.1; also from Ubuntu: apt-get source pcre2=10.42-4ubuntu2.1)"
   },
   {
    "name": "qt6-base",
    "version": "6.4.2+dfsg-21.1build5",
    "license": "LGPL-3 or GPL-2, GFDL-NIV-1.3, GPL-3 with Qt-1.0 exception, BSD-3-clause, Expat, GPL-3, Boost-1.0, Apache-2.0 or Expat ...",
    "where": "libQt6Core.so.6, libQt6DBus.so.6, libQt6Gui.so.6, libQt6Network.so.6, libQt6OpenGL.so.6, libQt6PrintSupport.so.6, libQt6Widgets.so.6, libQt6XcbQpa.so.6, libQt6Xml.so.6, libcomposeplatforminputcontextplugin.so, libcupsprintersupport.so, libibusplatforminputcontextplugin.so, libqgif.so, libqico.so, libqjpeg.so, libqoffscreen.so, libqxcb-egl-integration.so, libqxcb-glx-integration.so, libqxcb.so, libqxdgdesktopportal.so",
+   "files": [
+    "usr/lib/libQt6Core.so.6",
+    "usr/lib/libQt6DBus.so.6",
+    "usr/lib/libQt6Gui.so.6",
+    "usr/lib/libQt6Network.so.6",
+    "usr/lib/libQt6OpenGL.so.6",
+    "usr/lib/libQt6PrintSupport.so.6",
+    "usr/lib/libQt6Widgets.so.6",
+    "usr/lib/libQt6XcbQpa.so.6",
+    "usr/lib/libQt6Xml.so.6",
+    "usr/plugins/imageformats/libqgif.so",
+    "usr/plugins/imageformats/libqico.so",
+    "usr/plugins/imageformats/libqjpeg.so",
+    "usr/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+    "usr/plugins/platforminputcontexts/libibusplatforminputcontextplugin.so",
+    "usr/plugins/platforms/libqoffscreen.so",
+    "usr/plugins/platforms/libqxcb.so",
+    "usr/plugins/platformthemes/libqxdgdesktopportal.so",
+    "usr/plugins/printsupport/libcupsprintersupport.so",
+    "usr/plugins/xcbglintegrations/libqxcb-egl-integration.so",
+    "usr/plugins/xcbglintegrations/libqxcb-glx-integration.so"
+   ],
    "text": "ubuntu-qt6-base.txt",
-   "source": "Ubuntu 24.04 source package qt6-base 6.4.2+dfsg-21.1build5 (apt-get source qt6-base=6.4.2+dfsg-21.1build5; https://launchpad.net/ubuntu/+source/qt6-base/6.4.2+dfsg-21.1build5)"
+   "package": "qt6-base",
+   "sourceFile": "qt6-base_6.4.2_dfsg-21.1build5.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file qt6-base_6.4.2_dfsg-21.1build5.src.tar (the Ubuntu 24.04 source package qt6-base 6.4.2+dfsg-21.1build5; also from Ubuntu: apt-get source qt6-base=6.4.2+dfsg-21.1build5)"
   },
   {
    "name": "qt6-imageformats",
    "version": "6.4.2-5build2",
    "license": "LGPL-3 or GPL-2, GFDL-NIV-1.3, GPL-3 with Qt-1.0 exception, BSD-libtiff, BSD-3-clause, LGPL-3, GPL-2",
    "where": "libqwebp.so",
+   "files": [
+    "usr/plugins/imageformats/libqwebp.so"
+   ],
    "text": "ubuntu-qt6-imageformats.txt",
-   "source": "Ubuntu 24.04 source package qt6-imageformats 6.4.2-5build2 (apt-get source qt6-imageformats=6.4.2-5build2; https://launchpad.net/ubuntu/+source/qt6-imageformats/6.4.2-5build2)"
+   "package": "qt6-imageformats",
+   "sourceFile": "qt6-imageformats_6.4.2-5build2.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file qt6-imageformats_6.4.2-5build2.src.tar (the Ubuntu 24.04 source package qt6-imageformats 6.4.2-5build2; also from Ubuntu: apt-get source qt6-imageformats=6.4.2-5build2)"
   },
   {
    "name": "qt6-svg",
    "version": "6.4.2-4ubuntu3",
    "license": "LGPL-3 or GPL-2, GFDL-NIV-1.3, BSD-3-clause, BSD-3-clause and Expat, LGPL-3 or GPL-2, and HPND-sell-variant, GPL-3 with Qt-1.0 exception, HPND-sell-variant, GPL-2 ...",
    "where": "libQt6Svg.so.6, libqsvg.so, libqsvgicon.so",
+   "files": [
+    "usr/lib/libQt6Svg.so.6",
+    "usr/plugins/iconengines/libqsvgicon.so",
+    "usr/plugins/imageformats/libqsvg.so"
+   ],
    "text": "ubuntu-qt6-svg.txt",
-   "source": "Ubuntu 24.04 source package qt6-svg 6.4.2-4ubuntu3 (apt-get source qt6-svg=6.4.2-4ubuntu3; https://launchpad.net/ubuntu/+source/qt6-svg/6.4.2-4ubuntu3)"
+   "package": "qt6-svg",
+   "sourceFile": "qt6-svg_6.4.2-4ubuntu3.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file qt6-svg_6.4.2-4ubuntu3.src.tar (the Ubuntu 24.04 source package qt6-svg 6.4.2-4ubuntu3; also from Ubuntu: apt-get source qt6-svg=6.4.2-4ubuntu3)"
   },
   {
    "name": "qt6-wayland",
    "version": "6.4.2-5build3",
    "license": "LGPL-3 or GPL-2, BSD-3-clause, GPL-3 with Qt-1.0 exception, GPL-3, GFDL-NIV-1.3, Expat, HPND, GPL-2 ...",
    "where": "libQt6WaylandClient.so.6, libQt6WaylandEglClientHwIntegration.so.6, libQt6WlShellIntegration.so.6, libbradient.so, libdmabuf-server.so, libdrm-egl-server.so, libfullscreen-shell-v1.so, libivi-shell.so, libqt-plugin-wayland-egl.so, libqt-shell.so, libqwayland-egl.so, libqwayland-generic.so, libshm-emulation-server.so, libvulkan-server.so, libwl-shell-plugin.so, libxdg-shell.so",
+   "files": [
+    "usr/lib/libQt6WaylandClient.so.6",
+    "usr/lib/libQt6WaylandEglClientHwIntegration.so.6",
+    "usr/lib/libQt6WlShellIntegration.so.6",
+    "usr/plugins/platforms/libqwayland-egl.so",
+    "usr/plugins/platforms/libqwayland-generic.so",
+    "usr/plugins/wayland-decoration-client/libbradient.so",
+    "usr/plugins/wayland-graphics-integration-client/libdmabuf-server.so",
+    "usr/plugins/wayland-graphics-integration-client/libdrm-egl-server.so",
+    "usr/plugins/wayland-graphics-integration-client/libqt-plugin-wayland-egl.so",
+    "usr/plugins/wayland-graphics-integration-client/libshm-emulation-server.so",
+    "usr/plugins/wayland-graphics-integration-client/libvulkan-server.so",
+    "usr/plugins/wayland-shell-integration/libfullscreen-shell-v1.so",
+    "usr/plugins/wayland-shell-integration/libivi-shell.so",
+    "usr/plugins/wayland-shell-integration/libqt-shell.so",
+    "usr/plugins/wayland-shell-integration/libwl-shell-plugin.so",
+    "usr/plugins/wayland-shell-integration/libxdg-shell.so"
+   ],
    "text": "ubuntu-qt6-wayland.txt",
-   "source": "Ubuntu 24.04 source package qt6-wayland 6.4.2-5build3 (apt-get source qt6-wayland=6.4.2-5build3; https://launchpad.net/ubuntu/+source/qt6-wayland/6.4.2-5build3)"
+   "package": "qt6-wayland",
+   "sourceFile": "qt6-wayland_6.4.2-5build3.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file qt6-wayland_6.4.2-5build3.src.tar (the Ubuntu 24.04 source package qt6-wayland 6.4.2-5build3; also from Ubuntu: apt-get source qt6-wayland=6.4.2-5build3)"
   },
   {
    "name": "qt6-webengine",
    "version": "6.4.2-final+dfsg-12ubuntu9",
    "license": "LGPL-3 or GPL-2, LGPL-3, GPL-3 with Qt-1.0 exception, LGPL-2+, GFDL-NIV-1.3, BSD-3-clause, Apache-2.0, urn:dje:license:public-domain ...",
    "where": "libQt6Pdf.so.6, libQt6PdfWidgets.so.6",
+   "files": [
+    "usr/lib/libQt6Pdf.so.6",
+    "usr/lib/libQt6PdfWidgets.so.6"
+   ],
    "text": "ubuntu-qt6-webengine.txt",
-   "source": "Ubuntu 24.04 source package qt6-webengine 6.4.2-final+dfsg-12ubuntu9 (apt-get source qt6-webengine=6.4.2-final+dfsg-12ubuntu9; https://launchpad.net/ubuntu/+source/qt6-webengine/6.4.2-final+dfsg-12ubuntu9)"
+   "package": "qt6-webengine",
+   "sourceFile": "qt6-webengine_6.4.2-final_dfsg-12ubuntu9.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file qt6-webengine_6.4.2-final_dfsg-12ubuntu9.src.tar (the Ubuntu 24.04 source package qt6-webengine 6.4.2-final+dfsg-12ubuntu9; also from Ubuntu: apt-get source qt6-webengine=6.4.2-final+dfsg-12ubuntu9)"
   },
   {
    "name": "wayland",
    "version": "1.22.0-2.1build1",
    "license": "X11",
    "where": "libwayland-cursor.so.0, libwayland-egl.so.1",
+   "files": [
+    "usr/lib/libwayland-cursor.so.0",
+    "usr/lib/libwayland-egl.so.1"
+   ],
    "text": "ubuntu-wayland.txt",
-   "source": "Ubuntu 24.04 source package wayland 1.22.0-2.1build1 (apt-get source wayland=1.22.0-2.1build1; https://launchpad.net/ubuntu/+source/wayland/1.22.0-2.1build1)"
+   "package": "wayland",
+   "sourceFile": "wayland_1.22.0-2.1build1.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file wayland_1.22.0-2.1build1.src.tar (the Ubuntu 24.04 source package wayland 1.22.0-2.1build1; also from Ubuntu: apt-get source wayland=1.22.0-2.1build1)"
   },
   {
    "name": "xcb-util",
    "version": "0.4.0-1build3",
    "license": "MIT, GPL-2+",
    "where": "libxcb-util.so.1",
+   "files": [
+    "usr/lib/libxcb-util.so.1"
+   ],
    "text": "ubuntu-xcb-util.txt",
-   "source": "Ubuntu 24.04 source package xcb-util 0.4.0-1build3 (apt-get source xcb-util=0.4.0-1build3; https://launchpad.net/ubuntu/+source/xcb-util/0.4.0-1build3)"
+   "package": "xcb-util",
+   "sourceFile": "xcb-util_0.4.0-1build3.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file xcb-util_0.4.0-1build3.src.tar (the Ubuntu 24.04 source package xcb-util 0.4.0-1build3; also from Ubuntu: apt-get source xcb-util=0.4.0-1build3)"
   },
   {
    "name": "xcb-util-image",
    "version": "0.4.0-2build1",
    "license": "MIT/X11, GPL-2+",
    "where": "libxcb-image.so.0",
+   "files": [
+    "usr/lib/libxcb-image.so.0"
+   ],
    "text": "ubuntu-xcb-util-image.txt",
-   "source": "Ubuntu 24.04 source package xcb-util-image 0.4.0-2build1 (apt-get source xcb-util-image=0.4.0-2build1; https://launchpad.net/ubuntu/+source/xcb-util-image/0.4.0-2build1)"
+   "package": "xcb-util-image",
+   "sourceFile": "xcb-util-image_0.4.0-2build1.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file xcb-util-image_0.4.0-2build1.src.tar (the Ubuntu 24.04 source package xcb-util-image 0.4.0-2build1; also from Ubuntu: apt-get source xcb-util-image=0.4.0-2build1)"
   },
   {
    "name": "xcb-util-keysyms",
    "version": "0.4.0-1build4",
    "license": "MIT/X11, GPL-2+",
    "where": "libxcb-keysyms.so.1",
+   "files": [
+    "usr/lib/libxcb-keysyms.so.1"
+   ],
    "text": "ubuntu-xcb-util-keysyms.txt",
-   "source": "Ubuntu 24.04 source package xcb-util-keysyms 0.4.0-1build4 (apt-get source xcb-util-keysyms=0.4.0-1build4; https://launchpad.net/ubuntu/+source/xcb-util-keysyms/0.4.0-1build4)"
+   "package": "xcb-util-keysyms",
+   "sourceFile": "xcb-util-keysyms_0.4.0-1build4.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file xcb-util-keysyms_0.4.0-1build4.src.tar (the Ubuntu 24.04 source package xcb-util-keysyms 0.4.0-1build4; also from Ubuntu: apt-get source xcb-util-keysyms=0.4.0-1build4)"
   },
   {
    "name": "xcb-util-renderutil",
    "version": "0.3.9-1build4",
    "license": "MIT/X Consortium License, GPL-2+",
    "where": "libxcb-render-util.so.0",
+   "files": [
+    "usr/lib/libxcb-render-util.so.0"
+   ],
    "text": "ubuntu-xcb-util-renderutil.txt",
-   "source": "Ubuntu 24.04 source package xcb-util-renderutil 0.3.9-1build4 (apt-get source xcb-util-renderutil=0.3.9-1build4; https://launchpad.net/ubuntu/+source/xcb-util-renderutil/0.3.9-1build4)"
+   "package": "xcb-util-renderutil",
+   "sourceFile": "xcb-util-renderutil_0.3.9-1build4.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file xcb-util-renderutil_0.3.9-1build4.src.tar (the Ubuntu 24.04 source package xcb-util-renderutil 0.3.9-1build4; also from Ubuntu: apt-get source xcb-util-renderutil=0.3.9-1build4)"
   },
   {
    "name": "xcb-util-wm",
    "version": "0.4.1-1.1build3",
    "license": "MIT/X Consortium License, GPL-2+",
    "where": "libxcb-icccm.so.4",
+   "files": [
+    "usr/lib/libxcb-icccm.so.4"
+   ],
    "text": "ubuntu-xcb-util-wm.txt",
-   "source": "Ubuntu 24.04 source package xcb-util-wm 0.4.1-1.1build3 (apt-get source xcb-util-wm=0.4.1-1.1build3; https://launchpad.net/ubuntu/+source/xcb-util-wm/0.4.1-1.1build3)"
+   "package": "xcb-util-wm",
+   "sourceFile": "xcb-util-wm_0.4.1-1.1build3.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file xcb-util-wm_0.4.1-1.1build3.src.tar (the Ubuntu 24.04 source package xcb-util-wm 0.4.1-1.1build3; also from Ubuntu: apt-get source xcb-util-wm=0.4.1-1.1build3)"
   }
  ],
  "commonLicenses": [
@@ -303,5 +491,9 @@
    "name": "LGPL-3",
    "text": "common-LGPL-3.txt"
   }
- ]
+ ],
+ "runtime": {
+  "commit": "fedfad5",
+  "sourceFile": "appimage-type2-runtime-fedfad5.src.tar"
+ }
 }

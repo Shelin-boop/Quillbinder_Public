@@ -10,6 +10,29 @@ Quillbinder is an independent program. It is not made by or connected with Liter
 the maker of Scrivener and Scapple; it reads and writes their file formats so that projects can move
 between the programs. Scrivener and Scapple are names of products of Literature & Latte.
 
+## Download
+
+The AppImage, the program update and the add-ons are on the
+[Releases page](https://github.com/Shelin-boop/Quillbinder_Public/releases), built by GitHub from this
+source code (`.github/workflows/release.yml`). Download `Quillbinder-<version>-x86_64.AppImage`, make it
+executable (right-click > Properties > Permissions, or `chmod +x`), and start it. Add-ons are installed with
+**File > Install Update or Add-on**. Each release lists SHA-256 checksums of its files.
+
+**Quillbinder is alpha software.** Keep backups of your projects (**File > Back Up > Back Up Now**; the
+automatic backups are set under **File > Options > Backup**), and keep a copy of your manuscripts outside
+the program.
+
+Audio and video: the add-on "Media Playback" plays free formats (MP3, Ogg Vorbis, Opus, FLAC, WAV, WebM with
+VP8 or VP9 ...). H.264, H.265, AAC and the other formats licensed under patents are in the separate,
+optional add-on "Extra Video and Audio Formats".
+
+The source code of every third-party library the AppImage and the add-ons carry, in exactly the versions
+used, is in the release
+[Third-party source code](https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources)
+(`tools/collect-sources.py` makes those files).
+
+## Documentation
+
 The user manual is `docs/manual.md` (shown in the program with F1); `docs/quick-start.md` is the
 Quick Start Guide (Help > Quick Start Guide); the welcome project that opens at the first start is
 written in `resources/welcome`. `docs/CHANGES.md` lists what each version brought; the detailed development log (`docs/status.md`)
@@ -71,6 +94,15 @@ packaging/build-addons.sh build dist          # add-ons in addons/ -> dist/<id>.
 tools/make-package.py bundle --id ... --name ... --version ... a.qbpkg b.qbpkg out.qbpkg
 ```
 
+## Releases (0.50)
+
+A tag `v<version>` (for example `v0.50.0-alpha`, the version and label of `CMakeLists.txt`) pushed to the public
+repository starts `.github/workflows/release.yml` on GitHub: in a clean Ubuntu 24.04 it builds both FFmpeg sets, the
+AppImage, the add-ons and the program update, checks the AppImage (`tools/e2e-appimage.sh`), collects the source
+code of every third-party library (`tools/collect-sources.py`, needs `tools/enable-deb-src.sh`) and publishes the
+release (`tools/publish-release.sh`; the text comes from `tools/release-notes.py` and `docs/CHANGES.md`).
+`tools/collect-licenses.py --refresh` keeps Help > Third-Party Licenses at the library versions of the build system.
+
 `src/text/PageLayout.cpp` calls a private Qt class (page margins without an entry in the undo history). The program must
 therefore run on the Qt it was built with, which is the case for the AppImage and its program updates (same `APP_RUNTIME`);
 `--selftest` tries the call, so an update that does not fit is refused when it is installed.
@@ -94,9 +126,13 @@ QB_PLUGIN_PATH=build/tool-plugins QB_TOOL_DATA=addons/tool-name-generator/payloa
 The name lists are made from the Python package Faker (MIT licence) by `tools/make-name-lists.py`.
 Running instances find each other through local sockets in `$XDG_RUNTIME_DIR/quillbinder/` (`src/ui/ToolHost.h`).
 
-## Audio and video (add-on with libraries of its own)
+## Audio and video (add-ons with libraries of their own)
 
-Playback is the add-on "Media Playback" (`addons/media-playback`). The program only knows the interface
+Playback is the add-on "Media Playback" (`addons/media-playback`). Since 1.1 (program 0.50) its FFmpeg decodes
+free formats only (set "base" of `tools/build-ffmpeg.sh`); the add-on "Extra Video and Audio Formats"
+(`addons/media-extra-formats`) brings the full FFmpeg (set "full"), which Media Playback loads instead while it is
+installed and switched on (`plugins/media/MediaEngine.*`). Without it, a file in a format the base set cannot
+decode gets a message naming its formats and the add-on (`plugins/media/impl/QtPlayer.cpp`). The program only knows the interface
 `src/media/MediaApi.h` and draws the controls (`src/ui/MediaPlayback.*`, `MediaView`, `MainWindowMedia.cpp`);
 the add-on brings two libraries from `plugins/media` (a small plugin the program loads at start, and the
 player built on Qt Multimedia, loaded with the first audio or video file) plus Qt Multimedia 6.4.2 of
@@ -105,8 +141,9 @@ Ubuntu 24.04 and an FFmpeg 6.1.1 that decodes only. To build the add-on:
 ```
 sudo apt install qt6-multimedia-dev nasm          # build time only; the program does not link Qt Multimedia
 tools/get-ffmpeg.sh                                # Ubuntu's FFmpeg 6.1.1 source -> tools/build-ffmpeg.sh -> build/ffmpeg
-                                                   # (applies tools/ffmpeg-patches, about 8 minutes on 2 cores)
-packaging/build-addons.sh build build/addons-dist  # addons/media-playback/stage.sh copies the libraries in
+                                                   # (set "base") and build/ffmpeg-full (set "full"); applies
+                                                   # tools/ffmpeg-patches, about 10 minutes for both on 2 cores
+packaging/build-addons.sh build build/addons-dist  # addons/media-*/stage.sh copy the libraries in
 ```
 
 Why the parts are as they are (details in `plugins/media/MediaEngine.h` and `tools/build-ffmpeg.sh`):

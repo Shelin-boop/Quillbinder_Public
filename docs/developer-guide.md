@@ -127,9 +127,11 @@ Plugins are loaded once at program start, so an add-on with plugins needs a rest
 | `tools/e2e-appimage.sh <AppImage> <update.qbpkg>` | end-to-end check with the real AppImage: install, `--versions`, `--selftest`, a cut-off package, the first start with the welcome project and printing its first document, the second start, a Scrivener sample (`QB_SCRIV_SAMPLE`), the way back (`QB_PREV_UPDATE`); `-` instead of the package checks a new AppImage alone |
 | `tools/run-all-tests.sh <out> offscreen\|x11` | every test suite, one line each |
 | `tools/cloud-setup.sh` | the packages for a fresh Ubuntu 24.04 (build and tests) |
-| `tools/get-ffmpeg.sh`, `tools/build-ffmpeg.sh` | the FFmpeg of the Media Playback add-on |
+| `tools/get-ffmpeg.sh`, `tools/build-ffmpeg.sh` | the two FFmpeg sets of the media add-ons: "base" (free formats, Media Playback) and "full" (every decoder, Extra Video and Audio Formats) |
 | `tools/qb-template.cpp` | project template files from outlines (the builder is `src/core/OutlineProject.*`, shared with the welcome project) |
-| `tools/collect-licenses.py` | the license texts of every library the AppImage carries (`resources/licenses`, Help > Third-Party Licenses); `--check` is run by `packaging/build-appimage.sh` |
+| `tools/collect-licenses.py` | the license texts of every library the AppImage carries (`resources/licenses`, Help > Third-Party Licenses) with the name of each library's source file; `--refresh` (versions of the build system and the runtime's commit) and `--check` (same versions as the AppDir) are run by `packaging/build-appimage.sh` |
+| `tools/collect-sources.py <out>` | the source code of every third-party part of the AppImage and the add-ons, one `.src.tar` per part, for the release "Third-party source code" (needs `tools/enable-deb-src.sh`) |
+| `tools/release-notes.py`, `tools/publish-release.sh` | the text of a release and its publication on the project page (run by `.github/workflows/release.yml`) |
 | `tools/make-item-icons.py` | draws the document icons of Documents > Change Icon (0.17) |
 | `tools/gen-resources.py`, `tools/update-icon-index.sh` | the resource list after adding icons or documents |
 
@@ -150,6 +152,7 @@ Example: a bundle of a program update and an add-on
 4. Run the end-to-end check with the real AppImage (`tools/e2e-appimage.sh`; the AppImage 0.40.0 alpha and earlier packages are on the branch `assets` of the repository; `tools/e2e-old-version.sh` checks that an older AppImage keeps the objects of a project).
 5. Commit on a branch, open a pull request, merge it; put the package on the branch `assets` as well.
 6. The user installs the package with **File > Install Update or Add-on**.
+7. A public release (0.50): copy the tree into the public repository (without `docs/status.md`), commit, and push a tag `v<version>-<label>` (for example `v0.50.0-alpha`). `.github/workflows/release.yml` then builds everything on GitHub in a clean Ubuntu 24.04, checks the AppImage, collects the third-party source code and publishes the release with the AppImage, the program update, the add-ons, the checksums and the list of source files; the source files go into the release "Third-party source code" (added once, never removed). Releases cannot be made from a Claude Code session; the workflow makes them with GitHub's own token.
 
 ---
 

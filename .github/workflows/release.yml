@@ -1,0 +1,90 @@
+# Builds Quillbinder on GitHub and publishes a release (0.50).
+#
+# Runs when a tag v<version> is pushed (v0.50.0-alpha: the version and the label of
+# CMakeLists.txt), or by hand: Actions > Release > Run workflow, with the tag. Everything is built
+# from the source of that tag in a clean Ubuntu 24.04 (the system the AppImage's libraries come
+# from): both FFmpeg sets, the AppImage, the add-ons and the program update. The AppImage is
+# checked end to end, the source code of every third-party library is collected, and
+# tools/publish-release.sh puts it all on the Releases page (the library sources into the release
+# "Third-party source code").
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'The tag to build and publish, e.g. v0.50.0-alpha'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    container: ubuntu:24.04
+    timeout-minutes: 300
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - name: Tools to fetch the source
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends git ca-certificates curl gh xz-utils
+          apt-get -y -qq upgrade
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Build tools and the libraries of Ubuntu 24.04
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          bash tools/enable-deb-src.sh
+          bash tools/cloud-setup.sh
+          apt-get -y -qq upgrade
+
+      - name: FFmpeg for the media add-ons (both sets)
+        run: tools/get-ffmpeg.sh
+
+      - name: AppImage
+        run: packaging/build-appimage.sh
+
+      - name: Add-ons and program update
+        env:
+          QB_FFMPEG_DIR: ${{ github.workspace }}/build/ffmpeg
+          QB_FFMPEG_FULL_DIR: ${{ github.workspace }}/build/ffmpeg-full
+        run: |
+          mkdir -p dist
+          packaging/build-addons.sh build-appimage dist
+          mapfile -t NEWS < <(python3 -I tools/release-notes.py --whats-new)
+          BUILD=build-appimage OUT=dist packaging/build-update.sh "${NEWS[@]}"
+          cp build-appimage/*.AppImage dist/
+          ls -la dist
+
+      - name: Check the AppImage
+        run: tools/e2e-appimage.sh dist/*.AppImage - /tmp/e2e
+
+      - name: Third-party source code
+        run: python3 -I tools/collect-sources.py sources
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: tools/publish-release.sh "$TAG" dist sources
+
+      - name: Logs of the check
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: /tmp/e2e
+          if-no-files-found: ignore

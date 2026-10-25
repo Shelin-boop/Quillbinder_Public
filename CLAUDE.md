@@ -27,7 +27,7 @@ changed and what was checked. Preferences:
 ## Hard rules
 
 - **Runtime**: the user runs the AppImage 0.40.0 alpha (2026-10-25; before it 0.30.0 alpha, 0.20.0, 0.16.0
-  and 0.2.0, with the same libraries), runtime id `u2404-qt6.4-r1` (`APP_RUNTIME` in CMakeLists.txt; a new
+  and 0.2.0, with the same libraries; 0.50.0 alpha is published on the project page), runtime id `u2404-qt6.4-r1` (`APP_RUNTIME` in CMakeLists.txt; a new
   AppImage with other libraries needs a new id). Program updates (.qbpkg) run on its libraries:
   build on Ubuntu 24.04 with Ubuntu's Qt 6.4.2, use no Qt API newer than 6.4, and add
   **no new library dependencies**. Something that needs a library goes into an add-on
@@ -107,6 +107,11 @@ changed and what was checked. Preferences:
 5. Commit on a branch, open a pull request, merge when the user agrees. Put the
    update package on the branch `assets` as well (releases cannot be created from a
    Claude Code session). The user installs it with **File > Install Update or Add-on**.
+6. A public release (0.50, when the user asks for one): copy the tracked tree into the public repository
+   `Shelin-boop/Quillbinder_Public` without `docs/status.md` (`git archive HEAD`, never the history: the public
+   repository has a history of its own), commit, and push the tag
+   `v<version>-<label>`. `.github/workflows/release.yml` builds and publishes everything on GitHub
+   (README "Releases"); the session cannot watch the workflow, but the releases API shows the result.
 
 ## Crash and freeze reports (0.19)
 
@@ -174,6 +179,20 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
   Compare and Transfer (`Compare.*` engine, `CompareFiles.*` Word/LibreOffice writers, `MiniXml.*`).
 - `addons/`: add-on packages; `packaging/`: AppImage, update and add-on build scripts;
   `tools/`: helper scripts; `resources/`: icons (`qbicons` themes), templates, manual.
+
+## Release, sources, media formats (0.50)
+
+- Project page: `APP_HOMEPAGE` in CMakeLists.txt (`QB_APP_HOMEPAGE`, `QB_SOURCES_URL` in AppInfo.h). The release
+  `third-party-sources` there holds one `.src.tar` per third-party part (`tools/collect-sources.py`); every entry of
+  `resources/licenses/index.json` names its file (`sourceFile`, `source`), and the add-ons' `stage.sh` write license
+  notes that name theirs. `tools/collect-licenses.py --refresh` (run by `build-appimage.sh`) brings the list to the
+  package versions of the build system and the runtime's commit; `--check` fails when the AppDir differs.
+- Media: `tools/build-ffmpeg.sh <src> <prefix> base|full`; `tools/get-ffmpeg.sh` builds both (`build/ffmpeg`,
+  `build/ffmpeg-full`). "Media Playback" 1.1 carries "base" (free formats only, list in the script); the add-on
+  `media-extra-formats` ("Extra Video and Audio Formats") carries "full" in `media-extra/lib`, which
+  `MediaEngine::preload` loads instead when it is installed and not disabled (`<addons>/state.json`). The player
+  (`impl/QtPlayer.cpp`) looks at a file's streams with FFmpeg first and shows which formats need the extra add-on.
+  `qb_m11_tests` installs both add-ons; `qb_v050_tests` checks the split (child runs: base, extra, off, removed).
 
 ## Welcome project, licenses, names (0.40)
 

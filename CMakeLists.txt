@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.16)
 # ---------------------------------------------------------------------------
 set(APP_NAME "Quillbinder")
 set(APP_ID   "quillbinder")
-set(APP_VERSION "0.40.0")
+set(APP_VERSION "0.50.0")
 # A word shown after the version number in Help > About, System Information and the
 # AppImage's file name ("alpha", "beta"; empty for a normal release). It is never part
 # of version comparisons: the program, the loader and the packages compare APP_VERSION only.
@@ -21,6 +21,9 @@ endif()
 # (.qbpkg "core" packages) only run on the runtime they were built for;
 # change it whenever the bundled libraries change (new Qt, new modules).
 set(APP_RUNTIME "u2404-qt6.4-r1")
+# The public project page (0.50): downloads, and the release "Third-party source code" with the
+# source of every library the AppImage and the add-ons carry (Help > Third-Party Licenses).
+set(APP_HOMEPAGE "https://github.com/Shelin-boop/Quillbinder_Public")
 
 project(${APP_ID} VERSION ${APP_VERSION} LANGUAGES CXX)
 
@@ -76,6 +79,7 @@ install(TARGETS ${APP_ID} RUNTIME DESTINATION bin)
 install(FILES packaging/${APP_ID}.desktop DESTINATION share/applications)
 install(FILES resources/app/${APP_ID}.svg DESTINATION share/icons/hicolor/scalable/apps)
 install(FILES packaging/${APP_ID}-mime.xml DESTINATION share/mime/packages)
+install(FILES packaging/${APP_ID}.metainfo.xml DESTINATION share/metainfo RENAME io.github.shelin_boop.Quillbinder.metainfo.xml)
 install(DIRECTORY plugins/command/ DESTINATION share/${APP_ID}/plugins FILES_MATCHING PATTERN "*.json")
 # Make the command plugins available when running from the build folder.
 file(COPY plugins/command/ DESTINATION ${CMAKE_BINARY_DIR}/plugins FILES_MATCHING PATTERN "*.json")

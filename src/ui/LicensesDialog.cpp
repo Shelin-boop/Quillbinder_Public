@@ -40,11 +40,14 @@ void showThirdPartyLicenses(QWidget *parent)
             QObject::tr("<p>%1 itself is under the <b>Zero-Clause BSD license (0BSD)</b>: anyone may use, copy, change and "
                         "pass it on, without conditions. The AppImage also carries parts of other projects, each under its "
                         "own license; they are listed here with their full license texts (the same texts are in the AppImage "
-                        "under <i>usr/share/doc/quillbinder/licenses</i>). The libraries are those of Ubuntu 24.04; the "
-                        "source code of each is available from Ubuntu as named below its license. You may replace the "
-                        "libraries inside the AppImage with your own builds. Add-ons carry their own license files.</p>")
-                .arg(QLatin1String(QB_APP_NAME)),
+                        "under <i>usr/share/doc/quillbinder/licenses</i>). The libraries are those of Ubuntu 24.04. The "
+                        "source code of each, exactly in the version used, is in the release <a href=\"%2\">Third-party "
+                        "source code</a> of the project page, in the file named below its license (Ubuntu's archive has "
+                        "it as well). You may replace the libraries inside the AppImage with your own builds. Add-ons carry "
+                        "their own license files.</p>")
+                .arg(QLatin1String(QB_APP_NAME), QLatin1String(QB_SOURCES_URL)),
             win);
+        intro->setOpenExternalLinks(true);
         intro->setWordWrap(true);
         intro->setTextFormat(Qt::RichText);
         l->addWidget(intro);

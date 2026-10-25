@@ -38,6 +38,12 @@ fetch appimagetool-x86_64.AppImage \
 fetch runtime-x86_64 \
     https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64
 
+# ---------------------------------------------------------------- licenses (0.50)
+# The license list (Help > Third-Party Licenses) names the source of exactly the libraries
+# this system has and of this runtime; brought up to date before the program is built.
+python3 -I "$ROOT/tools/collect-licenses.py" --refresh "$ROOT/resources/licenses" "$TOOLS/runtime-x86_64"
+python3 -I "$ROOT/tools/gen-resources.py" > /dev/null
+
 # ---------------------------------------------------------------- build
 cmake -S "$ROOT" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release -DQB_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/usr
 cmake --build "$BUILD" -j"$(nproc)"

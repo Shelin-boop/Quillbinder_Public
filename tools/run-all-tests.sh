@@ -3,13 +3,15 @@
 #   tools/run-all-tests.sh [output dir] [offscreen|x11]
 # Needs a build in build/ (cmake -S . -B build && cmake --build build -j"$(nproc)").
 # Logs: <output dir>/<suite>.<mode>.log, screenshots: <output dir>/shots-<suite>/.
-# The add-on packages (Media Playback needs FFmpeg) are built first when an FFmpeg
-# prefix is there: QB_FFMPEG_DIR (default build/ffmpeg, see tools/get-ffmpeg.sh).
+# The add-on packages (the media add-ons need FFmpeg) are built first when an FFmpeg
+# prefix is there: QB_FFMPEG_DIR and QB_FFMPEG_FULL_DIR (default build/ffmpeg and
+# build/ffmpeg-full, see tools/get-ffmpeg.sh).
 # A suite passes when its last line says "0 failure(s)" and rc=0.
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT=${1:-$ROOT/build/test-results}
 MODE=${2:-offscreen}
 export QB_FFMPEG_DIR=${QB_FFMPEG_DIR:-$ROOT/build/ffmpeg}
+export QB_FFMPEG_FULL_DIR=${QB_FFMPEG_FULL_DIR:-$ROOT/build/ffmpeg-full}   # (0.50: the add-on "Extra Video and Audio Formats")
 mkdir -p "$OUT"
 OUT=$(cd "$OUT" && pwd)
 cd "$ROOT" || exit 1
@@ -78,5 +80,6 @@ done
 [ -x $B/tests/qb_v0211_tests ] && run v0211 $B/tests/qb_v0211_tests "$OUT/shots-v0211"
 [ -x $B/tests/qb_v0212_tests ] && run v0212 $B/tests/qb_v0212_tests "$OUT/shots-v0212"
 [ -x $B/tests/qb_v040_tests ] && run v040 $B/tests/qb_v040_tests "$OUT/shots-v040"
+[ -x $B/tests/qb_v050_tests ] && run v050 $B/tests/qb_v050_tests "$OUT/shots-v050"
 [ -x $B/tests/qb_menu_audit ] && run menu_audit $B/tests/qb_menu_audit "$OUT/shots-audit"
 exit 0

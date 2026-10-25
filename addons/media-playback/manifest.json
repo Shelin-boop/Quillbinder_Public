@@ -1,9 +1,12 @@
 {
   "id": "media-playback",
   "name": "Media Playback",
-  "version": "1.0",
-  "description": "Plays audio and video files of the binder inside the program: play controls in the editor's footer bar, Navigate > Media with keyboard shortcuts (Ctrl+Return plays or pauses while you type in the other editor), pause and rewind for transcription, playing speed, timestamps. Brings Qt Multimedia 6.4.2 and a decoding-only FFmpeg 6.1.1 (LGPL), so no other program is needed; GStreamer of the system can be chosen instead (Options > Behaviors > Playback).",
+  "version": "1.1",
+  "description": "Plays audio and video files of the binder inside the program: play controls in the editor's footer bar, Navigate > Media with keyboard shortcuts (Ctrl+Return plays or pauses while you type in the other editor), pause and rewind for transcription, playing speed, timestamps. Brings Qt Multimedia 6.4.2 and a decoding-only FFmpeg 6.1.1 (LGPL) for free formats (MP3, Ogg Vorbis, Opus, FLAC, WAV, WebM with VP8 or VP9, Theora ...), so no other program is needed. H.264, H.265, AAC and the other formats licensed under patents come with the separate add-on \"Extra Video and Audio Formats\"; GStreamer of the system can be chosen instead (Options > Behaviors > Playback).",
   "author": "Quillbinder",
   "minApp": "0.12.0",
-  "whatsNew": ["First version"]
+  "whatsNew": [
+    "Free formats only: H.264, H.265, AAC and the other formats licensed under patents are now in the separate add-on \"Extra Video and Audio Formats\"",
+    "A file in such a format says which add-on plays it"
+  ]
 }

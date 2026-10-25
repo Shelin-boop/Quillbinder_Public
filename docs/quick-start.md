@@ -74,7 +74,7 @@
 
 ### Updates and add-ons
 
-Updates and extensions come as small package files (*.qbpkg*). Install them with **File > Install Update or Add-on…** (or double-click the file). **Help > Add-on Manager…** switches add-ons on and off and goes back to an earlier program version if an update does not suit you. Add-ons include extra themes, project templates, compile formats, the Name Generator, the Scratch Pad, Text Statistics, audio and video playback, and the import of web pages and old Word files.
+Updates and extensions come as small package files (*.qbpkg*), on the Releases page of the project page (https://github.com/Shelin-boop/Quillbinder_Public/releases) next to the AppImage. Install them with **File > Install Update or Add-on…** (or double-click the file). **Help > Add-on Manager…** switches add-ons on and off and goes back to an earlier program version if an update does not suit you. Add-ons include extra themes, project templates, compile formats, the Name Generator, the Scratch Pad, Text Statistics, audio and video playback (free formats; H.264, AAC and the like with the separate add-on "Extra Video and Audio Formats"), and the import of web pages and old Word files.
 
 ---
 

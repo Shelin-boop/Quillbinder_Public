@@ -17,13 +17,17 @@ and in the program under **Help > Third-Party Licenses** (also a button of **Hel
 | ICU, libpng, libjpeg-turbo, libwebp, OpenJPEG, PCRE2, double-conversion, md4c, graphite2, libb2, libgomp (GCC runtime), libxkbcommon, Wayland and XCB libraries | carried by the AppImage (taken from Ubuntu 24.04 by linuxdeploy) | their own licenses (MIT, BSD, Zlib, LGPL and others; GCC Runtime Library Exception for libgomp); each with its Ubuntu copyright file in `resources/licenses` |
 | AppImage type2-runtime (the start code of the AppImage file), with musl libc, libfuse, squashfuse, zstd and zlib linked into it | the beginning of the AppImage file | MIT; musl MIT, libfuse LGPL-2.1, squashfuse BSD-2-Clause, zstd BSD-3-Clause or GPL-2.0, zlib Zlib (`packaging/licenses`) |
 | Breeze icons (a subset) | `resources/icons/` | LGPL-3.0-or-later, see `resources/icons/COPYING-BREEZE` |
-| FFmpeg 6.1.1 (decoding only, built without GPL parts) | the add-on "Media Playback" (`addons/media-playback`, built by `tools/build-ffmpeg.sh`) | LGPL-2.1-or-later; the add-on carries its license texts |
+| FFmpeg 6.1.1 (decoding only, built without GPL parts) | the add-ons "Media Playback" (free formats only) and "Extra Video and Audio Formats" (every decoder; `addons/media-*`, built by `tools/build-ffmpeg.sh`) | LGPL-2.1-or-later; the add-ons carry their license texts |
 | Name lists of the Name Generator | the add-on "Name Generator", made from the Python package Faker by `tools/make-name-lists.py` | MIT (`names/LICENSE-Faker.txt` in the add-on) |
 | linuxdeploy, linuxdeploy-plugin-qt, appimagetool | used to build the AppImage, not part of the program | MIT |
 
-The source code of the Ubuntu libraries is available from Ubuntu: the name and version of each source
-package are listed in Help > Third-Party Licenses (`apt-get source <package>=<version>`, or
-https://launchpad.net/ubuntu/+source/<package>/<version>). The libraries inside the AppImage may be
+The source code of every one of these parts, exactly in the version the AppImage and the add-ons
+carry, is in the release "Third-party source code" of the project page:
+https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources (one file per
+Ubuntu source package, FFmpeg with the patch and build scripts of the add-ons, the AppImage runtime
+with the libraries it links in; `tools/collect-sources.py` makes them, the release workflow publishes
+them). Help > Third-Party Licenses names the file for each library; Ubuntu's archive has the Ubuntu
+packages as well (`apt-get source <package>=<version>`). The libraries inside the AppImage may be
 replaced with other builds of the same version (extract the AppImage with `--appimage-extract`).
 
 Scrivener and Scapple are names of products of Literature & Latte. Quillbinder is an independent

@@ -292,8 +292,8 @@ static int runGStreamer()
     media::EngineInterface *e = playback::engine();
     check(e && e->isStarted() && e->startedBackend() == QLatin1String("gstreamer") && e->description().contains(QLatin1String("GStreamer")),
           QStringLiteral("the engine runs with GStreamer when the options say so"), e ? e->description() : QString());
-    check(!mapsContain(QStringLiteral("media/lib/libavcodec.so.60")),
-          QStringLiteral("with GStreamer the add-on's FFmpeg is not loaded (the system's gst-libav keeps its own)"));
+    check(!mapsContain(QStringLiteral("media/lib/libavcodec.so.60")) && !mapsContain(QStringLiteral("media-extra/lib/libavcodec.so.60")),
+          QStringLiteral("with GStreamer the add-ons' FFmpeg is not loaded (the system's gst-libav keeps its own)"));
     v->play();
     const bool moving = waitFor([&] { return v->position() > 700; }, 6000);
     QRgb c = 0;
@@ -433,6 +433,10 @@ int main(int argc, char **argv)
                   && files.contains(QStringLiteral("media/qtplugins/multimedia/libffmpegmediaplugin.so"))
                   && files.contains(QStringLiteral("media/lib/fallback/libva.so.2")) && files.contains(QStringLiteral("media/licenses/README.txt")),
               QStringLiteral("the add-on brings its plugin, the player, Qt Multimedia, FFmpeg, the fallback libva and the licences"));
+        // 0.50: Media Playback decodes free formats only; this suite plays H.264, AAC and MPEG-4 too, so it
+        // installs the separate add-on with the full FFmpeg as well (qb_v050_tests checks the free set alone)
+        const QString extra = buildDir + QStringLiteral("/addons-dist/media-extra-formats.qbpkg");
+        check(addons::install(extra, &log, &err, &restart), QStringLiteral("the add-on \"Extra Video and Audio Formats\" installs"), err);
     }
     compile::PluginManager::instance().load();
     media::EngineInterface *engine = playback::engine();
@@ -525,9 +529,11 @@ int main(int argc, char **argv)
     check(loaded && engine->isStarted() && engine->startedBackend() == QLatin1String("ffmpeg"),
           QStringLiteral("selecting an MP3 starts the engine (FFmpeg) and loads the file into the editor's player"),
           engine->description() + QLatin1String(" / ") + v->playerError());
-    check(engine->description().contains(QLatin1String("FFmpeg 6.1.1")) && mapsContain(QStringLiteral("/media/lib/libavcodec.so.60"))
-              && mapsContain(QStringLiteral("/media/lib/libQt6Multimedia.so.6")),
-          QStringLiteral("the add-on's own Qt Multimedia and FFmpeg 6.1.1 are the ones loaded"), engine->description());
+    check(engine->description().contains(QLatin1String("FFmpeg 6.1.1")) && mapsContain(QStringLiteral("/media-extra/lib/libavcodec.so.60"))
+              && !mapsContain(QStringLiteral("/media/lib/libavcodec.so.60")) && mapsContain(QStringLiteral("/media/lib/libQt6Multimedia.so.6"))
+              && engine->description().contains(QLatin1String("extra formats")),
+          QStringLiteral("the add-on's own Qt Multimedia and the full FFmpeg 6.1.1 of \"Extra Video and Audio Formats\" are the ones loaded"),
+          engine->description());
     const bool sound = !engine->description().contains(QLatin1String("no sound output"));
     if (!sound)
         std::printf("      (no sound server: start one, e.g. pulseaudio -D --exit-idle-time=-1)\n");

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream description of Quillbinder (0.50): what software centers and AppImage catalogs show. -->
+<component type="desktop-application">
+  <id>io.github.shelin_boop.Quillbinder</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>0BSD</project_license>
+  <name>Quillbinder</name>
+  <summary>Write, organize and compile long texts</summary>
+  <description>
+    <p>
+      Quillbinder is a writing studio for long texts such as novels, theses and screenplays.
+      It keeps a manuscript as a binder of chapters, scenes and notes, with a corkboard, an
+      outliner, a combined text view, snapshots, targets, mind maps and object sheets for
+      characters and places, and it compiles the manuscript to Word, PDF and EPUB.
+    </p>
+    <p>
+      Quillbinder can open and save projects in Scrivener 3 format (.scriv), so that projects
+      can move between the programs. It is an independent program, not made by or connected
+      with Literature &amp; Latte, the maker of Scrivener.
+    </p>
+    <p>
+      This is an alpha version: keep backups of your projects.
+    </p>
+  </description>
+  <launchable type="desktop-id">quillbinder.desktop</launchable>
+  <url type="homepage">https://github.com/Shelin-boop/Quillbinder_Public</url>
+  <url type="bugtracker">https://github.com/Shelin-boop/Quillbinder_Public/issues</url>
+  <developer id="io.github.shelin_boop">
+    <name>The Quillbinder authors</name>
+  </developer>
+  <categories>
+    <category>Office</category>
+    <category>WordProcessor</category>
+  </categories>
+  <keywords>
+    <keyword>writing</keyword>
+    <keyword>novel</keyword>
+    <keyword>manuscript</keyword>
+    <keyword>book</keyword>
+    <keyword>screenplay</keyword>
+    <keyword>thesis</keyword>
+  </keywords>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.50.0" date="2026-10-25" type="development">
+      <description>
+        <p>First release on the project page: AppImage, add-ons and the source code of every library.</p>
+      </description>
+    </release>
+  </releases>
+</component>

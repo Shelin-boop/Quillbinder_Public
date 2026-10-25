@@ -1,0 +1,9 @@
+{
+  "id": "media-extra-formats",
+  "name": "Extra Video and Audio Formats",
+  "version": "1.0",
+  "description": "Lets the add-on \"Media Playback\" (1.1 or newer) play H.264, H.265 (HEVC), AAC, AC-3, E-AC-3, DTS, MPEG-1/2/4 video, VC-1, Windows Media, AMR and the other formats that are licensed under patents. Brings the full decoding-only FFmpeg 6.1.1 (LGPL); while this add-on is installed and switched on, it is used instead of the FFmpeg of \"Media Playback\", which decodes free formats only (MP3, Ogg Vorbis, Opus, FLAC, WAV, WebM ...). Kept apart so that it can be left out: everything else works without it. Whether a patent license is needed to use these formats depends on the country.",
+  "author": "Quillbinder",
+  "minApp": "0.12.0",
+  "whatsNew": ["First version: the formats that \"Media Playback\" 1.0 played and 1.1 leaves out"]
+}

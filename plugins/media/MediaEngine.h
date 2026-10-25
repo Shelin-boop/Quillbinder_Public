@@ -19,6 +19,12 @@
 //   media/lib/fallback/                   used only if the system has none: libpulse, libva
 //   media/qtplugins/multimedia/           Qt's two backends (ffmpeg, gstreamer)
 // QB_MEDIA_DIR overrides the media/ folder (developers).
+//
+// Since 1.1 (program 0.50) this add-on's FFmpeg decodes free formats only. The add-on
+// "Extra Video and Audio Formats" (id media-extra-formats) brings a full FFmpeg of the same
+// version in <addons>/media-extra-formats/media-extra/lib/; when it is installed and switched
+// on, its libraries are loaded instead (all five, so they always fit together).
+// QB_MEDIA_EXTRA_DIR overrides that folder (empty: none).
 
 #include "media/MediaApi.h"
 
@@ -34,7 +40,7 @@ class MediaEngine : public QObject, public qb::media::EngineInterface
 public:
     QString id() const override { return QStringLiteral("media-playback"); }
     QString name() const override { return tr("Media Playback"); }
-    QString version() const override { return QStringLiteral("1.0"); }
+    QString version() const override { return QStringLiteral("1.1"); }
     QList<qb::media::Backend> backends() const override;
     bool start(const QString &backend, QString *error) override;
     bool isStarted() const override { return m_impl != nullptr; }
@@ -44,6 +50,11 @@ public:
     qb::media::Player *createPlayer() override;
 
     QString mediaDir() const;
+    // media-extra/ of the add-on "Extra Video and Audio Formats", empty when it is not
+    // installed or switched off
+    QString extraDir() const;
+    // where the FFmpeg libraries come from (with a slash at the end)
+    QString ffmpegLibDir() const;
 
 private:
     bool preload(const QString &backend, QString *error);

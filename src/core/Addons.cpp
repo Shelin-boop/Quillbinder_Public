@@ -56,7 +56,7 @@ bool safeRelativePath(const QString &p)
 QStringList summarize(const QList<FileEntry> &files)
 {
     int themes = 0, templates = 0, formats = 0, plugins = 0, dicts = 0, layouts = 0, scripts = 0, names = 0, tutorials = 0,
-        other = 0;
+        mediaExtra = 0, other = 0;
     for (const FileEntry &f : files) {
         if (f.path.startsWith(QLatin1String("themes/")) && f.path.endsWith(QLatin1String(".json")))
             ++themes;
@@ -76,8 +76,10 @@ QStringList summarize(const QList<FileEntry> &files)
             ++names; // name lists of the name generator
         else if (f.path.startsWith(QLatin1String("tutorial/")) && f.path.endsWith(QLatin1String(".zip")))
             ++tutorials; // the interactive tutorial of 0.15 to 0.30, no longer used from 0.40 on
-        else if (f.path.startsWith(QLatin1String("names/")))
-            continue; // licence text
+        else if (f.path.startsWith(QLatin1String("media-extra/lib/")))
+            ++mediaExtra; // the full FFmpeg of "Extra Video and Audio Formats" (0.50)
+        else if (f.path.startsWith(QLatin1String("names/")) || f.path.startsWith(QLatin1String("media-extra/")))
+            continue; // licence texts
         else if (!f.path.startsWith(QLatin1String("dictionaries/")))
             ++other;
     }
@@ -98,6 +100,8 @@ QStringList summarize(const QList<FileEntry> &files)
         out << text::plural(plugins, tr("plugin file"), tr("plugin files"));
     if (dicts)
         out << text::plural(dicts, tr("dictionary"), tr("dictionaries"));
+    if (mediaExtra)
+        out << tr("video and audio formats licensed under patents (for Media Playback 1.1 or newer)");
     if (tutorials)
         out << tr("the old interactive tutorial (no longer used; this add-on can be removed)");
     Q_UNUSED(other);

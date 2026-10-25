@@ -64,6 +64,7 @@
 #include <QTextDocument>
 #include <QTimer>
 #include <QToolButton>
+#include <QVersionNumber>
 #include <cstdio>
 #include <functional>
 
@@ -307,8 +308,11 @@ int main(int argc, char **argv)
     theme::apply();
 
     // ============================================================ version, license, nothing left of the tutorial
-    check(QLatin1String(QB_APP_VERSION) == QLatin1String("0.40.0") && QLatin1String(QB_APP_VERSION_SHOWN) == QLatin1String("0.40.0 alpha"),
-          QStringLiteral("version 0.40.0, shown as \"0.40.0 alpha\""), QStringLiteral(QB_APP_VERSION_SHOWN));
+    // (0.50: the version itself is checked by qb_v050_tests; here: 0.40.0 or newer, with the label shown)
+    check(QVersionNumber::fromString(QLatin1String(QB_APP_VERSION)) >= QVersionNumber(0, 40, 0)
+              && QLatin1String(QB_APP_VERSION_SHOWN) == QLatin1String(QB_APP_VERSION " alpha"),
+          QStringLiteral("version 0.40.0 or newer, shown with its label (\"%1\")").arg(QStringLiteral(QB_APP_VERSION_SHOWN)),
+          QStringLiteral(QB_APP_VERSION_SHOWN));
     {
         const QString lic = QString::fromUtf8(readAll(src + QLatin1String("/LICENSE")));
         check(lic.startsWith(QLatin1String("Copyright (C) 2026 by the Quillbinder authors\n"))
@@ -438,7 +442,7 @@ int main(int argc, char **argv)
         check(about.contains(QLatin1String("0BSD")) && about.contains(QLatin1String("Main Developer: Claude.AI w. Opus 5.5 Extra"))
                   && !about.contains(QLatin1String("Project Manager"))
                   && !about.contains(QLatin1String("MIT")) && about.contains(QLatin1String("not made by or connected with Literature"))
-                  && about.contains(QLatin1String("0.40.0 alpha")),
+                  && about.contains(QLatin1String(QB_APP_VERSION_SHOWN)),
               QStringLiteral("About: version, the 0BSD license, Claude as the only credit, independent of Literature & Latte"), about);
         bool button = false;
         withModal<QMessageBox>(500, [&](QMessageBox *b) {
@@ -493,7 +497,8 @@ int main(int argc, char **argv)
                   && first.contains(QLatin1String("Permission to use, copy, modify")),
               QStringLiteral("Third-Party Licenses: %1 entries, the first is %2 itself with its 0BSD text").arg(names.size()).arg(appName),
               names.join(QLatin1String(", ")));
-        check(qt.contains(QLatin1String("LGPL-3")) && qt.contains(QLatin1String("Source: Ubuntu 24.04 source package qt6-base"))
+        // (0.50: the source is named as a file of the release "Third-party source code", qb_v050_tests checks it)
+        check(qt.contains(QLatin1String("LGPL-3")) && qt.contains(QLatin1String("Ubuntu 24.04 source package qt6-base"))
                   && qt.contains(QLatin1String("libQt6Core.so.6")),
               QStringLiteral("... Qt: its libraries, its license, where its source code is, and Ubuntu's copyright file"), qt.left(600));
         check(lgpl.contains(QLatin1String("GNU LESSER GENERAL PUBLIC LICENSE")) && lgpl.contains(QLatin1String("Version 3")),

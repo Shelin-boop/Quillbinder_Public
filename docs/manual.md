@@ -8,6 +8,12 @@ This manual covers version {{VERSION}}. Press **F1** at any time to open it.
 
 ## 1. First steps
 
+### Getting the program
+
+{{APP}} is downloaded from the **Releases** page of its project page, https://github.com/Shelin-boop/Quillbinder_Public/releases. Each release has the program as one file (*{{APP}}-<version>-x86_64.AppImage*), a program update for those who already have an AppImage of {{APP}} (section 17), and the add-ons (*.qbpkg* files, section 17). Make the AppImage executable (right-click > **Properties** > **Permissions** > *Is executable*, or `chmod +x` in a terminal) and double-click it; **Help > Add to Application Menu** puts it into the menu of your desktop. The file *SHA256SUMS.txt* of each release lists the checksums of its files.
+
+**{{APP}} is alpha software.** Keep backups of your projects (section 15) and a copy of your manuscripts outside the program.
+
 ### Starting a project
 
 When {{APP}} starts without a project, the **start window** opens:
@@ -568,7 +574,11 @@ The commands act on the file you opened or used last (in either editor, a copyho
 
 **Where it was.** When you open an audio or video file again, it continues where you paused it (switch this off under **File > Options > Behaviors > Playback**). Showing another document in the editor stops the file.
 
-**What plays.** MP3, Ogg Vorbis and Opus, FLAC, WAV, AAC/M4A, WMA (not WMA Pro), AIFF and AMR audio; MP4/M4V/MOV, MKV, WebM, AVI, MPEG, WMV (VC-1, not WMV 9), FLV and 3GP video with H.264, H.265, VP8, VP9, MPEG-4, MPEG-1/2 and Theora pictures. AV1 video does not play with the built-in decoding. The add-on brings everything it needs. **File > Options > Behaviors > Playback > Decoding** can switch to the **GStreamer** of the system instead, which plays what the codec packages of your system play (restart {{APP}} after changing it).
+**What plays.** The add-on *Media Playback* (1.1) plays formats that are free to use: MP3, Ogg Vorbis, Opus, FLAC, ALAC, WAV, AIFF and WavPack audio; WebM, MKV and Ogg video with VP8, VP9 or Theora pictures (also MJPEG and other free formats). The add-on brings everything it needs.
+
+**More formats.** H.264, H.265 (HEVC), AAC (M4A), AC-3, E-AC-3, DTS, MPEG-1/2/4 video, VC-1 and WMV, WMA and AMR are licensed under patents in some countries; they come with the separate add-on **Extra Video and Audio Formats** (a download of its own on the Releases page, installed like every add-on, section 17). While it is installed and switched on, *Media Playback* uses it, and MP4/M4V/MOV, AVI, MPEG, WMV, FLV and 3GP files play as well (not WMA Pro and WMV 9). Without it, such a file shows a message under the player that names its formats and this add-on; everything else works as before. AV1 video does not play with the built-in decoding.
+
+**File > Options > Behaviors > Playback > Decoding** can switch to the **GStreamer** of the system instead, which plays what the codec packages of your system play (restart {{APP}} after changing it).
 
 ### Bookmarks
 
@@ -1193,7 +1203,9 @@ Links in your text are stored with one blue; on dark paper they are shown in a l
 {{APP}} is one program file (the AppImage). Updates and extensions come as small package files ending in **.qbpkg**. There are three kinds, and all are installed the same way:
 
 - **Program update**: a newer version of {{APP}} itself.
-- **Add-on**: an extension you can switch on and off, such as color themes, project templates, compile formats, dictionaries, writing tools (section 10), the playback of audio and video (section 6), importers for old Word files and web pages (section 14).
+- **Add-on**: an extension you can switch on and off, such as color themes, project templates, compile formats, dictionaries, writing tools (section 10), the playback of audio and video and its extra formats (section 6), importers for old Word files and web pages (section 14).
+
+Program updates and add-ons are on the **Releases** page of the project page (section 1), next to the AppImage.
 - **Update bundle**: one file that contains a program update and several add-ons, installed together.
 
 ### Installing a package
@@ -1325,7 +1337,7 @@ This section is for a technically minded friend who helps you set things up.
 
 ### Media engines
 
-Audio and video are played by a plugin of the add-on *Media Playback* that implements `src/media/MediaApi.h` of the source (Qt Multimedia 6.4.2 with a decoding-only FFmpeg 6.1.1, see `addons/media-playback` and `tools/build-ffmpeg.sh`). The add-on keeps its libraries in its own folder (`media/lib`); FFmpeg is loaded only for the built-in decoding, so the system's GStreamer keeps its own FFmpeg. **File > Options > Plugins** lists the engine.
+Audio and video are played by a plugin of the add-on *Media Playback* that implements `src/media/MediaApi.h` of the source (Qt Multimedia 6.4.2 with a decoding-only FFmpeg 6.1.1, see `addons/media-playback` and `tools/build-ffmpeg.sh`). The add-on keeps its libraries in its own folder (`media/lib`); FFmpeg is loaded only for the built-in decoding, so the system's GStreamer keeps its own FFmpeg. Its FFmpeg decodes free formats only; the add-on *Extra Video and Audio Formats* brings a full FFmpeg of the same version in `media-extra/lib`, which *Media Playback* loads instead while that add-on is installed and switched on. **File > Options > Plugins** lists the engine.
 
 ### Adding compile formats
 
@@ -1461,6 +1473,8 @@ If {{APP}} was stopped from outside or the computer was switched off without clo
 
 **A video plays but there is no sound, or an audio file says "No sound output was found".** {{APP}} plays sound through the desktop's sound server (PipeWire or PulseAudio). Check that sound works in other programs and that the right output is chosen in the desktop's audio settings; {{APP}} follows a change of the output at once.
 
+**"This file cannot be played here: it uses H.264 and AAC ..."** The file is in a format licensed under patents, which *Media Playback* leaves out. Install the add-on **Extra Video and Audio Formats** (from the Releases page of the project page, section 1) and restart {{APP}}; or choose **GStreamer** as below.
+
 **A file does not play, or plays without picture.** Some kinds are not part of the built-in decoding (AV1 video, WMA Pro, WMV 9). Choose **GStreamer** under **File > Options > Behaviors > Playback > Decoding**, install the codec packages of the system (for example *gstreamer1.0-libav* and *gstreamer1.0-plugins-good*) and restart {{APP}}, or open the file with another program (right-click the player: **Open with Default Application**).
 
 **A .doc file is added as a file, not as text.** The add-on **Word 97–2003 Import** is not installed or is switched off (**Help > Add-on Manager**); after installing it, restart {{APP}}. A message after the import names what the add-on left out. Word 6.0 and 95 files need LibreOffice (`sudo apt install libreoffice-writer`).
@@ -1487,6 +1501,6 @@ If {{APP}} was stopped from outside or the computer was switched off without clo
 
 {{APP}} is free software under the Zero-Clause BSD license (0BSD): anyone may use, copy, change, and pass it on, with or without fee, without conditions and without warranty. The About window (in the Help menu) shows the version and the license.
 
-{{APP}} uses parts of other projects (Qt, Hunspell, ICU, the Breeze icons, and the other libraries inside the AppImage), each under its own license. **Help > Third-Party Licenses…** (also a button of the About window) lists them with their full license texts and says where the source code of each is available; the same texts are inside the AppImage, in *usr/share/doc/quillbinder/licenses*.
+{{APP}} uses parts of other projects (Qt, Hunspell, ICU, the Breeze icons, and the other libraries inside the AppImage), each under its own license. **Help > Third-Party Licenses…** (also a button of the About window) lists them with their full license texts; the same texts are inside the AppImage, in *usr/share/doc/quillbinder/licenses*. The source code of each, exactly in the version used, is in the release **Third-party source code** of the project page (https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources); the window names the file for each library, and the license notes of the add-ons do the same for theirs.
 
 Scrivener and Scapple are names of products of Literature & Latte. {{APP}} is an independent program, not made by or connected with Literature & Latte; it reads and writes their file formats so that your projects can move between the programs.

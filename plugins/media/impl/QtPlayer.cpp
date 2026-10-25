@@ -8,6 +8,7 @@
 #include <QAudioOutput>
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QLibraryInfo>
 #include <QMediaDevices>
@@ -23,9 +24,147 @@
 
 #include <dlfcn.h>
 
+#if QB_MEDIA_PROBE
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+}
+#endif
+
 namespace qbmedia {
 
 namespace {
+
+// ---- which formats of a file the loaded FFmpeg cannot decode (0.50)
+//
+// The add-on "Media Playback" decodes free formats only; H.264, AAC and the
+// other formats licensed under patents come with the add-on "Extra Video and
+// Audio Formats". Before a file is handed to Qt Multimedia, its streams are
+// looked at with the FFmpeg the engine loaded (functions found with dlsym, so
+// that this library needs no FFmpeg when GStreamer is used), and a file with a
+// format that cannot be decoded gets a message that says what to do.
+
+bool extraFormats() { return qgetenv("QB_MEDIA_FFMPEG_SET") == "extra"; }
+
+#if QB_MEDIA_PROBE
+struct FFmpegCalls {
+    decltype(&avformat_open_input) open = nullptr;
+    decltype(&avformat_find_stream_info) streamInfo = nullptr;
+    decltype(&avformat_close_input) close = nullptr;
+    decltype(&avcodec_find_decoder) findDecoder = nullptr;
+    decltype(&avcodec_descriptor_get) descriptor = nullptr;
+    bool ok = false;
+
+    FFmpegCalls()
+    {
+        auto get = [](const char *n) { return dlsym(RTLD_DEFAULT, n); };
+        open = reinterpret_cast<decltype(open)>(get("avformat_open_input"));
+        streamInfo = reinterpret_cast<decltype(streamInfo)>(get("avformat_find_stream_info"));
+        close = reinterpret_cast<decltype(close)>(get("avformat_close_input"));
+        findDecoder = reinterpret_cast<decltype(findDecoder)>(get("avcodec_find_decoder"));
+        descriptor = reinterpret_cast<decltype(descriptor)>(get("avcodec_descriptor_get"));
+        using VersionFn = unsigned (*)();
+        auto fmtVersion = reinterpret_cast<VersionFn>(get("avformat_version"));
+        auto codecVersion = reinterpret_cast<VersionFn>(get("avcodec_version"));
+        // the structs read below must be those of the headers this was built with
+        ok = open && streamInfo && close && findDecoder && descriptor && fmtVersion && codecVersion
+             && (fmtVersion() >> 16) == LIBAVFORMAT_VERSION_MAJOR && (codecVersion() >> 16) == LIBAVCODEC_VERSION_MAJOR;
+    }
+};
+
+QString formatName(AVCodecID id, const AVCodecDescriptor *d)
+{
+    switch (id) {
+    case AV_CODEC_ID_H264: return QStringLiteral("H.264");
+    case AV_CODEC_ID_HEVC: return QStringLiteral("H.265 (HEVC)");
+    case AV_CODEC_ID_AAC:
+    case AV_CODEC_ID_AAC_LATM: return QStringLiteral("AAC");
+    case AV_CODEC_ID_AC3: return QStringLiteral("AC-3 (Dolby Digital)");
+    case AV_CODEC_ID_EAC3: return QStringLiteral("E-AC-3 (Dolby Digital Plus)");
+    case AV_CODEC_ID_TRUEHD: return QStringLiteral("Dolby TrueHD");
+    case AV_CODEC_ID_DTS: return QStringLiteral("DTS");
+    case AV_CODEC_ID_MPEG1VIDEO: return QStringLiteral("MPEG-1 video");
+    case AV_CODEC_ID_MPEG2VIDEO: return QStringLiteral("MPEG-2 video");
+    case AV_CODEC_ID_MPEG4: return QStringLiteral("MPEG-4 video");
+    case AV_CODEC_ID_H263: return QStringLiteral("H.263");
+    case AV_CODEC_ID_VC1: return QStringLiteral("VC-1");
+    case AV_CODEC_ID_WMV1:
+    case AV_CODEC_ID_WMV2:
+    case AV_CODEC_ID_WMV3: return QStringLiteral("Windows Media Video");
+    case AV_CODEC_ID_WMAV1:
+    case AV_CODEC_ID_WMAV2: return QStringLiteral("Windows Media Audio");
+    case AV_CODEC_ID_WMAPRO: return QStringLiteral("Windows Media Audio Pro");
+    case AV_CODEC_ID_AMR_NB:
+    case AV_CODEC_ID_AMR_WB: return QStringLiteral("AMR");
+    case AV_CODEC_ID_AV1: return QStringLiteral("AV1");
+    default: break;
+    }
+    if (d && d->long_name)
+        return QString::fromUtf8(d->long_name);
+    return d && d->name ? QString::fromUtf8(d->name) : QStringLiteral("an unknown format");
+}
+
+// Names of the formats of `file` (audio and video, not cover pictures) that
+// the loaded FFmpeg has no decoder for; empty if all can be decoded, or if the
+// file cannot be looked at (then Qt Multimedia gives its own message).
+QStringList undecodableFormats(const QString &file)
+{
+    static const FFmpegCalls ff;
+    if (!ff.ok || file.isEmpty())
+        return {};
+    AVFormatContext *ctx = nullptr;
+    if (ff.open(&ctx, QFile::encodeName(file).constData(), nullptr, nullptr) < 0)
+        return {};
+    auto relevant = [](const AVStream *st) {
+        const AVMediaType t = st->codecpar->codec_type;
+        return (t == AVMEDIA_TYPE_AUDIO || t == AVMEDIA_TYPE_VIDEO) && !(st->disposition & AV_DISPOSITION_ATTACHED_PIC);
+    };
+    bool unknown = false;
+    for (unsigned i = 0; i < ctx->nb_streams; ++i)
+        if (relevant(ctx->streams[i]) && ctx->streams[i]->codecpar->codec_id == AV_CODEC_ID_NONE)
+            unknown = true;
+    if (unknown || ctx->nb_streams == 0)
+        ff.streamInfo(ctx, nullptr); // raw streams: the codec is known after a look into the data
+    QStringList out;
+    for (unsigned i = 0; i < ctx->nb_streams; ++i) {
+        const AVStream *st = ctx->streams[i];
+        const AVCodecID id = st->codecpar->codec_id;
+        if (!relevant(st) || id == AV_CODEC_ID_NONE || ff.findDecoder(id))
+            continue;
+        const QString n = formatName(id, ff.descriptor(id));
+        if (!out.contains(n))
+            out << n;
+    }
+    ff.close(&ctx);
+    return out;
+}
+#else
+QStringList undecodableFormats(const QString &) { return {}; }
+#endif
+
+QString undecodableMessage(const QStringList &formats)
+{
+    QString list = formats.join(QStringLiteral(", "));
+    if (formats.size() > 1)
+        list = QStringList(formats.mid(0, formats.size() - 1)).join(QStringLiteral(", "))
+               + QCoreApplication::translate("qbmedia", " and ") + formats.last();
+    if (extraFormats())
+        return QCoreApplication::translate("qbmedia", "it uses %1, which the built-in decoding cannot play. Choose "
+                                                      "GStreamer of the system under File > Options > Behaviors > "
+                                                      "Playback.")
+            .arg(list);
+    if (formats.size() > 1)
+        return QCoreApplication::translate("qbmedia", "it uses %1, formats licensed under patents, which the add-on "
+                                                      "\"Media Playback\" leaves out. Install the add-on \"Extra Video and "
+                                                      "Audio Formats\" (a separate download), or choose GStreamer of the "
+                                                      "system under File > Options > Behaviors > Playback.")
+            .arg(list);
+    return QCoreApplication::translate("qbmedia", "it uses %1, a format licensed under patents, which the add-on "
+                                                  "\"Media Playback\" leaves out. Install the add-on \"Extra Video and "
+                                                  "Audio Formats\" (a separate download), or choose GStreamer of the "
+                                                  "system under File > Options > Behaviors > Playback.")
+        .arg(list);
+}
 
 // The picture of a video, painted with QPainter: works with every platform
 // plugin (also without OpenGL) and inside every layout. QVideoWidget of
@@ -84,7 +223,7 @@ qb::media::State toState(QMediaPlayer::PlaybackState s)
 class QtPlayer : public QObject, public qb::media::Player
 {
 public:
-    QtPlayer()
+    explicit QtPlayer(const QString &backend) : m_backend(backend)
     {
         m_player = new QMediaPlayer(this);
         m_audio = new QAudioOutput(this);
@@ -157,14 +296,24 @@ public:
     void setSource(const QString &file) override
     {
         m_error.clear();
+        m_sourceError.clear();
         m_file = file;
         m_video->clear();
         // Qt 6.4's FFmpeg backend does not hand the player's speed to the
         // decoder of a new file: every file starts at normal speed
         m_player->setPlaybackRate(1.0);
-        m_player->setSource(file.isEmpty() ? QUrl() : QUrl::fromLocalFile(file));
-        if (!file.isEmpty() && !QFileInfo::exists(file))
+        if (!file.isEmpty() && !QFileInfo::exists(file)) {
+            m_player->setSource(QUrl());
             m_error = QCoreApplication::translate("qbmedia", "The file is missing.");
+        } else if (const QStringList missing = m_backend == QLatin1String("ffmpeg") ? undecodableFormats(file)
+                                                                                     : QStringList();
+                   !missing.isEmpty()) {
+            // not handed to Qt Multimedia: it would play the parts it can decode without a word
+            m_player->setSource(QUrl());
+            m_sourceError = undecodableMessage(missing);
+        } else {
+            m_player->setSource(file.isEmpty() ? QUrl() : QUrl::fromLocalFile(file));
+        }
         notifyState();
     }
     QString source() const override { return m_file; }
@@ -172,6 +321,8 @@ public:
 
     void play() override
     {
+        if (!m_sourceError.isEmpty())
+            return; // stays as it is until another file is chosen
         m_error.clear();
         if (m_noSound && !m_player->hasVideo())
             return; // nothing to hear or see
@@ -185,7 +336,7 @@ public:
 
     qb::media::Status status() const override
     {
-        if (!m_error.isEmpty())
+        if (!m_error.isEmpty() || !m_sourceError.isEmpty())
             return qb::media::Status::Invalid;
         switch (m_player->mediaStatus()) {
         case QMediaPlayer::NoMedia: return qb::media::Status::NoMedia;
@@ -199,6 +350,8 @@ public:
     }
     QString errorString() const override
     {
+        if (!m_sourceError.isEmpty())
+            return m_sourceError;
         if (!m_error.isEmpty())
             return m_error;
         if (m_noSound && !m_file.isEmpty() && !m_player->hasVideo()
@@ -262,6 +415,7 @@ private:
     }
 
 
+    QString m_backend;
     QMediaPlayer *m_player;
     QAudioOutput *m_audio;
     QPointer<VideoView> m_video;
@@ -269,6 +423,7 @@ private:
     qb::media::PlayerListener *m_listener = nullptr;
     QString m_file;
     QString m_error;
+    QString m_sourceError; // the file has a format that cannot be decoded (0.50)
     bool m_noSound = false;
 };
 
@@ -288,7 +443,7 @@ class QtEngine : public qb::media::EngineInterface
 public:
     QString id() const override { return QStringLiteral("media-playback-impl"); }
     QString name() const override { return QStringLiteral("Qt Multimedia"); }
-    QString version() const override { return QStringLiteral("1.0"); }
+    QString version() const override { return QStringLiteral("1.1"); }
     QList<qb::media::Backend> backends() const override { return {}; }
 
     bool start(const QString &backend, QString *error) override
@@ -328,6 +483,8 @@ public:
         if (m_backend == QLatin1String("ffmpeg")) {
             const QString v = ffmpegVersion();
             s += QCoreApplication::translate("qbmedia", " with FFmpeg %1").arg(v.isEmpty() ? QStringLiteral("6.1") : v);
+            s += extraFormats() ? QCoreApplication::translate("qbmedia", " (with the extra formats)")
+                                : QCoreApplication::translate("qbmedia", " (free formats)");
         } else if (m_backend == QLatin1String("gstreamer")) {
             s += QCoreApplication::translate("qbmedia", " with GStreamer of the system");
         }
@@ -336,7 +493,7 @@ public:
         return s;
     }
     QStringList fileSuffixes() const override { return {}; }
-    qb::media::Player *createPlayer() override { return new QtPlayer; }
+    qb::media::Player *createPlayer() override { return new QtPlayer(m_backend); }
 
 private:
     QString m_backend, m_backendFile;

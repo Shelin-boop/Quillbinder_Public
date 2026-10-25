@@ -5,6 +5,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include <dlfcn.h>
 
@@ -63,7 +66,47 @@ QStringList missingSystemLibs(bool gstreamer)
     return out;
 }
 
+// The add-on that brings the full FFmpeg (0.50): installed beside this one.
+const char kExtraId[] = "media-extra-formats";
+
+bool hasFFmpeg(const QString &dir)
+{
+    return !dir.isEmpty() && QFileInfo::exists(dir + QLatin1String("/lib/libavcodec.so.60"));
+}
+
 } // namespace
+
+QString MediaEngine::extraDir() const
+{
+    // QB_MEDIA_EXTRA_DIR: the media-extra/ folder of the add-on (developers, checks);
+    // set but empty: no extra formats
+    if (qEnvironmentVariableIsSet("QB_MEDIA_EXTRA_DIR")) {
+        const QString env = qEnvironmentVariable("QB_MEDIA_EXTRA_DIR");
+        return hasFFmpeg(env) ? QDir::cleanPath(env) : QString();
+    }
+    // installed add-ons: <addons>/media-playback/plugins/libqb-media.so and
+    // <addons>/media-extra-formats/media-extra/; an add-on switched off in the
+    // Add-on Manager is listed in <addons>/state.json under "disabled"
+    const QFileInfo self(selfPath());
+    const QString root = QDir::cleanPath(self.absolutePath() + QLatin1String("/../.."));
+    const QString dir = root + QLatin1Char('/') + QLatin1String(kExtraId) + QLatin1String("/media-extra");
+    if (!hasFFmpeg(dir))
+        return QString();
+    QFile st(root + QLatin1String("/state.json"));
+    if (st.open(QIODevice::ReadOnly)) {
+        const QJsonArray off = QJsonDocument::fromJson(st.readAll()).object().value(QStringLiteral("disabled")).toArray();
+        for (const QJsonValue &v : off)
+            if (v.toString() == QLatin1String(kExtraId))
+                return QString();
+    }
+    return dir;
+}
+
+QString MediaEngine::ffmpegLibDir() const
+{
+    const QString extra = extraDir();
+    return extra.isEmpty() ? mediaDir() + QLatin1String("/lib/") : extra + QLatin1String("/lib/");
+}
 
 QString MediaEngine::mediaDir() const
 {
@@ -82,7 +125,8 @@ QString MediaEngine::mediaDir() const
 
 QList<qb::media::Backend> MediaEngine::backends() const
 {
-    const QString lib = mediaDir() + QLatin1String("/lib/");
+    const QString lib = ffmpegLibDir();
+    const bool extra = !extraDir().isEmpty();
     QList<qb::media::Backend> out;
 
     qb::media::Backend ff;
@@ -93,8 +137,13 @@ QList<qb::media::Backend> MediaEngine::backends() const
     if (!ffLibs)
         missing << QStringLiteral("libavcodec.so.60");
     ff.available = missing.isEmpty();
-    ff.note = ff.available ? tr("Plays common audio and video files without other programs.")
-                           : tr("Missing on this system: %1").arg(missing.join(QStringLiteral(", ")));
+    ff.note = !ff.available
+                  ? tr("Missing on this system: %1").arg(missing.join(QStringLiteral(", ")))
+                  : extra ? tr("Plays common audio and video files without other programs, also H.264, H.265 and AAC "
+                               "(add-on \"Extra Video and Audio Formats\").")
+                          : tr("Plays free formats without other programs (MP3, Ogg, Opus, FLAC, WAV, WebM ...). H.264, "
+                               "H.265, AAC and other formats licensed under patents need the add-on \"Extra Video and "
+                               "Audio Formats\".");
     out << ff;
 
     qb::media::Backend gst;
@@ -113,6 +162,10 @@ QList<qb::media::Backend> MediaEngine::backends() const
 bool MediaEngine::preload(const QString &backend, QString *error)
 {
     const QString lib = mediaDir() + QLatin1String("/lib/");
+    // FFmpeg: the full set of the add-on "Extra Video and Audio Formats" when it is
+    // installed and switched on, else this add-on's own set (free formats only)
+    const QString ffLib = ffmpegLibDir();
+    qputenv("QB_MEDIA_FFMPEG_SET", extraDir().isEmpty() ? "base" : "extra");
     // The add-on's own copies are loaded by their full path; when Qt's backend
     // asks for "libavcodec.so.60" later, the dynamic linker takes the library
     // of that name that is already loaded (also on a system that has another
@@ -124,7 +177,7 @@ bool MediaEngine::preload(const QString &backend, QString *error)
             names << n;
     names << "libQt6Multimedia.so.6";
     for (const char *name : names) {
-        const QString path = lib + QString::fromLatin1(name);
+        const QString path = (qstrncmp(name, "libQt6", 6) == 0 ? lib : ffLib) + QString::fromLatin1(name);
         if (!QFileInfo::exists(path))
             continue; // build folder: the system's libraries are used
         if (!dlopen(QFile::encodeName(path).constData(), RTLD_NOW | RTLD_GLOBAL)) {

@@ -3,6 +3,22 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.50.0 alpha (2026-10-25)
+
+- **Download from the project page**: the AppImage, the program update and every add-on are
+  published on the Releases page of https://github.com/Shelin-boop/Quillbinder_Public, built by GitHub
+  from the public source code. Each release lists SHA-256 checksums of its files.
+- **Source code of every library**: the release "Third-party source code" holds the source of each
+  library the AppImage and the add-ons carry, exactly in the version used (Ubuntu's source packages,
+  FFmpeg with the build scripts, the AppImage runtime). Help > Third-Party Licenses names the file for
+  each library, and the add-ons' license notes do the same.
+- **Media Playback 1.1** decodes free formats only (MP3, Ogg Vorbis, Opus, FLAC, WAV, WebM with VP8 or
+  VP9, Theora ...). H.264, H.265, AAC, AC-3 and the other formats licensed under patents are in the
+  new, separate add-on **Extra Video and Audio Formats**; while it is installed and switched on, Media
+  Playback uses it. Without it, a file in such a format says which formats it uses and what to do.
+- An AppStream description for software centers; the Add-on Manager names the contents of the new
+  add-on.
+
 ## 0.40.0 alpha (2026-10-25)
 
 - **Welcome project**: the first start opens a short project that shows, one document each, what
