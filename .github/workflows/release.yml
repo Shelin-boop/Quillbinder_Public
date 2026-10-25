@@ -60,27 +60,31 @@ jobs:
     env:
       TAG: ${{ needs.version.outputs.tag }}
       DEBIAN_FRONTEND: noninteractive
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Tools to fetch the source
         run: |
-          apt-get update -qq
-          apt-get install -y -qq --no-install-recommends git ca-certificates curl gh xz-utils
-          apt-get -y -qq upgrade
+          set -o pipefail
+          mkdir -p /tmp/ci-log && echo tools > /tmp/ci-log/last-step
+          { apt-get update -qq && apt-get install -y -qq --no-install-recommends git ca-certificates curl gh xz-utils \
+            && apt-get -y -qq upgrade; } 2>&1 | tee /tmp/ci-log/tools.log
 
       - uses: actions/checkout@v4
 
       - name: Build tools and the libraries of Ubuntu 24.04
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          bash tools/enable-deb-src.sh
-          bash tools/cloud-setup.sh
-          apt-get -y -qq upgrade
+          tools/ci-step.sh deb-src bash tools/enable-deb-src.sh
+          tools/ci-step.sh setup bash tools/cloud-setup.sh
+          tools/ci-step.sh upgrade apt-get -y -qq upgrade
 
       - name: FFmpeg for the media add-ons (both sets)
-        run: tools/get-ffmpeg.sh
+        run: tools/ci-step.sh ffmpeg tools/get-ffmpeg.sh
 
       - name: AppImage
-        run: packaging/build-appimage.sh
+        run: tools/ci-step.sh appimage packaging/build-appimage.sh
 
       - name: Add-ons and program update
         env:
@@ -88,23 +92,32 @@ jobs:
           QB_FFMPEG_FULL_DIR: ${{ github.workspace }}/build/ffmpeg-full
         run: |
           mkdir -p dist
-          packaging/build-addons.sh build-appimage dist
+          tools/ci-step.sh addons packaging/build-addons.sh build-appimage dist
           mapfile -t NEWS < <(python3 -I tools/release-notes.py --whats-new)
-          BUILD=build-appimage OUT=dist packaging/build-update.sh "${NEWS[@]}"
+          BUILD=build-appimage OUT=dist tools/ci-step.sh update packaging/build-update.sh "${NEWS[@]}"
           cp build-appimage/*.AppImage dist/
           ls -la dist
 
       - name: Check the AppImage
-        run: tools/e2e-appimage.sh dist/*.AppImage - /tmp/e2e
+        run: tools/ci-step.sh e2e tools/e2e-appimage.sh dist/*.AppImage - /tmp/e2e
 
       - name: Third-party source code
-        run: python3 -I tools/collect-sources.py sources
+        run: tools/ci-step.sh sources python3 -I tools/collect-sources.py sources
 
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: tools/publish-release.sh "$TAG" dist sources
+        run: tools/ci-step.sh publish tools/publish-release.sh "$TAG" dist sources
+
+      - name: The end of the failed step's log (as an annotation)
+        if: failure()
+        run: |
+          s=$(cat /tmp/ci-log/last-step 2>/dev/null || echo unknown)
+          f=/tmp/ci-log/$s.log
+          [ -f "$f" ] || { echo "::error title=Step $s failed::no log"; exit 0; }
+          msg=$(tail -n 80 "$f" | cut -c1-300 | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | sed ':a;N;$!ba;s/\n/%0A/g')
+          echo "::error title=Step $s failed::$msg"
 
       - name: Logs of the check
         if: failure()
