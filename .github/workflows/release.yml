@@ -1,22 +1,24 @@
 # Builds Quillbinder on GitHub and publishes a release (0.50).
 #
-# Runs when a tag v<version> is pushed (v0.50.0-alpha: the version and the label of
-# CMakeLists.txt), or by hand: Actions > Release > Run workflow, with the tag. Everything is built
-# from the source of that tag in a clean Ubuntu 24.04 (the system the AppImage's libraries come
-# from): both FFmpeg sets, the AppImage, the add-ons and the program update. The AppImage is
+# Runs
+#  - when main changes CMakeLists.txt (where the version is) or this file, and the version on main
+#    has no release yet (the job "version" looks first; a Claude Code session cannot push tags, so a
+#    new version on main is the usual way to a release),
+#  - when a tag v<version>[-<label>] is pushed (from a computer),
+#  - by hand: Actions > Release > Run workflow (the version on main, if it has no release yet).
+# Everything is built from that commit in a clean Ubuntu 24.04 (the system the AppImage's libraries
+# come from): both FFmpeg sets, the AppImage, the add-ons and the program update. The AppImage is
 # checked end to end, the source code of every third-party library is collected, and
 # tools/publish-release.sh puts it all on the Releases page (the library sources into the release
-# "Third-party source code").
+# "Third-party source code") and creates the tag v<version>-<label> if it is not there yet.
 name: Release
 
 on:
   push:
+    branches: [main]
     tags: ['v*']
+    paths: ['CMakeLists.txt', '.github/workflows/release.yml']
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'The tag to build and publish, e.g. v0.50.0-alpha'
-        required: true
 
 permissions:
   contents: write
@@ -26,12 +28,37 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      build: ${{ steps.v.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(sed -n 's/^set(APP_VERSION *"\(.*\)")/\1/p' CMakeLists.txt)
+          LABEL=$(sed -n 's/^set(APP_VERSION_LABEL *"\(.*\)")/\1/p' CMakeLists.txt)
+          if [ "$GITHUB_REF_TYPE" = tag ]; then TAG=$GITHUB_REF_NAME; else TAG="v$VERSION${LABEL:+-$LABEL}"; fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "The release $TAG exists already: nothing to build."
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "No release $TAG yet: build and publish it."
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
   release:
+    needs: version
+    if: needs.version.outputs.build == 'true'
     runs-on: ubuntu-24.04
     container: ubuntu:24.04
     timeout-minutes: 300
     env:
-      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      TAG: ${{ needs.version.outputs.tag }}
       DEBIAN_FRONTEND: noninteractive
     steps:
       - name: Tools to fetch the source
@@ -41,8 +68,6 @@ jobs:
           apt-get -y -qq upgrade
 
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.TAG }}
 
       - name: Build tools and the libraries of Ubuntu 24.04
         run: |

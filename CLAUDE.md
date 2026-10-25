@@ -109,9 +109,10 @@ changed and what was checked. Preferences:
    Claude Code session). The user installs it with **File > Install Update or Add-on**.
 6. A public release (0.50, when the user asks for one): copy the tracked tree into the public repository
    `Shelin-boop/Quillbinder_Public` without `docs/status.md` (`git archive HEAD`, never the history: the public
-   repository has a history of its own), commit, and push the tag
-   `v<version>-<label>`. `.github/workflows/release.yml` builds and publishes everything on GitHub
-   (README "Releases"); the session cannot watch the workflow, but the releases API shows the result.
+   repository has a history of its own), commit, and push `main` (the session cannot push tags). A version
+   on `main` without a release starts `.github/workflows/release.yml`, which builds and publishes everything
+   and creates the tag `v<version>-<label>` (README "Releases"); the session cannot watch the workflow, but
+   the releases API shows the result.
 
 ## Crash and freeze reports (0.19)
 

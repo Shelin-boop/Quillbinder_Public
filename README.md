@@ -96,8 +96,9 @@ tools/make-package.py bundle --id ... --name ... --version ... a.qbpkg b.qbpkg o
 
 ## Releases (0.50)
 
-A tag `v<version>` (for example `v0.50.0-alpha`, the version and label of `CMakeLists.txt`) pushed to the public
-repository starts `.github/workflows/release.yml` on GitHub: in a clean Ubuntu 24.04 it builds both FFmpeg sets, the
+A new version on `main` of the public repository (a change of `CMakeLists.txt` whose version has no release yet), or a
+tag `v<version>` (for example `v0.50.0-alpha`, the version and label of `CMakeLists.txt`) pushed from a computer, starts
+`.github/workflows/release.yml` on GitHub, which also creates the tag: in a clean Ubuntu 24.04 it builds both FFmpeg sets, the
 AppImage, the add-ons and the program update, checks the AppImage (`tools/e2e-appimage.sh`), collects the source
 code of every third-party library (`tools/collect-sources.py`, needs `tools/enable-deb-src.sh`) and publishes the
 release (`tools/publish-release.sh`; the text comes from `tools/release-notes.py` and `docs/CHANGES.md`).

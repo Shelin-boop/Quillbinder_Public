@@ -1,7 +1,7 @@
 #!/bin/bash
 # Publishes a release on the project page (0.50); run by .github/workflows/release.yml with
-# GH_TOKEN set (GitHub's own token of the workflow). Releases cannot be made from a Claude Code
-# session, so this runs on GitHub.
+# GH_TOKEN set (GitHub's own token of the workflow). Releases (and tags) cannot be made from a
+# Claude Code session, so this runs on GitHub.
 #
 #   tools/publish-release.sh <tag> <dist dir> <sources dir>
 #
@@ -63,6 +63,8 @@ if gh release view "$TAG" > /dev/null 2>&1; then
     gh release edit "$TAG" --title "$TITLE" --notes-file "$RUNNER_TEMP/notes.md" "${PRE[@]}"
     gh release upload "$TAG" "$DIST"/* --clobber
 else
-    gh release create "$TAG" --title "$TITLE" --notes-file "$RUNNER_TEMP/notes.md" "${PRE[@]}" "$DIST"/*
+    # makes the tag as well when it is not there yet (a Claude Code session cannot push tags)
+    gh release create "$TAG" --title "$TITLE" --notes-file "$RUNNER_TEMP/notes.md" --target "${GITHUB_SHA:-main}" \
+        "${PRE[@]}" "$DIST"/*
 fi
 echo "published $TAG"
