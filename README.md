@@ -1,3 +1,11 @@
+# Known Bugs
+- Bold-Icon might in some cases not show actual status.
+- Due to how normal QT operates, some fonts are not displayed is intended. The fix  is
+  1. Show each optical size as its own entry in the font lists (“Sitka Text”, “Sitka Banner” and so on).
+  2. Keep Bold and Italic within that size by choosing the face by name.
+  3. Take the button states from the chosen face, which would probably fix point 1 as well.
+  4. Write the per-size name into exported files (DOCX, RTF, Scrivener).
+
 # Quillbinder
 
 A writing studio for long texts (binder, corkboard, outliner, combined text,
