@@ -1,0 +1,9 @@
+{
+  "id": "tool-text-statistics",
+  "name": "Text Statistics",
+  "version": "1.0",
+  "description": "Writing tool: Project > Text Statistics counts the selected text, the documents in the editor or the binder selection, the Draft or the whole project: words, characters, sentences, averages, readability estimates (Flesch, Flesch-Kincaid, Amstad, Wiener Sachtextformel, LIX), word frequency with common words hidden, repeated phrases and a table of the documents. Tables can be exported for a spreadsheet.",
+  "author": "Quillbinder",
+  "minApp": "0.11.0",
+  "whatsNew": ["First version"]
+}

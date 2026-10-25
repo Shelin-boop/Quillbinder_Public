@@ -1,0 +1,9 @@
+{
+  "id": "import-word97",
+  "name": "Word 97–2003 Import",
+  "version": "1.0",
+  "description": "Old Word files (.doc, .dot) become text documents: File > Import > Files, Import and Split, or dragged onto the binder, corkboard or outliner. Keeps headings and other styles, bold, italics and the like, lists, tables (a line per row), footnotes, endnotes, comments with their author, links and inline pictures; in RTF projects also fonts, sizes, colors and indents. Read without another program; Word 6.0 / 95 files are converted with LibreOffice if it is installed.",
+  "author": "Quillbinder",
+  "minApp": "0.13.0",
+  "whatsNew": ["First version"]
+}

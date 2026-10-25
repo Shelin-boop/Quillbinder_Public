@@ -1,0 +1,5 @@
+- **Autosave**: a few seconds after you stop typing, and at least every 30 seconds while you type on.
+- **Backups**: when a project is closed (and, if you like, when it opens or with each **Ctrl+S**); set them under **File > Options > Backup**. **File > Back Up** makes one now.
+- **Snapshots**: **Documents > Snapshots > Take Snapshot** (**Ctrl+5**) keeps the version of a document before a large change; **Compare** shows what changed since.
+- **A spare copy of the project file**: if the project file is ever damaged, for example by a crash of the computer while it was saved, {{APP}} offers the copy it keeps from the last opening.
+- **Crash and freeze reports**: if the program ends because of an error or stops responding, it writes a report. **Help > Crash Reports…** lists them, **Help > System Information…** shows what may cause trouble soon, such as a nearly full disk.

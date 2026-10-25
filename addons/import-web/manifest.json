@@ -1,0 +1,9 @@
+{
+  "id": "import-web",
+  "name": "Web Page Import",
+  "version": "1.0",
+  "description": "File > Import > Web Page: fetches a page with its pictures and keeps the article (without menus, adverts and comment sections) as a text document to edit and annotate, or as a read-only web page document. A preview shows what will be imported. Web links dragged from a browser onto the binder, corkboard or outliner are imported the same way. The page's address becomes a bookmark of the document, author and date go into its notes. Brings Qt's TLS plugin for secure (https) pages; uses the system's OpenSSL 3.",
+  "author": "Quillbinder",
+  "minApp": "0.13.0",
+  "whatsNew": ["First version"]
+}

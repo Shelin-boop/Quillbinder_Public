@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" office:version="1.3" office:mimetype="application/vnd.oasis.opendocument.text">
+<office:automatic-styles><style:style style:name="B" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style></office:automatic-styles>
+<office:body><office:text>
+<text:p>The Arrival</text:p><text:p>The boat came in at dawn with <text:span text:style-name="B">three</text:span> passengers.</text:p>
+<text:p>#</text:p>
+<text:p>The Storm</text:p><text:p>By noon the wind had turned.</text:p>
+<text:p>#</text:p>
+<text:p>The Light</text:p><text:p>The lamp burned all night.</text:p>
+</office:text></office:body></office:document>

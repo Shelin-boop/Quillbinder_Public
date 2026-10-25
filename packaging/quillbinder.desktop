@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Quillbinder
+GenericName=Writing Studio
+Comment=Write, organize and compile long texts
+Exec=quillbinder %f
+Icon=quillbinder
+Categories=Office;WordProcessor;
+MimeType=application/x-quillbinder-project;application/x-quillbinder-package;
+Keywords=writing;novel;manuscript;book;screenplay;thesis;
+StartupWMClass=quillbinder
+Terminal=false

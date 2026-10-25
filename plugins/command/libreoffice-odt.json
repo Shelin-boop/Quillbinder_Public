@@ -1,0 +1,21 @@
+{
+  "id": "libreoffice-odt",
+  "name": "OpenDocument Text (.odt, via LibreOffice)",
+  "extension": "odt",
+  "input": "docx",
+  "programs": [
+    "soffice",
+    "libreoffice"
+  ],
+  "arguments": [
+    "-env:UserInstallation=file://{tmpdir}/profile",
+    "--headless",
+    "--convert-to",
+    "odt",
+    "--outdir",
+    "{outdir}",
+    "{input}"
+  ],
+  "output": "{outdir}/{inputbase}.odt",
+  "timeout": 180
+}

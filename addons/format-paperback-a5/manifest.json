@@ -1,0 +1,8 @@
+{
+  "id": "format-paperback-a5",
+  "name": "Paperback A5 compile format",
+  "version": "1.0",
+  "description": "A compile format for A5 paperbacks (148 × 210 mm) with mirrored margins and page numbers at the bottom.",
+  "author": "Quillbinder",
+  "minApp": "0.2.0"
+}

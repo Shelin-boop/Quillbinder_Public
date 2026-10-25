@@ -1,0 +1,3 @@
+When a folder is shown as a corkboard or an outline, the **Comments & Footnotes** tab of the inspector lists the comments and footnotes of every document inside it, under the title of each document.
+**Try it:** in the binder, select the folder **A Chapter with Comments** below this document. It opens as a corkboard. Then open the **Comments & Footnotes** tab of the inspector (the last button at its top). A click on a comment opens its document at that place, and you can change the comment's text right there.
+The same works in **Combined Text** (**Ctrl+1**), where all documents of the folder are shown as one text: the tab lists the notes of all of them.

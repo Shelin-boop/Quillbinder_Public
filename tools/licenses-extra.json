@@ -1,0 +1,21 @@
+[
+ {"name": "Quillbinder", "license": "0BSD (Zero-Clause BSD)", "where": "the program itself",
+  "source": "LICENSE", "file": "quillbinder-0BSD.txt", "url": "the source code of Quillbinder"},
+ {"name": "Breeze icons (a subset)", "license": "LGPL-3.0-or-later", "where": "icons of the menus and toolbars",
+  "source": "resources/icons/COPYING-BREEZE", "file": "breeze-icons.txt", "url": "https://invent.kde.org/frameworks/breeze-icons",
+  "common": ["LGPL-3", "GPL-3"]},
+ {"name": "AppImage type2-runtime", "license": "MIT", "where": "the start code at the beginning of the AppImage file",
+  "source": "packaging/licenses/appimage-type2-runtime.txt", "file": "appimage-type2-runtime.txt",
+  "url": "https://github.com/AppImage/type2-runtime"},
+ {"name": "musl libc (in the AppImage runtime)", "license": "MIT", "where": "linked into the AppImage runtime",
+  "source": "packaging/licenses/runtime-musl.txt", "file": "runtime-musl.txt", "url": "https://musl.libc.org"},
+ {"name": "libfuse (in the AppImage runtime)", "license": "LGPL-2.1", "where": "linked into the AppImage runtime",
+  "source": "packaging/licenses/runtime-libfuse3.txt", "file": "runtime-libfuse3.txt", "url": "https://github.com/libfuse/libfuse",
+  "common": ["LGPL-2.1"]},
+ {"name": "squashfuse (in the AppImage runtime)", "license": "BSD-2-Clause", "where": "linked into the AppImage runtime",
+  "source": "packaging/licenses/runtime-squashfuse.txt", "file": "runtime-squashfuse.txt", "url": "https://github.com/vasi/squashfuse"},
+ {"name": "zstd (in the AppImage runtime)", "license": "BSD-3-Clause or GPL-2.0", "where": "linked into the AppImage runtime",
+  "source": "packaging/licenses/runtime-zstd.txt", "file": "runtime-zstd.txt", "url": "https://github.com/facebook/zstd"},
+ {"name": "zlib (in the AppImage runtime)", "license": "Zlib", "where": "linked into the AppImage runtime",
+  "source": "packaging/licenses/runtime-zlib.txt", "file": "runtime-zlib.txt", "url": "https://zlib.net"}
+]

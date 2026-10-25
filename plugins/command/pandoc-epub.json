@@ -1,0 +1,9 @@
+{
+  "id": "pandoc-epub",
+  "name": "E-book (.epub, via Pandoc)",
+  "extension": "epub",
+  "input": "docx",
+  "program": "pandoc",
+  "arguments": ["{input}", "--from", "docx", "--to", "epub3", "--metadata", "title={title}", "--metadata", "author={author}", "--output", "{output}"],
+  "timeout": 180
+}

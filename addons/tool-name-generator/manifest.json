@@ -1,0 +1,9 @@
+{
+  "id": "tool-name-generator",
+  "name": "Name Generator",
+  "version": "1.0",
+  "description": "Writing tool: Edit > Writing Tools > Name Generator makes names for characters from 62 lists of forenames and surnames (English, American, German, French, Italian, Spanish, Scandinavian, Slavic, Japanese and many more; women's surname forms where a language has them). Gender, rare or common names, alliteration, double surnames, middle names, initial letters; copy the names or put one into the text. Own lists from text files. Name lists from the Faker project (MIT licence, see names/LICENSE-Faker.txt).",
+  "author": "Quillbinder",
+  "minApp": "0.11.0",
+  "whatsNew": ["First version"]
+}

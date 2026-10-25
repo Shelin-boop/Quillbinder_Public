@@ -1,0 +1,352 @@
+{
+ "name": "Welcome to {{APP}}",
+ "description": "A short tour of what {{APP}} has beyond the usual",
+ "draftTitle": "Feature Tour",
+ "objectTemplates": "standard",
+ "rootFirst": [
+  {
+   "title": "Welcome",
+   "icon": "qb-information",
+   "textFile": "docs/00-welcome.md",
+   "synopsis": "What this project is, and the stops of the tour."
+  }
+ ],
+ "draft": [
+  {
+   "title": "The Icon Bar",
+   "icon": "qb-flag-red",
+   "textFile": "docs/01-icon-bar.md",
+   "synopsis": "Ten document icons, one click each; icons from text and from your own pictures."
+  },
+  {
+   "title": "Zoom Where You Point",
+   "icon": "qb-magnifier",
+   "textFile": "docs/02-zoom.md",
+   "synopsis": "Ctrl+mouse wheel over any part of the window; every part keeps its own zoom."
+  },
+  {
+   "title": "Mind Maps",
+   "icon": "qb-mindmap",
+   "textFile": "docs/03-mind-maps.md",
+   "synopsis": "A board of notes, lines, and arrows for every document. This one has a board: open the Mind Map tab.",
+   "mindmap": {
+    "notes": [
+     {
+      "id": 1,
+      "text": "What a mind map can do",
+      "x": 290,
+      "y": 245,
+      "width": 170,
+      "fontSize": 15,
+      "bold": true,
+      "align": "center",
+      "fill": "#fff2a8",
+      "border": 2,
+      "shape": "cloud"
+     },
+     {
+      "id": 2,
+      "text": "Notes: double-click an empty place. Ctrl+Enter makes a new note below the selected one.",
+      "x": 20,
+      "y": 30,
+      "width": 200,
+      "fill": "#dcecff",
+      "border": 1
+     },
+     {
+      "id": 3,
+      "text": "Lines: drag a note onto another one. Drag it there again to remove the line.",
+      "x": 280,
+      "y": 30,
+      "width": 190,
+      "fill": "#dcecff",
+      "border": 1
+     },
+     {
+      "id": 4,
+      "text": "Arrows: hold Alt while you let go. Ctrl+Alt: an arrow back. Ctrl+Alt+Shift: both ends.",
+      "x": 530,
+      "y": 30,
+      "width": 210,
+      "fill": "#dcecff",
+      "border": 1
+     },
+     {
+      "id": 5,
+      "text": "Colors, shapes, and borders: right-click a note.",
+      "x": 560,
+      "y": 250,
+      "width": 180,
+      "fill": "#ffd6d6",
+      "border": 1,
+      "shape": "jagged"
+     },
+     {
+      "id": 6,
+      "text": "Icons at the corners and sides of a note, and in the middle of a line.",
+      "x": 540,
+      "y": 420,
+      "width": 200,
+      "fill": "#e3f6d8",
+      "border": 1,
+      "icons": {
+       "topLeft": "qb-flag-red",
+       "topRight": "qb-light-bulb",
+       "bottomRight": "qb-checked"
+      }
+     },
+     {
+      "id": 7,
+      "text": "Background shapes group notes. A magnetic shape takes its notes along.",
+      "x": 290,
+      "y": 455,
+      "width": 170
+     },
+     {
+      "id": 8,
+      "text": "Menu > Notes > Add Notes to the Binder turns notes into documents.",
+      "x": 20,
+      "y": 430,
+      "width": 200,
+      "fill": "#f0e6ff",
+      "border": 1,
+      "shape": "square"
+     },
+     {
+      "id": 9,
+      "text": "Export as PDF, PNG, text, OPML, or a Scapple file; Scapple files can be read.",
+      "x": 20,
+      "y": 245,
+      "width": 200,
+      "fill": "#f0e6ff",
+      "border": 1
+     }
+    ],
+    "shapes": [
+     {
+      "id": 20,
+      "x": 270,
+      "y": 435,
+      "w": 210,
+      "h": 150,
+      "fill": "#fde3b8",
+      "magnetic": true
+     }
+    ],
+    "lines": [
+     {
+      "from": 1,
+      "to": 2,
+      "arrow": "to"
+     },
+     {
+      "from": 1,
+      "to": 3,
+      "arrow": "to",
+      "label": "drag"
+     },
+     {
+      "from": 1,
+      "to": 4,
+      "arrow": "to",
+      "color": "#c0392b"
+     },
+     {
+      "from": 1,
+      "to": 5,
+      "arrow": "to"
+     },
+     {
+      "from": 1,
+      "to": 6,
+      "arrow": "to",
+      "icon": "qb-pencil"
+     },
+     {
+      "from": 1,
+      "to": 7,
+      "arrow": "to"
+     },
+     {
+      "from": 1,
+      "to": 8
+     },
+     {
+      "from": 1,
+      "to": 9,
+      "arrow": "to",
+      "color": "#2f6fbf"
+     }
+    ]
+   }
+  },
+  {
+   "title": "Object Sheets",
+   "icon": "qb-character-sheet",
+   "textFile": "docs/04-objects.md",
+   "synopsis": "People, places, and things of a story, each on a sheet of fields, linked to each other.",
+   "children": [
+    {
+     "title": "A Scene in Ashvale",
+     "icon": "qb-location-house",
+     "textFile": "docs/04a-scene.md",
+     "synopsis": "A short scene with links to the objects. The Objects tab lists who and what appears in it."
+    }
+   ]
+  },
+  {
+   "title": "Comments of a Whole Folder",
+   "icon": "qb-speech-bubble",
+   "textFile": "docs/05-folder-comments.md",
+   "synopsis": "The comments and footnotes of every document in a folder, in one list."
+  },
+  {
+   "title": "A Chapter with Comments",
+   "type": "folder",
+   "synopsis": "Select it and open the Comments & Footnotes tab of the inspector.",
+   "children": [
+    {
+     "title": "The Ferry Book",
+     "textFile": "docs/05a-scene-one.md",
+     "synopsis": "A scene with a comment."
+    },
+    {
+     "title": "Evening",
+     "textFile": "docs/05b-scene-two.md",
+     "synopsis": "A scene with a footnote and an inline annotation."
+    }
+   ]
+  },
+  {
+   "title": "Compare and Transfer",
+   "icon": "qb-reviewer",
+   "textFile": "docs/06-compare.md",
+   "synopsis": "A manuscript back from Word or LibreOffice: see what differs and take over either side."
+  },
+  {
+   "title": "Scrivener Projects",
+   "icon": "qb-sync-folder",
+   "textFile": "docs/07-scrivener.md",
+   "synopsis": "Import a Scrivener project, or work in it directly and go on in Scrivener later."
+  },
+  {
+   "title": "Themes, Colors, and Fonts",
+   "icon": "qb-eye",
+   "textFile": "docs/08-themes.md",
+   "synopsis": "Dark mode and other themes at once; the color palette of the format bar; installing fonts."
+  },
+  {
+   "title": "Updates and Add-ons",
+   "icon": "qb-cog",
+   "textFile": "docs/09-updates.md",
+   "synopsis": "Small package files, the Add-on Manager, and a way back to an earlier version."
+  },
+  {
+   "title": "Safety Nets",
+   "icon": "qb-checked",
+   "textFile": "docs/10-safety.md",
+   "synopsis": "Autosave, backups, snapshots, the spare project file, crash and freeze reports."
+  },
+  {
+   "title": "Where Next",
+   "icon": "qb-pass",
+   "textFile": "docs/11-where-next.md",
+   "synopsis": "The Quick Start Guide, the manual, and a project of your own."
+  }
+ ],
+ "projectBookmarks": [
+  "Welcome"
+ ],
+ "objects": [
+  {
+   "category": "characters",
+   "name": "Mara Fenn",
+   "values": {
+    "role": "Protagonist",
+    "age": "34",
+    "eyes": "Gray",
+    "occupation": "Ferrywoman",
+    "livesIn": [
+     "Ashvale"
+    ],
+    "relations": [
+     "Tobias Quill"
+    ],
+    "traits": "Patient, stubborn, keeps every promise she makes.",
+    "background": "She took over the ferry from her mother. [Tobias Quill](qbobj-name:Tobias Quill) found her mother's name in the old ferry book.",
+    "scenes": [
+     "A Scene in Ashvale"
+    ]
+   }
+  },
+  {
+   "category": "characters",
+   "name": "Tobias Quill",
+   "values": {
+    "role": "Supporting",
+    "age": "29",
+    "occupation": "Village archivist",
+    "livesIn": [
+     "Ashvale"
+    ],
+    "relations": [
+     "Mara Fenn"
+    ],
+    "goals": "Wants to know who wrote the first pages of the ferry book.",
+    "scenes": [
+     "A Scene in Ashvale"
+    ]
+   }
+  },
+  {
+   "category": "locations",
+   "name": "Ashvale",
+   "values": {
+    "kind": "Village",
+    "environment": [
+     "Fenwood"
+    ],
+    "weather": [
+     "Autumn Fog"
+    ],
+    "population": "212",
+    "inhabitants": [
+     "Mara Fenn",
+     "Tobias Quill"
+    ],
+    "description": "Forty houses along a slow river, a ferry, and a church tower that can be seen from [Fenwood](qbobj-name:Fenwood).",
+    "scenes": [
+     "A Scene in Ashvale"
+    ]
+   }
+  },
+  {
+   "category": "environments",
+   "name": "Fenwood",
+   "values": {
+    "kind": "Forest",
+    "flora": "Birches and alders; reeds along the river.",
+    "weather": [
+     "Autumn Fog"
+    ],
+    "locations": [
+     "Ashvale"
+    ]
+   }
+  },
+  {
+   "category": "weather",
+   "name": "Autumn Fog",
+   "values": {
+    "season": "Autumn",
+    "temperature": "8",
+    "precipitation": "Fog",
+    "effects": "The ferry stops when the far bank cannot be seen.",
+    "where": [
+     "Ashvale",
+     "Fenwood"
+    ]
+   }
+  }
+ ]
+}

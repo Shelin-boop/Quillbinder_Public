@@ -1,0 +1,218 @@
+{
+  "name": "Memoir",
+  "category": "Nonfiction",
+  "icon": "view-pim-journal",
+  "description": "Life story in periods and chapters, with sheets for people, places, and single memories, a timeline, and a folder for documents and photos.",
+  "labelTitle": "Period",
+  "labels": [
+    {
+      "name": "Childhood",
+      "color": "#e9a23b"
+    },
+    {
+      "name": "Youth",
+      "color": "#5aa469"
+    },
+    {
+      "name": "Adult years",
+      "color": "#4a86c7"
+    },
+    {
+      "name": "Later years",
+      "color": "#9b6bb3"
+    }
+  ],
+  "statuses": [
+    "Memory noted",
+    "First draft",
+    "Revised",
+    "Checked with family",
+    "Done"
+  ],
+  "sectionTypes": [
+    "Part",
+    "Chapter",
+    "Section",
+    "Title Page"
+  ],
+  "folderTypes": [
+    "Part",
+    "Chapter"
+  ],
+  "fileTypes": [
+    "Section"
+  ],
+  "compileFormat": "Modern",
+  "draftTitle": "Manuscript",
+  "templatesFolder": "Sheets",
+  "draft": [
+    {
+      "title": "Before You Begin",
+      "type": "text",
+      "status": "Memory noted",
+      "synopsis": "Why I am writing this, and for whom.",
+      "text": "Write a few lines about why you want to tell your story and who should read it. You can remove this document later, or keep it as a preface."
+    },
+    {
+      "title": "Childhood",
+      "type": "folder",
+      "label": "Childhood",
+      "children": [
+        {
+          "title": "Where I Come From",
+          "type": "folder",
+          "label": "Childhood",
+          "children": [
+            {
+              "title": "The house",
+              "type": "text",
+              "label": "Childhood",
+              "synopsis": "The first home I remember."
+            },
+            {
+              "title": "My family",
+              "type": "text",
+              "label": "Childhood",
+              "synopsis": "Who lived with us, and what they were like."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Youth",
+      "type": "folder",
+      "label": "Youth",
+      "children": [
+        {
+          "title": "School Years",
+          "type": "folder",
+          "label": "Youth",
+          "children": [
+            {
+              "title": "A day I still remember",
+              "type": "text",
+              "label": "Youth"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Adult Years",
+      "type": "folder",
+      "label": "Adult years",
+      "children": [
+        {
+          "title": "Work and Love",
+          "type": "folder",
+          "label": "Adult years",
+          "children": [
+            {
+              "title": "A turning point",
+              "type": "text",
+              "label": "Adult years"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Later Years",
+      "type": "folder",
+      "label": "Later years",
+      "children": [
+        {
+          "title": "Looking Back",
+          "type": "folder",
+          "label": "Later years",
+          "children": [
+            {
+              "title": "What I would tell my younger self",
+              "type": "text",
+              "label": "Later years"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "research": [
+    {
+      "title": "Documents and Photos",
+      "type": "folder",
+      "synopsis": "Drag scans, letters, and photos here."
+    },
+    {
+      "title": "Timeline",
+      "type": "text",
+      "icon": "view-calendar",
+      "synopsis": "Years and events, in order.",
+      "text": "# Timeline\n- Year: event\n- Year: event\n"
+    },
+    {
+      "title": "Questions for Relatives",
+      "type": "text",
+      "icon": "view-pim-notes",
+      "text": "- Who could know more about …?\n"
+    }
+  ],
+  "root": [
+    {
+      "title": "Sheets",
+      "type": "folder",
+      "children": [
+        {
+          "title": "Person",
+          "type": "text",
+          "icon": "user-identity",
+          "text": "# Name\n**Relationship to me:** \n**Born / died:** \n**How I remember them:** \n**A typical sentence:** \n**Stories they appear in:** \n**Things to ask or check:** \n"
+        },
+        {
+          "title": "Place",
+          "type": "text",
+          "icon": "globe",
+          "text": "# Place\n**When I was there:** \n**What it looked like:** \n**Sounds and smells:** \n**What happened there:** \n**Photos or documents:** \n"
+        },
+        {
+          "title": "Memory",
+          "type": "text",
+          "icon": "view-pim-notes",
+          "text": "# Memory\n**When:** \n**Where:** \n**Who was there:** \n**What happened:** \n**What I felt then:** \n**What I think now:** \n"
+        }
+      ]
+    },
+    {
+      "title": "People",
+      "type": "folder",
+      "icon": "x-office-address-book",
+      "defaultTemplate": "Person"
+    },
+    {
+      "title": "Places",
+      "type": "folder",
+      "icon": "globe",
+      "defaultTemplate": "Place"
+    },
+    {
+      "title": "Loose Memories",
+      "type": "folder",
+      "icon": "view-pim-notes",
+      "defaultTemplate": "Memory",
+      "synopsis": "Memories that have no place in the manuscript yet."
+    },
+    {
+      "title": "Front Matter",
+      "type": "folder",
+      "icon": "folder-grey",
+      "children": [
+        {
+          "title": "Title Page",
+          "type": "text",
+          "sectionType": "Title Page",
+          "text": "\n\n\n\n::Title:: <$projecttitle>\n->A memoir<-\n->by<-\n-><$author><-\n"
+        }
+      ]
+    }
+  ]
+}

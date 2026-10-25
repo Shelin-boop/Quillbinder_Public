@@ -1,0 +1,33 @@
+{
+  "name": "Warm Paper",
+  "colors": {
+    "window": "#efe7d6",
+    "windowText": "#3d3427",
+    "base": "#fbf6ea",
+    "alternateBase": "#f3ecdc",
+    "text": "#33291d",
+    "button": "#e6dcc6",
+    "buttonText": "#3d3427",
+    "highlight": "#b0683a",
+    "highlightedText": "#ffffff",
+    "link": "#8a4b21",
+    "toolTipBase": "#fff9ea",
+    "toolTipText": "#33291d",
+    "mid": "#c9bda4",
+    "dark": "#a89b80",
+    "light": "#fffaf0",
+    "disabledText": "#a39780",
+    "binderBackground": "#f5eedf",
+    "editorPaper": "#fdf8ec",
+    "editorMargin": "#eadfc8",
+    "editorLink": "#8a4b21",
+    "headerBar": "#e6dcc6",
+    "corkboardBackground": "#b99a6b",
+    "cardPaper": "#fffaf0",
+    "cardTitleLine": "#c98a5e",
+    "synopsisPaper": "#fffaf0",
+    "compositionBackground": "#3a3023",
+    "compositionPaper": "#fbf6ea",
+    "compositionText": "#33291d"
+  }
+}

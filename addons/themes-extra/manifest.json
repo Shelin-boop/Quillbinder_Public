@@ -1,0 +1,12 @@
+{
+  "id": "themes-extra",
+  "name": "Extra themes",
+  "version": "2.0",
+  "description": "Five additional themes: Northern Night (dark blue-gray), Forest (dark green), Graphite (dark gray with orange), Warm Paper (cream) and Rose Dawn (light rose). Version 2.0 also colors the binder, editor, index cards and composition mode in program versions from 0.5.0 on.",
+  "author": "Quillbinder",
+  "minApp": "0.2.0",
+  "whatsNew": [
+    "Two new themes: Graphite and Rose Dawn",
+    "All themes now set the colors of the editor, corkboard, index cards and composition mode (needs program version 0.5.0; older versions use the window colors only)"
+  ]
+}

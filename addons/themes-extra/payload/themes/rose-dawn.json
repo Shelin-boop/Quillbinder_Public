@@ -1,0 +1,30 @@
+{
+  "name": "Rose Dawn",
+  "colors": {
+    "window": "#f3e6e8",
+    "windowText": "#40282e",
+    "base": "#fdf7f8",
+    "alternateBase": "#f7ecee",
+    "text": "#3a2329",
+    "button": "#ead6da",
+    "buttonText": "#40282e",
+    "highlight": "#b5556b",
+    "highlightedText": "#ffffff",
+    "link": "#9a3f56",
+    "toolTipBase": "#fff9fa",
+    "toolTipText": "#3a2329",
+    "mid": "#d2b8be",
+    "dark": "#b0959b",
+    "light": "#fffafb",
+    "disabledText": "#aa9398",
+    "binderBackground": "#f8eef0",
+    "editorMargin": "#efdfe2",
+    "headerBar": "#ead6da",
+    "corkboardBackground": "#c49aa3",
+    "cardPaper": "#fffbfb",
+    "cardTitleLine": "#d27f92",
+    "compositionBackground": "#2e1f23",
+    "compositionPaper": "#3b282d",
+    "compositionText": "#f3e6e8"
+  }
+}

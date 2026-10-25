@@ -1,0 +1,13 @@
+#pragma once
+// Generated from CMakeLists.txt - do not edit.
+#define QB_APP_NAME    "@APP_NAME@"
+#define QB_APP_ID      "@APP_ID@"
+#define QB_APP_VERSION "@APP_VERSION@"
+// The version as people see it: the number plus the label of CMakeLists.txt
+// ("0.30.0 alpha"). Only for display; compare versions with QB_APP_VERSION.
+#define QB_APP_VERSION_SHOWN "@APP_VERSION_SHOWN@"
+#define QB_RUNTIME_ID  "@APP_RUNTIME@"
+// Project folder suffix and the index file inside it.
+#define QB_PROJECT_SUFFIX ".quillbinder"
+#define QB_PROJECT_FILE_SUFFIX ".qbx"
+#define QB_LINK_SCHEME "qb"

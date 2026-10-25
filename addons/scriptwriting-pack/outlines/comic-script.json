@@ -1,0 +1,116 @@
+{
+ "name": "Comic Script",
+ "category": "Scriptwriting",
+ "icon": "typewriter",
+ "description": "A comic or graphic novel: one document per page with panels, panel descriptions, dialogue, captions and sound effects. New pages are in script mode.",
+ "scriptFormat": "Comic Script",
+ "statuses": [
+  "Thumbnails",
+  "Scripted",
+  "Lettered",
+  "Final"
+ ],
+ "sectionTypes": [
+  "Issue",
+  "Page"
+ ],
+ "folderTypes": [
+  "Issue"
+ ],
+ "fileTypes": [
+  "Page"
+ ],
+ "compileFormat": "Default (Editor Formatting)",
+ "draftTitle": "Script",
+ "templatesFolder": "Template Sheets",
+ "draft": [
+  {
+   "title": "Issue 1",
+   "type": "folder",
+   "defaultTemplate": "Page",
+   "children": [
+    {
+     "title": "Page 1",
+     "type": "text",
+     "script": true,
+     "status": "Thumbnails",
+     "elements": [
+      [
+       "Page",
+       "PAGE ONE (four panels)"
+      ],
+      [
+       "Panel",
+       "Panel 1"
+      ],
+      [
+       "Description",
+       "What the artist should draw. Keep it to what can be seen."
+      ],
+      [
+       "Character",
+       "NAME"
+      ],
+      [
+       "Dialogue",
+       "What is said."
+      ],
+      [
+       "Panel",
+       "Panel 2"
+      ],
+      [
+       "Description",
+       "The next picture."
+      ],
+      [
+       "Caption",
+       "CAPTION: A line of narration."
+      ],
+      [
+       "Sound Effect",
+       "SFX: KRAK"
+      ]
+     ]
+    }
+   ]
+  }
+ ],
+ "research": [
+  {
+   "title": "Read Me First",
+   "type": "text",
+   "icon": "help-hint",
+   "text": "# How this template works\nThe script lives in the folder **Script**, one document per page, in folders for the issues or chapters.\n## Writing in script mode\nThe documents in the script folder are scripts: their icon is yellow, and the footer of the editor shows the element of the line you are in.\n- **Enter** at the end of a line goes on to the element that usually follows.\n- **Tab** on an empty line changes the line to another element; after some elements it starts a different element on the next line or types a piece of text for you.\n- **Enter** on an empty line opens the list of elements; press the letter of the one you want.\n- While you type, names, places and stock phrases are offered in a small list. **Enter** or **Tab** takes the marked one, **Esc** closes the list.\n## New documents\nA new document inside a folder that holds scripts is a script as well. For other documents, switch script mode on or off with **Format > Scriptwriting > Script Mode** (Ctrl+8).\n## Getting it out\n**File > Compile** with the output *Fountain* or *Final Draft* gives a file for other screenwriting programs; *Word* or *PDF* with the format *Default (Editor Formatting)* keeps the layout you see here.\n"
+  },
+  {
+   "title": "Notes for the Artist",
+   "type": "text"
+  }
+ ],
+ "root": [
+  {
+   "title": "Characters",
+   "type": "folder",
+   "icon": "x-office-address-book",
+   "defaultTemplate": "Character Sheet"
+  },
+  {
+   "title": "Template Sheets",
+   "type": "folder",
+   "children": [
+    {
+     "title": "Page",
+     "type": "text",
+     "script": true
+    },
+    {
+     "title": "Character Sheet",
+     "type": "text",
+     "icon": "user-identity",
+     "text": "# Name\n**Role in the story:** \n**Wants:** \n**Needs:** \n**Secret:** \n**How they speak:** \n**First seen in:** \n## Notes\n"
+    }
+   ]
+  }
+ ]
+}

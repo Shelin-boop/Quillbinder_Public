@@ -1,0 +1,15 @@
+--- a/libavformat/demux.c	2026-10-09 09:59:07.836005669 +0200
++++ b/libavformat/demux.c	2026-10-09 09:59:07.837904993 +0200
+@@ -1684,6 +1684,12 @@
+                 st->duration = av_rescale_q(ic->duration, AV_TIME_BASE_Q,
+                                             st->time_base);
+         }
++        /* Quillbinder: streams without a duration of their own (Matroska,
++         * WebM) take the duration of the file. Qt Multimedia 6.4 reads only
++         * stream durations and cannot seek in a file of duration 0. */
++        if (st->duration == AV_NOPTS_VALUE && ic->duration != AV_NOPTS_VALUE)
++            st->duration = av_rescale_q(ic->duration, AV_TIME_BASE_Q,
++                                        st->time_base);
+     }
+ }
+ 

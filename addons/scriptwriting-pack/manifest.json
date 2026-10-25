@@ -1,0 +1,8 @@
+{
+  "id": "scriptwriting-pack",
+  "name": "Scriptwriting pack",
+  "version": "1.0",
+  "description": "Project templates for a screenplay, a stage play and a comic script (New Project > Scriptwriting), and the script format \"Radio Play\" (Format > Scriptwriting > Script Format).",
+  "author": "Quillbinder",
+  "minApp": "0.10.0"
+}

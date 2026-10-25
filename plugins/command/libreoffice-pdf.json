@@ -1,0 +1,21 @@
+{
+  "id": "libreoffice-pdf",
+  "name": "PDF (via LibreOffice)",
+  "extension": "pdf",
+  "input": "docx",
+  "programs": [
+    "soffice",
+    "libreoffice"
+  ],
+  "arguments": [
+    "-env:UserInstallation=file://{tmpdir}/profile",
+    "--headless",
+    "--convert-to",
+    "pdf",
+    "--outdir",
+    "{outdir}",
+    "{input}"
+  ],
+  "output": "{outdir}/{inputbase}.pdf",
+  "timeout": 180
+}

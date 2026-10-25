@@ -1,0 +1,144 @@
+{
+ "name": "Screenplay",
+ "category": "Scriptwriting",
+ "icon": "typewriter",
+ "description": "A film or television script in the usual layout, in acts and scenes, with sheets for characters and locations. New scenes are in script mode.",
+ "scriptFormat": "Screenplay",
+ "labelTitle": "Storyline",
+ "labels": [
+  {
+   "name": "Main plot",
+   "color": "#4a86c7"
+  },
+  {
+   "name": "Subplot",
+   "color": "#5aa469"
+  },
+  {
+   "name": "Backstory",
+   "color": "#9b6bb3"
+  }
+ ],
+ "statuses": [
+  "Outline",
+  "First draft",
+  "Revised",
+  "Locked"
+ ],
+ "sectionTypes": [
+  "Act",
+  "Scene",
+  "Title Page"
+ ],
+ "folderTypes": [
+  "Act"
+ ],
+ "fileTypes": [
+  "Scene"
+ ],
+ "compileFormat": "Default (Editor Formatting)",
+ "draftTitle": "Screenplay",
+ "templatesFolder": "Template Sheets",
+ "draft": [
+  {
+   "title": "Act One",
+   "type": "folder",
+   "defaultTemplate": "Scene",
+   "children": [
+    {
+     "title": "Opening",
+     "type": "text",
+     "script": true,
+     "status": "Outline",
+     "synopsis": "Where are we, and whose story is this?",
+     "elements": [
+      [
+       "Scene Heading",
+       "INT. PLACE - DAY"
+      ],
+      [
+       "Action",
+       "Describe what we see. Then press Tab on an empty line for a character."
+      ],
+      [
+       "Character",
+       "NAME"
+      ],
+      [
+       "Parenthetical",
+       "(how it is said)"
+      ],
+      [
+       "Dialogue",
+       "What is said."
+      ],
+      [
+       "Action",
+       "Replace this scene with your own."
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Act Two",
+   "type": "folder",
+   "defaultTemplate": "Scene"
+  },
+  {
+   "title": "Act Three",
+   "type": "folder",
+   "defaultTemplate": "Scene"
+  }
+ ],
+ "research": [
+  {
+   "title": "Read Me First",
+   "type": "text",
+   "icon": "help-hint",
+   "text": "# How this template works\nThe script lives in the folder **Screenplay**, one document per scene, in folders for the acts.\n## Writing in script mode\nThe documents in the script folder are scripts: their icon is yellow, and the footer of the editor shows the element of the line you are in.\n- **Enter** at the end of a line goes on to the element that usually follows.\n- **Tab** on an empty line changes the line to another element; after some elements it starts a different element on the next line or types a piece of text for you.\n- **Enter** on an empty line opens the list of elements; press the letter of the one you want.\n- While you type, names, places and stock phrases are offered in a small list. **Enter** or **Tab** takes the marked one, **Esc** closes the list.\n## New documents\nA new document inside a folder that holds scripts is a script as well. For other documents, switch script mode on or off with **Format > Scriptwriting > Script Mode** (Ctrl+8).\n## Getting it out\n**File > Compile** with the output *Fountain* or *Final Draft* gives a file for other screenwriting programs; *Word* or *PDF* with the format *Default (Editor Formatting)* keeps the layout you see here.\n"
+  },
+  {
+   "title": "Treatment",
+   "type": "text",
+   "synopsis": "The story told in prose, a page or two."
+  }
+ ],
+ "root": [
+  {
+   "title": "Characters",
+   "type": "folder",
+   "icon": "x-office-address-book",
+   "defaultTemplate": "Character Sheet"
+  },
+  {
+   "title": "Locations",
+   "type": "folder",
+   "icon": "globe",
+   "defaultTemplate": "Location Sheet"
+  },
+  {
+   "title": "Template Sheets",
+   "type": "folder",
+   "children": [
+    {
+     "title": "Scene",
+     "type": "text",
+     "script": true
+    },
+    {
+     "title": "Character Sheet",
+     "type": "text",
+     "icon": "user-identity",
+     "text": "# Name\n**Role in the story:** \n**Wants:** \n**Needs:** \n**Secret:** \n**How they speak:** \n**First seen in:** \n## Notes\n"
+    },
+    {
+     "title": "Location Sheet",
+     "type": "text",
+     "icon": "globe",
+     "text": "# Location\n**Interior or exterior:** \n**What it looks like:** \n**Sounds:** \n**Scenes set here:** \n## Notes\n"
+    }
+   ]
+  }
+ ]
+}

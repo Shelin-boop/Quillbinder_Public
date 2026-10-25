@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-quillbinder-project">
+    <comment>Quillbinder project</comment>
+    <icon name="quillbinder"/>
+    <glob pattern="*.qbx"/>
+  </mime-type>
+  <mime-type type="application/x-quillbinder-package">
+    <comment>Quillbinder update or add-on</comment>
+    <icon name="quillbinder"/>
+    <glob pattern="*.qbpkg"/>
+  </mime-type>
+</mime-info>

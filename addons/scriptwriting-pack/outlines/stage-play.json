@@ -1,0 +1,120 @@
+{
+ "name": "Stage Play",
+ "category": "Scriptwriting",
+ "icon": "typewriter",
+ "description": "A play in acts and scenes with centered headings, character names above the dialogue and stage directions in parentheses. New scenes are in script mode.",
+ "scriptFormat": "Stage Play",
+ "statuses": [
+  "Outline",
+  "First draft",
+  "Revised",
+  "Rehearsal draft"
+ ],
+ "sectionTypes": [
+  "Act",
+  "Scene",
+  "Front Matter"
+ ],
+ "folderTypes": [
+  "Act"
+ ],
+ "fileTypes": [
+  "Scene"
+ ],
+ "compileFormat": "Default (Editor Formatting)",
+ "draftTitle": "Play",
+ "templatesFolder": "Template Sheets",
+ "draft": [
+  {
+   "title": "Cast and Setting",
+   "type": "text",
+   "sectionType": "Front Matter",
+   "text": "# Characters\nNAME, a few words about them\n# Setting\nWhere and when the play takes place.\n"
+  },
+  {
+   "title": "Act One",
+   "type": "folder",
+   "defaultTemplate": "Scene",
+   "children": [
+    {
+     "title": "Scene 1",
+     "type": "text",
+     "script": true,
+     "status": "Outline",
+     "elements": [
+      [
+       "Act Heading",
+       "ACT ONE"
+      ],
+      [
+       "Scene Heading",
+       "SCENE 1"
+      ],
+      [
+       "Stage Direction",
+       "(Where we are, and who is on stage.)"
+      ],
+      [
+       "Character",
+       "NAME"
+      ],
+      [
+       "Dialogue",
+       "What is said."
+      ],
+      [
+       "Character",
+       "OTHER NAME"
+      ],
+      [
+       "Parenthetical",
+       "(how it is said)"
+      ],
+      [
+       "Dialogue",
+       "The answer."
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Act Two",
+   "type": "folder",
+   "defaultTemplate": "Scene"
+  }
+ ],
+ "research": [
+  {
+   "title": "Read Me First",
+   "type": "text",
+   "icon": "help-hint",
+   "text": "# How this template works\nThe play lives in the folder **Play**, one document per scene, in folders for the acts.\n## Writing in script mode\nThe documents in the script folder are scripts: their icon is yellow, and the footer of the editor shows the element of the line you are in.\n- **Enter** at the end of a line goes on to the element that usually follows.\n- **Tab** on an empty line changes the line to another element; after some elements it starts a different element on the next line or types a piece of text for you.\n- **Enter** on an empty line opens the list of elements; press the letter of the one you want.\n- While you type, names, places and stock phrases are offered in a small list. **Enter** or **Tab** takes the marked one, **Esc** closes the list.\n## New documents\nA new document inside a folder that holds scripts is a script as well. For other documents, switch script mode on or off with **Format > Scriptwriting > Script Mode** (Ctrl+8).\n## Getting it out\n**File > Compile** with the output *Fountain* or *Final Draft* gives a file for other screenwriting programs; *Word* or *PDF* with the format *Default (Editor Formatting)* keeps the layout you see here.\n"
+  }
+ ],
+ "root": [
+  {
+   "title": "Characters",
+   "type": "folder",
+   "icon": "x-office-address-book",
+   "defaultTemplate": "Character Sheet"
+  },
+  {
+   "title": "Template Sheets",
+   "type": "folder",
+   "children": [
+    {
+     "title": "Scene",
+     "type": "text",
+     "script": true
+    },
+    {
+     "title": "Character Sheet",
+     "type": "text",
+     "icon": "user-identity",
+     "text": "# Name\n**Role in the story:** \n**Wants:** \n**Needs:** \n**Secret:** \n**How they speak:** \n**First seen in:** \n## Notes\n"
+    }
+   ]
+  }
+ ]
+}
