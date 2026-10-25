@@ -1,10 +1,15 @@
-# Known Bugs
-- Bold-Icon might in some cases not show actual status.
-- Due to how normal QT operates, some fonts are not displayed is intended. The fix  is
-  1. Show each optical size as its own entry in the font lists (“Sitka Text”, “Sitka Banner” and so on).
-  2. Keep Bold and Italic within that size by choosing the face by name.
-  3. Take the button states from the chosen face, which would probably fix point 1 as well.
-  4. Write the per-size name into exported files (DOCX, RTF, Scrivener).
+## Known issues in 0.50.0 alpha
+
+- **Format buttons**: when text is selected from right to left (for example with Shift and the left arrow key),
+  the Bold, Italic, Underline and Strikethrough buttons show the format of the character in front of the
+  selection instead of the selected text. The commands themselves work.
+- **Fonts with several designs in one font**: some fonts hold several designs of one typeface under one name;
+  Sitka of Windows 11, for example, holds the optical sizes Small, Text, Subheading, Heading, Display, and Banner.
+  Text made bold or italic in such a font can come out in another of its designs and look smaller and narrower.
+
+A fix for both is ready and will come with the next public version: each design will be listed as a font of
+its own ("Sitka Text", "Sitka Banner" ...) with bold and italic kept within it, and the buttons will show the
+state of the whole selection.
 
 # Quillbinder
 
