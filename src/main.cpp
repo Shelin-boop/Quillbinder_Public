@@ -4,6 +4,7 @@
 #include "core/Addons.h"
 #include "core/CrashGuard.h"
 #include "core/Launcher.h"
+#include "text/FontFaces.h"
 #include "ui/AppSettings.h"
 #include "ui/CrashDialogs.h"
 #include "ui/MainWindow.h"
@@ -97,6 +98,9 @@ int main(int argc, char **argv)
     }
 
     QApplication app(argc, argv);
+    // fonts with several designs in one family (Sitka: Small ... Banner) get a family per
+    // design, so that Bold and Italic stay within the design (0.40.1, text/FontFaces.h)
+    qb::fontfaces::install();
     QGuiApplication::setApplicationDisplayName(QStringLiteral(QB_APP_NAME));
     QGuiApplication::setDesktopFileName(QStringLiteral(QB_APP_ID));
     QApplication::setWindowIcon(QIcon(QStringLiteral(":/app/" QB_APP_ID ".svg")));

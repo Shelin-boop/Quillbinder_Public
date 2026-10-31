@@ -482,10 +482,16 @@ void Compiler::appendDocument(Manuscript &m, QTextDocument *doc, const QString &
                 listIds.insert(list, ++m_listCounter);
             p.listId = listIds.value(list);
         }
-        if (p.style == Paragraph::Normal && (bf.alignment() & Qt::AlignHCenter))
-            p.align = Qt::AlignHCenter;
-        if (p.style == Paragraph::Normal && (bf.alignment() & Qt::AlignRight))
-            p.align = Qt::AlignRight;
+        // centered or right-aligned paragraphs; when the project's body text is centered or
+        // right-aligned (0.40.3), that alignment counts only with the editor's formatting, a
+        // compile format with a look of its own decides about body text
+        const bool bodyAlign = bodyAlignment(bf.alignment()) == bodyAlignment(m_project->formatting.align);
+        if (p.style == Paragraph::Normal && (m_format.useEditorFormatting || !bodyAlign)) {
+            if (bf.alignment() & Qt::AlignHCenter)
+                p.align = Qt::AlignHCenter;
+            if (bf.alignment() & Qt::AlignRight)
+                p.align = Qt::AlignRight;
+        }
         // paragraph formatting set by hand. Markdown text marks it; RTF text
         // carries complete formatting, there it is what differs from the project
         int own = bf.intProperty(props::ParaDirect) & direct::AllPara;
@@ -792,7 +798,7 @@ Manuscript Compiler::build()
         m.lineSpacing = f.lineSpacing;
         m.firstLineIndentMm = f.firstLineIndent * 25.4 / 96.0;
         m.paragraphSpacingPt = f.paragraphSpacing * 0.75;
-        m.justify = f.justify;
+        m.justify = f.align == Qt::AlignJustify;
     } else {
         m.fontFamily = m_format.fontFamily;
         m.fontSize = m_format.fontSize;
@@ -1105,7 +1111,7 @@ Manuscript Compiler::buildPrint(const QList<PrintPart> &parts, const PrintOption
     m.lineSpacing = f.lineSpacing;
     m.firstLineIndentMm = f.firstLineIndent * 25.4 / 96.0;
     m.paragraphSpacingPt = f.paragraphSpacing * 0.75;
-    m.justify = f.justify;
+    m.justify = f.align == Qt::AlignJustify;
     m.headingScale = 1.5;  // the titles of the documents
     m.headingBold = true;
     m.page = m_format.page;

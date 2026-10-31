@@ -128,7 +128,7 @@ void MainWindow::openWelcomeProject(bool firstStart)
     AppSettings::instance().addRecent(r.project->displayFile());
     AppSettings::instance().save();
     Project *proj = r.project.get();
-    if (!adoptProject(std::move(r.project)))
+    if (!adoptProject(std::move(r.project), true))
         return;
     // it begins with the document at the top of the binder
     for (BinderItem *it : proj->root()->children)

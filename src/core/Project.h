@@ -94,6 +94,11 @@ public:
     QList<SectionType> sectionTypes;
     StructureDefaults structureDefaults;
     Formatting formatting;
+    // the style list of the format bar and of the right-click menus (0.40.3): the order chosen
+    // ("-" = No Style) and the entries left out; styles not named follow in the order of the
+    // style sheet. Empty: all styles in the order of the sheet.
+    QStringList styleListOrder;
+    QStringList styleListHidden;
     Targets targets;
     QList<Bookmark> projectBookmarks;
     QList<Collection> collections;

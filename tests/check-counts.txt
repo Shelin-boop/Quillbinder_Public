@@ -1,0 +1,27 @@
+# Checks per suite on X11, written by tools/run-all-tests.sh after a full X11 run.
+# 2026-10-31, APP_VERSION 0.60.0
+qb_tests 395
+ui 181
+m6 53
+m7 56
+m8 47
+m9 55
+m10 78
+m11 79
+m12 84
+m13 47
+m14 64
+fixes 32
+v017 128
+v018 56
+v019 56
+v020 122
+v021 103
+v0211 90
+v0212 104
+v040 53
+v0401 26
+v0402 89
+v0403 57
+v050 45
+v060 34

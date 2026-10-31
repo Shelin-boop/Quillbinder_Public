@@ -600,10 +600,30 @@ Notifier &Notifier::instance()
     return n;
 }
 
-static QMap<FontRole, FontSpec> ownFonts()
+static AreaLook s_area;
+
+void setAreaLook(const AreaLook &look) { s_area = look; }
+const AreaLook &areaLook() { return s_area; }
+
+bool isAreaColor(const QString &key)
+{
+    for (const RoleInfo &i : roles())
+        if (key == QLatin1String(i.key))
+            return i.area != Area::General;
+    return false;
+}
+
+bool isAreaFont(const QString &key)
+{
+    for (const FontInfo &i : fontRoles())
+        if (key == QLatin1String(i.key))
+            return i.role != FontRole::Interface;
+    return false;
+}
+
+static QMap<FontRole, FontSpec> fontsOf(const QMap<QString, QString> &own)
 {
     QMap<FontRole, FontSpec> m;
-    const auto &own = AppSettings::instance().ownFonts;
     for (auto it = own.constBegin(); it != own.constEnd(); ++it) {
         FontRole r;
         if (fontRoleFromKey(it.key(), &r))
@@ -612,20 +632,85 @@ static QMap<FontRole, FontSpec> ownFonts()
     return m;
 }
 
-static Theme chosenTheme()
+// The own fonts in use: the interface font of the settings, the areas' of the project.
+static QMap<FontRole, FontSpec> ownFonts()
+{
+    QMap<FontRole, FontSpec> m = fontsOf(AppSettings::instance().ownFonts);
+    if (s_area.set) {
+        for (auto it = m.begin(); it != m.end();)
+            it = it.key() == FontRole::Interface ? std::next(it) : m.erase(it);
+        const QMap<FontRole, FontSpec> area = fontsOf(s_area.fonts);
+        for (auto it = area.constBegin(); it != area.constEnd(); ++it)
+            if (it.key() != FontRole::Interface)
+                m.insert(it.key(), it.value());
+    }
+    return m;
+}
+
+static Theme loadOrSystem(const QString &id)
 {
     Theme t;
-    if (!load(AppSettings::instance().theme, &t)) {
+    if (!load(id, &t))
         load(QStringLiteral("system"), &t);
-    }
     return t;
+}
+
+static Theme chosenTheme() { return loadOrSystem(AppSettings::instance().theme); }
+
+// The own colors the areas are worked out from: the general ones of the settings and the
+// areas' own of the project (or of the settings without a project).
+static QMap<QString, QColor> areaOwnColors()
+{
+    const AppSettings &s = AppSettings::instance();
+    if (!s_area.set)
+        return s.ownColors;
+    QMap<QString, QColor> own;
+    for (auto it = s.ownColors.constBegin(); it != s.ownColors.constEnd(); ++it)
+        if (!isAreaColor(it.key()))
+            own.insert(it.key(), it.value());
+    for (auto it = s_area.colors.constBegin(); it != s_area.colors.constEnd(); ++it)
+        if (isAreaColor(it.key()))
+            own.insert(it.key(), it.value());
+    return own;
+}
+
+// All colors in use: the general ones from the settings' theme and own colors, the areas'
+// from the project's theme and own colors (0.40.2).
+static QMap<Role, QColor> colorsInUse()
+{
+    const AppSettings &s = AppSettings::instance();
+    QMap<Role, QColor> all = resolvedColors(chosenTheme(), s.ownColors);
+    if (s_area.set) {
+        const QMap<Role, QColor> area = resolvedColors(loadOrSystem(s_area.theme), areaOwnColors());
+        for (const RoleInfo &i : roles())
+            if (i.area != Area::General)
+                all.insert(i.role, area.value(i.role));
+    }
+    return all;
 }
 
 Theme currentLook()
 {
     const AppSettings &s = AppSettings::instance();
     Theme t = chosenTheme();
-    for (auto it = s.ownColors.constBegin(); it != s.ownColors.constEnd(); ++it) {
+    if (s_area.set) {
+        // the areas as the project shows them
+        const Theme at = loadOrSystem(s_area.theme);
+        for (const RoleInfo &i : roles())
+            if (i.area != Area::General) {
+                t.colors.remove(i.role);
+                if (at.colors.contains(i.role))
+                    t.colors.insert(i.role, at.colors.value(i.role));
+            }
+        for (const FontInfo &i : fontRoles())
+            if (i.role != FontRole::Interface) {
+                t.fonts.remove(i.role);
+                if (at.fonts.contains(i.role))
+                    t.fonts.insert(i.role, at.fonts.value(i.role));
+            }
+    }
+    const QMap<QString, QColor> own = s_area.set ? areaOwnColors() : s.ownColors;
+    for (auto it = own.constBegin(); it != own.constEnd(); ++it) {
         Role r;
         if (roleFromKey(it.key(), &r) && it.value().isValid())
             t.colors.insert(r, it.value());
@@ -707,7 +792,7 @@ void apply()
     const AppSettings &s = AppSettings::instance();
     const Theme t = chosenTheme();
     s_name = t.name;
-    s_colors = resolvedColors(t, s.ownColors);
+    s_colors = colorsInUse();
     // palette: untouched desktop colors stay exactly the desktop's palette
     bool generalChanged = !t.followDesktop;
     for (const RoleInfo &i : roles())
@@ -721,6 +806,16 @@ void apply()
     s_dark = darkColor(s_colors[Role::Window]);
 
     QMap<FontRole, FontSpec> fonts = t.fonts;
+    if (s_area.set) {
+        // the areas take the fonts of the project's theme
+        const Theme at = loadOrSystem(s_area.theme);
+        for (const FontInfo &i : fontRoles())
+            if (i.role != FontRole::Interface) {
+                fonts.remove(i.role);
+                if (at.fonts.contains(i.role))
+                    fonts.insert(i.role, at.fonts.value(i.role));
+            }
+    }
     const QMap<FontRole, FontSpec> own = ownFonts();
     for (auto it = own.constBegin(); it != own.constEnd(); ++it)
         fonts.insert(it.key(), it.value());

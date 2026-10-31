@@ -1,4 +1,5 @@
 #include "ui/Windows.h"
+#include "ui/LookMenu.h"
 #include "ui/Zoom.h"
 #include "ui/Commands.h"
 #include "core/BinderModel.h"
@@ -47,6 +48,7 @@ CompositionWindow::CompositionWindow(Project *p, const QList<BinderItem *> &item
     m_pagesSuspended = true;
     m_view = new TextColumnView(this);
     m_view->setFollowsPageView(false);
+    m_view->setLookPart(int(lookmenu::Part::Composition)); // a right-click beside the text (0.40.2)
     m_view->setProject(p);
     m_view->setCustomColors(theme::color(theme::Role::CompositionText), theme::color(theme::Role::CompositionPaper),
                             QColor(0, 0, 0, 0));

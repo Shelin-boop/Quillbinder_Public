@@ -112,6 +112,26 @@ add_executable(qb_v040_tests v040_tests.cpp ${CMAKE_SOURCE_DIR}/resources/resour
 target_link_libraries(qb_v040_tests PRIVATE qbui Qt6::Test)
 target_compile_definitions(qb_v040_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
 
+# Version 0.40.1: fonts with several designs in one family (optical sizes such as Sitka's; tested with the free
+# Source Serif 4 of tests/fonts) get a family per design; the Bold / Italic / Underline / Strikethrough buttons show
+# the whole selection, also one made from right to left (QT_QPA_PLATFORM=offscreen ./qb_v0401_tests /tmp/shots).
+add_executable(qb_v0401_tests v0401_tests.cpp ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
+target_link_libraries(qb_v0401_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_v0401_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
+# Version 0.40.2 (private line): no jump on a right-click, a look per project, the border beside the text, settings
+# in the right-click menus, project settings saved to a file and read back, style changes reaching all text of the
+# style (QT_QPA_PLATFORM=offscreen ./qb_v0402_tests /tmp/shots).
+add_executable(qb_v0402_tests v0402_tests.cpp ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
+target_link_libraries(qb_v0402_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_v0402_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
+# Version 0.40.3 (private line): titles from the first line, No Style redefined, the short spelling menu, a format
+# bar that shows what is seen, dialogs above the Styles panel, the alignment of the main text, the chosen style list
+# (xvfb-run -a ./qb_v0403_tests /tmp/shots).
+add_executable(qb_v0403_tests v0403_tests.cpp ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
+target_link_libraries(qb_v0403_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_v0403_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 # 0.50: the release on the project page, the source files named in the license list, the media add-ons split into free
 # formats and "Extra Video and Audio Formats" (QT_QPA_PLATFORM=offscreen ./qb_v050_tests /tmp/shots). Installs
 # <build>/addons-dist/media-playback.qbpkg and media-extra-formats.qbpkg (tools/get-ffmpeg.sh, then
@@ -119,3 +139,10 @@ target_compile_definitions(qb_v040_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CUR
 add_executable(qb_v050_tests v050_tests.cpp ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
 target_link_libraries(qb_v050_tests PRIVATE qbui Qt6::Test)
 target_compile_definitions(qb_v050_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
+
+# 0.60: one source for the private and the public repository: About names FFmpeg, the character and place sheets,
+# the media package with all formats (media-all-formats.qbpkg), the release text and README, tools/legal-check.py
+# and tools/publish-public.sh on test copies (QT_QPA_PLATFORM=offscreen ./qb_v060_tests /tmp/shots).
+add_executable(qb_v060_tests v060_tests.cpp ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
+target_link_libraries(qb_v060_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_v060_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")

@@ -15,6 +15,30 @@ class QStringListModel;
 
 namespace qb {
 
+// Bold, italic, underline and strikethrough of what is selected (0.40.1), for the
+// buttons of the format bar and the commands that switch them. A state is on when
+// every selected character has it; without a selection it is the format the next
+// typed character gets. (Before, the format in front of the cursor decided: with a
+// selection made from right to left, the character before the selection.)
+struct ToggleState {
+    bool bold = false, italic = false, underline = false, strike = false;
+};
+// `adjust` may take away from a character's format what its paragraph style brings along.
+using FormatAdjust = std::function<QTextCharFormat(const QTextCharFormat &, const QTextBlock &)>;
+ToggleState toggleStateOf(const QTextEdit *edit, const FormatAdjust &adjust = {});
+
+// What the format bar shows (0.40.3): what is seen in the editor, including what a style
+// brings along, for all of the selection. A value that differs within the selection is
+// "mixed": the field stays empty, no button is on. (Before, the buttons showed only what
+// was set by hand, and fonts, sizes and paragraphs followed one end of the selection.)
+struct BarState {
+    ToggleState toggles;
+    bool superscript = false, subscript = false;
+    QString family;           // empty: mixed
+    double size = 0;          // points; 0: mixed
+    Qt::Alignment align;      // AlignLeft, AlignHCenter, AlignRight, AlignJustify; empty: mixed
+    double lineSpacing = -1;  // factor; 0: not a proportional spacing; -1: mixed
+};
 
 // Rich text editor used everywhere (main editor, combined text sections,
 // notes, quick reference, composition mode). Several editors may show the
@@ -58,6 +82,15 @@ public:
     int textInsetRight() const;
 
     // formatting commands
+    // The state of the selection (see ToggleState): byHand = only what was set by hand,
+    // not what a paragraph or character style brings along (what the buttons show).
+    ToggleState toggleState(bool byHand) const;
+    BarState barState() const;
+    // set for the whole selection (or what is typed next), whatever it was before
+    void setBold(bool on);
+    void setItalic(bool on);
+    void setUnderline(bool on);
+    void setStrike(bool on);
     void toggleBold();
     void toggleItalic();
     void toggleUnderline();
@@ -76,6 +109,7 @@ public:
     // paragraph or character style by name; empty = "No Style"
     void applyStyle(const QString &style);
     QString paragraphStyleAtCursor() const;
+    bool paragraphStylesMixed() const; // the selected paragraphs have different styles (0.40.3)
     QString characterStyleAtCursor() const;
     void setAlignment(Qt::Alignment a);
     void toggleList(bool numbered);
@@ -137,6 +171,10 @@ public:
     static int revisionLevel();
 
     QString wordUnderCursor(QTextCursor *wordCursor = nullptr) const;
+    // The cursor is being moved by the mouse (a click, a drag, a right-click): the view
+    // around the editor scrolls only when the cursor is out of sight, never by a margin
+    // (0.40.2: a click or right-click near the edge of the view made it jump).
+    bool cursorMovedByMouse() const { return m_mouseMoving > 0; }
 
     // ---- scriptwriting (ui/ScriptEditing.cpp)
     // The document is a script (script mode) and this editor shows its text:
@@ -175,6 +213,7 @@ protected:
     void mousePressEvent(QMouseEvent *e) override;
     void mouseReleaseEvent(QMouseEvent *e) override;
     void mouseMoveEvent(QMouseEvent *e) override;
+    void mouseDoubleClickEvent(QMouseEvent *e) override;
     void resizeEvent(QResizeEvent *e) override;
     void paintEvent(QPaintEvent *e) override;
     void contextMenuEvent(QContextMenuEvent *e) override;
@@ -218,6 +257,7 @@ private:
     QRegularExpression m_searchRe;
     bool m_searchOn = false;
     int m_searchCount = 0;
+    int m_mouseMoving = 0;   // see cursorMovedByMouse()
     QCompleter *m_scriptCompleter = nullptr;
     QStringListModel *m_scriptModel = nullptr;
     static int s_revision;

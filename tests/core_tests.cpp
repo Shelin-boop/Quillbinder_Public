@@ -571,7 +571,7 @@ int main(int argc, char **argv)
         Formatting g = f;
         g.firstLineIndent = 50;
         g.lineSpacing = 2.0;
-        g.justify = true;
+        g.align = Qt::AlignJustify;
         display::normalizeDocument(&dp, g);
         bf = dp.begin().blockFormat();
         check((bf.alignment() & Qt::AlignRight) && qAbs(bf.lineHeight() - 150) < 0.01 && qAbs(bf.textIndent()) < 0.01,

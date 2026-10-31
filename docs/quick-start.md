@@ -17,10 +17,11 @@
 | What you want | Where |
 |---------------|-------|
 | **Dark mode** or another color theme | **Window > Themes**: Dark Mode, Midnight, Sepia, Slate, Ocean, High Contrast, Light, or Default (follows your desktop). The change takes effect at once. |
-| Colors and fonts of each part of the window | **File > Options > Appearance** (or **Window > Themes > Colors and Fonts…**). Choose a part on the left; a changed entry is bold, **↺** gives it back to the theme. |
+| Colors and fonts of each part of the window | **File > Options > Appearance** (or **Window > Themes > Colors and Fonts…**), or a right-click on the part (**Appearance**). Every project keeps its own look; the list at the top chooses this project or new projects. |
 | Your own theme | **Window > Themes > Save Current Look as Theme…**; **Manage Themes…** exports and imports *.qbtheme* files. |
 | Interface font, toolbar icon size, the full path in the title bar | **File > Options > Appearance > General Interface** |
-| The text column: fixed width, paper color, width | **File > Options > Appearance > Main Editor** |
+| The text column: fixed width, paper color, width, border beside the text | **File > Options > Appearance > Main Editor**, or a right-click on the paper |
+| The project's settings in a file, and back into this or another project | **Project > Save Project Settings to File…** / **Load Project Settings from File…** |
 | Font and paragraph formatting of **new** projects | **File > Options > Editing > Formatting** ("Use Formatting in Current Editor") |
 | Font and paragraph formatting of **this** project | **Project > Project Settings > Formatting** |
 | Zoom | **Ctrl+mouse wheel** over any part of the window: each part keeps its own zoom. Start values: **File > Options > Editing**. |
@@ -74,7 +75,7 @@
 
 ### Updates and add-ons
 
-Updates and extensions come as small package files (*.qbpkg*), on the Releases page of the project page (https://github.com/Shelin-boop/Quillbinder_Public/releases) next to the AppImage. Install them with **File > Install Update or Add-on…** (or double-click the file). **Help > Add-on Manager…** switches add-ons on and off and goes back to an earlier program version if an update does not suit you. Add-ons include extra themes, project templates, compile formats, the Name Generator, the Scratch Pad, Text Statistics, audio and video playback (free formats; H.264, AAC and the like with the separate add-on "Extra Video and Audio Formats"), and the import of web pages and old Word files.
+Updates and extensions come as small package files (*.qbpkg*), on the Releases page of the project page (https://github.com/Shelin-boop/Quillbinder_Public/releases) next to the AppImage. Install them with **File > Install Update or Add-on…** (or double-click the file). **Help > Add-on Manager…** switches add-ons on and off and goes back to an earlier program version if an update does not suit you. Add-ons include extra themes, project templates, compile formats, the Name Generator, the Scratch Pad, Text Statistics, audio and video playback (one package for every format, *media-all-formats.qbpkg*; or *media-playback.qbpkg* for the free formats only), and the import of web pages and old Word files.
 
 ---
 

@@ -712,8 +712,12 @@ static void settingsChecks(MainWindow &w, bool freshWasStandard, const QString &
         if (x->minimumWidth() == x->maximumWidth() && x->autoFillBackground())
             column = x;
     const int want = int(500 * p->docs()->zoom());
-    check(column && column->width() == want, QStringLiteral("the text column is 500 px wide (at the editor's zoom: %1 px)").arg(want),
-          column ? QString::number(column->width()) : QStringLiteral("no column"));
+    // (0.40.2) a new project has a border of 10 px beside the text, in the paper's color: the
+    // text keeps its 500 px, the paper is 2 x 10 px wider
+    const int border = int(10 * p->docs()->zoom() + 0.5);
+    check(column && ed && ed->width() == want && column->width() == want + 2 * border,
+          QStringLiteral("the text column is 500 px wide (at the editor's zoom: %1 px), with the border beside the text").arg(want),
+          column && ed ? QStringLiteral("text %1, paper %2").arg(ed->width()).arg(column->width()) : QStringLiteral("no column"));
     if (view && column) {
         const QImage img = view->viewport()->grab().toImage();
         const QPoint inColumn = column->mapTo(view->viewport(), QPoint(column->width() / 2, column->height() - 4));

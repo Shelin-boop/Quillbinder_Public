@@ -426,15 +426,16 @@ QWidget *ProjectSettingsDialog::formattingPage()
     m_paraSpacing->setRange(0, 72);
     m_paraSpacing->setSuffix(tr(" pt"));
     m_paraSpacing->setValue(direct::pxToPt(fm.paragraphSpacing));
-    m_justify = new QCheckBox(tr("Justify text"), box);
-    m_justify->setChecked(fm.justify);
+    m_align = new qb::AlignButtons(box);
+    m_align->setObjectName(QStringLiteral("formattingAlign"));
+    m_align->setAlignment(fm.align);
     f->addRow(QString(), m_autoFont);
     f->addRow(tr("Font:"), m_font);
     f->addRow(tr("Size:"), m_size);
     f->addRow(tr("Line spacing:"), m_spacing);
     f->addRow(tr("First line indent:"), m_indent);
     f->addRow(tr("Space after paragraphs:"), m_paraSpacing);
-    f->addRow(QString(), m_justify);
+    f->addRow(tr("Alignment:"), m_align);
     auto *useCurrent = new QPushButton(tr("Use Current"), box);
     useCurrent->setObjectName(QStringLiteral("useCurrentFormatting"));
     useCurrent->setToolTip(tr("Take font, size, spacing and indent from the paragraph that holds the cursor in the editor"));
@@ -452,7 +453,7 @@ QWidget *ProjectSettingsDialog::formattingPage()
         m_spacing->setValue(cur.lineSpacing);
         m_indent->setValue(units::fromPx(cur.firstLineIndent));
         m_paraSpacing->setValue(direct::pxToPt(cur.paragraphSpacing));
-        m_justify->setChecked(cur.justify);
+        m_align->setAlignment(cur.align);
         updatePreview();
     });
     m_ownFollows = new QCheckBox(tr("Change text with a font, size or spacing of its own as well (for example imported text)"), box);
@@ -492,7 +493,7 @@ QWidget *ProjectSettingsDialog::formattingPage()
     for (auto *sp : {m_size, m_spacing, m_indent, m_paraSpacing})
         connect(sp, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &ProjectSettingsDialog::updatePreview);
     connect(m_font, &QFontComboBox::currentFontChanged, this, &ProjectSettingsDialog::updatePreview);
-    connect(m_justify, &QCheckBox::toggled, this, &ProjectSettingsDialog::updatePreview);
+    connect(m_align, &qb::AlignButtons::alignmentChanged, this, &ProjectSettingsDialog::updatePreview);
     connect(m_autoFont, &QCheckBox::toggled, this, [this](bool on) {
         m_font->setEnabled(!on);
         updatePreview();
@@ -509,7 +510,7 @@ void ProjectSettingsDialog::updatePreview()
     f.lineSpacing = m_spacing->value();
     f.firstLineIndent = units::toPx(m_indent->value());
     f.paragraphSpacing = direct::ptToPx(m_paraSpacing->value());
-    f.justify = m_justify->isChecked();
+    f.align = m_align->alignment();
     QTextDocument *d = m_preview->document();
     d->clear();
     display::prepareDocument(d, f, 1.0);
@@ -691,7 +692,7 @@ void ProjectSettingsDialog::apply()
     f.lineSpacing = m_spacing->value();
     f.firstLineIndent = units::toPx(m_indent->value());
     f.paragraphSpacing = direct::ptToPx(m_paraSpacing->value());
-    f.justify = m_justify->isChecked();
+    f.align = m_align->alignment();
     // the fields show rounded values: an untouched field keeps the exact old value
     if (qAbs(units::fromPx(f.firstLineIndent) - units::fromPx(p->formatting.firstLineIndent)) < 0.006)
         f.firstLineIndent = p->formatting.firstLineIndent;
@@ -701,7 +702,7 @@ void ProjectSettingsDialog::apply()
                                    || f.lineSpacing != p->formatting.lineSpacing
                                    || f.firstLineIndent != p->formatting.firstLineIndent
                                    || f.paragraphSpacing != p->formatting.paragraphSpacing
-                                   || f.justify != p->formatting.justify;
+                                   || f.align != p->formatting.align;
     if (formattingChanged) {
         const qb::Formatting oldF = p->formatting;
         p->formatting = f;

@@ -1,16 +1,3 @@
-## Known issues in 0.50.0 alpha
-
-- **Format buttons**: when text is selected from right to left (for example with Shift and the left arrow key),
-  the Bold, Italic, Underline and Strikethrough buttons show the format of the character in front of the
-  selection instead of the selected text. The commands themselves work.
-- **Fonts with several designs in one font**: some fonts hold several designs of one typeface under one name;
-  Sitka of Windows 11, for example, holds the optical sizes Small, Text, Subheading, Heading, Display, and Banner.
-  Text made bold or italic in such a font can come out in another of its designs and look smaller and narrower.
-
-A fix for both is ready and will come with the next public version: each design will be listed as a font of
-its own ("Sitka Text", "Sitka Banner" ...) with bold and italic kept within it, and the buttons will show the
-state of the whole selection.
-
 # Quillbinder
 
 A writing studio for long texts (binder, corkboard, outliner, combined text,
@@ -35,9 +22,11 @@ executable (right-click > Properties > Permissions, or `chmod +x`), and start it
 automatic backups are set under **File > Options > Backup**), and keep a copy of your manuscripts outside
 the program.
 
-Audio and video: the add-on "Media Playback" plays free formats (MP3, Ogg Vorbis, Opus, FLAC, WAV, WebM with
-VP8 or VP9 ...). H.264, H.265, AAC and the other formats licensed under patents are in the separate,
-optional add-on "Extra Video and Audio Formats".
+Audio and video: download **`media-all-formats.qbpkg`** and install it with **File > Install Update or
+Add-on**: one package, every format. It installs the add-on "Media Playback" (free formats: MP3, Ogg Vorbis,
+Opus, FLAC, WAV, WebM with VP8 or VP9 ...) together with "Extra Video and Audio Formats" (H.264, H.265, AAC and
+the other formats licensed under patents). Who wants the free formats only installs `media-playback.qbpkg`
+alone. Whether a patent license is needed to use the other formats depends on the country.
 
 The source code of every third-party library the AppImage and the add-ons carry, in exactly the versions
 used, is in the release
@@ -107,14 +96,17 @@ packaging/build-addons.sh build dist          # add-ons in addons/ -> dist/<id>.
 tools/make-package.py bundle --id ... --name ... --version ... a.qbpkg b.qbpkg out.qbpkg
 ```
 
-## Releases (0.50)
+## Releases (0.50, 0.60)
 
+Quillbinder is developed in a separate repository; this repository receives a copy of its source for each published
+version (`tools/publish-public.sh`, one commit per version), checked first by `tools/legal-check.py`.
 A new version on `main` of the public repository (a change of `CMakeLists.txt` whose version has no release yet), or a
 tag `v<version>` (for example `v0.50.0-alpha`, the version and label of `CMakeLists.txt`) pushed from a computer, starts
 `.github/workflows/release.yml` on GitHub, which also creates the tag: in a clean Ubuntu 24.04 it builds both FFmpeg sets, the
 AppImage, the add-ons and the program update, checks the AppImage (`tools/e2e-appimage.sh`), collects the source
 code of every third-party library (`tools/collect-sources.py`, needs `tools/enable-deb-src.sh`) and publishes the
 release (`tools/publish-release.sh`; the text comes from `tools/release-notes.py` and `docs/CHANGES.md`).
+`packaging/build-addons.sh` also makes `media-all-formats.qbpkg`, which installs both media add-ons in one step.
 `tools/collect-licenses.py --refresh` keeps Help > Third-Party Licenses at the library versions of the build system.
 
 `src/text/PageLayout.cpp` calls a private Qt class (page margins without an entry in the undo history). The program must
@@ -236,3 +228,6 @@ Quillbinder is under the Zero-Clause BSD license (0BSD, `LICENSE`): anyone may u
 pass it on, with or without fee, without conditions. The parts of other projects it uses, and their
 licenses, are listed in `THIRD-PARTY.md`; their full license texts are in `resources/licenses` and in
 the program under Help > Third-Party Licenses (made by `tools/collect-licenses.py`).
+
+Scrivener and Scapple are names of products of Literature & Latte; they are used here only to say which file
+formats Quillbinder reads and writes. Quillbinder contains no code, files or pictures of those programs.

@@ -397,9 +397,10 @@ double adjustedSize(double baseSize, int sizeAdjust)
 
 void applyChars(QTextCharFormat &cf, const Style &s)
 {
-    if (s.bold)
+    // text made not bold or not italic by hand inside a bold or italic style stays so (0.40.3)
+    if (s.bold && !cf.boolProperty(props::NotBold))
         cf.setFontWeight(QFont::Bold);
-    if (s.italic)
+    if (s.italic && !cf.boolProperty(props::NotItalic))
         cf.setFontItalic(true);
     if (s.underline && !cf.isAnchor())
         cf.setFontUnderline(true);

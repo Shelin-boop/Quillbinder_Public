@@ -29,6 +29,9 @@ concurrency:
 
 jobs:
   version:
+    # only in the public repository: the private development repository carries the same file
+    # (one source for both since 0.60) but never builds or publishes releases itself
+    if: github.repository == 'Shelin-boop/Quillbinder_Public'
     runs-on: ubuntu-24.04
     outputs:
       tag: ${{ steps.v.outputs.tag }}

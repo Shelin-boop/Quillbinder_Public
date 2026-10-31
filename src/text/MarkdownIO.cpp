@@ -571,6 +571,7 @@ QList<Run> parseInline(const QString &content, const QTextCharFormat &base, cons
     QList<Span> spans;
     QList<direct::CharSpec> fonts; // open <span style> tags, innermost last
     QStringList classes;           // character style of each open <span>
+    QList<int> plain;              // per open <span>: 1 not bold, 2 not italic (0.40.3)
 
     auto current = [&]() {
         QTextCharFormat f = base;
@@ -620,6 +621,15 @@ QList<Run> parseInline(const QString &content, const QTextCharFormat &base, cons
         }
         if (!fonts.isEmpty())
             direct::mergeCharSpec(f, fonts.last());
+        // not bold / not italic although the style is (0.40.3); ** inside still makes bold
+        if (!plain.isEmpty() && (plain.last() & 1) && bold <= 0) {
+            f.setFontWeight(QFont::Normal);
+            f.setProperty(props::NotBold, true);
+        }
+        if (!plain.isEmpty() && (plain.last() & 2) && italic <= 0) {
+            f.setFontItalic(false);
+            f.setProperty(props::NotItalic, true);
+        }
         return f;
     };
     auto emitText = [&](const QString &t) {
@@ -670,6 +680,8 @@ QList<Run> parseInline(const QString &content, const QTextCharFormat &base, cons
                         fonts.removeLast();
                     if (!classes.isEmpty())
                         classes.removeLast();
+                    if (!plain.isEmpty())
+                        plain.removeLast();
                 } else {
                     classes.append(!t.cls.isEmpty() ? t.cls : classes.isEmpty() ? QString() : classes.last());
                     // an inner span inherits what it does not set itself
@@ -688,6 +700,14 @@ QList<Run> parseInline(const QString &content, const QTextCharFormat &base, cons
                     if (in.caps > 0)
                         sp.caps = in.caps;
                     fonts.append(sp);
+                    static const QRegularExpression normalWeight(QStringLiteral("font-weight\\s*:\\s*(normal|400)\\b"));
+                    static const QRegularExpression normalStyle(QStringLiteral("font-style\\s*:\\s*normal\\b"));
+                    int pl = plain.isEmpty() ? 0 : plain.last();
+                    if (normalWeight.match(t.css).hasMatch())
+                        pl |= 1;
+                    if (normalStyle.match(t.css).hasMatch())
+                        pl |= 2;
+                    plain.append(pl);
                 }
             } else if (t.tag == QLatin1String("u"))
                 underline = qMax(0, underline + d);
@@ -908,8 +928,14 @@ private:
             // what the styles give is not written: the style names say it
             const QTextCharFormat cf = styles::withoutStyles(f.charFormat(), ps, m_f);
             Seg base;
-            if (const Style *cs = styles::findChar(m_f, f.charFormat().stringProperty(props::CharStyle)))
+            const Style *cs = styles::findChar(m_f, f.charFormat().stringProperty(props::CharStyle));
+            if (cs)
                 base.cls = cs->name;
+            // text that is not bold (not italic) although its style is: a span says so (0.40.3)
+            const bool styleBold = (ps && ps->bold) || (cs && cs->bold);
+            const bool styleItalic = (ps && ps->italic) || (cs && cs->italic);
+            const bool notBold = styleBold && f.charFormat().fontWeight() < QFont::DemiBold;
+            const bool notItalic = styleItalic && !f.charFormat().fontItalic();
             if (cf.fontWeight() >= QFont::DemiBold)
                 base.attrs |= A_B;
             if (cf.fontItalic())
@@ -937,8 +963,17 @@ private:
             }
             if (cf.isAnchor())
                 base.href = cf.anchorHref();
-            if (!cf.isImageFormat())
-                base.css = direct::toCss(direct::charSpec(cf));
+            if (!cf.isImageFormat()) {
+                QStringList css;
+                const QString spec = direct::toCss(direct::charSpec(cf));
+                if (!spec.isEmpty())
+                    css << spec;
+                if (notBold)
+                    css << QStringLiteral("font-weight:normal");
+                if (notItalic)
+                    css << QStringLiteral("font-style:normal");
+                base.css = css.join(QLatin1String("; "));
+            }
 
             const QString txt = f.text();
             if (cf.isImageFormat()) {

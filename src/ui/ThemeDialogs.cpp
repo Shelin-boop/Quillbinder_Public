@@ -2,6 +2,7 @@
 
 #include "text/TextUtil.h"
 #include "ui/AppSettings.h"
+#include "ui/ProjectLook.h"
 
 #include <QApplication>
 #include <QDialogButtonBox>
@@ -153,12 +154,24 @@ void ThemePreview::paintEvent(QPaintEvent *)
 
 namespace themeui {
 
+// A theme chosen in Window > Themes (or the Themes window) is for the program, new projects and
+// the open project alike (0.40.2: every project keeps its own look; other projects keep theirs).
 bool choose(QWidget *parent, const QString &id, bool ask)
 {
     AppSettings &s = AppSettings::instance();
-    const int own = int(s.ownColors.size() + s.ownFonts.size());
+    look::Values pl = look::active();
+    const bool hasProject = look::project() != nullptr;
+    int own = int(s.ownColors.size() + s.ownFonts.size());
+    if (hasProject) {
+        // what the writer sees: the general colors and the interface font, and the project's areas
+        own = int(pl.colors.size() + pl.fonts.size());
+        for (auto it = s.ownColors.constBegin(); it != s.ownColors.constEnd(); ++it)
+            own += theme::isAreaColor(it.key()) ? 0 : 1;
+        for (auto it = s.ownFonts.constBegin(); it != s.ownFonts.constEnd(); ++it)
+            own += theme::isAreaFont(it.key()) ? 0 : 1;
+    }
     bool discard = false;
-    if (own > 0 && ask && id != s.theme) {
+    if (own > 0 && ask && (id != s.theme || id != pl.theme)) {
         QMessageBox box(QMessageBox::Question, QObject::tr("Change Theme"),
                         QObject::tr("You have changed %1 of your own on top of the current theme.")
                             .arg(text::plural(own, QObject::tr("color or font"), QObject::tr("colors and fonts"))),
@@ -178,9 +191,17 @@ bool choose(QWidget *parent, const QString &id, bool ask)
     if (discard) {
         s.ownColors.clear();
         s.ownFonts.clear();
+        pl.colors.clear();
+        pl.fonts.clear();
     }
     s.theme = id;
     s.notifyChanged();
+    if (hasProject) {
+        pl.theme = id;
+        QString err;
+        if (!look::change(pl, &err))
+            QMessageBox::warning(parent, QObject::tr("Change Theme"), err);
+    }
     return true;
 }
 
@@ -225,12 +246,19 @@ QString saveCurrentLook(QWidget *parent)
         QMessageBox::warning(parent, QObject::tr("Save Current Look as Theme"), error);
         return QString();
     }
-    // the own changes are part of the new theme now
+    // the own changes are part of the new theme now (also those of the open project's areas)
     AppSettings &s = AppSettings::instance();
     s.ownColors.clear();
     s.ownFonts.clear();
     s.theme = id;
     s.notifyChanged();
+    if (look::project()) {
+        look::Values pl = look::active();
+        pl.colors.clear();
+        pl.fonts.clear();
+        pl.theme = id;
+        look::change(pl);
+    }
     return id;
 }
 
@@ -368,7 +396,7 @@ ThemeManagerDialog::ThemeManagerDialog(QWidget *parent) : QDialog(parent)
         if (!id.isEmpty())
             reload(id);
     });
-    reload(AppSettings::instance().theme);
+    reload(look::active().theme);
 }
 
 QString ThemeManagerDialog::selectedId() const
@@ -401,7 +429,7 @@ void ThemeManagerDialog::reload(const QString &selectId)
 {
     const QString want = selectId.isEmpty() ? selectedId() : selectId;
     m_list->clear();
-    const QString inUse = AppSettings::instance().theme;
+    const QString inUse = look::active().theme;
     for (const theme::Entry &e : theme::available()) {
         auto *it = new QListWidgetItem(e.name, m_list);
         it->setData(Qt::UserRole, e.id);
@@ -427,7 +455,7 @@ void ThemeManagerDialog::updateButtons()
     const bool any = it != nullptr;
     const auto kind = any ? theme::Kind(it->data(Qt::UserRole + 1).toInt()) : theme::Kind::BuiltIn;
     const bool own = any && kind == theme::Kind::User;
-    m_use->setEnabled(any && selectedId() != AppSettings::instance().theme);
+    m_use->setEnabled(any && selectedId() != look::active().theme);
     m_duplicate->setEnabled(any);
     m_export->setEnabled(any);
     m_rename->setEnabled(own);

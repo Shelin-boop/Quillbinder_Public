@@ -107,11 +107,14 @@ public:
     void setStyles(const Formatting &f, bool hasProject);
     void setCurrent(const QString &paragraph, const QString &character);
     QString selectedStyle() const;       // empty = "No Style" row or nothing
+    bool noStyleSelected() const;        // the "No Style" row (0.40.3)
 
 signals:
     void applyRequested(const QString &name);
     void newRequested();
     void redefineRequested(const QString &name);
+    // "No Style" redefined: the formatting at the cursor becomes the project's main text style (0.40.3)
+    void redefineNoStyleRequested();
     void editRequested(const QString &name);
     void deleteRequested(const QString &name);
     void resetRequested(const QString &name);

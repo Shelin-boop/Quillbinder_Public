@@ -245,6 +245,7 @@ bool BinderModel::setData(const QModelIndex &index, const QVariant &value, int r
         if (t == it->title)
             return false;
         it->title = t;
+        it->autoTitle = false; // named by hand: the title no longer follows the text (0.40.3)
         m_project->notifyItemChanged(it, false);
         return true;
     }

@@ -42,6 +42,9 @@ public:
     // Page view (View > Text Editing > Page View) is a setting of the project;
     // a view that never shows pages (composition mode) switches this off.
     void setFollowsPageView(bool on);
+    // The part whose look a right-click beside the text offers (lookmenu::Part; 0.40.2): the
+    // editor (the standard), or composition mode.
+    void setLookPart(int part) { m_lookPart = part; }
     bool pageView() const;
     // Page of the cursor and number of pages of everything shown; false when not in page view.
     bool pageInfo(int *page, int *pages) const;
@@ -69,11 +72,14 @@ signals:
     void noteClicked(const QString &noteId);
     void cursorMoved(qb::TextEditor *editor);
 
+
 protected:
     void resizeEvent(QResizeEvent *e) override;
     bool eventFilter(QObject *o, QEvent *e) override;
 
 private:
+    bool insideText(QWidget *under) const;
+    void clickBesideText(const QPoint &inContainer);
     struct Section {
         BinderItem *item = nullptr;
         QLabel *title = nullptr;
@@ -100,6 +106,8 @@ private:
     bool m_combined = false;
     bool m_typewriter = false;
     int m_widthOverride = 0;
+    int m_topMargin = 18;      // empty space above the first line
+    int m_lookPart = 0;        // lookmenu::Part::Editor
     bool m_followsPageView = true;
     bool m_placePending = false;
     int m_placeGen = 0;

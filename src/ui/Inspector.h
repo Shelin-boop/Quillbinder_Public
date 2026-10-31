@@ -91,6 +91,8 @@ signals:
 
 protected:
     bool eventFilter(QObject *o, QEvent *e) override;
+    // a right-click on the inspector's background: its colors and fonts (0.40.2)
+    void contextMenuEvent(QContextMenuEvent *e) override;
 
 private:
     QWidget *buildNotesTab();

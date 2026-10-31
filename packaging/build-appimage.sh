@@ -135,6 +135,14 @@ cp "$ROOT/LICENSE" "$APPDIR/usr/share/doc/$APP_ID/LICENSE"
 cp "$ROOT/THIRD-PARTY.md" "$APPDIR/usr/share/doc/$APP_ID/THIRD-PARTY.md"
 
 # ---------------------------------------------------------------- AppImage
+# The icon of the AppImage file (.DirIcon): appimagetool builds of 2026-10 and later want a PNG
+# at the top of the AppDir with the name the desktop file gives (Icon=quillbinder); the SVG alone
+# is refused. resources/app/quillbinder-256.png is the SVG drawn at 256 px.
+mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps"
+cp "$ROOT/resources/app/quillbinder-256.png" "$APPDIR/usr/share/icons/hicolor/256x256/apps/$APP_ID.png"
+rm -f "$APPDIR/$APP_ID.png" "$APPDIR/.DirIcon"
+cp "$ROOT/resources/app/quillbinder-256.png" "$APPDIR/$APP_ID.png"
+cp "$ROOT/resources/app/quillbinder-256.png" "$APPDIR/.DirIcon"
 OUT="$BUILD/$APP_NAME-$VERSION${LABEL:+-$LABEL}-x86_64.AppImage"
 rm -f "$OUT"
 ARCH=x86_64 "$TOOLS/appimagetool-x86_64.AppImage" --no-appstream \

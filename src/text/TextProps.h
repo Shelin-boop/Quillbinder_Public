@@ -20,7 +20,11 @@ enum : int {
     Highlight,                             // char: bool, marks a user highlight (vs. note bubble)
     SearchHit,                             // char: bool, temporary search highlight (never saved)
     ParaDirect,                            // block: int, bit set of direct::ParaBit (formatting set by hand)
-    CharStyle                              // char: QString character style name
+    CharStyle,                             // char: QString character style name
+    // char: bool, not bold / not italic set by hand where the style is bold / italic (0.40.3):
+    // the style's look is not given back over it (styles::applyChars)
+    NotBold,
+    NotItalic
 };
 } // namespace props
 

@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.16)
 # ---------------------------------------------------------------------------
 set(APP_NAME "Quillbinder")
 set(APP_ID   "quillbinder")
-set(APP_VERSION "0.50.0")
+set(APP_VERSION "0.60.0")
 # A word shown after the version number in Help > About, System Information and the
 # AppImage's file name ("alpha", "beta"; empty for a normal release). It is never part
 # of version comparisons: the program, the loader and the packages compare APP_VERSION only.

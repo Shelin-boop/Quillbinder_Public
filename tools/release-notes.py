@@ -46,7 +46,9 @@ def main(dist):
     files = sorted(os.listdir(dist))
     appimage = [f for f in files if f.endswith(".AppImage")]
     update = [f for f in files if f.endswith("-update.qbpkg")]
-    addons = [f for f in files if f.endswith(".qbpkg") and f not in update]
+    # the one-package media bundle first, so that it is seen before the two add-ons it holds
+    addons = sorted((f for f in files if f.endswith(".qbpkg") and f not in update),
+                    key=lambda f: (not f.startswith("media-all-formats"), f))
     out = []
     out.append("**Quillbinder %s**: a writing studio for long texts, for Linux (x86_64). "
                "It opens and saves projects in its own format and in Scrivener 3 format (.scriv); it is an "
@@ -64,6 +66,9 @@ def main(dist):
     out.append("2. Make it executable: right-click > Properties > Permissions > *Is executable*, or "
                "`chmod +x %s`." % (appimage[0] if appimage else "Quillbinder-*.AppImage"))
     out.append("3. Double-click it. Help > Add to Application Menu puts it into the menu of the desktop.")
+    if any(f.startswith("media-all-formats") for f in addons):
+        out.append("4. For audio and video in the editor, download **media-all-formats.qbpkg** and install it with "
+                   "File > Install Update or Add-on: one package, every format.")
     out.append("")
     out.append("Already have an AppImage of Quillbinder? Replace the file with this one; settings, add-ons and "
                "projects stay. Or install the program update with File > Install Update or Add-on.")
@@ -80,7 +85,11 @@ def main(dist):
     for f in addons:
         name, ver, _kind = addon_name(os.path.join(dist, f))
         note = ""
-        if f.startswith("media-extra-formats"):
+        if f.startswith("media-all-formats"):
+            note = (" **Audio and video in every format, in one package**: installs Media Playback and Extra "
+                    "Video and Audio Formats together (H.264, H.265, AAC and the other formats licensed under "
+                    "patents included). Install this one, or only media-playback.qbpkg for the free formats.")
+        elif f.startswith("media-extra-formats"):
             note = (" Plays H.264, H.265, AAC and the other formats licensed under patents; needs Media Playback "
                     "1.1. Optional: Media Playback plays the free formats without it.")
         elif f.startswith("media-playback"):

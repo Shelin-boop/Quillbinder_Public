@@ -57,6 +57,13 @@ Counts countDocument(const QTextDocument *doc);
 // First few lines of text for index cards / outliner (no titles given).
 QString previewText(const QString &plain, int maxChars = 300);
 
+// A title from the first line of a text that has words (0.40.3): without inline annotations,
+// inline footnotes and pictures, spaces simplified, at most maxChars, cut at a word
+// boundary. Empty when the text has no words.
+QString firstLineTitle(const QTextDocument *doc, int maxChars = 60);
+// A document title that means "no name": empty or "Untitled".
+bool isUntitled(const QString &title);
+
 // Placeholder-safe file name from a title.
 QString safeFileName(const QString &title);
 

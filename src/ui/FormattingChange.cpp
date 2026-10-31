@@ -83,6 +83,16 @@ int followStyle(Project *p, const QString &style, bool character, int charMember
         error);
 }
 
+int takeStyle(Project *p, const QString &style, bool character, int charMembers, int paraBits, QString *error)
+{
+    if (!charMembers && !paraBits)
+        return 0;
+    const Formatting f = p->formatting;
+    return forEachText(
+        p, QObject::tr("Before the style “%1” changed").arg(style),
+        [&](QTextDocument *doc) { return direct::takeStyle(doc, f, style, character, charMembers, paraBits); }, error);
+}
+
 direct::CharSpec styleFont(const Formatting &f, const QString &style)
 {
     direct::CharSpec sp;

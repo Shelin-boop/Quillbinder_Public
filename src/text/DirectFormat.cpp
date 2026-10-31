@@ -680,7 +680,7 @@ int changedParaBits(const Formatting &a, const Formatting &b)
         bits |= Line;
     if (!near(a.paragraphSpacing, b.paragraphSpacing))
         bits |= After;
-    if (a.justify != b.justify)
+    if (bodyAlignment(a.align) != bodyAlignment(b.align))
         bits |= Align;
     return bits;
 }
@@ -806,6 +806,112 @@ int followProject(QTextDocument *doc, const Formatting &oldF, const Formatting &
         });
     }
     return changed;
+}
+
+int takeStyle(QTextDocument *doc, const Formatting &f, const QString &style, bool character, int charMembers, int paraBits)
+{
+    if (style.isEmpty())
+        return 0;
+    int changed = 0;
+    charMembers &= AllChar;
+    paraBits &= AllPara;
+    if (!character && paraBits) {
+        QTextCursor edit(doc);
+        edit.beginEditBlock();
+        for (QTextBlock b = doc->begin(); b.isValid(); b = b.next()) {
+            const QTextBlockFormat bf = b.blockFormat();
+            if (bf.stringProperty(props::Style) != style)
+                continue;
+            const int before = bf.intProperty(props::ParaDirect) & AllPara;
+            const int bits = before & ~paraBits;
+            QTextBlockFormat base = bf;
+            base.setProperty(props::ParaDirect, bits);
+            QTextBlockFormat nf = display::blockFormatFor(f, style, base);
+            if (b.textList() && !(bits & First))
+                nf.setTextIndent(0);
+            if (!bits)
+                nf.clearProperty(props::ParaDirect);
+            else
+                nf.setProperty(props::ParaDirect, bits);
+            if (nf != bf) {
+                QTextCursor bc(b);
+                bc.setBlockFormat(nf);
+                ++changed;
+            }
+        }
+        edit.endEditBlock();
+    }
+    if (charMembers)
+        changed += changeChars(doc, [&](const QTextBlock &b, QTextCharFormat &cf) {
+            const QString paraStyle = b.blockFormat().stringProperty(props::Style);
+            if (character ? cf.stringProperty(props::CharStyle) != style : paraStyle != style)
+                return false;
+            CharSpec sp = charSpec(cf);
+            const CharSpec was = sp;
+            if (charMembers & Family)
+                sp.family.clear();
+            if (charMembers & Size)
+                sp.size = 0;
+            if (charMembers & Weight)
+                sp.weight = 0;
+            if (charMembers & Color)
+                sp.color = QColor();
+            if (charMembers & Spacing)
+                sp.spacing = 0;
+            if (charMembers & Caps)
+                sp.caps = 0;
+            if (sp == was)
+                return false;
+            cf = rebuilt(cf, f, paraStyle, sp);
+            return true;
+        });
+    return changed;
+}
+
+int charMembersBetween(const CharSpec &a, const CharSpec &b)
+{
+    int m = 0;
+    if (familyKey(a.family) != familyKey(b.family))
+        m |= Family;
+    if (!samePt(a.size, b.size))
+        m |= Size;
+    if (a.weight != b.weight)
+        m |= Weight;
+    if (a.color.isValid() != b.color.isValid() || (a.color.isValid() && a.color.rgba() != b.color.rgba()))
+        m |= Color;
+    if (a.spacing != b.spacing)
+        m |= Spacing;
+    if (a.caps != b.caps)
+        m |= Caps;
+    return m;
+}
+
+int paraBitsBetween(const ParaSpec &a, const ParaSpec &b)
+{
+    int bits = (a.bits ^ b.bits) & AllPara;
+    const int both = a.bits & b.bits;
+    if ((both & Align) && a.align != b.align)
+        bits |= Align;
+    if ((both & Left) && !near(a.left, b.left))
+        bits |= Left;
+    if ((both & Right) && !near(a.right, b.right))
+        bits |= Right;
+    if ((both & First) && !near(a.first, b.first))
+        bits |= First;
+    if ((both & Before) && !near(a.before, b.before))
+        bits |= Before;
+    if ((both & After) && !near(a.after, b.after))
+        bits |= After;
+    if ((both & Line) && (a.lineType != b.lineType || !near(a.line, b.line)))
+        bits |= Line;
+    if (both & Tabs) {
+        bool same = a.tabs.size() == b.tabs.size();
+        for (int i = 0; same && i < a.tabs.size(); ++i)
+            same = near(a.tabs[i].position, b.tabs[i].position) && a.tabs[i].type == b.tabs[i].type;
+        if (!same)
+            bits |= Tabs;
+    }
+    return bits;
 }
 
 int followStyle(QTextDocument *doc, const Formatting &f, const QString &style, bool character, int charMembers,

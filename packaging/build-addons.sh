@@ -53,3 +53,14 @@ for dir in "$ROOT"/addons/*/; do
     python3 "$ROOT/tools/make-package.py" addon "$dir" "$OUT/$id.qbpkg"
 done
 rm -rf "$OUT/.stage"
+# One package for audio and video in every format (0.60): a bundle of "Media Playback" and
+# "Extra Video and Audio Formats", installed in one step with File > Install Update or Add-on.
+# The two add-ons stay separate inside it, so the patent-licensed formats can still be switched
+# off or removed on their own in the Add-on Manager.
+if [ -f "$OUT/media-playback.qbpkg" ] && [ -f "$OUT/media-extra-formats.qbpkg" ]; then
+    python3 "$ROOT/tools/make-package.py" bundle --id media-all-formats --name "Media Playback, All Formats" \
+        --version 1.0 \
+        --description "Audio and video in the editor, in every format the program knows, in one package: installs the add-ons \"Media Playback\" (free formats) and \"Extra Video and Audio Formats\" (H.264, H.265, AAC and the other formats licensed under patents). Whether a patent license is needed to use those formats depends on the country." \
+        --whats-new "Both media add-ons in one package" \
+        "$OUT/media-playback.qbpkg" "$OUT/media-extra-formats.qbpkg" "$OUT/media-all-formats.qbpkg"
+fi

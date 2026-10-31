@@ -34,6 +34,9 @@ public:
     bool targetChars = false;
     QString defaultTemplate;       // template id for new subdocuments
     bool scriptMode = false;
+    // the title is the first line of the text and follows it until the title is changed by
+    // hand (0.40.3; given to documents without a name, "Untitled")
+    bool autoTitle = false;
     QList<Bookmark> bookmarks;     // document bookmarks
     QString corkboardPos;          // "x,y" for freeform corkboard
     // cached statistics (kept in the project file so they are known without

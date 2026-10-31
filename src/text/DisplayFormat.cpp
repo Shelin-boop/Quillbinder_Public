@@ -56,7 +56,7 @@ QTextBlockFormat normalBlockFormat(const Formatting &f)
     bf.setTopMargin(0);
     bf.setLeftMargin(0);
     bf.setRightMargin(0);
-    bf.setAlignment(f.justify ? Qt::AlignJustify : Qt::AlignLeft);
+    bf.setAlignment(bodyAlignment(f.align));
     bf.setProperty(props::Style, QString());
     return bf;
 }

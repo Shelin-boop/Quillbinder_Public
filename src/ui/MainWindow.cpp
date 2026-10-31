@@ -1,5 +1,7 @@
 #include "ui/LicensesDialog.h"
 #include "ui/MainWindow.h"
+#include "ui/LookMenu.h"
+#include "ui/ProjectLook.h"
 #include "import/ScrivenerFormat.h"
 #include "import/ScrivenerImporter.h"
 #include "ui/MediaPlayback.h"
@@ -261,7 +263,8 @@ MainWindow::MainWindow()
         updateActions();
     });
     connect(m_binder, &BinderPanel::searchChanged, this, &MainWindow::applySearchHighlights);
-    connect(m_binder, &BinderPanel::contextMenuRequested, this, &MainWindow::showItemContextMenu);
+    connect(m_binder, &BinderPanel::contextMenuRequested, this,
+            [this](const QPoint &pos) { showItemContextMenu(pos, int(lookmenu::Part::Binder)); });
     connect(m_binder, &BinderPanel::newDocumentRequested, this, [this] { a[QStringLiteral("newText")]->trigger(); });
     connect(m_binder, &BinderPanel::newFolderRequested, this, [this] { a[QStringLiteral("newFolder")]->trigger(); });
     connect(m_binder, &BinderPanel::trashRequested, this, [this] { a[QStringLiteral("trash")]->trigger(); });
@@ -316,7 +319,8 @@ MainWindow::MainWindow()
     setTextEditorContextHook([this](TextEditor *ed, QMenu *menu, const QPoint &) {
         menu->addSeparator();
         QMenu *styles = menu->addMenu(tr("Style"));
-        fillStyleMenu(styles, ed, false);
+        styles->setObjectName(QStringLiteral("contextStyleMenu"));
+        fillStyleList(styles, ed);
         menu->addAction(a[QStringLiteral("comment")]);
         menu->addAction(a[QStringLiteral("footnote")]);
         menu->addAction(a[QStringLiteral("annotation")]);
@@ -344,6 +348,19 @@ MainWindow::MainWindow()
             menu->addAction(a[QStringLiteral("split")]);
             menu->addAction(a[QStringLiteral("splitTitle")]);
         }
+        // the look of what was clicked: the notes are part of the inspector, composition mode has
+        // its own colors, every other text is the editor's (0.40.2)
+        const lookmenu::Part part = ed->isNotes()                                ? lookmenu::Part::Inspector
+                                    : qobject_cast<CompositionWindow *>(ed->window()) ? lookmenu::Part::Composition
+                                                                                        : lookmenu::Part::Editor;
+        lookmenu::add(menu, part, this);
+    });
+    // "Appearance Options..." of those menus: File > Options > Appearance at the part's page,
+    // showing the open project's look
+    lookmenu::setOptionsOpener([this](const QString &page) {
+        OptionsDialog dlg(this);
+        dlg.showSection(OptionsDialog::SAppearance, page);
+        dlg.exec();
     });
 
     connect(&AppSettings::instance(), &AppSettings::changed, this, &MainWindow::applySettings);
@@ -374,23 +391,7 @@ MainWindow::MainWindow()
     m_autoQuitTimer->start();
     // "Use Current" buttons in the options and the project settings
     currentFormatting::setProvider([this](Formatting *f) {
-        TextEditor *e = m_active ? m_active->currentEditor() : nullptr;
-        if (!e || !m_project)
-            return false;
-        const QTextBlockFormat bf = e->textCursor().blockFormat();
-        *f = m_project->formatting;
-        const direct::CharSpec sp = e->charSpecAtCursor();
-        if (!sp.family.isEmpty())
-            f->fontFamily = sp.family;
-        if (sp.size > 0)
-            f->fontSize = sp.size;
-        if (bf.lineHeightType() == QTextBlockFormat::ProportionalHeight && bf.lineHeight() > 0)
-            f->lineSpacing = bf.lineHeight() / 100.0;
-        if (!(bf.alignment() & (Qt::AlignHCenter | Qt::AlignRight)) && !e->textCursor().currentList())
-            f->firstLineIndent = qMax(0.0, bf.textIndent());
-        f->paragraphSpacing = bf.bottomMargin();
-        f->justify = bf.alignment() & Qt::AlignJustify;
-        return true;
+        return formattingAtCursor(m_active ? m_active->currentEditor() : nullptr, f);
     });
     connect(qApp, &QApplication::focusChanged, this, [this](QWidget *, QWidget *now) {
         if (!now)
@@ -435,6 +436,12 @@ MainWindow::MainWindow()
 
 MainWindow::~MainWindow()
 {
+    // The project goes away with the members below: its documents leave the editors, which
+    // report a moved cursor or a changed selection. The window, half gone by then, must not
+    // answer them (seen when a window with an open project and the cursor inside a text is
+    // deleted without being closed first, 0.40.1).
+    for (EditorPane *p : std::as_const(m_panes))
+        disconnect(p, nullptr, this, nullptr);
     if (toolhost::host().mainWindow() == this)
         toolhost::host().setWindow(nullptr);
     // players inside the window go away after this window's members
@@ -489,7 +496,8 @@ void MainWindow::connectPane(EditorPane *p)
     connect(p, &EditorPane::itemContextMenuRequested, this,
             [this](EditorPane *pane, const QPoint &pos) {
                 setActivePane(pane);
-                showItemContextMenu(pos);
+                showItemContextMenu(pos, int(pane->mode() == ViewMode::Outliner ? lookmenu::Part::Outliner
+                                                                                 : lookmenu::Part::Corkboard));
             });
     connect(p, &EditorPane::deleteRequested, this, [this](EditorPane *pane) {
         setActivePane(pane);
@@ -569,7 +577,7 @@ void MainWindow::createActions()
             &QAction::triggered, this, [this] {
                 auto p = runScrivenerImport(this, a[QStringLiteral("importScrivener")]->data().toString());
                 if (p)
-                    adoptProject(std::move(p));
+                    adoptProject(std::move(p), true);
             });
     // File > Project Format
     {
@@ -985,6 +993,11 @@ void MainWindow::createActions()
                 ProjectSettingsDialog dlg(m_project.get(), 0, this);
                 dlg.exec();
             }));
+    // the project's settings in a file of their own, and back (0.40.2)
+    connect(act(QStringLiteral("settingsExport"), tr("Sa&ve Project Settings to File…"), QStringLiteral("document-export")),
+            &QAction::triggered, this, withProject([this] { exportProjectSettings(); }));
+    connect(act(QStringLiteral("settingsImport"), tr("&Load Project Settings from File…"), QStringLiteral("document-import")),
+            &QAction::triggered, this, withProject([this] { importProjectSettings(); }));
     connect(act(QStringLiteral("targets"), tr("Project &Targets…"), QStringLiteral("flag"),
                 QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_T)),
             &QAction::triggered, this, withProject([this] {
@@ -1573,10 +1586,12 @@ QString MainWindow::aboutText()
               "<p>The program uses parts of other projects (Qt, Hunspell, ICU, the Breeze icons and more), each under its "
               "own license. <b>Third-Party Licenses…</b> below (also in the Help menu) lists them with their full "
               "texts.</p>"
+              "<p>The add-ons for audio and video use code of FFmpeg, licensed under the GNU LGPL 2.1 or later; its "
+              "source code, as used, is in the release \"Third-party source code\" of %4.</p>"
               "<p>Scrivener and Scapple are products of Literature &amp; Latte. %1 is an independent program, not made "
               "by or connected with Literature &amp; Latte; it reads and writes their file formats so that your "
               "projects can move between the programs.</p>")
-        .arg(QLatin1String(QB_APP_NAME), version, QLatin1String(qVersion()));
+        .arg(QLatin1String(QB_APP_NAME), version, QLatin1String(qVersion()), QLatin1String(QB_APP_HOMEPAGE));
 }
 
 TextEditor *MainWindow::editor() const
@@ -1642,7 +1657,7 @@ void MainWindow::updateActions()
             if (ac->objectName().startsWith(QLatin1String("iconBar_")))
                 ac->setEnabled(has);
     for (const char *k : {"save", "saveTemplate", "backupNow", "backupTo", "importFiles", "importWebPage", "importSplit", "exportFiles",
-                          "compile", "closeProject", "newText", "newFolder", "projectSettings", "targets", "keywords",
+                          "compile", "closeProject", "newText", "newFolder", "projectSettings", "settingsExport", "settingsImport", "targets", "keywords",
                           "statistics", "history", "emptyTrash", "showProjectFolder", "projectSearch", "projectReplace", "findFormat",
                           "findFormatNext", "findFormatPrev", "trash", "duplicate",
                           "rename", "openOther", "quickRef", "split", "splitTitle", "merge", "toFolder", "toText",
@@ -1796,39 +1811,48 @@ void MainWindow::updateFormatBar()
     if (!e)
         return;
     m_updatingUi = true;
-    const QTextCharFormat cf = e->currentCharFormat();
     const QString style = e->paragraphStyleAtCursor();
     const QString charStyle = e->characterStyleAtCursor();
-    const Formatting sf = m_project ? m_project->formatting : Formatting();
-    // the buttons show what was set by hand, not what a style brings along
-    const QTextCharFormat own = styles::withoutStyles(cf, styles::find(sf, style), sf);
-    a[QStringLiteral("bold")]->setChecked(own.fontWeight() >= QFont::DemiBold);
-    a[QStringLiteral("italic")]->setChecked(own.fontItalic());
-    a[QStringLiteral("underline")]->setChecked(own.fontUnderline() && !cf.isAnchor());
-    a[QStringLiteral("strike")]->setChecked(own.fontStrikeOut());
-    a[QStringLiteral("superscript")]->setChecked(cf.verticalAlignment() == QTextCharFormat::AlignSuperScript);
-    a[QStringLiteral("subscript")]->setChecked(cf.verticalAlignment() == QTextCharFormat::AlignSubScript);
-    const Qt::Alignment al = e->textCursor().blockFormat().alignment();
-    a[QStringLiteral("alignLeft")]->setChecked((al & Qt::AlignLeft) || al == Qt::Alignment());
-    a[QStringLiteral("alignCenter")]->setChecked(al & Qt::AlignHCenter);
-    a[QStringLiteral("alignRight")]->setChecked(al & Qt::AlignRight);
-    a[QStringLiteral("alignJustify")]->setChecked(al & Qt::AlignJustify);
-    m_styleCombo->setCurrentIndex(qMax(0, m_styleCombo->findData(charStyle.isEmpty() ? style : charStyle)));
+    // The bar shows what is seen in the editor (0.40.3): bold from a heading's style is bold,
+    // for all of the selection; a font, size, alignment or line spacing that differs within
+    // the selection leaves its field empty. (0.40.1 to 0.40.2 showed only what was set by
+    // hand; before 0.40.1 the character in front of the cursor decided.)
+    const BarState st = e->barState();
+    a[QStringLiteral("bold")]->setChecked(st.toggles.bold);
+    a[QStringLiteral("italic")]->setChecked(st.toggles.italic);
+    a[QStringLiteral("underline")]->setChecked(st.toggles.underline);
+    a[QStringLiteral("strike")]->setChecked(st.toggles.strike);
+    a[QStringLiteral("superscript")]->setChecked(st.superscript);
+    a[QStringLiteral("subscript")]->setChecked(st.subscript);
+    a[QStringLiteral("alignLeft")]->setChecked(st.align == Qt::AlignLeft);
+    a[QStringLiteral("alignCenter")]->setChecked(st.align == Qt::AlignHCenter);
+    a[QStringLiteral("alignRight")]->setChecked(st.align == Qt::AlignRight);
+    a[QStringLiteral("alignJustify")]->setChecked(st.align == Qt::AlignJustify);
+    // several paragraph styles in the selection: the list stays empty
+    const QString shownStyle = !charStyle.isEmpty() ? charStyle : e->paragraphStylesMixed() ? QStringLiteral("\x01") : style;
+    m_styleCombo->setCurrentIndex(m_styleCombo->findData(shownStyle));
     if (m_stylesPanel && m_stylesPanel->isVisible())
         m_stylesPanel->setCurrent(style, charStyle);
     if (m_project) {
-        m_fontCombo->setCurrentFont(QFont(e->fontFamilyAtCursor()));
-        if (!m_sizeSpin->hasFocus())
-            m_sizeSpin->setValue(e->fontSizeAtCursor());
-        const QTextBlockFormat bf = e->textCursor().blockFormat();
-        int idx = -1;
-        if (bf.lineHeightType() == QTextBlockFormat::ProportionalHeight || bf.lineHeightType() == QTextBlockFormat::SingleHeight) {
-            const double sp = bf.lineHeightType() == QTextBlockFormat::SingleHeight ? 1.0 : bf.lineHeight() / 100.0;
-            for (int i = 0; i < m_lineCombo->count(); ++i)
-                if (qAbs(m_lineCombo->itemData(i).toDouble() - sp) < 0.005)
-                    idx = i;
+        if (st.family.isEmpty()) {
+            m_fontCombo->setCurrentIndex(-1);
+            m_fontCombo->setEditText(QString());
+        } else {
+            m_fontCombo->setCurrentFont(QFont(st.family));
         }
-        m_lineCombo->setCurrentIndex(idx >= 0 ? idx : m_lineCombo->count() - 1);
+        if (!m_sizeSpin->hasFocus()) {
+            if (st.size > 0) {
+                m_sizeSpin->setValue(st.size);
+            } else if (QLineEdit *le = m_sizeSpin->findChild<QLineEdit *>()) {
+                le->clear(); // mixed sizes: an empty field, the value stays for the arrows
+            }
+        }
+        int idx = -1;
+        if (st.lineSpacing > 0)
+            for (int i = 0; i < m_lineCombo->count(); ++i)
+                if (qAbs(m_lineCombo->itemData(i).toDouble() - st.lineSpacing) < 0.005)
+                    idx = i;
+        m_lineCombo->setCurrentIndex(idx >= 0 ? idx : st.lineSpacing < 0 ? -1 : m_lineCombo->count() - 1);
     }
     m_updatingUi = false;
 }
@@ -1846,13 +1870,14 @@ void MainWindow::showFontDialog(TextEditor *e)
         p.setPosition(c.selectionStart() + 1);
         cf = p.charFormat();
     }
-    const ParagraphStyle *ps = styles::find(m_project->formatting, c.blockFormat().property(props::Style).toString());
     FontChoice cur;
     cur.spec = direct::charSpec(cf);
-    cur.bold = cf.fontWeight() >= QFont::DemiBold && !(ps && ps->bold);
-    cur.italic = cf.fontItalic() && !(ps && ps->italic);
-    cur.underline = cf.fontUnderline() && !cf.isAnchor();
-    cur.strike = cf.fontStrikeOut();
+    // as the buttons show it: what is seen, for the whole selection (0.40.3; 0.40.1: set by hand)
+    const ToggleState own = e->toggleState(false);
+    cur.bold = own.bold;
+    cur.italic = own.italic;
+    cur.underline = own.underline;
+    cur.strike = own.strike;
     QString sample = c.selectedText();
     if (sample.trimmed().isEmpty())
         sample = c.block().text();
@@ -1862,14 +1887,16 @@ void MainWindow::showFontDialog(TextEditor *e)
     const FontChoice ch = dlg.choice();
     QTextCursor edit = e->textCursor();
     edit.beginEditBlock();
-    if (dlg.boldChanged() && (e->fontWeight() >= QFont::DemiBold) != ch.bold)
-        e->toggleBold();
-    if (dlg.italicChanged() && e->fontItalic() != ch.italic)
-        e->toggleItalic();
-    if (dlg.underlineChanged() && e->fontUnderline() != ch.underline)
-        e->toggleUnderline();
-    if (dlg.strikeChanged() && e->currentCharFormat().fontStrikeOut() != ch.strike)
-        e->toggleStrike();
+    // what was changed in the window is set for the whole selection (before 0.40.1 it was
+    // switched over, judged by the character in front of the cursor)
+    if (dlg.boldChanged())
+        e->setBold(ch.bold);
+    if (dlg.italicChanged())
+        e->setItalic(ch.italic);
+    if (dlg.underlineChanged())
+        e->setUnderline(ch.underline);
+    if (dlg.strikeChanged())
+        e->setStrike(ch.strike);
     if (const int members = dlg.changedMembers())
         e->applyCharSpec(ch.spec, members);
     edit.endEditBlock();
@@ -2357,7 +2384,7 @@ bool MainWindow::openProject(const QString &path)
     return true;
 }
 
-bool MainWindow::adoptProject(std::unique_ptr<Project> p)
+bool MainWindow::adoptProject(std::unique_ptr<Project> p, bool isNew)
 {
     if (!p)
         return false;
@@ -2366,6 +2393,9 @@ bool MainWindow::adoptProject(std::unique_ptr<Project> p)
     m_project = std::move(p);
     Project *proj = m_project.get();
     palette::setProject(proj); // the label colors in every color choice (0.21)
+    // every project keeps its own look (0.40.2): a project opened for the first time by this
+    // version keeps the look it had, a new one gets the look for new projects
+    look::activate(proj, look::settle(proj, isNew));
     {
         QFile lf(lockPath(proj));
         if (lf.open(QIODevice::WriteOnly))
@@ -2385,7 +2415,12 @@ bool MainWindow::adoptProject(std::unique_ptr<Project> p)
     if (!AppSettings::instance().reloadZoom || !proj->uiState.contains(QStringLiteral("zoom")))
         proj->docs()->setZoom(zoom::defaultFactor(QLatin1String(zoom::kEditor)));
     m_editedSinceSave.clear();
-    connect(proj->docs(), &DocumentStore::textEdited, this, [this](const QString &id) { m_editedSinceSave.insert(id); });
+    connect(proj->docs(), &DocumentStore::textEdited, this, [this](const QString &id) {
+        m_editedSinceSave.insert(id);
+        queueAutoTitle(id);
+    });
+    m_autoTitlePending.clear();
+    queueUntitledDocuments(); // documents named "Untitled" that have text (0.40.3)
     m_binder->setProject(proj);
     for (EditorPane *pane : m_panes)
         pane->setProject(proj);
@@ -2530,6 +2565,7 @@ bool MainWindow::closeProject()
     m_inspector->setProject(nullptr);
     setSplit(Qt::Vertical, false);
     palette::setProject(nullptr);
+    look::activate(nullptr); // the areas show the look for new projects again
     m_project.reset();
     crash::setSessionProject(QString());
     crash::note(QStringLiteral("project closed"));
@@ -2667,7 +2703,7 @@ void MainWindow::showStartDialog(bool recentFirst)
             nf.lineSpacing = as.newLineSpacing;
             nf.firstLineIndent = as.newFirstLineIndent;
             nf.paragraphSpacing = as.newParagraphSpacing;
-            nf.justify = as.newJustify;
+            nf.align = as.newAlign;
             // styles: those of the template, else the ones saved for new projects
             nf.styles = p->formatting.styles;
             nf.script = p->formatting.script;
@@ -2690,10 +2726,10 @@ void MainWindow::showStartDialog(bool recentFirst)
                 QMessageBox::warning(this, tr("New Project"), err);
                 return;
             }
-            adoptProject(std::move(wc));
+            adoptProject(std::move(wc), true);
             break;
         }
-        adoptProject(std::move(p));
+        adoptProject(std::move(p), true);
         break;
     }
     case StartDialog::Action::Open:
@@ -2702,7 +2738,7 @@ void MainWindow::showStartDialog(bool recentFirst)
     case StartDialog::Action::ImportScrivener: {
         auto p = runScrivenerImport(this);
         if (p)
-            adoptProject(std::move(p));
+            adoptProject(std::move(p), true);
         break;
     }
     case StartDialog::Action::None: break;
@@ -3236,16 +3272,20 @@ void MainWindow::fillItemMenu(QMenu *menu)
     }
 }
 
-void MainWindow::showItemContextMenu(const QPoint &globalPos)
+void MainWindow::showItemContextMenu(const QPoint &globalPos, int lookPart)
 {
     updateActions();
     QMenu menu(this);
+    menu.setObjectName(QStringLiteral("itemContextMenu"));
     fillItemMenu(&menu);
     if (m_binder->showsArbitraryCollection() && m_binder->resultsList()->hasFocus()) {
         menu.addSeparator();
         menu.addAction(tr("Remove From Collection"), this,
                        [this] { m_binder->removeFromCollection(m_binder->selectedItems()); });
     }
+    // the colors and fonts of the binder, corkboard or outliner (0.40.2)
+    if (lookPart >= 0)
+        lookmenu::add(&menu, lookmenu::Part(lookPart), this);
     menu.exec(globalPos);
 }
 
@@ -3268,6 +3308,8 @@ void MainWindow::showHeaderMenu(EditorPane *pane, const QPoint &globalPos)
     menu.addMenu(m_labelMenu);
     menu.addMenu(m_statusMenu);
     menu.addMenu(m_iconMenu);
+    lookmenu::add(&menu, lookmenu::Part::HeaderBar, this); // the header bar's colors and font (0.40.2)
+    menu.setObjectName(QStringLiteral("headerContextMenu"));
     menu.exec(globalPos);
     updateActions();
 }

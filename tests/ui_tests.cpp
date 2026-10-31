@@ -14,6 +14,7 @@
 #include "core/Snapshots.h"
 #include "ui/AddonDialogs.h"
 #include "ui/AppSettings.h"
+#include "ui/ProjectLook.h"
 #include "ui/BinderPanel.h"
 #include "ui/Commands.h"
 #include "ui/KeyboardPage.h"
@@ -212,6 +213,11 @@ int main(int argc, char **argv)
     AppSettings::instance().load();
     AppSettings::instance().forename = QStringLiteral("Ada");
     AppSettings::instance().surname = QStringLiteral("Writer");
+    // (0.40.2) these checks were written for one look for the whole program: the open project
+    // shows the look of the settings, as before, and has no border beside the text
+    // (tests/v0402_tests.cpp checks the look per project)
+    look::setFollowSettings(true);
+    AppSettings::instance().textBorder = 0;
     theme::apply();
     compile::PluginManager::instance().load();
     {

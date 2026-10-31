@@ -1,0 +1,6 @@
+# Paths that stay in the private development repository (tools/publish-public.sh leaves them out of
+# the public copy). One path per line, relative to the repository; a folder takes everything in it.
+# Text that belongs to the private repository only inside a file that is published goes between the
+# lines "<!-- private:begin -->" and "<!-- private:end -->" (Markdown) instead.
+docs/status.md
+tools/put-asset.sh

@@ -292,6 +292,49 @@ QString previewText(const QString &plain, int maxChars)
     return s;
 }
 
+QString firstLineTitle(const QTextDocument *doc, int maxChars)
+{
+    for (QTextBlock b = doc->begin(); b.isValid(); b = b.next()) {
+        QString line;
+        for (auto it = b.begin(); !it.atEnd(); ++it) {
+            const QTextFragment f = it.fragment();
+            if (!f.isValid() || f.charFormat().isImageFormat())
+                continue;
+            const NoteKind k = NoteKind(f.charFormat().property(props::NoteKind).toInt());
+            if (k == NoteKind::InlineAnnotation || k == NoteKind::InlineFootnote)
+                continue;
+            line += f.text();
+        }
+        line.remove(QChar::ObjectReplacementCharacter);
+        line.replace(QChar::LineSeparator, QLatin1Char(' '));
+        line = line.simplified();
+        bool words = false;
+        for (const QChar ch : std::as_const(line))
+            if (ch.isLetterOrNumber()) {
+                words = true;
+                break;
+            }
+        if (!words)
+            continue;
+        if (line.size() > maxChars) {
+            const int sp = line.lastIndexOf(QLatin1Char(' '), maxChars);
+            line.truncate(sp > maxChars / 2 ? sp : maxChars);
+            // no comma or colon left hanging at the end
+            while (!line.isEmpty() && QStringLiteral(",;:-–—").contains(line.back()))
+                line.chop(1);
+            line = line.trimmed();
+        }
+        return line;
+    }
+    return QString();
+}
+
+bool isUntitled(const QString &title)
+{
+    const QString t = title.trimmed();
+    return t.isEmpty() || t == QLatin1String("Untitled") || t == QObject::tr("Untitled");
+}
+
 QString safeFileName(const QString &title)
 {
     QString s = title.trimmed();

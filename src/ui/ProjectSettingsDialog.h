@@ -1,5 +1,6 @@
 #pragma once
 #include "core/Project.h"
+#include "ui/AlignButtons.h"
 
 #include <QDialog>
 
@@ -56,7 +57,7 @@ private:
     QFontComboBox *m_font;
     QCheckBox *m_autoFont;
     QDoubleSpinBox *m_size, *m_spacing, *m_indent, *m_paraSpacing;
-    QCheckBox *m_justify;
+    qb::AlignButtons *m_align; // 0.40.3: four alignments instead of "Justify text"
     QCheckBox *m_ownFollows = nullptr;
     QRadioButton *m_md, *m_rtf;
     QTextEdit *m_preview;

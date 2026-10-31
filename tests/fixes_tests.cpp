@@ -29,6 +29,7 @@
 #include "ui/TextColumnView.h"
 #include "ui/TextEditor.h"
 #include "ui/Theme.h"
+#include "ui/ThemeDialogs.h"
 
 #include <QAbstractButton>
 #include <QAction>
@@ -538,7 +539,7 @@ int main(int argc, char **argv)
               detail);
     }
 
-    // ============================================================ RTF projects (Scrivener-like text)
+    // ============================================================ RTF projects (text as Scrivener projects hold it)
     {
         check(p->docs()->convertStorage(StorageFormat::Rtf, &err), QStringLiteral("(project converted to RTF)"), err);
         BinderItem *d5 = p->model()->createItem(ch, -1, ItemType::Text, QStringLiteral("The Fog"));
@@ -696,7 +697,7 @@ int main(int argc, char **argv)
         QStringList missing;
         QList<QAction *> found;
         if (iconMenu) {
-            // since 0.17 the menu is built like Scrivener's: the check marks are Ticked / Unticked, Pass,
+            // since 0.17 the menu has the groups of the icon catalog: the check marks are Ticked / Unticked, Pass,
             // Fail and Unclear in the submenu To Do; Proofread and Question Mark among the single icons
             emit iconMenu->aboutToShow();
             QList<QAction *> all;
@@ -810,9 +811,9 @@ int main(int argc, char **argv)
 
     // ============================================================ the same in the dark theme
     {
-        as.theme = QStringLiteral("dark");
-        as.save();
-        theme::apply();
+        // as the writer does it (Window > Themes): since 0.40.2 the open project keeps its own look,
+        // and the theme chosen there is for the project and the program
+        themeui::choose(&w, QStringLiteral("dark"), false);
         settle(300);
         binder->select({d2}, true);
         inspector->showTab(Inspector::Notes);

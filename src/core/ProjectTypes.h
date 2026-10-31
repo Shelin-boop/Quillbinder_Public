@@ -93,12 +93,44 @@ struct Formatting {
     double lineSpacing = 1.2;
     double firstLineIndent = 24.0; // pixels at 100%
     double paragraphSpacing = 4.0; // pixels after paragraph
-    bool justify = false;
+    // alignment of body text (0.40.3; before only "justify" on or off): Qt::AlignLeft,
+    // AlignHCenter, AlignRight or AlignJustify
+    Qt::Alignment align = Qt::AlignLeft;
     // paragraph and character styles; null = the built-in set (text/Styles.h)
     QSharedPointer<const StyleSheet> styles;
     // script format (elements of script documents); null = the standard screenplay format (text/Script.h)
     QSharedPointer<const script::Data> script;
 };
+
+// The four alignments of body text, from any Qt alignment (0.40.3).
+inline Qt::Alignment bodyAlignment(Qt::Alignment a)
+{
+    return (a & Qt::AlignJustify) ? Qt::AlignJustify
+           : (a & Qt::AlignHCenter) ? Qt::AlignHCenter
+           : (a & Qt::AlignRight)   ? Qt::AlignRight
+                                    : Qt::AlignLeft;
+}
+// "left", "center", "right", "justify": the project file, settings files and options
+inline QString alignmentName(Qt::Alignment a)
+{
+    a = bodyAlignment(a);
+    return a == Qt::AlignJustify   ? QStringLiteral("justify")
+           : a == Qt::AlignHCenter ? QStringLiteral("center")
+           : a == Qt::AlignRight   ? QStringLiteral("right")
+                                   : QStringLiteral("left");
+}
+inline Qt::Alignment alignmentFromName(const QString &n, Qt::Alignment fallback)
+{
+    if (n == QLatin1String("left"))
+        return Qt::AlignLeft;
+    if (n == QLatin1String("center"))
+        return Qt::AlignHCenter;
+    if (n == QLatin1String("right"))
+        return Qt::AlignRight;
+    if (n == QLatin1String("justify"))
+        return Qt::AlignJustify;
+    return fallback;
+}
 
 struct Targets {
     int draftTarget = 0;

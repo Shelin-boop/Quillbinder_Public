@@ -628,7 +628,7 @@ std::unique_ptr<Project> ScrivenerImporter::importProject(const QString &path, c
         p->formatting.lineSpacing = s_newFormatting.lineSpacing;
         p->formatting.firstLineIndent = s_newFormatting.firstLineIndent;
         p->formatting.paragraphSpacing = s_newFormatting.paragraphSpacing;
-        p->formatting.justify = s_newFormatting.justify;
+        p->formatting.align = s_newFormatting.align;
     }
 
     Ctx c;

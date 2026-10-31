@@ -26,6 +26,11 @@ int followProject(Project *p, const Formatting &oldF, bool ownToo, QString *erro
 // value set by hand shows the style (direct::followStyle) in every document.
 int followStyle(Project *p, const QString &style, bool character, int charMembers, const direct::CharSpec &oldValues,
                 const direct::CharSpec &newValues, QString *error = nullptr);
+// A style was changed (0.40.2): all text of the style in every document takes over the
+// changed attributes, also where it had its own values (direct::takeStyle). A document
+// that changes gets a snapshot first. Returns the number of changed documents, -1 if some
+// could not be written.
+int takeStyle(Project *p, const QString &style, bool character, int charMembers, int paraBits, QString *error = nullptr);
 // The font family and size a style gives its text (the project's where the
 // style does not set them).
 direct::CharSpec styleFont(const Formatting &f, const QString &style);

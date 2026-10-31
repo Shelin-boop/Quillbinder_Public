@@ -660,13 +660,24 @@ StylesPanel::StylesPanel(QWidget *parent) : QDialog(parent, Qt::Tool)
             emit applyRequested(it->data(kNameRole).toString());
     });
     connect(m_new, &QToolButton::clicked, this, [this] { emit newRequested(); });
-    connect(m_redefine, &QToolButton::clicked, this, [this] { emit redefineRequested(selectedStyle()); });
+    connect(m_redefine, &QToolButton::clicked, this, [this] {
+        if (noStyleSelected())
+            emit redefineNoStyleRequested();
+        else
+            emit redefineRequested(selectedStyle());
+    });
     connect(m_edit, &QToolButton::clicked, this, [this] { emit editRequested(selectedStyle()); });
     connect(m_delete, &QToolButton::clicked, this, [this] { emit deleteRequested(selectedStyle()); });
     connect(m_up, &QToolButton::clicked, this, [this] { emit moveRequested(selectedStyle(), -1); });
     connect(m_down, &QToolButton::clicked, this, [this] { emit moveRequested(selectedStyle(), 1); });
     resize(290, 470);
     updateButtons();
+}
+
+bool StylesPanel::noStyleSelected() const
+{
+    const QListWidgetItem *it = m_list->currentItem();
+    return it && !it->data(kHeaderRole).toBool() && it->data(kNameRole).toString().isEmpty();
 }
 
 QString StylesPanel::selectedStyle() const
@@ -748,7 +759,9 @@ void StylesPanel::updateButtons()
     const bool isStyle = m_hasProject && !n.isEmpty();
     m_new->setEnabled(m_hasProject);
     m_apply->setEnabled(m_hasProject && m_list->currentItem() && !m_list->currentItem()->data(kHeaderRole).toBool());
-    m_redefine->setEnabled(isStyle);
+    m_redefine->setEnabled(isStyle || (m_hasProject && noStyleSelected()));
+    m_redefine->setToolTip(noStyleSelected() ? tr("Make the Formatting at the Cursor the Main Text Style…")
+                                             : tr("Redefine the Style From the Selection…"));
     m_edit->setEnabled(isStyle);
     m_delete->setEnabled(isStyle && !styles::isFixedName(n));
     m_up->setEnabled(isStyle);
@@ -764,7 +777,12 @@ void StylesPanel::showMenu(const QPoint &pos)
     const QString n = it->data(kNameRole).toString();
     QMenu menu(this);
     menu.addAction(tr("Apply"), this, [this, n] { emit applyRequested(n); });
-    if (!n.isEmpty()) {
+    if (n.isEmpty()) {
+        // "No Style" is the project's main text style (Project Settings > Formatting)
+        menu.addSeparator();
+        menu.addAction(tr("Redefine From Selection…"), this, [this] { emit redefineNoStyleRequested(); })
+            ->setObjectName(QStringLiteral("stylesRedefineNoStyle"));
+    } else {
         menu.addSeparator();
         menu.addAction(tr("Redefine From Selection…"), this, [this, n] { emit redefineRequested(n); });
         menu.addAction(tr("Edit…"), this, [this, n] { emit editRequested(n); });

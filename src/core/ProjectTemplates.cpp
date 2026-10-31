@@ -121,33 +121,35 @@ struct Builder {
 
 QString characterSheet()
 {
+    // 0.60: fields of this program's own choice and order (written new for the public release)
     return QObject::tr(
         "# Character Name\n"
-        "**Role in story:** \n"
-        "**Age:** \n"
-        "**Occupation:** \n"
-        "**Physical description:** \n"
-        "**Personality:** \n"
-        "**Habits and mannerisms:** \n"
-        "**Background:** \n"
-        "**What they want:** \n"
-        "**What stands in their way:** \n"
-        "**Internal conflicts:** \n"
-        "**How they change:** \n"
-        "**Notes:** \n");
+        "**In one sentence:** \n"
+        "**Part in the plot:** \n"
+        "**Age and appearance:** \n"
+        "**Home and work:** \n"
+        "**Voice (how they talk):** \n"
+        "**Goal:** \n"
+        "**Fear:** \n"
+        "**Secret:** \n"
+        "**Ties to other characters:** \n"
+        "**From the first scene to the last:** \n"
+        "**First appearance:** \n"
+        "**Open questions:** \n");
 }
 
 QString settingSheet()
 {
     return QObject::tr(
         "# Place Name\n"
-        "**Role in story:** \n"
-        "**Sights:** \n"
-        "**Sounds:** \n"
-        "**Smells:** \n"
-        "**Mood:** \n"
-        "**History:** \n"
-        "**Notes:** \n");
+        "**In one sentence:** \n"
+        "**Where it is:** \n"
+        "**By day and by night:** \n"
+        "**What one hears and smells there:** \n"
+        "**Who comes here:** \n"
+        "**What happened here before:** \n"
+        "**Scenes set here:** \n"
+        "**Open questions:** \n");
 }
 
 QString titlePage()

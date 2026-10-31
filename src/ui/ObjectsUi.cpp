@@ -1,4 +1,5 @@
 #include "ui/ObjectsUi.h"
+#include "ui/TextEditor.h"
 #include "ui/Zoom.h"
 #include "core/BinderItem.h"
 #include "core/Project.h"
@@ -421,12 +422,13 @@ void ObjectTextEdit::changeFormat(const std::function<void(QTextCharFormat &)> &
 
 bool ObjectTextEdit::isOn(Toggle what) const
 {
-    const QTextCharFormat f = currentCharFormat();
+    // the whole selection, not the character in front of the cursor (0.40.1)
+    const ToggleState s = toggleStateOf(this);
     switch (what) {
-    case Toggle::Bold: return f.fontWeight() >= QFont::DemiBold;
-    case Toggle::Italic: return f.fontItalic();
-    case Toggle::Underline: return f.fontUnderline() && !f.isAnchor();
-    case Toggle::Strike: return f.fontStrikeOut();
+    case Toggle::Bold: return s.bold;
+    case Toggle::Italic: return s.italic;
+    case Toggle::Underline: return s.underline;
+    case Toggle::Strike: return s.strike;
     }
     return false;
 }

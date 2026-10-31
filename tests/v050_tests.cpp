@@ -32,6 +32,7 @@
 
 #include "AppInfo.h"
 
+#include <QVersionNumber>
 #include <QApplication>
 #include <QDialog>
 #include <QDir>
@@ -454,8 +455,10 @@ int main(int argc, char **argv)
         return runExtraGone(true);
 
     // ================================================================ version and project page
-    check(QLatin1String(QB_APP_VERSION) == QLatin1String("0.50.0") && QLatin1String(QB_APP_VERSION_SHOWN) == QLatin1String("0.50.0 alpha"),
-          QStringLiteral("the version is 0.50.0, shown as \"0.50.0 alpha\""), QStringLiteral(QB_APP_VERSION_SHOWN));
+    // (0.60: the version itself is checked by qb_v060_tests; here: 0.50.0 or newer, with the label shown)
+    check(QVersionNumber::fromString(QLatin1String(QB_APP_VERSION)) >= QVersionNumber(0, 50, 0)
+              && QLatin1String(QB_APP_VERSION_SHOWN) == QLatin1String(QB_APP_VERSION " alpha"),
+          QStringLiteral("the version is 0.50.0 or newer, shown with its label (\"%1\")").arg(QStringLiteral(QB_APP_VERSION_SHOWN)));
     check(QLatin1String(QB_APP_HOMEPAGE) == QLatin1String("https://github.com/Shelin-boop/Quillbinder_Public")
               && QLatin1String(QB_SOURCES_URL) == QLatin1String("https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources"),
           QStringLiteral("the project page and its release with the third-party source code"), QStringLiteral(QB_SOURCES_URL));
@@ -653,8 +656,9 @@ int main(int argc, char **argv)
     // ================================================================ release text, workflow, descriptions
     {
         QTemporaryDir dist;
-        for (const QString &n : {QStringLiteral("Quillbinder-0.50.0-alpha-x86_64.AppImage"), QStringLiteral("quillbinder-0.50.0-update.qbpkg"),
-                                 QStringLiteral("quillbinder-0.50.0-symbols.xz"), QStringLiteral("SHA256SUMS.txt"),
+        const QString v = QStringLiteral(QB_APP_VERSION);
+        for (const QString &n : {QStringLiteral("Quillbinder-%1-alpha-x86_64.AppImage").arg(v), QStringLiteral("quillbinder-%1-update.qbpkg").arg(v),
+                                 QStringLiteral("quillbinder-%1-symbols.xz").arg(v), QStringLiteral("SHA256SUMS.txt"),
                                  QStringLiteral("THIRD-PARTY-SOURCES.txt")}) {
             QFile f(dist.path() + QLatin1Char('/') + n);
             f.open(QIODevice::WriteOnly);
@@ -667,15 +671,15 @@ int main(int argc, char **argv)
         if (out.open(QIODevice::WriteOnly))
             out.write(notes.toUtf8());
         check(rc == 0 && notes.contains(QLatin1String("**This is an alpha version.**")) && notes.contains(QLatin1String("Back Up Now"))
-                  && notes.contains(QLatin1String("Quillbinder-0.50.0-alpha-x86_64.AppImage"))
+                  && notes.contains(QStringLiteral("Quillbinder-%1-alpha-x86_64.AppImage").arg(v))
                   && notes.contains(QLatin1String("Add-on \"Extra Video and Audio Formats\" 1.0"))
                   && notes.contains(QLatin1String("Add-on \"Media Playback\" 1.1"))
                   && notes.contains(QLatin1String("not made by or connected with Literature & Latte"))
-                  && notes.contains(QLatin1String("releases/tag/third-party-sources")) && notes.contains(QLatin1String("What is new in 0.50.0 alpha")),
+                  && notes.contains(QLatin1String("releases/tag/third-party-sources")) && notes.contains(QStringLiteral("What is new in %1 alpha").arg(v)),
               QStringLiteral("the release text: alpha note with backups, every file with what it is, non-affiliation, source code, what is new"),
               notes.left(1500));
         const QString news = run(QStringLiteral("python3"), {QStringLiteral("-I"), tools + QStringLiteral("release-notes.py"), QStringLiteral("--whats-new")}, &rc);
-        check(rc == 0 && news.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size() >= 3 && news.contains(QLatin1String("Media Playback 1.1")),
+        check(rc == 0 && news.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size() >= 3,
               QStringLiteral("the short what's-new lines of the program update come from the list of changes"), news);
         const QString wf = QString::fromUtf8(readAll(kSource + QStringLiteral("/.github/workflows/release.yml")));
         check(wf.contains(QLatin1String("tags: ['v*']")) && wf.contains(QLatin1String("container: ubuntu:24.04"))

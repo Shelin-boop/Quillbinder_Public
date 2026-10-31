@@ -12,6 +12,7 @@
 #include "core/ProjectTemplates.h"
 #include "text/PageLayout.h"
 #include "ui/AppSettings.h"
+#include "ui/ProjectLook.h"
 #include "ui/BinderPanel.h"
 #include "ui/Copyholder.h"
 #include "ui/Corkboard.h"
@@ -238,6 +239,10 @@ int main(int argc, char **argv)
     as.theme = QStringLiteral("light");
     as.spellCheck = false;
     as.backupOnClose = false;
+    // (0.40.2) written for one look for the whole program: the project shows the settings' look,
+    // without a border beside the text (tests/v0402_tests.cpp checks the look per project)
+    look::setFollowSettings(true);
+    as.textBorder = 0;
     theme::apply();
     compile::PluginManager::instance().load();
 

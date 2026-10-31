@@ -22,6 +22,8 @@
 #include <memory>
 #include <vector>
 #include "tools/ToolApi.h"
+#include "ui/AlignButtons.h"
+#include "ui/ProjectLook.h"
 #include "ui/Theme.h"
 
 #include <QColor>
@@ -69,6 +71,13 @@ public:
     void showSection(int section, const QString &page = QString());
     QStringList pageNames(int section) const;   // the pages (or tabs) of a section, for tests and the manual
 
+    // Appearance (0.40.2): the pages show and change the look of the open project or the
+    // look new projects get; the colors of menus and panels (General) and the interface
+    // font belong to the whole program in both. Without a project only ScopeNew is there.
+    enum LookScope { ScopeProject = 0, ScopeNew = 1 };
+    void setLookScope(int scope);
+    int lookScope() const { return m_scope; }
+
     // Appearance page, also used by the tests (the buttons open color and
     // font dialogs and then call these).
     void selectTheme(const QString &id);
@@ -105,6 +114,8 @@ private:
     // Appearance: one page per part of the window, with its options, fonts and colors
     QWidget *appearancePage(int which);
     void refreshLook();
+    void storeScope();   // the Appearance widgets -> m_scopeLooks[m_scope]
+    void loadScope();    // m_scopeLooks[m_scope] -> the Appearance widgets
     void reloadThemes(const QString &selectId);
     theme::Theme shownTheme() const;
     void fillManageMenu();
@@ -143,7 +154,8 @@ private:
     QSpinBox *m_blockWidth;
     QList<QPushButton *> m_revButtons;
     QList<QColor> m_revColors;
-    QCheckBox *m_newAutoFont, *m_newJustify;
+    QCheckBox *m_newAutoFont;
+    qb::AlignButtons *m_newAlign; // 0.40.3: four alignments instead of "Justify text"
     bool m_clearNewStyles = false;
     QFontComboBox *m_newFont;
     QDoubleSpinBox *m_newSize, *m_newSpacing, *m_newIndent, *m_newParaSpacing;
@@ -169,6 +181,11 @@ private:
     QCheckBox *m_fixedWidth, *m_titles, *m_typewriter, *m_stamps, *m_tint, *m_labelBinder;
     QCheckBox *m_labelIcons = nullptr, *m_fullPath = nullptr;
     QSpinBox *m_binderIndent = nullptr, *m_editorWidth = nullptr, *m_cardWidth = nullptr;
+    QSpinBox *m_textBorder = nullptr;
+    QComboBox *m_lookScope = nullptr;
+    int m_scope = ScopeNew;
+    look::Values m_scopeLooks[2];
+    bool m_hasProject = false;
     QComboBox *m_toolbarIcons = nullptr;
     QListWidget *m_areas = nullptr;
     QStackedWidget *m_areaStack = nullptr;

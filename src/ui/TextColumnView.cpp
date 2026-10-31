@@ -5,11 +5,14 @@
 #include "core/DocumentStore.h"
 #include "core/Project.h"
 #include "ui/AppSettings.h"
+#include "ui/LookMenu.h"
+#include "ui/ProjectLook.h"
 #include "ui/TextEditor.h"
 
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QContextMenuEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QCoreApplication>
@@ -52,13 +55,14 @@ TextColumnView::TextColumnView(QWidget *parent) : QScrollArea(parent)
     hl->setContentsMargins(0, 0, 0, 0);
     hl->addStretch(1);
     m_column = new QWidget(m_container);
+    m_column->setObjectName(QStringLiteral("textColumn")); // the paper (tests find it by this name)
     m_column->setAutoFillBackground(true);
     m_column->setBackgroundRole(QPalette::Base);
     m_column->installEventFilter(this);
     hl->addWidget(m_column);
     hl->addStretch(1);
     m_colLayout = new QVBoxLayout(m_column);
-    m_colLayout->setContentsMargins(0, 18, 0, 0);
+    m_colLayout->setContentsMargins(0, m_topMargin, 0, 0);
     m_colLayout->setSpacing(0);
     m_bottomSpacer = new QWidget(m_column);
     m_bottomSpacer->setFixedHeight(80);
@@ -172,6 +176,14 @@ void TextColumnView::setItems(const QList<BinderItem *> &items, bool combined)
                 ensureCursorVisible(ed);
                 emit cursorMoved(ed);
             }
+        });
+        // a selection that changes at its other end leaves the cursor where it was: the
+        // format bar still has to show the new selection (0.40.1). Only for a selection
+        // there is: Qt also reports the selection cleared when a document is taken out of
+        // the editor, which happens while a project or the window closes.
+        connect(ed, &QTextEdit::selectionChanged, this, [this, ed] {
+            if (ed->hasFocus() && ed->textCursor().hasSelection())
+                emit cursorMoved(ed);
         });
         connect(ed, &TextEditor::scriptElementChanged, this, [this, ed] { emit cursorMoved(ed); });
         connect(ed, &TextEditor::heightChanged, this, [this, ed] {
@@ -422,6 +434,16 @@ void TextColumnView::ensureCursorVisible(TextEditor *e)
         return;
     const QRect r = e->cursorRect();
     const QPoint p = e->viewport()->mapTo(m_container, r.topLeft());
+    if (e->cursorMovedByMouse()) {
+        // a click or a drag: the cursor is where the mouse is, so the view moves only when the
+        // mouse has left it (a drag beyond the edge), and only as far as needed (0.40.2)
+        const int top = verticalScrollBar()->value(), bottom = top + viewport()->height();
+        if (p.y() < top)
+            verticalScrollBar()->setValue(p.y());
+        else if (p.y() + r.height() > bottom)
+            verticalScrollBar()->setValue(p.y() + r.height() - viewport()->height());
+        return;
+    }
     if (m_typewriter) {
         verticalScrollBar()->setValue(p.y() + r.height() / 2 - viewport()->height() / 2);
     } else {
@@ -431,8 +453,8 @@ void TextColumnView::ensureCursorVisible(TextEditor *e)
 
 void TextColumnView::setTopMargin(int px)
 {
-    if (m_colLayout)
-        m_colLayout->setContentsMargins(0, px, 0, 0);
+    m_topMargin = px;
+    updateColumnWidth();
 }
 
 void TextColumnView::setColumnWidthOverride(int px)
@@ -463,6 +485,7 @@ void TextColumnView::applyTheme()
     for (Section &s : m_sections)
         if (s.title)
             s.title->setFont(theme::font(theme::FontRole::CombinedTitle));
+    updateColumnWidth(); // the project's look may have another width or border (0.40.2)
 }
 
 void TextColumnView::applyColors()
@@ -545,17 +568,29 @@ void TextColumnView::updateColumnWidth()
     if (!verticalScrollBar()->isVisible())
         vw -= style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, verticalScrollBar());
     const int avail = qMax(200, vw - 48);
+    const double zoom = m_project ? m_project->docs()->zoom() : 1.0;
     int w = avail;
+    int border = 0;
     if (pageView()) {
         w = m_project->docs()->pageMetrics().paperW;
     } else if (m_widthOverride > 0) {
         w = qMin(m_widthOverride, vw);
-    } else if (AppSettings::instance().fixedWidth) {
-        const double zoom = m_project ? m_project->docs()->zoom() : 1.0;
-        w = qMin(avail, int(AppSettings::instance().editorWidth * zoom));
+    } else {
+        // the border in the paper's color left and right of the text (0.40.2): outside the
+        // text width, so that the lines break where they did; it gives way only when the view
+        // is too narrow for both
+        if (AppSettings::instance().fixedWidth)
+            w = qMin(avail, int(look::editorWidth() * zoom));
+        border = qMax(0, int(look::border() * zoom + 0.5));
+        if (w + 2 * border > vw)
+            border = qMax(0, (vw - w) / 2);
+        w += 2 * border;
     }
     if (m_column->width() != w)
         m_column->setFixedWidth(w);
+    const QMargins m(border, m_topMargin, border, 0);
+    if (m_colLayout && m_colLayout->contentsMargins() != m)
+        m_colLayout->setContentsMargins(m);
 }
 
 void TextColumnView::updateMinHeights()
@@ -585,27 +620,86 @@ void TextColumnView::setScrollValue(int v) { verticalScrollBar()->setValue(v); }
 
 bool TextColumnView::eventFilter(QObject *o, QEvent *e)
 {
-    if ((o == m_container || o == m_column || o == m_bottomSpacer) && e->type() == QEvent::MouseButtonPress) {
-        // click below the text: put the cursor at the end of the last section
-        if (!m_sections.isEmpty()) {
-            auto *me = static_cast<QMouseEvent *>(e);
-            const QPoint p = static_cast<QWidget *>(o)->mapTo(m_container, me->pos());
-            TextEditor *target = m_sections.last().editor;
-            for (const Section &s : m_sections) {
-                const int top = s.editor->mapTo(m_container, QPoint(0, 0)).y();
-                if (p.y() < top) {
-                    target = s.editor;
-                    break;
-                }
-            }
-            target->setFocus();
-            QTextCursor c = target->textCursor();
-            c.movePosition(QTextCursor::End);
-            target->setTextCursor(c);
-        }
+    const bool around = o == m_container || o == m_column || o == m_bottomSpacer;
+    if (around && (e->type() == QEvent::MouseButtonPress || e->type() == QEvent::MouseButtonDblClick)) {
+        auto *me = static_cast<QMouseEvent *>(e);
+        auto *w = static_cast<QWidget *>(o);
+        // Only a click on the paper or beside it, not one that a part of the text passed on
+        // (0.40.2: Qt hands a right-button press in the text on to its parents), and only the
+        // left button: a right-click must leave the cursor and the selection alone.
+        if (insideText(w->childAt(me->pos())))
+            return false;
+        if (me->button() != Qt::LeftButton)
+            return true;
+        if (!m_sections.isEmpty())
+            clickBesideText(w->mapTo(m_container, me->pos()));
+        return true;
+    }
+    if (around && e->type() == QEvent::ContextMenu) {
+        auto *ce = static_cast<QContextMenuEvent *>(e);
+        auto *w = static_cast<QWidget *>(o);
+        if (insideText(w->childAt(ce->pos())))
+            return false;
+        // the look of the paper and of what lies around it (0.40.2)
+        lookmenu::popup(lookmenu::Part(m_lookPart), ce->globalPos(), window());
         return true;
     }
     return QScrollArea::eventFilter(o, e);
+}
+
+// The widget under the mouse belongs to one of the texts (an event that the text passed on).
+bool TextColumnView::insideText(QWidget *under) const
+{
+    for (QWidget *x = under; x && x != m_column && x != m_container; x = x->parentWidget())
+        if (qobject_cast<TextEditor *>(x))
+            return true;
+    return false;
+}
+
+// A click on the paper beside the text (the border, the area around the column) puts the
+// cursor at the start or the end of the line beside the click; a click below the text at the
+// end of the text above it (0.40.2; before, every such click went to the end of the text,
+// and the view jumped there).
+void TextColumnView::clickBesideText(const QPoint &inContainer)
+{
+    TextEditor *target = nullptr;
+    QPoint inEditor;
+    for (const Section &s : m_sections) {
+        const QRect r(s.editor->mapTo(m_container, QPoint(0, 0)), s.editor->size());
+        if (inContainer.y() >= r.top() && inContainer.y() <= r.bottom()) {
+            target = s.editor;
+            inEditor = s.editor->viewport()->mapFrom(m_container, inContainer);
+            break;
+        }
+        if (inContainer.y() < r.top()) {
+            // above this section (its title, the gap between documents): the end of the one before,
+            // or the start of this one when it is the first
+            target = s.editor;
+            inEditor = QPoint(0, 0);
+            break;
+        }
+    }
+    if (target) {
+        const QRect vr = target->viewport()->rect();
+        const QPoint clamped(qBound(vr.left(), inEditor.x(), vr.right()), qBound(vr.top(), inEditor.y(), vr.bottom()));
+        QTextCursor c = target->cursorForPosition(clamped);
+        if (inEditor.x() > vr.right()) {
+            c.movePosition(QTextCursor::EndOfLine);
+        } else if (inEditor.x() < vr.left()) {
+            c.movePosition(QTextCursor::StartOfLine);
+        }
+        const int keep = verticalScrollBar()->value();
+        target->setFocus(Qt::MouseFocusReason);
+        target->setTextCursor(c);
+        verticalScrollBar()->setValue(keep); // the line is on screen already
+        return;
+    }
+    // below the text
+    TextEditor *last = m_sections.last().editor;
+    last->setFocus(Qt::MouseFocusReason);
+    QTextCursor c = last->textCursor();
+    c.movePosition(QTextCursor::End);
+    last->setTextCursor(c);
 }
 
 } // namespace qb

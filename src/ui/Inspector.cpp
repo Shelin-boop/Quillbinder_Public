@@ -1,4 +1,5 @@
 #include "ui/Inspector.h"
+#include "ui/LookMenu.h"
 #include "ui/DocMirror.h"
 #include "ui/MindMapView.h"
 #include "ui/ViewMemory.h"
@@ -41,6 +42,7 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QPainter>
+#include <QContextMenuEvent>
 #include <QPlainTextEdit>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -98,6 +100,14 @@ protected:
                 p.drawLine(0, y, viewport()->width(), y);
         }
         QPlainTextEdit::paintEvent(e);
+    }
+    // the usual menu, and the colors and fonts of the inspector (0.40.2)
+    void contextMenuEvent(QContextMenuEvent *e) override
+    {
+        QMenu *menu = createStandardContextMenu(e->pos());
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+        lookmenu::add(menu, lookmenu::Part::Inspector, window());
+        menu->popup(e->globalPos());
     }
 };
 
@@ -2074,4 +2084,11 @@ void Inspector::updateTabDots()
     mark(Objects, !m_project->objects()->objectsForDocument(m_item->id).isEmpty());
 }
 
+} // namespace qb
+
+namespace qb {
+void Inspector::contextMenuEvent(QContextMenuEvent *e)
+{
+    lookmenu::popup(lookmenu::Part::Inspector, e->globalPos(), window());
+}
 } // namespace qb

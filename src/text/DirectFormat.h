@@ -131,6 +131,16 @@ int followProject(QTextDocument *doc, const Formatting &oldF, const Formatting &
 // new formatting. Returns the number of changed pieces.
 int followStyle(QTextDocument *doc, const Formatting &f, const QString &style, bool character, int charMembers,
                 const CharSpec &oldValues, const CharSpec &newValues);
+// A style was changed (0.40.2): all text of the style (paragraph style, or character
+// style with character = true) takes over what changed, also where the text had its own
+// value (set by hand, or brought along by an import): charMembers (CharMember: Family,
+// Size, Weight, Color, Spacing, Caps) are no longer set by hand in its pieces, paraBits
+// (ParaBit) no longer in its paragraphs. Other formatting set by hand stays. f is the new
+// formatting. Returns the number of changed pieces and paragraphs.
+int takeStyle(QTextDocument *doc, const Formatting &f, const QString &style, bool character, int charMembers, int paraBits);
+// The character members and paragraph bits in which two definitions of a style differ.
+int charMembersBetween(const CharSpec &a, const CharSpec &b);
+int paraBitsBetween(const ParaSpec &a, const ParaSpec &b);
 // The members of the font and the paragraph bits in which two project
 // formattings differ (for followProject).
 int changedCharMembers(const Formatting &a, const Formatting &b);

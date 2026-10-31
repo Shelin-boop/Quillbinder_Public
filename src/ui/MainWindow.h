@@ -57,7 +57,20 @@ public:
     // a .scriv folder or its .scrivx (MainWindowFormat.cpp)
     bool openScrivenerProject(const QString &path);
     static QString projectFileFilter();
-    bool adoptProject(std::unique_ptr<Project> p);
+    // isNew: a project just made (new, imported, the welcome project): it gets the look for
+    // new projects; an existing project keeps the look it has (0.40.2, ui/ProjectLook.h)
+    bool adoptProject(std::unique_ptr<Project> p, bool isNew = false);
+    // The project gets these styles; all text follows (MainWindowStyles.cpp; also used by the
+    // settings import and the tests). renamed: old name -> new name.
+    bool commitStyles(const StyleSheet &sheet, const QHash<QString, QString> &renamed = {});
+    // Project > Save / Load Project Settings (0.40.2, MainWindowSettings.cpp). An empty file name
+    // asks for one. importProjectSettings shows what differs and asks per section.
+    bool exportProjectSettings(const QString &file = QString());
+    bool importProjectSettings(const QString &file = QString());
+    QJsonObject currentProjectSettings();
+    // takes the sections over (key -> value as in a settings file); notes: what was kept
+    void applyProjectSettings(const QJsonObject &sections, QStringList *notes);
+    QStringList lastSettingsNotes() const { return m_lastSettingsNotes; }
     // File > Compare and Transfer with this file (0.18; also for the tests): false if not compared
     bool compareWithFile(const QString &path);
     bool closeProject();
@@ -194,6 +207,10 @@ private:
     // target: the editor the entries act on (null = the active editor);
     // full: with the commands to create, redefine, edit and delete styles
     void fillStyleMenu(QMenu *menu, TextEditor *target, bool full);
+    // the chosen style list with the style commands fixed below it: the format bar's list and
+    // the right-click menus (0.40.3)
+    void fillStyleList(QMenu *menu, TextEditor *target);
+    void customizeStyleList();
     void rebuildStyleCombo();
     void refreshStyleUi();
     void newStyleFromSelection();
@@ -205,7 +222,13 @@ private:
     void importStyles();
     void saveStylesAsDefault();
     void showStylesPanel();
-    bool commitStyles(const StyleSheet &sheet, const QHash<QString, QString> &renamed = {});
+    // "No Style" redefined from the selection: the project's main text style (0.40.3)
+    void redefineNoStyleFromSelection();
+    // the main text style as the paragraph at the cursor shows it ("Use Current" buttons)
+    bool formattingAtCursor(TextEditor *e, Formatting *f) const;
+    // the window that style dialogs and messages belong to: the Styles panel when the
+    // command came from it (so they open above it, 0.40.3), else the main window
+    QWidget *styleUiParent() { return m_styleUiParent ? m_styleUiParent.data() : static_cast<QWidget *>(this); }
     // audio and video (MainWindowMedia.cpp): Navigate > Media
     void createMediaActions();
     void createMediaMenu(QMenu *nav);
@@ -264,7 +287,8 @@ private:
     void installToolbarDropTargets();
     void fillGoToMenu(QMenu *menu);
     void fillItemMenu(QMenu *menu);
-    void showItemContextMenu(const QPoint &globalPos);
+    // lookPart: lookmenu::Part of what was clicked (binder, corkboard, outliner), -1: none
+    void showItemContextMenu(const QPoint &globalPos, int lookPart = -1);
     void showHeaderMenu(EditorPane *pane, const QPoint &globalPos);
     void enterComposition();
     void showPageSetup();
@@ -303,6 +327,7 @@ private:
     EditorPane *m_panes[2] = {nullptr, nullptr};
     EditorPane *m_active = nullptr;
     QPointer<CompositionWindow> m_composition;
+    QStringList m_lastSettingsNotes;
     QList<QAction *> m_toolActions;
 
     // toolbars
@@ -314,6 +339,7 @@ private:
     QComboBox *m_styleCombo = nullptr;
     QMenu *m_styleMenu = nullptr;
     QPointer<StylesPanel> m_stylesPanel;
+    QPointer<QWidget> m_styleUiParent;
     QPointer<FormatFindWindow> m_formatFind;
     QFontComboBox *m_fontCombo = nullptr;
     QDoubleSpinBox *m_sizeSpin = nullptr;
@@ -353,6 +379,12 @@ private:
     QActionGroup *m_revisionGroup = nullptr;
     bool m_updatingUi = false;
     QSet<QString> m_editedSinceSave;        // texts edited since the last File > Save (0.21)
+    // documents without a name take the first line of their text (0.40.3, MainWindowTitles.cpp)
+    void queueAutoTitle(const QString &id);
+    void queueUntitledDocuments();
+    void updateAutoTitles();
+    QSet<QString> m_autoTitlePending;
+    QTimer *m_autoTitleTimer = nullptr;
     QDateTime m_lastInput;                  // Automatic Quit (0.21)
     QTimer *m_autoQuitTimer = nullptr;
     void notifySnapshots(int count);        // File > Options > Behaviors > Snapshots (0.21)

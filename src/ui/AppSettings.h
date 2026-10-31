@@ -50,6 +50,10 @@ public:
     QMap<QString, QString> ownFonts;
     bool fixedWidth = true;
     int editorWidth = 500;                // px at 100 % (760 before 0.21.2)
+    // The border in the paper's color left and right of the text (0.40.2), px at 100 %. Like
+    // the editor width and the colors of the areas, this is what a new project gets: every
+    // project keeps its own look (ui/ProjectLook.h).
+    int textBorder = 10;
     bool showTitlesInCombined = false;
     bool typewriterScrolling = false;
     double compositionPaperWidth = 0.55; // share of the screen
@@ -79,7 +83,7 @@ public:
     double newLineSpacing = 1.09;
     double newFirstLineIndent = 0.0;    // px at 100 %
     double newParagraphSpacing = 8.0;   // px (= 6 pt)
-    bool newJustify = false;
+    Qt::Alignment newAlign = Qt::AlignLeft; // 0.40.3; before: newJustify (still written for older versions)
     QString newStylesXml;         // styles of new projects (Format > Style); empty = built-in
     QString newPageSetup;         // page of new projects (page view), JSON; empty = by region
     QString newPrintSettings;     // File > Print Settings of new projects, JSON; empty = the defaults

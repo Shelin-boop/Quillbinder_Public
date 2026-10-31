@@ -63,7 +63,7 @@ The window has three columns:
 | **Editor** (middle) | Shows what you selected in the binder: text, a corkboard of index cards, or an outline. |
 | **Inspector** (right) | Information about the current document: synopsis, notes, bookmarks, metadata, snapshots, and comments. |
 
-Hide the binder with **Ctrl+Alt+B** and the inspector with **Ctrl+Alt+I** to get more room. The colors and fonts of all three, and of the corkboard, outliner, and composition mode, come from the theme (**Window > Themes**) and can be changed area by area (section 16).
+Hide the binder with **Ctrl+Alt+B** and the inspector with **Ctrl+Alt+I** to get more room. The colors and fonts of all three, and of the corkboard, outliner, and composition mode, come from the theme (**Window > Themes**) and can be changed area by area (section 16), also with a right-click on the area (**Appearance**). Every project keeps its own look.
 
 The **toolbar** at the top holds, from left to right: the **View** button (binder, collections, inspector, layouts), new document (with a menu for folders, templates, and import), new folder, trash, the **search** button (project search; the arrow beside it lists the other search tools: Search in Document, Project Replace, Find by Formatting), the **quick search** field, the three view buttons (text, corkboard, outliner), project bookmarks, quick reference, comments and footnotes, compile, composition mode, and the inspector button. You decide what it holds (see "Toolbars of your own" below).
 
@@ -80,7 +80,7 @@ The **footer** of each editor shows the word and character count (select text to
 | **Insert** | Images, comments, footnotes, media timestamps, auto numbers, placeholders, special characters, date and time |
 | **View** | The three view modes, the split editor, binder, collections and inspector, toolbars, text editing options (page view, ruler, typewriter scrolling), corkboard and outliner options, label colors, zoom, composition mode, full screen |
 | **Navigate** | Back and forward, previous and next document, opening documents in the other editor, in the copyholder, or as quick reference, the editor lock, which editor the binder loads into, the inspector tabs |
-| **Project** | New documents, project settings, targets, keywords, statistics, writing history, trash |
+| **Project** | New documents, project settings (also saved to and loaded from a file), targets, keywords, statistics, writing history, trash |
 | **Documents** | Snapshots, renaming, duplicating, splitting, merging, converting, icon, label, status, bookmarks |
 | **Format** | Font, paragraph, style, lists, highlight, copying formatting, revision mode |
 | **Window** | Themes, layouts, scratch pad, quick reference windows |
@@ -139,7 +139,7 @@ Every project has three special folders:
 
 ### Working with items
 
-- **New document**: **Ctrl+N** (or the ➕ button). It is added below the selected item.
+- **New document**: **Ctrl+N** (or the ➕ button). It is added below the selected item. A document called "Untitled" (or without a title) takes the first line of its text as its title as soon as you write: at most 60 characters, cut at a word, without inline annotations, inline footnotes, and pictures. The title follows the first line until you rename the document yourself; a document whose text you delete is "Untitled" again. "Untitled" documents that already have text get their name when the project opens. The title is an ordinary title: it is saved, compiled (when titles are compiled, a first line that is a heading appears twice), and written into Scrivener projects.
 - **New folder**: **Alt+Shift+N**.
 - **Rename**: **F2**, or double-click slowly on the title.
 - **Move**: drag items with the mouse, or use **Ctrl+Alt+Arrow keys**: Up and Down move within the folder; Left moves out of the folder; Right moves into the item above. Dropped *between* two items, a document goes there; dropped *onto* an item, it becomes its subdocument. If you nest documents by accident, switch off dropping onto text documents under **File > Options > Behaviors** (folders always take drops).
@@ -211,6 +211,8 @@ Collections are extra lists of documents, for example "Needs research" or "Scene
 
 **Styles** (Heading 1–6, Title, Subtitle, Block Quote, and your own) are chosen from the list at the left of the format bar. Styles tell Compile what a paragraph is, so use them instead of making text large and bold by hand. See "Styles" below.
 
+**What the format bar shows.** The bar shows the text as you see it, for all of the selection. **Bold**, **Italic**, **Underline**, **Strikethrough**, superscript, and subscript are on when all selected text looks so, also when its style makes it so (the bold of a heading). A click switches what you see: **Bold** on a bold heading makes it not bold, and it stays not bold when the project is saved and opened again. The font, the size, the line spacing, the alignment buttons, and the style list show the selection as well; when the selection holds two fonts, two sizes, two alignments, or paragraphs of two styles, that field stays empty (no alignment button is on). A size typed into the empty field gives all of the selection that size.
+
 **Lists**: use the list buttons, or type "- " or "1. " at the start of a paragraph.
 
 **Smart typography**: straight quotes become curly quotes, and two hyphens become an em dash as you type. Switch this off under **File > Options > Editing**.
@@ -226,10 +228,13 @@ All text of a project has one look: the **default formatting** (see below). On t
 - **Format bar**: the font list and the size field change the selected text at once. Without a selection they change the **whole paragraph** that holds the cursor (and what you type next there). The arrows of the size field change the text with each click; a size you type takes effect with **Enter**. The format bar, the Format menu and their shortcuts act on the text the cursor was in last: an editor, the notes in the inspector, the bookmarked text in the inspector, or a long text field of an object (there: bold, italic, underline, strikethrough, text color, and highlight). A click in the size field does not change that.
 - After a change in the format bar, a bar above the editor offers the same for the whole project: in a paragraph with a style (a heading, for example) **Change the Style “Heading 1”** gives the style the new font or size, and all text of that style in every document follows; in a paragraph without a style **Use for All Text** makes it the project font or size (see "Default formatting" below). Click **×**, or simply go on writing elsewhere, to keep the change where it is. Every document that changes gets a snapshot first.
 - **Format > Font > Show Fonts…** (**Ctrl+T**) opens the fonts window: font, typeface (light, regular, bold, italic, and whatever else the font offers), size, underline, strikethrough, capitals (small capitals or all capitals), letter spacing in percent, and text color. Only what you change in the window is applied, so a selection with bold and plain words keeps them. **Project Font** takes the text back to the font, size, and color of the project.
+- **Bold, Italic, Underline, Strikethrough**: a button is on when *all* of the selected text has that format, however you selected it (also from right to left). A selection that is only partly bold shows Bold off, and **Bold** then makes all of it bold; a second click makes all of it plain. In the fonts window, a typeface you choose is likewise set for the whole selection.
 - **Format > Font > Bigger / Smaller** (**Ctrl+>** / **Ctrl+<**) change the size by one point; every part of the selection keeps its own size and grows or shrinks.
 - **Format > Font > Text Color…** and **Automatic Text Color**.
 
 Choosing the project's own font or size is stored as "no font of its own": such text follows the project when you change the default formatting later.
+
+**Fonts with several designs.** Some fonts keep several designs of one typeface under one name: Sitka of Windows 11, for example, holds the optical sizes Small, Text, Subheading, Heading, Display, and Banner (each drawn for its own range of sizes, the larger ones narrower and with smaller lowercase letters), and some fonts hold condensed or wide versions in the same way. {{APP}} lists each design as a font of its own (for example **Sitka Small**, **Sitka Text**, **Sitka Banner**), with only that design's typefaces, so that bold and italic stay within the design you chose; before 0.40.1, bold text could come out in another design and look smaller and narrower. The font files are not changed. The font with the original name keeps its own design, so text set in it earlier keeps its look.
 
 **Installing fonts.** **Navigate > Fonts** has the commands for fonts that are not on your computer yet:
 
@@ -263,10 +268,10 @@ The ruler shows real lengths. Zoom enlarges the letters on screen but not indent
 
 ### Default formatting
 
-- **This project**: **Project > Project Settings > Formatting** (also the sliders button in the format bar) sets font, size, line spacing, first line indent, space after paragraphs, and justification of the text of the whole project. **Apply** changes all documents at once and leaves the window open, so you can see the result behind it; **OK** does the same and closes the window. **Use Current** takes the values from the paragraph that holds the cursor.
+- **This project**: **Project > Project Settings > Formatting** (also the sliders button in the format bar) sets font, size, line spacing, first line indent, space after paragraphs, and the alignment of the text of the whole project (four buttons: left, centered, right, justified). In the Styles Panel, **No Style** > **Redefine From Selection** takes these values from the paragraph at the cursor (see "Styles" below). **Apply** changes all documents at once and leaves the window open, so you can see the result behind it; **OK** does the same and closes the window. **Use Current** takes the values from the paragraph that holds the cursor.
   - With **Change text with a font, size or spacing of its own as well** (on by default), text that was formatted by hand or came with its own font from an import follows too, as long as it has the main font, size, and spacing of its document. What differs from the main text stays as it is: a larger heading line, a passage in another font, a paragraph without indent. Switch the box off to leave all text formatted by hand alone.
   - Every document that changes gets a snapshot first (inspector, snapshots tab, "Before the project formatting changed"), so you can go back. Script documents keep their own format.
-- **New projects**: **File > Options > Editing > Formatting of new projects**, with **Use Formatting in Current Editor**. Existing projects keep their formatting. The standard is 11.0 pt, line spacing 1.09, no first line indent, and 6 pt after paragraphs. Projects imported from Scrivener start with these values as well (with the font most used in the Scrivener project).
+- **New projects**: **File > Options > Editing > Formatting of new projects**, with the same four alignment buttons and **Use Formatting in Current Editor**. Existing projects keep their formatting. The standard is 11.0 pt, line spacing 1.09, no first line indent, and 6 pt after paragraphs. Projects imported from Scrivener start with these values as well (with the font most used in the Scrivener project).
 - **Back to the default**: select documents in the binder and choose **Documents > Convert > Text to Default Formatting…**. You decide whether fonts and colors, indents and spacing, alignment, and tab stops are removed. Bold, italics, styles, notes, and links always stay. A snapshot of each document is taken first (inspector, snapshots tab), so you can go back.
 
 ### Styles
@@ -280,7 +285,11 @@ There are two kinds:
 
 Leave body text at **No Style**. It follows the project's default formatting, and Compile can give it any look. Use styles only for text that should look different from body text.
 
-**Applying a style**: choose it in the list at the left of the format bar, under **Format > Style**, in the menu of a right-click on the text, or in the **Styles Panel** (**Format > Style > Styles Panel**), a small window that stays open next to the text; a double-click on a row applies the style. **No Style** removes a character style from the selection; where there is none, it removes the paragraph style.
+**Applying a style**: choose it in the list at the left of the format bar, under **Format > Style**, in the menu of a right-click on the text, or in the **Styles Panel** (**Format > Style > Styles Panel**), a small window that stays open next to the text; a double-click on a row applies the style. **No Style** removes a character style from the selection; where there is none, it removes the paragraph style. Windows and questions that the Styles Panel opens appear above the panel.
+
+**The style list** of the format bar and of the right-click menu (**Style**) shows the styles you choose, in the order you choose: **Customize Style List…** (at the bottom of the list, and under **Format > Style**) lists all entries; untick those you do not need, drag them into another order or use the arrows, and **All, in the Order of the Styles** brings back the full list. With more than ten entries the list shows ten and scrolls. Below it, always in view: **New Style From Selection…**, **Redefine Style From Selection…**, **Styles Panel**, and **Customize Style List…**. A style that is not in the list is still named in the format bar when the text uses it; **Format > Style** always lists all styles. The choice belongs to the project (a new style appears at the end of the list) and is part of the styles in project settings files.
+
+**No Style is the main text style.** In the Styles Panel, right-click **No Style** (or select it and use the Redefine button) and choose **Redefine From Selection…**: the font, size, line spacing, first line indent, space after paragraphs, and alignment of the paragraph at the cursor become the project's main text style (the values of **Project > Project Settings > Formatting**). A question shows the values first. All text without a style in the whole project follows, also text with a font, size, or spacing of its own; styled text keeps what its style sets. Every document that changes gets a snapshot first.
 
 **Creating a style**:
 
@@ -297,7 +306,7 @@ A paragraph style stores only what differs from body text. Everything else keeps
 - **Format > Style > Redefine Style From Selection…** takes the formatting of the text at the cursor, as above. A paragraph style stays a paragraph style, a character style a character style.
 - **Format > Style > Edit Style** (or the pencil button of the Styles Panel) opens a window with the name, **Font…**, **Paragraph…**, and the style of the following paragraph. A preview shows the result.
 
-Afterwards {{APP}} goes through the whole project and updates the text. This cannot be undone with **Edit > Undo**; redefine the style again, or use **Reset to the Built-in Definition** in the Styles Panel for a built-in style.
+Afterwards {{APP}} goes through the whole project and updates the text, in open documents and in the files of the others. What the change touches (font, size, bold, italics, color, letter spacing, capitals, alignment, indents, spacing, line spacing, tab stops) reaches **all** text of the style, also where that text had a value of its own: set by hand, or brought along by an import (imported headings usually name their font, size, and spacing in every paragraph). Formatting the change does not touch stays as it is, for example a word colored by hand in a heading when only the heading's size changed. Every document that changes gets a snapshot first ("Before the style ... changed"). This cannot be undone with **Edit > Undo**; restore a snapshot, redefine the style again, or use **Reset to the Built-in Definition** in the Styles Panel for a built-in style.
 
 **Renaming and deleting**: rename a style in **Edit Style**. The headings, Title, Subtitle, Block Quote, Centered, and Caption keep their names, because Compile and the Markdown files know them by name. When you delete a style (**Format > Style > Delete Style**), text that used it keeps its look as formatting set by hand.
 
@@ -349,7 +358,7 @@ A click on commented text opens the inspector with that comment. **Alt+click** o
 
 ### Spelling
 
-Misspelled words get a red wavy underline; right-click for suggestions or to add the word to your dictionary ("Learn Spelling"). The program's own name and terms ({{APP}}, outliner, subdocument, copyholder) always count as correct. Choose the language under **File > Options > Corrections** (page Spelling); there you also choose the underline (waves, dots, or a straight line), whether words with numbers ("Route66") are checked, and **View Personal Word List...** shows the words you added and removes the ones you added by mistake. Dictionaries come from your system. On Ubuntu and Kubuntu, English is installed; for other languages install the matching *hunspell* package in Discover (for example "hunspell-de-de" for German).
+Misspelled words get a red wavy underline; right-click for suggestions or to add the word to your dictionary. On a misspelled word the menu is short, so that it opens right at the mouse: the suggestions, **Add "..." to Dictionary**, **Ignore "..."**, and **More Commands** with everything the menu holds elsewhere (Cut, Copy, Paste, Style, comments, Appearance ...). The program's own name and terms ({{APP}}, outliner, subdocument, copyholder) always count as correct. Choose the language under **File > Options > Corrections** (page Spelling); there you also choose the underline (waves, dots, or a straight line), whether words with numbers ("Route66") are checked, and **View Personal Word List...** shows the words you added and removes the ones you added by mistake. Dictionaries come from your system. On Ubuntu and Kubuntu, English is installed; for other languages install the matching *hunspell* package in Discover (for example "hunspell-de-de" for German).
 
 ### Special insertions
 
@@ -372,7 +381,9 @@ The **Insert** menu also offers the current date and time, special characters (e
 - **File > Options > Editing** sets the zoom every area starts with ("Default text zoom", for each area of the window and each part with a zoom of its own: the synopsis, the notes, the bookmark lists, the bookmarked text, the snapshot list and text, the object list and sheet in the inspector and in the Objects window, new mind maps) and whether the editors reopen with the zoom they had last ("Reload the main editors' last selected zoom").
 - **Where you were.** {{APP}} remembers, with the project, the place of the cursor and the part of the text on screen for every document: shown again (from the binder, a link, Back and Forward, in the copyholder, a Quick Reference panel, or after reopening the project), a document opens where you left it. A folder in the combined text remembers which of its documents had the cursor. A search result or a link that points to a certain place goes there instead. Pictures keep their zoom and PDF files their zoom and page.
 - **Typewriter scrolling** (**View > Text Editing**) keeps the line you are typing in the middle of the screen.
-- **Fixed width editor** shows the text as a centered column of comfortable width (500 px at 100 % unless you change it), however wide the window is. Switch it off, or change the width, under **File > Options > Appearance > Main Editor** ("Use fixed width editor", "Default editor width"). The column's paper is #d1d495 and the area beside it #999999 as standard ("Paper" and "Beside the text column" among the colors of the Main Editor); they stay the same when you choose another theme, until you change or reset them.
+- **Fixed width editor** shows the text as a centered column of comfortable width (500 px at 100 % unless you change it), however wide the window is. Switch it off, or change the width, under **File > Options > Appearance > Main Editor** ("Use fixed width editor", "Text column width"), or with a right-click on the paper (**Appearance > Text Column Width**). The column's paper is #d1d495 and the area beside it #999999 as standard ("Paper" and "Beside the text column" among the colors of the Main Editor); they stay the same when you choose another theme, until you change or reset them.
+- **Border beside the text.** Left and right of the text the paper has a border in its own color, so that the text does not touch the edge of the paper: 10 px at 100 % for new projects, and it grows with the zoom. It lies outside the text column, so the lines break where they did. Change it under **File > Options > Appearance > Main Editor** ("Border beside the text", 0 to 100 px) or with a right-click on the paper (**Appearance > Border Beside the Text**). Projects made before 0.40.2 keep the look they had, without a border, until you give them one. A click on the border puts the cursor at the start or the end of the line beside it.
+- **Clicking and right-clicking** never move the view: the cursor goes where you click, and the text stays where it is on screen (before 0.40.2, a click or right-click near the top or bottom edge, or a right-click beside the text, could make the text jump).
 
 ### Page view
 
@@ -576,7 +587,7 @@ The commands act on the file you opened or used last (in either editor, a copyho
 
 **What plays.** The add-on *Media Playback* (1.1) plays formats that are free to use: MP3, Ogg Vorbis, Opus, FLAC, ALAC, WAV, AIFF and WavPack audio; WebM, MKV and Ogg video with VP8, VP9 or Theora pictures (also MJPEG and other free formats). The add-on brings everything it needs.
 
-**More formats.** H.264, H.265 (HEVC), AAC (M4A), AC-3, E-AC-3, DTS, MPEG-1/2/4 video, VC-1 and WMV, WMA and AMR are licensed under patents in some countries; they come with the separate add-on **Extra Video and Audio Formats** (a download of its own on the Releases page, installed like every add-on, section 17). While it is installed and switched on, *Media Playback* uses it, and MP4/M4V/MOV, AVI, MPEG, WMV, FLV and 3GP files play as well (not WMA Pro and WMV 9). Without it, such a file shows a message under the player that names its formats and this add-on; everything else works as before. AV1 video does not play with the built-in decoding.
+**More formats.** H.264, H.265 (HEVC), AAC (M4A), AC-3, E-AC-3, DTS, MPEG-1/2/4 video, VC-1 and WMV, WMA and AMR are licensed under patents in some countries; they come with the separate add-on **Extra Video and Audio Formats**. The simplest way to get every format is the one package **media-all-formats.qbpkg** on the Releases page: installed like every add-on (section 17), it installs *Media Playback* and *Extra Video and Audio Formats* together. Both then show in **Help > Add-on Manager**, where the extra formats can be switched off or removed on their own. Whether a patent license is needed to use these formats depends on the country. While it is installed and switched on, *Media Playback* uses it, and MP4/M4V/MOV, AVI, MPEG, WMV, FLV and 3GP files play as well (not WMA Pro and WMV 9). Without it, such a file shows a message under the player that names its formats and this add-on; everything else works as before. AV1 video does not play with the built-in decoding.
 
 **File > Options > Behaviors > Playback > Decoding** can switch to the **GStreamer** of the system instead, which plays what the codec packages of your system play (restart {{APP}} after changing it).
 
@@ -709,6 +720,18 @@ Keywords are tags, for example the characters or places in a scene. Add them in 
 ### Custom metadata
 
 Under **Project > Project Settings > Custom Metadata** you can add your own fields: text, checkbox, list (a fixed set of choices), or date, for example *POV*, *Location*, or *Story Day*. They appear in the inspector and as outliner columns.
+
+### Saving the project's settings to a file
+
+**Project > Save Project Settings to File…** writes the settings of the open project into a file of its own (*.qbsettings*): labels, status, section types, custom metadata, keywords, the default formatting, the styles, the script format, the targets, the compile settings, page view and page size, the print settings, the look (theme, colors, fonts, column width, border), and the templates and colors of the Objects sheet. The text of your documents is not part of it. Labels, section types, and the folders the compile settings name are stored by their names, so the file can be read into another project.
+
+**Project > Load Project Settings from File…** reads such a file into the open project. When the project's settings are the same as in the file, it says so and changes nothing. When they differ, a window lists every section with what differs (for example "only in the file: Idea; only in the project: Revise") and lets you choose for each section:
+
+- **Take from the File**: the file's settings for this section.
+- **Keep the Project's**: the section stays as it is.
+- **Quillbinder Default**: what a new project gets (the settings for new projects of **File > Options**, the standard labels and statuses ...).
+
+**Take All from the File** and **Keep All of the Project's** set every section at once. Whatever you choose, nothing that your documents use is lost: a label, status, section type, keyword, custom metadata field, object category, or style that documents still use stays in the project even when the file does not have it, and the message at the end names what was kept. When the formatting or a style changes, the text of all documents follows, as when you change it yourself. Before loading, {{APP}} keeps the settings as they were in a file in the project's *settings* folder ("settings-before-loading-*date*.qbsettings"); load that file to go back.
 
 ### Section types
 
@@ -1184,6 +1207,10 @@ Add-ons can bring more themes (the add-on "Extra themes" has Northern Night, For
 | Target Progress Bars | (none) | session, draft, target reached |
 | Textual Marks | (none) | links in the text, search hits, spelling underline |
 
+**Every project keeps its own look.** The theme of the binder, editor, corkboard, outliner, inspector, and composition mode, your own colors and fonts for them, the text column width, and the border beside the text belong to the project: changing them in one project leaves the others as they are, and an update of {{APP}} never changes how an existing project looks. The list **Show and change the look of** at the top of **File > Options > Appearance** chooses whose look the page shows and changes: **This project** (the open one; chosen first) or **New projects** (the look a new project starts with). Switching between the two keeps what you changed in each until you press **Apply** or **OK**. The colors of menus and panels (**General Interface**) and the font of menus, buttons, and panels are the same in every project. A project opened for the first time by version 0.40.2 or later keeps the look it had until then. **Window > Themes** sets the theme of the open project and of new projects at once.
+
+**Right-click menus.** Wherever you right-click, the menu has an **Appearance** submenu with the colors and fonts of what is under the mouse: on the text and on the paper beside it the paper, the text, the space beside the column, links, search hits, the spelling underline, the column width, and the border; on the header bar above an editor its colors and font; in the binder its background, titles, font, indentation, and label colors; on the corkboard the cork, the index cards, and their fonts, status stamps, the card width; in the outliner its background, rows, text, and font; in the inspector and its notes the background, labels, synopsis card, and notes; in composition mode its background, paper, and text. A color shows the shared palette and **The Theme's Color**; **Appearance Options...** opens this page of the options. Like the options, these menus change the look of the open project (the first line of the submenu says so), or, without a project, the look of new projects.
+
 Click a color to change it, a font button to choose a font. The small picture at the top shows the result before you press **Apply** or **OK**. Your changes sit on top of the theme: a changed entry is shown in bold, the **↺** button next to it gives it back to the theme, and **Reset Colors and Fonts to the Theme** does so for all of them. A color you have not changed and the theme does not set follows the others; for example, the binder uses the color of lists until you give it one of its own.
 
 The font and size of the text you write are not part of the theme: they belong to the project (**Project > Project Settings > Formatting**, section 4).
@@ -1415,6 +1442,8 @@ MyNovel{{SUFFIX}}/
   snapshots/<ID>/          snapshots of a document
   settings/                window layout and other preferences
   settings/spare-copy{{FILE}}  the project file as it was when the project was last opened
+  settings/look.json       the project's look: theme, colors, fonts, column width, border (0.40.2)
+  settings/settings-before-loading-<date>.qbsettings  the settings before Load Project Settings
 ```
 
 A project in Scrivener format has a working copy of this kind in a folder of its own under *~/.local/share/{{APP}}/ScrivenerProjects/*; its *settings/scrivener-sync.json* records what was written into the *.scriv* the last time. Deleting the working copy is safe: the next opening asks the first-time question again and reads the *.scriv* anew (what only {{APP}} knew, such as styles and compile settings, is then lost).
@@ -1473,7 +1502,7 @@ If {{APP}} was stopped from outside or the computer was switched off without clo
 
 **A video plays but there is no sound, or an audio file says "No sound output was found".** {{APP}} plays sound through the desktop's sound server (PipeWire or PulseAudio). Check that sound works in other programs and that the right output is chosen in the desktop's audio settings; {{APP}} follows a change of the output at once.
 
-**"This file cannot be played here: it uses H.264 and AAC ..."** The file is in a format licensed under patents, which *Media Playback* leaves out. Install the add-on **Extra Video and Audio Formats** (from the Releases page of the project page, section 1) and restart {{APP}}; or choose **GStreamer** as below.
+**"This file cannot be played here: it uses H.264 and AAC ..."** The file is in a format licensed under patents, which *Media Playback* leaves out. Install the add-on **Extra Video and Audio Formats**, or the package **media-all-formats.qbpkg**, which brings it with *Media Playback* (both on the Releases page of the project page, section 1), and restart {{APP}}; or choose **GStreamer** as below.
 
 **A file does not play, or plays without picture.** Some kinds are not part of the built-in decoding (AV1 video, WMA Pro, WMV 9). Choose **GStreamer** under **File > Options > Behaviors > Playback > Decoding**, install the codec packages of the system (for example *gstreamer1.0-libav* and *gstreamer1.0-plugins-good*) and restart {{APP}}, or open the file with another program (right-click the player: **Open with Default Application**).
 

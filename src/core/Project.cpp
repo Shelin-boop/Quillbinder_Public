@@ -858,6 +858,8 @@ static void writeItem(QDomDocument &dom, QDomElement &parent, const BinderItem *
         e.setAttribute(QStringLiteral("template"), it->defaultTemplate);
     if (it->scriptMode)
         e.setAttribute(QStringLiteral("script"), 1);
+    if (it->autoTitle)
+        e.setAttribute(QStringLiteral("autoTitle"), 1);
     if (!it->corkboardPos.isEmpty())
         e.setAttribute(QStringLiteral("cork"), it->corkboardPos);
     e.setAttribute(QStringLiteral("words"), it->wordCount);
@@ -926,6 +928,7 @@ static BinderItem *readItem(const QDomElement &e, BinderItem *parent)
     it->targetChars = e.attribute(QStringLiteral("targetChars")) == QLatin1String("1");
     it->defaultTemplate = e.attribute(QStringLiteral("template"));
     it->scriptMode = e.attribute(QStringLiteral("script")) == QLatin1String("1");
+    it->autoTitle = e.attribute(QStringLiteral("autoTitle")) == QLatin1String("1");
     it->corkboardPos = e.attribute(QStringLiteral("cork"));
     it->wordCount = e.attribute(QStringLiteral("words"), QStringLiteral("0")).toInt();
     it->charCount = e.attribute(QStringLiteral("chars"), QStringLiteral("0")).toInt();
@@ -1058,8 +1061,30 @@ bool Project::saveIndex(QString *error)
     fm.setAttribute(QStringLiteral("lineSpacing"), formatting.lineSpacing);
     fm.setAttribute(QStringLiteral("indent"), formatting.firstLineIndent);
     fm.setAttribute(QStringLiteral("spacing"), formatting.paragraphSpacing);
-    fm.setAttribute(QStringLiteral("justify"), formatting.justify ? 1 : 0);
+    // "justify" for versions before 0.40.3, which know only justified or not
+    fm.setAttribute(QStringLiteral("justify"), formatting.align == Qt::AlignJustify ? 1 : 0);
+    fm.setAttribute(QStringLiteral("align"), alignmentName(formatting.align));
     rootEl.appendChild(fm);
+    // the chosen style list (0.40.3; older versions ignore the element)
+    if (!styleListOrder.isEmpty() || !styleListHidden.isEmpty()) {
+        QDomElement sl = dom.createElement(QStringLiteral("StyleList"));
+        for (const QString &n : styleListOrder) {
+            QDomElement en = dom.createElement(QStringLiteral("Entry"));
+            en.setAttribute(QStringLiteral("name"), n);
+            if (styleListHidden.contains(n))
+                en.setAttribute(QStringLiteral("hidden"), 1);
+            sl.appendChild(en);
+        }
+        for (const QString &n : styleListHidden)
+            if (!styleListOrder.contains(n)) {
+                QDomElement en = dom.createElement(QStringLiteral("Entry"));
+                en.setAttribute(QStringLiteral("name"), n);
+                en.setAttribute(QStringLiteral("hidden"), 1);
+                en.setAttribute(QStringLiteral("unordered"), 1);
+                sl.appendChild(en);
+            }
+        rootEl.appendChild(sl);
+    }
     // styles are stored once the project has some of its own
     if (formatting.styles)
         rootEl.appendChild(styles::toXml(dom, *formatting.styles));
@@ -1319,7 +1344,21 @@ bool Project::loadIndex(QString *error)
         formatting.lineSpacing = fm.attribute(QStringLiteral("lineSpacing"), QStringLiteral("1.2")).toDouble();
         formatting.firstLineIndent = fm.attribute(QStringLiteral("indent"), QStringLiteral("24")).toDouble();
         formatting.paragraphSpacing = fm.attribute(QStringLiteral("spacing"), QStringLiteral("4")).toDouble();
-        formatting.justify = fm.attribute(QStringLiteral("justify")) == QLatin1String("1");
+        formatting.align = alignmentFromName(fm.attribute(QStringLiteral("align")),
+                                             fm.attribute(QStringLiteral("justify")) == QLatin1String("1") ? Qt::AlignJustify
+                                                                                                       : Qt::AlignLeft);
+    }
+    styleListOrder.clear();
+    styleListHidden.clear();
+    for (QDomElement en = rootEl.firstChildElement(QStringLiteral("StyleList")).firstChildElement(QStringLiteral("Entry"));
+         !en.isNull(); en = en.nextSiblingElement(QStringLiteral("Entry"))) {
+        const QString n = en.attribute(QStringLiteral("name"));
+        if (n.isEmpty())
+            continue;
+        if (en.attribute(QStringLiteral("unordered")) != QLatin1String("1"))
+            styleListOrder << n;
+        if (en.attribute(QStringLiteral("hidden")) == QLatin1String("1"))
+            styleListHidden << n;
     }
     const QDomElement stylesEl = rootEl.firstChildElement(QStringLiteral("Styles"));
     if (!stylesEl.isNull())

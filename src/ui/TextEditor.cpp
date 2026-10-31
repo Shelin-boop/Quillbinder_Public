@@ -11,6 +11,7 @@
 #include "text/DisplayFormat.h"
 #include "text/PageLayout.h"
 #include "text/RtfIO.h"
+#include "text/Styles.h"
 #include "text/TextUtil.h"
 #include "ui/AppSettings.h"
 #include "ui/SpellChecker.h"
@@ -624,14 +625,43 @@ void TextEditor::keyPressEvent(QKeyEvent *e)
 
 // ------------------------------------------------------------------ mouse
 
+// While the mouse moves the cursor, the view around the editor must not scroll by a margin
+// (TextColumnView::ensureCursorVisible asks cursorMovedByMouse()).
+namespace {
+struct MouseMoving {
+    int &n;
+    explicit MouseMoving(int &count) : n(count) { ++n; }
+    ~MouseMoving() { --n; }
+};
+} // namespace
+
 void TextEditor::mousePressEvent(QMouseEvent *e)
 {
+    MouseMoving m(m_mouseMoving);
     QTextEdit::mousePressEvent(e);
+    // Qt's text part ignores every button but the left one; such a press must not travel on to
+    // the paper behind the text, whose click handler would move the cursor (0.40.2: a
+    // right-click moved the cursor to the end of the text, and the view jumped there)
+    if (e->button() != Qt::LeftButton)
+        e->accept();
+}
+
+void TextEditor::mouseDoubleClickEvent(QMouseEvent *e)
+{
+    MouseMoving m(m_mouseMoving);
+    QTextEdit::mouseDoubleClickEvent(e);
+    if (e->button() != Qt::LeftButton)
+        e->accept();
 }
 
 void TextEditor::mouseReleaseEvent(QMouseEvent *e)
 {
-    QTextEdit::mouseReleaseEvent(e);
+    {
+        MouseMoving m(m_mouseMoving);
+        QTextEdit::mouseReleaseEvent(e);
+    }
+    if (e->button() != Qt::LeftButton)
+        e->accept();
     if (e->button() != Qt::LeftButton || textCursor().hasSelection())
         return;
     const QString href = anchorAt(e->pos());
@@ -652,7 +682,10 @@ void TextEditor::mouseReleaseEvent(QMouseEvent *e)
 
 void TextEditor::mouseMoveEvent(QMouseEvent *e)
 {
-    QTextEdit::mouseMoveEvent(e);
+    {
+        MouseMoving m(m_mouseMoving);
+        QTextEdit::mouseMoveEvent(e);
+    }
     const QString href = anchorAt(e->pos());
     viewport()->setCursor(!href.isEmpty() ? Qt::PointingHandCursor : Qt::IBeamCursor);
     if (!href.isEmpty())
@@ -703,11 +736,17 @@ void TextEditor::contextMenuEvent(QContextMenuEvent *e)
     // move the cursor to the click position unless clicking inside a selection
     QTextCursor clickCursor = cursorForPosition(e->pos());
     const QTextCursor cur = textCursor();
-    if (!(cur.hasSelection() && clickCursor.position() >= cur.selectionStart() && clickCursor.position() <= cur.selectionEnd()))
+    if (!(cur.hasSelection() && clickCursor.position() >= cur.selectionStart() && clickCursor.position() <= cur.selectionEnd())) {
+        MouseMoving m(m_mouseMoving); // the line is on screen: the view stays where it is
         setTextCursor(clickCursor);
+    }
 
-    QMenu *menu = new QMenu(this);
-    menu->setAttribute(Qt::WA_DeleteOnClose);
+    QMenu *top = new QMenu(this);
+    top->setAttribute(Qt::WA_DeleteOnClose);
+    // On a misspelled word the menu is short (0.40.3): the suggestions, Add and Ignore, and
+    // all other commands in one submenu. The long menu did not fit below the word, opened
+    // upward and put the suggestions far from the mouse.
+    QMenu *menu = top;
     // images: change the display size
     {
         const int at = clickCursor.position();
@@ -754,6 +793,8 @@ void TextEditor::contextMenuEvent(QContextMenuEvent *e)
                             [word] { SpellChecker::instance().addToPersonal(word); });
             menu->addAction(tr("Ignore \"%1\"").arg(word), this, [word] { SpellChecker::instance().ignore(word); });
             menu->addSeparator();
+            menu = top->addMenu(tr("More Commands"));
+            menu->setObjectName(QStringLiteral("spellingMore"));
         }
     }
     QMenu *std = createStandardContextMenu(e->pos());
@@ -764,7 +805,7 @@ void TextEditor::contextMenuEvent(QContextMenuEvent *e)
     std->deleteLater();
     if (contextHook())
         contextHook()(this, menu, e->pos());
-    menu->popup(e->globalPos());
+    top->popup(e->globalPos());
 }
 
 // ------------------------------------------------------------------ clipboard
@@ -963,33 +1004,162 @@ void TextEditor::mergeFormat(const QTextCharFormat &fmt)
     mergeCurrentCharFormat(fmt);
 }
 
-void TextEditor::toggleBold()
+ToggleState toggleStateOf(const QTextEdit *edit, const FormatAdjust &adjust)
+{
+    auto stateOf = [&](const QTextCharFormat &cf, const QTextBlock &b) {
+        const QTextCharFormat c = adjust ? adjust(cf, b) : cf;
+        ToggleState s;
+        s.bold = c.fontWeight() >= QFont::DemiBold;
+        s.italic = c.fontItalic();
+        s.underline = c.fontUnderline() && !cf.isAnchor(); // links are underlined by themselves
+        s.strike = c.fontStrikeOut();
+        return s;
+    };
+    const QTextCursor c = edit->textCursor();
+    if (!c.hasSelection())
+        return stateOf(edit->currentCharFormat(), c.block());
+    ToggleState all{true, true, true, true};
+    bool any = false;
+    const int from = c.selectionStart(), to = c.selectionEnd();
+    for (QTextBlock b = edit->document()->findBlock(from); b.isValid() && b.position() < to; b = b.next()) {
+        for (QTextBlock::iterator it = b.begin(); !it.atEnd(); ++it) {
+            const QTextFragment fr = it.fragment();
+            if (!fr.isValid() || fr.position() + fr.length() <= from || fr.position() >= to)
+                continue;
+            if (fr.charFormat().isImageFormat())
+                continue; // a picture has no letters to make bold
+            const ToggleState s = stateOf(fr.charFormat(), b);
+            all.bold = all.bold && s.bold;
+            all.italic = all.italic && s.italic;
+            all.underline = all.underline && s.underline;
+            all.strike = all.strike && s.strike;
+            any = true;
+        }
+    }
+    return any ? all : stateOf(edit->currentCharFormat(), c.block());
+}
+
+ToggleState TextEditor::toggleState(bool byHand) const
+{
+    if (!byHand)
+        return toggleStateOf(this);
+    const Formatting f = m_project ? m_project->formatting : Formatting();
+    return toggleStateOf(this, [&f](const QTextCharFormat &cf, const QTextBlock &b) {
+        return styles::withoutStyles(cf, styles::find(f, b.blockFormat().stringProperty(props::Style)), f);
+    });
+}
+
+BarState TextEditor::barState() const
+{
+    BarState s;
+    s.toggles = toggleStateOf(this);
+    auto lineOf = [](const QTextBlockFormat &bf) {
+        if (bf.lineHeightType() == QTextBlockFormat::SingleHeight)
+            return 1.0;
+        if (bf.lineHeightType() == QTextBlockFormat::ProportionalHeight && bf.lineHeight() > 0)
+            return bf.lineHeight() / 100.0;
+        return 0.0;
+    };
+    const QTextCursor c = textCursor();
+    if (!c.hasSelection()) {
+        const QTextCharFormat cf = currentCharFormat();
+        s.superscript = cf.verticalAlignment() == QTextCharFormat::AlignSuperScript;
+        s.subscript = cf.verticalAlignment() == QTextCharFormat::AlignSubScript;
+        s.family = fontFamilyAtCursor();
+        s.size = fontSizeAtCursor();
+        s.align = bodyAlignment(c.blockFormat().alignment());
+        s.lineSpacing = lineOf(c.blockFormat());
+        return s;
+    }
+    const QString projectFamily = m_project ? display::resolvedFontFamily(m_project->formatting) : font().family();
+    const double projectSize = m_project ? m_project->formatting.fontSize : font().pointSizeF();
+    const int from = c.selectionStart(), to = c.selectionEnd();
+    bool any = false, sup = true, sub = true, sameFamily = true, sameSize = true;
+    QString family;
+    double size = 0;
+    for (QTextBlock b = document()->findBlock(from); b.isValid() && b.position() < to; b = b.next()) {
+        for (QTextBlock::iterator it = b.begin(); !it.atEnd(); ++it) {
+            const QTextFragment fr = it.fragment();
+            if (!fr.isValid() || fr.position() + fr.length() <= from || fr.position() >= to || fr.charFormat().isImageFormat())
+                continue;
+            const QTextCharFormat cf = fr.charFormat();
+            const direct::CharSpec sp = direct::charSpec(cf);
+            const QString fam = sp.family.isEmpty() ? projectFamily : sp.family;
+            const double sz = sp.size > 0 ? sp.size : projectSize;
+            if (!any) {
+                family = fam;
+                size = sz;
+            }
+            sameFamily = sameFamily && fam.compare(family, Qt::CaseInsensitive) == 0;
+            sameSize = sameSize && qAbs(sz - size) < 0.05;
+            sup = sup && cf.verticalAlignment() == QTextCharFormat::AlignSuperScript;
+            sub = sub && cf.verticalAlignment() == QTextCharFormat::AlignSubScript;
+            any = true;
+        }
+    }
+    if (any) {
+        s.superscript = sup;
+        s.subscript = sub;
+        s.family = sameFamily ? family : QString();
+        s.size = sameSize ? size : 0.0;
+    } else { // only pictures selected
+        s.family = fontFamilyAtCursor();
+        s.size = fontSizeAtCursor();
+    }
+    bool firstBlock = true;
+    for (QTextBlock b = document()->findBlock(from); b.isValid() && (firstBlock || b.position() < to); b = b.next()) {
+        const Qt::Alignment al = bodyAlignment(b.blockFormat().alignment());
+        const double line = lineOf(b.blockFormat());
+        if (firstBlock) {
+            s.align = al;
+            s.lineSpacing = line;
+            firstBlock = false;
+            continue;
+        }
+        if (al != s.align)
+            s.align = Qt::Alignment();
+        if (s.lineSpacing >= 0 && qAbs(line - s.lineSpacing) > 0.005)
+            s.lineSpacing = -1;
+    }
+    return s;
+}
+
+void TextEditor::setBold(bool on)
 {
     QTextCharFormat f;
-    f.setFontWeight(fontWeight() >= QFont::DemiBold ? QFont::Normal : QFont::Bold);
+    f.setFontWeight(on ? QFont::Bold : QFont::Normal);
+    // not bold inside a bold style is kept as set by hand (0.40.3)
+    f.setProperty(props::NotBold, !on);
     mergeFormat(f);
 }
 
-void TextEditor::toggleItalic()
+void TextEditor::setItalic(bool on)
 {
     QTextCharFormat f;
-    f.setFontItalic(!fontItalic());
+    f.setFontItalic(on);
+    f.setProperty(props::NotItalic, !on);
     mergeFormat(f);
 }
 
-void TextEditor::toggleUnderline()
+void TextEditor::setUnderline(bool on)
 {
     QTextCharFormat f;
-    f.setFontUnderline(!fontUnderline());
+    f.setFontUnderline(on);
     mergeFormat(f);
 }
 
-void TextEditor::toggleStrike()
+void TextEditor::setStrike(bool on)
 {
     QTextCharFormat f;
-    f.setFontStrikeOut(!currentCharFormat().fontStrikeOut());
+    f.setFontStrikeOut(on);
     mergeFormat(f);
 }
+
+// a selection that is only partly bold becomes all bold, as in other word processors
+void TextEditor::toggleBold() { setBold(!toggleState(false).bold); }
+void TextEditor::toggleItalic() { setItalic(!toggleState(false).italic); }
+void TextEditor::toggleUnderline() { setUnderline(!toggleState(false).underline); }
+void TextEditor::toggleStrike() { setStrike(!toggleState(false).strike); }
 
 void TextEditor::toggleSuperscript()
 {
@@ -1186,6 +1356,19 @@ void TextEditor::applyStyle(const QString &style)
 QString TextEditor::paragraphStyleAtCursor() const
 {
     return textCursor().blockFormat().stringProperty(props::Style);
+}
+
+bool TextEditor::paragraphStylesMixed() const
+{
+    const QTextCursor c = textCursor();
+    if (!c.hasSelection())
+        return false;
+    const QTextBlock first = document()->findBlock(c.selectionStart());
+    const QString style = first.blockFormat().stringProperty(props::Style);
+    for (QTextBlock b = first.next(); b.isValid() && b.position() < c.selectionEnd(); b = b.next())
+        if (b.blockFormat().stringProperty(props::Style) != style)
+            return true;
+    return false;
 }
 
 QString TextEditor::characterStyleAtCursor() const

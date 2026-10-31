@@ -1,6 +1,7 @@
 // Menus, toolbars, window layouts and the lists of commands that change
 // with the project (styles) or the data folder (layouts).
 #include "ui/MainWindow.h"
+#include "ui/ProjectLook.h"
 #include <QMimeData>
 #include "ui/QuickRef.h"
 #include "ui/DragDrop.h"
@@ -19,6 +20,7 @@
 #include "ui/TargetLineEdit.h"
 #include "ui/ProjectSettingsDialog.h"
 #include "ui/TextColumnView.h"
+#include "ui/StyleList.h"
 #include "ui/TextEditor.h"
 #include "ui/ThemeDialogs.h"
 #include "ui/ToolbarConfig.h"
@@ -411,7 +413,7 @@ void MainWindow::createMenus()
                                       [this, id] { newItem(ItemType::Text, id); });
         }
     });
-    add(proj, {"", "projectSettings", "targets", "keywords", "objectTemplates", "statistics"});
+    add(proj, {"", "projectSettings", "settingsExport", "settingsImport", "", "targets", "keywords", "objectTemplates", "statistics"});
     for (QAction *ac : toolActionsAt(QStringLiteral("project")))
         proj->addAction(ac);
     add(proj, {"history", "", "emptyTrash"});
@@ -540,7 +542,7 @@ void MainWindow::createMenus()
             last = entry.kind;
             QAction *ta = themes->addAction(entry.name);
             ta->setCheckable(true);
-            ta->setChecked(AppSettings::instance().theme == entry.id);
+            ta->setChecked(look::active().theme == entry.id); // the open project's theme (0.40.2)
             const QString id = entry.id;
             connect(ta, &QAction::triggered, this, [this, id] { themeui::choose(this, id); });
         }
@@ -796,7 +798,10 @@ void MainWindow::createToolBars()
     barMenu(m_formatBar, 1);
     connect(a[QStringLiteral("showFormatBar")], &QAction::toggled, m_formatBar, &QWidget::setVisible);
 
-    m_styleCombo = new QComboBox;
+    auto *styleCombo = new StyleCombo;
+    // the popup is the chosen style list with the style commands below it (0.40.3)
+    styleCombo->fillPopup = [this](QMenu *menu) { fillStyleList(menu, nullptr); };
+    m_styleCombo = styleCombo;
     m_styleCombo->setObjectName(QStringLiteral("styleCombo"));
     m_styleCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     rebuildStyleCombo();

@@ -55,7 +55,7 @@ void AppSettings::pushToModules()
     nf.lineSpacing = newLineSpacing;
     nf.firstLineIndent = newFirstLineIndent;
     nf.paragraphSpacing = newParagraphSpacing;
-    nf.justify = newJustify;
+    nf.align = newAlign;
     ScrivenerImporter::setNewProjectFormatting(nf);
 }
 
@@ -83,6 +83,7 @@ void AppSettings::load()
     theme = s.value(QStringLiteral("theme"), theme).toString();
     fixedWidth = s.value(QStringLiteral("fixedWidth"), fixedWidth).toBool();
     editorWidth = s.value(QStringLiteral("editorWidth"), editorWidth).toInt();
+    textBorder = qBound(0, s.value(QStringLiteral("textBorder"), textBorder).toInt(), 200);
     // "combinedTitles" from 0.40 on; "scriveningsTitles" is the name older versions wrote
     showTitlesInCombined = s.value(QStringLiteral("combinedTitles"),
                                    s.value(QStringLiteral("scriveningsTitles"), showTitlesInCombined)).toBool();
@@ -166,7 +167,10 @@ void AppSettings::load()
     newLineSpacing = s.value(QStringLiteral("newLineSpacing"), newLineSpacing).toDouble();
     newFirstLineIndent = s.value(QStringLiteral("newFirstLineIndent"), newFirstLineIndent).toDouble();
     newParagraphSpacing = s.value(QStringLiteral("newParagraphSpacing"), newParagraphSpacing).toDouble();
-    newJustify = s.value(QStringLiteral("newJustify"), newJustify).toBool();
+    // "newAlign" since 0.40.3; settings of older versions have "newJustify" only
+    newAlign = alignmentFromName(s.value(QStringLiteral("newAlign")).toString(),
+                                 s.value(QStringLiteral("newJustify"), newAlign == Qt::AlignJustify).toBool() ? Qt::AlignJustify
+                                                                                                           : Qt::AlignLeft);
     newStylesXml = s.value(QStringLiteral("newStyles"), newStylesXml).toString();
     s.endGroup();
 
@@ -327,6 +331,7 @@ void AppSettings::save()
     s.setValue(QStringLiteral("theme"), theme);
     s.setValue(QStringLiteral("fixedWidth"), fixedWidth);
     s.setValue(QStringLiteral("editorWidth"), editorWidth);
+    s.setValue(QStringLiteral("textBorder"), textBorder);
     s.setValue(QStringLiteral("combinedTitles"), showTitlesInCombined);
     s.remove(QStringLiteral("scriveningsTitles"));
     s.setValue(QStringLiteral("typewriter"), typewriterScrolling);
@@ -380,7 +385,8 @@ void AppSettings::save()
     s.setValue(QStringLiteral("newLineSpacing"), newLineSpacing);
     s.setValue(QStringLiteral("newFirstLineIndent"), newFirstLineIndent);
     s.setValue(QStringLiteral("newParagraphSpacing"), newParagraphSpacing);
-    s.setValue(QStringLiteral("newJustify"), newJustify);
+    s.setValue(QStringLiteral("newAlign"), alignmentName(newAlign));
+    s.setValue(QStringLiteral("newJustify"), newAlign == Qt::AlignJustify); // for versions before 0.40.3
     s.setValue(QStringLiteral("newStyles"), newStylesXml);
     s.endGroup();
 

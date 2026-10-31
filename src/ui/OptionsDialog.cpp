@@ -50,6 +50,7 @@
 #include <QScreen>
 #include <QScrollArea>
 #include <QSettings>
+#include <QStandardItemModel>
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QStackedWidget>
@@ -708,8 +709,9 @@ QWidget *OptionsDialog::editingSection()
         m_newParaSpacing->setRange(0, 72);
         m_newParaSpacing->setSuffix(tr(" pt"));
         m_newParaSpacing->setValue(direct::pxToPt(s.newParagraphSpacing));
-        m_newJustify = new QCheckBox(tr("Justify text"), box);
-        m_newJustify->setChecked(s.newJustify);
+        m_newAlign = new qb::AlignButtons(box);
+        m_newAlign->setObjectName(QStringLiteral("optNewAlign"));
+        m_newAlign->setAlignment(s.newAlign);
         auto *useCurrent = new QPushButton(tr("Use Formatting in Current Editor"), box);
         useCurrent->setObjectName(QStringLiteral("useCurrentFormatting"));
         qb::Formatting probe;
@@ -725,7 +727,7 @@ QWidget *OptionsDialog::editingSection()
             m_newSpacing->setValue(cur.lineSpacing);
             m_newIndent->setValue(units::fromPx(cur.firstLineIndent));
             m_newParaSpacing->setValue(direct::pxToPt(cur.paragraphSpacing));
-            m_newJustify->setChecked(cur.justify);
+            m_newAlign->setAlignment(cur.align);
         });
         bf->addRow(QString(), m_newAutoFont);
         bf->addRow(tr("Font:"), m_newFont);
@@ -733,7 +735,7 @@ QWidget *OptionsDialog::editingSection()
         bf->addRow(tr("Line spacing:"), m_newSpacing);
         bf->addRow(tr("First line indent:"), m_newIndent);
         bf->addRow(tr("Space after paragraphs:"), m_newParaSpacing);
-        bf->addRow(QString(), m_newJustify);
+        bf->addRow(tr("Alignment:"), m_newAlign);
         bf->addRow(QString(), useCurrent);
         auto *row = new QHBoxLayout;
         auto *state = new QLabel(s.newStylesXml.isEmpty() ? tr("Built-in styles") : tr("Styles saved from a project"), box);
@@ -985,9 +987,40 @@ QWidget *OptionsDialog::appearanceSection()
     const AppSettings &s = AppSettings::instance();
     m_ownColors = s.ownColors;
     m_ownFonts = s.ownFonts;
+    // whose look: the open project's or the one for new projects (0.40.2)
+    m_hasProject = look::project() != nullptr;
+    m_scopeLooks[ScopeNew] = look::forNewProjects();
+    m_scopeLooks[ScopeProject] = m_hasProject ? look::active() : look::forNewProjects();
+    m_scope = m_hasProject ? ScopeProject : ScopeNew;
     auto *w = new QWidget;
     auto *v = new QVBoxLayout(w);
     v->setContentsMargins(0, 0, 0, 0);
+    {
+        auto *scopeRow = new QHBoxLayout;
+        scopeRow->addWidget(new QLabel(tr("Show and change the look of:"), w));
+        m_lookScope = new QComboBox(w);
+        m_lookScope->setObjectName(QStringLiteral("optLookScope"));
+        m_lookScope->addItem(m_hasProject ? tr("This project (%1)").arg(look::project()->title()) : tr("This project (none open)"),
+                             int(ScopeProject));
+        m_lookScope->addItem(tr("New projects"), int(ScopeNew));
+        if (!m_hasProject) {
+            // the entry stays in the list (its index is the scope), but cannot be chosen
+            if (auto *model = qobject_cast<QStandardItemModel *>(m_lookScope->model()))
+                if (QStandardItem *item = model->item(int(ScopeProject)))
+                    item->setEnabled(false);
+        }
+        m_lookScope->setCurrentIndex(m_scope);
+        scopeRow->addWidget(m_lookScope);
+        scopeRow->addStretch(1);
+        v->addLayout(scopeRow);
+        auto *scopeHint = hint(tr("Every project keeps its own look: the theme, colors and fonts of the binder, editor, "
+                                  "corkboard, outliner, inspector and composition mode, the text column width and the border "
+                                  "beside the text. \"New projects\" is the look a new project starts with. Menus and panels "
+                                  "(General) and the interface font are the same in every project."),
+                               w);
+        scopeHint->setObjectName(QStringLiteral("optLookScopeHint"));
+        v->addWidget(scopeHint);
+    }
 
     // theme, own changes, preview (the themes are also in Manage below, as in Scrivener)
     auto *top = new QHBoxLayout;
@@ -1045,7 +1078,15 @@ QWidget *OptionsDialog::appearanceSection()
     m_areas->setCurrentRow(0);
     m_subLists.insert(SAppearance, m_areas);
 
-    reloadThemes(s.theme);
+    reloadThemes(m_scopeLooks[m_scope].theme);
+    loadScope();
+    connect(m_lookScope, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int i) {
+        if (i == m_scope || (i == ScopeProject && !m_hasProject))
+            return;
+        storeScope();
+        m_scope = i;
+        loadScope();
+    });
     connect(m_theme, qOverload<int>(&QComboBox::currentIndexChanged), this, [this] { refreshLook(); });
     connect(m_resetLook, &QPushButton::clicked, this, &OptionsDialog::resetLook);
     connect(save, &QPushButton::clicked, this, [this] {
@@ -1061,13 +1102,18 @@ QWidget *OptionsDialog::appearanceSection()
         ThemeManagerDialog dlg(this);
         dlg.select(m_theme->currentData().toString());
         dlg.exec();
-        // "Use This Theme" in that window takes effect at once
+        // "Use This Theme" in that window takes effect at once (for the program and the open project)
         const QString now = AppSettings::instance().theme;
         if (now != before) {
             m_ownColors = AppSettings::instance().ownColors;
             m_ownFonts = AppSettings::instance().ownFonts;
+            m_scopeLooks[ScopeNew] = look::forNewProjects();
+            if (m_hasProject)
+                m_scopeLooks[ScopeProject] = look::active();
+            loadScope();
+            return;
         }
-        reloadThemes(now != before ? now : m_theme->currentData().toString());
+        reloadThemes(m_theme->currentData().toString());
     });
     refreshLook();
     return w;
@@ -1139,7 +1185,9 @@ QWidget *OptionsDialog::appearancePage(int which)
         break;
     case LEditor:
         check(m_fixedWidth, tr("Use fixed width editor (text as a centered column)"), s.fixedWidth);
-        spinRow(m_editorWidth, tr("Default editor width:"), 300, 2000, s.editorWidth, tr(" px"), "optEditorWidth");
+        spinRow(m_editorWidth, tr("Text column width:"), 300, 2000, s.editorWidth, tr(" px"), "optEditorWidth");
+        spinRow(m_textBorder, tr("Border beside the text:"), 0, 100, s.textBorder, tr(" px"), "optTextBorder");
+        m_textBorder->setToolTip(tr("Paper left and right of the text, in the paper's color (at 100 % zoom)"));
         check(m_typewriter, tr("Typewriter scrolling in the main editor"), s.typewriterScrolling);
         break;
     case LPageView:
@@ -1269,11 +1317,67 @@ QColor OptionsDialog::shownColor(const QString &key) const
     return theme::roleFromKey(key, &r) ? m_shown.value(r) : QColor();
 }
 
+void OptionsDialog::storeScope()
+{
+    look::Values &lv = m_scopeLooks[m_scope];
+    lv.theme = m_theme->currentData().toString();
+    lv.colors.clear();
+    for (auto it = m_ownColors.constBegin(); it != m_ownColors.constEnd(); ++it)
+        if (theme::isAreaColor(it.key()))
+            lv.colors.insert(it.key(), it.value());
+    lv.fonts.clear();
+    for (auto it = m_ownFonts.constBegin(); it != m_ownFonts.constEnd(); ++it)
+        if (theme::isAreaFont(it.key()))
+            lv.fonts.insert(it.key(), it.value());
+    if (m_editorWidth)
+        lv.editorWidth = m_editorWidth->value();
+    if (m_textBorder)
+        lv.border = m_textBorder->value();
+}
+
+void OptionsDialog::loadScope()
+{
+    const look::Values &lv = m_scopeLooks[m_scope];
+    for (auto it = m_ownColors.begin(); it != m_ownColors.end();)
+        it = theme::isAreaColor(it.key()) ? m_ownColors.erase(it) : std::next(it);
+    for (auto it = lv.colors.constBegin(); it != lv.colors.constEnd(); ++it)
+        m_ownColors.insert(it.key(), it.value());
+    for (auto it = m_ownFonts.begin(); it != m_ownFonts.end();)
+        it = theme::isAreaFont(it.key()) ? m_ownFonts.erase(it) : std::next(it);
+    for (auto it = lv.fonts.constBegin(); it != lv.fonts.constEnd(); ++it)
+        m_ownFonts.insert(it.key(), it.value());
+    if (m_editorWidth)
+        m_editorWidth->setValue(lv.editorWidth);
+    if (m_textBorder)
+        m_textBorder->setValue(lv.border);
+    if (m_lookScope && m_lookScope->currentIndex() != m_scope) {
+        const QSignalBlocker block(m_lookScope);
+        m_lookScope->setCurrentIndex(m_scope);
+    }
+    reloadThemes(lv.theme); // also refreshLook()
+}
+
+void OptionsDialog::setLookScope(int scope)
+{
+    if (m_lookScope && (scope == ScopeNew || m_hasProject))
+        m_lookScope->setCurrentIndex(scope);
+}
+
 // Swatches, font buttons and the preview for the chosen theme and the changes made here.
 void OptionsDialog::refreshLook()
 {
     const theme::Theme t = shownTheme();
     m_shown = theme::resolvedColors(t, m_ownColors);
+    if (m_scope == ScopeProject) {
+        // menus and panels keep the theme of the program (the one for new projects)
+        theme::Theme gt;
+        if (!theme::load(m_scopeLooks[ScopeNew].theme, &gt))
+            theme::load(QStringLiteral("system"), &gt);
+        const QMap<theme::Role, QColor> general = theme::resolvedColors(gt, m_ownColors);
+        for (const theme::RoleInfo &ri : theme::roles())
+            if (ri.area == theme::Area::General)
+                m_shown.insert(ri.role, general.value(ri.role));
+    }
     auto mark = [this](const QString &labelKey, bool own) {
         if (QLabel *l = m_lookLabels.value(labelKey)) {
             QFont f = l->font();
@@ -2126,7 +2230,7 @@ void OptionsDialog::apply()
         s.newFirstLineIndent = units::toPx(m_newIndent->value());
     if (qAbs(m_newParaSpacing->value() - direct::pxToPt(s.newParagraphSpacing)) > 0.06)
         s.newParagraphSpacing = direct::ptToPx(m_newParaSpacing->value());
-    s.newJustify = m_newJustify->isChecked();
+    s.newAlign = m_newAlign->alignment();
     if (m_clearNewStyles)
         s.newStylesXml.clear();
     // Behaviors
@@ -2151,10 +2255,23 @@ void OptionsDialog::apply()
     s.returnEndsSynopsis = m_returnEndsSynopsis->isChecked();
     s.returnCreatesItem = m_returnCreates->isChecked();
     s.snapshotNotify = m_snapNotify->isChecked();
-    // Appearance
-    s.theme = m_theme->currentData().toString();
-    s.ownColors = m_ownColors;
-    s.ownFonts = m_ownFonts;
+    // Appearance: the program's menus and panels, the look for new projects, and the open
+    // project's look (0.40.2; written after the settings, at the end)
+    storeScope();
+    {
+        const look::Values &nv = m_scopeLooks[ScopeNew];
+        QMap<QString, QColor> colors;
+        for (auto it = m_ownColors.constBegin(); it != m_ownColors.constEnd(); ++it)
+            if (!theme::isAreaColor(it.key()))
+                colors.insert(it.key(), it.value());
+        QMap<QString, QString> fonts;
+        for (auto it = m_ownFonts.constBegin(); it != m_ownFonts.constEnd(); ++it)
+            if (!theme::isAreaFont(it.key()))
+                fonts.insert(it.key(), it.value());
+        s.ownColors = colors;
+        s.ownFonts = fonts;
+        look::setForNewProjects(nv); // theme, the areas' colors and fonts, width, border
+    }
     s.showFullPath = m_fullPath->isChecked();
     s.toolbarIconSize = m_toolbarIcons->currentData().toInt();
     s.labelColorInBinder = m_labelBinder->isChecked();
@@ -2164,7 +2281,6 @@ void OptionsDialog::apply()
     s.tintCardsWithLabel = m_tint->isChecked();
     s.cardWidth = m_cardWidth->value();
     s.fixedWidth = m_fixedWidth->isChecked();
-    s.editorWidth = m_editorWidth->value();
     s.typewriterScrolling = m_typewriter->isChecked();
     s.showTitlesInCombined = m_titles->isChecked();
     // Corrections
@@ -2230,6 +2346,11 @@ void OptionsDialog::apply()
     s.keepReports = m_keepReports->value();
     m_keyboard->apply();
     s.notifyChanged();
+    if (m_hasProject && look::project() && m_scopeLooks[ScopeProject] != look::active()) {
+        QString err;
+        if (!look::change(m_scopeLooks[ScopeProject], &err))
+            QMessageBox::warning(this, tr("Options"), tr("The look of the project could not be saved:\n%1").arg(err));
+    }
 }
 
 } // namespace qb

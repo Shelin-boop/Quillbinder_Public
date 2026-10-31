@@ -121,8 +121,25 @@ struct Entry {
 QList<Entry> available();
 bool load(const QString &id, Theme *out);
 
+// ---- the look of the open project's areas (0.40.2, ui/ProjectLook.h)
+// Every project keeps the look of its areas (binder, editor, corkboard, outliner,
+// inspector, composition mode): a theme and own colors and fonts on top of it. The general
+// colors (menus, panels: Area::General) and the interface font stay those of the
+// settings. Without a project (set = false) the areas use the settings as well, which are
+// also the look new projects get.
+struct AreaLook {
+    bool set = false;
+    QString theme;
+    QMap<QString, QColor> colors;   // keys of colors outside Area::General
+    QMap<QString, QString> fonts;   // keys of fonts other than "interface" (FontSpec::toString)
+};
+void setAreaLook(const AreaLook &look);   // call apply() afterwards
+const AreaLook &areaLook();
+bool isAreaColor(const QString &key);     // a color of an area (not Area::General)
+bool isAreaFont(const QString &key);      // a font of an area (not the interface font)
+
 // ---- the look in use (chosen theme + own changes)
-void apply();                       // reads AppSettings; call after every change
+void apply();                       // reads AppSettings and the area look; call after every change
 QColor color(Role r);
 QFont font(FontRole r);             // the area's font with the changes applied
 QFont baseFont(FontRole r);         // the area's font without them
