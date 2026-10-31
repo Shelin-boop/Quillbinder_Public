@@ -23,6 +23,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QProcessEnvironment>
 #include <QTemporaryDir>
 #include <QTextDocument>
 #include <cstdio>
@@ -80,6 +81,17 @@ static QString run(const QString &program, const QStringList &args, int *rc = nu
     p.waitForFinished(600000);
     if (rc)
         *rc = p.exitStatus() == QProcess::NormalExit ? p.exitCode() : -1;
+    return QString::fromUtf8(p.readAll());
+}
+
+static QString runIn(const QString &program, const QStringList &args, const QProcessEnvironment &env, int *rc)
+{
+    QProcess p;
+    p.setProcessChannelMode(QProcess::MergedChannels);
+    p.setProcessEnvironment(env);
+    p.start(program, args);
+    p.waitForFinished(600000);
+    *rc = p.exitStatus() == QProcess::NormalExit ? p.exitCode() : -1;
     return QString::fromUtf8(p.readAll());
 }
 
@@ -233,6 +245,66 @@ int main(int argc, char **argv)
         }
     }
 
+    // ================================================================ the full version: the AppImage with every add-on inside
+    {
+        const QString shown = QString::fromLatin1(QB_APP_VERSION_SHOWN).replace(QLatin1Char(' '), QLatin1Char('-'));
+        const QString appImage = kSource + QStringLiteral("/build-appimage/Quillbinder-%1-x86_64.AppImage").arg(shown);
+        const QString dist = kBuild + QStringLiteral("/addons-dist");
+        const QStringList ids = QDir(kSource + QStringLiteral("/addons")).entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+        bool havePackages = !ids.isEmpty();
+        for (const QString &id : ids)
+            havePackages = havePackages && QFile::exists(dist + QLatin1Char('/') + id + QStringLiteral(".qbpkg"));
+        if (!QFile::exists(appImage) || !havePackages
+            || !QFile::exists(kSource + QStringLiteral("/packaging/tools/appimagetool-x86_64.AppImage"))) {
+            info(QStringLiteral("(full version not checked: needs %1 (packaging/build-appimage.sh) and the add-on packages)").arg(appImage));
+        } else {
+            QTemporaryDir work;
+            const QString bdir = work.path() + QStringLiteral("/b");
+            QDir().mkpath(bdir);
+            QFile::copy(appImage, bdir + QLatin1Char('/') + QFileInfo(appImage).fileName());
+            QFile::setPermissions(bdir + QLatin1Char('/') + QFileInfo(appImage).fileName(), QFile::permissions(appImage));
+            int rc = 0;
+            const QString out = run(QStringLiteral("bash"), {kSource + QStringLiteral("/packaging/build-full-appimage.sh"), bdir, dist}, &rc);
+            const QString full = bdir + QStringLiteral("/Quillbinder-%1-full-%2-x86_64.AppImage")
+                                            .arg(QLatin1String(QB_APP_VERSION), shown.mid(int(qstrlen(QB_APP_VERSION)) + 1));
+            check(rc == 0 && QFile::exists(full) && out.contains(QStringLiteral("(%1 add-ons inside)").arg(ids.size()))
+                      && QFileInfo(full).size() > QFileInfo(appImage).size() + 10 * 1000 * 1000,
+                  QStringLiteral("build-full-appimage.sh makes the full version: the AppImage with all %1 add-ons inside").arg(ids.size()),
+                  out.right(1500));
+            // its first start, with an empty home folder: every add-on installed, then the program runs
+            QDir().mkpath(work.path() + QStringLiteral("/home"));
+            QProcessEnvironment env;
+            env.insert(QStringLiteral("HOME"), work.path() + QStringLiteral("/home"));
+            env.insert(QStringLiteral("PATH"), QStringLiteral("/usr/bin:/bin"));
+            const QString addonsDir = work.path() + QStringLiteral("/home/.local/share/Quillbinder/addons");
+            const QString first = runIn(full, {QStringLiteral("--appimage-extract-and-run"), QStringLiteral("--version")}, env, &rc);
+            const QStringList installed = QDir(addonsDir).entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+            check(rc == 0 && first.contains(QStringLiteral("Quillbinder %1").arg(QLatin1String(QB_APP_VERSION))) && installed == ids
+                      && QFile::exists(work.path() + QStringLiteral("/home/.local/share/Quillbinder/full-addons-installed-" QB_APP_VERSION)),
+                  QStringLiteral("its first start installs every add-on, then the program runs"),
+                  first + QLatin1String(" / ") + installed.join(QLatin1String(", ")));
+            // an add-on removed afterwards stays removed
+            QDir(addonsDir + QStringLiteral("/themes-extra")).removeRecursively();
+            runIn(full, {QStringLiteral("--appimage-extract-and-run"), QStringLiteral("--version")}, env, &rc);
+            check(rc == 0 && !QFileInfo::exists(addonsDir + QStringLiteral("/themes-extra"))
+                      && QFileInfo::exists(addonsDir + QStringLiteral("/media-extra-formats/media-extra/lib/libavcodec.so.60")),
+                  QStringLiteral("later starts install nothing again (an add-on removed by the writer stays removed)"));
+            // what is inside: the packages and a text that says what the full version is
+            const QString ex = work.path() + QStringLiteral("/x");
+            QDir().mkpath(ex);
+            QProcess xp;
+            xp.setWorkingDirectory(ex);
+            xp.start(full, {QStringLiteral("--appimage-extract")});
+            xp.waitForFinished(300000);
+            const QString readme = QString::fromUtf8(readAll(ex + QStringLiteral("/squashfs-root/usr/share/quillbinder/full-addons/README.txt")));
+            const QString appRun = QString::fromUtf8(readAll(ex + QStringLiteral("/squashfs-root/AppRun")));
+            check(readme.contains(QLatin1String("full version")) && readme.contains(QLatin1String("all its add-ons and the libraries they need"))
+                      && readme.contains(QLatin1String("Add-on Manager")) && appRun.contains(QLatin1String("--install"))
+                      && appRun.contains(QLatin1String("exec ")),
+                  QStringLiteral("inside: a text that explains the full version, and the start script"), readme.left(600));
+        }
+    }
+
     // ================================================================ release text, README, workflow, exclusions
     {
         QTemporaryDir dist;
@@ -240,6 +312,7 @@ int main(int argc, char **argv)
         for (const QString &n : {QStringLiteral("Quillbinder-%1-alpha-x86_64.AppImage").arg(v), QStringLiteral("quillbinder-%1-update.qbpkg").arg(v),
                                  QStringLiteral("SHA256SUMS.txt")})
             writeFile(dist.path() + QLatin1Char('/') + n, QByteArray());
+        writeFile(dist.path() + QStringLiteral("/Quillbinder-%1-full-alpha-x86_64.AppImage").arg(v), QByteArray());
         for (const QString &n : {QStringLiteral("media-playback.qbpkg"), QStringLiteral("media-extra-formats.qbpkg"),
                                  QStringLiteral("media-all-formats.qbpkg"), QStringLiteral("themes-extra.qbpkg")}) {
             const QString built = kBuild + QStringLiteral("/addons-dist/") + n;
@@ -251,7 +324,9 @@ int main(int argc, char **argv)
         const int at = notes.indexOf(QLatin1String("| media-all-formats.qbpkg"));
         check(rc == 0 && notes.contains(QLatin1String("download **media-all-formats.qbpkg**")) && at > 0
                   && at < notes.indexOf(QLatin1String("| media-extra-formats.qbpkg")) && at < notes.indexOf(QLatin1String("| media-playback.qbpkg"))
-                  && notes.contains(QLatin1String("one package, every format")),
+                  && notes.contains(QLatin1String("one package, every format"))
+                  && notes.contains(QStringLiteral("| Quillbinder-%1-full-alpha-x86_64.AppImage | **The full version**").arg(v))
+                  && notes.contains(QLatin1String("the full version, with all add-ons and the libraries they need included")),
               QStringLiteral("the release text names the one media package in the steps and first among the add-ons"), notes.left(2500));
         const QString news = run(QStringLiteral("python3"), {QStringLiteral("-I"), tools + QStringLiteral("release-notes.py"), QStringLiteral("--whats-new")}, &rc);
         check(rc == 0 && news.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size() >= 3 && news.contains(QLatin1String("one package")),
@@ -268,6 +343,8 @@ int main(int argc, char **argv)
         check(download > 0 && download < 1500
                   && readme.contains(QStringLiteral("(%1Quillbinder-%2-x86_64.AppImage)").arg(dl, tag.mid(1)))
                   && readme.contains(QStringLiteral("(%1media-all-formats.qbpkg)").arg(dl))
+                  && readme.contains(QStringLiteral("(%1Quillbinder-%2-full-%3-x86_64.AppImage)").arg(dl, QLatin1String(QB_APP_VERSION), tag.mid(int(qstrlen(QB_APP_VERSION)) + 2)))
+                  && readme.contains(QLatin1String("**the full version**"))
                   && readme.contains(QLatin1String("(https://github.com/Shelin-boop/Quillbinder_Public/releases/latest)")),
               QStringLiteral("README: near the top, direct links to this version's AppImage and media package, and to the newest release"),
               readme.mid(download, 900));

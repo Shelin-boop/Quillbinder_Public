@@ -272,6 +272,11 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
 - `README.md` starts with direct download links of the current version (`releases/download/v<version>-<label>/...`
   for the AppImage and `media-all-formats.qbpkg`): change them with every new version; `tools/publish-public.sh`
   refuses to publish otherwise. Releases are full releases marked "Latest" (`tools/publish-release.sh`).
+- **Full version** (0.60): `packaging/build-full-appimage.sh [AppImage build dir] [add-on packages dir]` makes
+  `<Name>-<version>-full-<label>-x86_64.AppImage`: the AppImage extracted, every `addons/*` package in
+  `usr/share/quillbinder/full-addons/`, and a start script (`AppRun`) that runs `quillbinder --install` for each at the
+  first start of that version (marker `~/.local/share/Quillbinder/full-addons-installed-<version>`), then the program.
+  No program change; the release workflow builds and checks it, and builds a release again when it lacks one.
 - `tools/publish-public.sh` (see "One source" above) and `tools/public-exclude.txt`. Never publish the history of
   the development repository: it holds texts that were taken out (the old tutorial, a pen name).
 - `tools/legal-check.py [--public] [tree]`: LICENSE is 0BSD without a person; README, AppStream text, About and the

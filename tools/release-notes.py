@@ -44,7 +44,8 @@ def main(dist):
     shown = version + (" " + label if label else "")
     home = cmake_var("APP_HOMEPAGE")
     files = sorted(os.listdir(dist))
-    appimage = [f for f in files if f.endswith(".AppImage")]
+    appimage = [f for f in files if f.endswith(".AppImage") and "-full-" not in f]
+    full = [f for f in files if f.endswith(".AppImage") and "-full-" in f]
     update = [f for f in files if f.endswith("-update.qbpkg")]
     # the one-package media bundle first, so that it is seen before the two add-ons it holds
     addons = sorted((f for f in files if f.endswith(".qbpkg") and f not in update),
@@ -61,14 +62,17 @@ def main(dist):
         out.append("")
     out.append("### Download and start")
     out.append("")
-    if appimage:
+    if appimage and full:
+        out.append("1. Download **%s** (the program), or **%s**: the full version, with all add-ons and "
+                   "the libraries they need included." % (appimage[0], full[0]))
+    elif appimage:
         out.append("1. Download **%s**." % appimage[0])
     out.append("2. Make it executable: right-click > Properties > Permissions > *Is executable*, or "
                "`chmod +x %s`." % (appimage[0] if appimage else "Quillbinder-*.AppImage"))
     out.append("3. Double-click it. Help > Add to Application Menu puts it into the menu of the desktop.")
     if any(f.startswith("media-all-formats") for f in addons):
         out.append("4. For audio and video in the editor, download **media-all-formats.qbpkg** and install it with "
-                   "File > Install Update or Add-on: one package, every format.")
+                   "File > Install Update or Add-on: one package, every format. (The full version has it already.)")
     out.append("")
     out.append("Already have an AppImage of Quillbinder? Replace the file with this one; settings, add-ons and "
                "projects stay. Or install the program update with File > Install Update or Add-on.")
@@ -79,6 +83,11 @@ def main(dist):
     out.append("|------|------------|")
     for f in appimage:
         out.append("| %s | The program (AppImage) |" % f)
+    for f in full:
+        out.append("| %s | **The full version** (AppImage): the program with all add-ons and the libraries they need "
+                   "included: audio and video in every format (also those licensed under patents), the extra themes, "
+                   "the project templates, the compile format, the scriptwriting pack, the writing tools and the "
+                   "importers. They are installed at the first start; nothing else to download. |" % f)
     for f in update:
         out.append("| %s | Program update for an AppImage of Quillbinder you already have "
                    "(File > Install Update or Add-on) |" % f)

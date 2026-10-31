@@ -16,6 +16,11 @@ between the programs. Scrivener and Scapple are names of products of Literature 
 
 - **[Quillbinder-0.60.0-alpha-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.60.0-alpha/Quillbinder-0.60.0-alpha-x86_64.AppImage)**: the program
 - **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.60.0-alpha/media-all-formats.qbpkg)**: audio and video in every format (an add-on; optional)
+- **[Quillbinder-0.60.0-full-alpha-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.60.0-alpha/Quillbinder-0.60.0-full-alpha-x86_64.AppImage)**:
+  **the full version**: the program with all add-ons and all the libraries they need included (audio and
+  video in every format, extra themes, project templates, the scriptwriting pack, the writing tools, the
+  importers of web pages and old Word files). They are installed at the first start: one download, nothing
+  else to install.
 - [All files of the newest version](https://github.com/Shelin-boop/Quillbinder_Public/releases/latest): the other
   add-ons, the program update and SHA-256 checksums. Earlier versions: [Releases](https://github.com/Shelin-boop/Quillbinder_Public/releases).
 

@@ -9,6 +9,9 @@ Manual in the program) describes every function.
   Video and Audio Formats in one step, with every format the program plays (H.264, H.265, AAC and the other
   formats licensed under patents included). *media-playback.qbpkg* alone still plays the free formats, and the
   extra formats can still be switched off or removed on their own in Help > Add-on Manager.
+- **The full version**: *Quillbinder-0.60.0-full-alpha-x86_64.AppImage* is the program with all add-ons and the
+  libraries they need inside (audio and video in every format, themes, templates, the scriptwriting pack, the
+  writing tools, the importers). They are installed at its first start; one download, nothing else to install.
 - **One version for everyone**: 0.60.0 alpha brings the public 0.50.0 alpha and the changes of 0.40.1, 0.40.2
   and 0.40.3 together (listed below): fonts with several designs, the format buttons of a selection, a look per
   project, project settings files, titles from the first line, the style list, the alignment of the main text

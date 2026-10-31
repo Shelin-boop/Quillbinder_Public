@@ -47,8 +47,14 @@ jobs:
           if [ "$GITHUB_REF_TYPE" = tag ]; then TAG=$GITHUB_REF_NAME; else TAG="v$VERSION${LABEL:+-$LABEL}"; fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            echo "The release $TAG exists already: nothing to build."
-            echo "build=false" >> "$GITHUB_OUTPUT"
+            # (0.60) a release without the full version gets everything built and uploaded again
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -q -- '-full-.*\.AppImage$'; then
+              echo "The release $TAG exists already: nothing to build."
+              echo "build=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "The release $TAG has no full version yet: build and publish again."
+              echo "build=true" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "No release $TAG yet: build and publish it."
             echo "build=true" >> "$GITHUB_OUTPUT"
@@ -101,8 +107,16 @@ jobs:
           cp build-appimage/*.AppImage dist/
           ls -la dist
 
+      - name: Full version (the AppImage with all add-ons inside)
+        run: |
+          tools/ci-step.sh full packaging/build-full-appimage.sh build-appimage dist
+          cp build-appimage/*-full-*.AppImage dist/
+
       - name: Check the AppImage
-        run: tools/ci-step.sh e2e tools/e2e-appimage.sh dist/*.AppImage - /tmp/e2e
+        run: tools/ci-step.sh e2e tools/e2e-appimage.sh "$(ls dist/*-x86_64.AppImage | grep -v -- -full-)" - /tmp/e2e
+
+      - name: Check the full version
+        run: tools/ci-step.sh e2e-full tools/e2e-appimage.sh "$(ls dist/*-full-*-x86_64.AppImage)" - /tmp/e2e-full
 
       - name: Third-party source code
         run: tools/ci-step.sh sources python3 -I tools/collect-sources.py sources

@@ -75,7 +75,7 @@
 
 ### Updates and add-ons
 
-Updates and extensions come as small package files (*.qbpkg*), on the Releases page of the project page (https://github.com/Shelin-boop/Quillbinder_Public/releases) next to the AppImage. Install them with **File > Install Update or Add-on…** (or double-click the file). **Help > Add-on Manager…** switches add-ons on and off and goes back to an earlier program version if an update does not suit you. Add-ons include extra themes, project templates, compile formats, the Name Generator, the Scratch Pad, Text Statistics, audio and video playback (one package for every format, *media-all-formats.qbpkg*; or *media-playback.qbpkg* for the free formats only), and the import of web pages and old Word files.
+The **full version** of the AppImage (*...-full-alpha-x86_64.AppImage*) has every add-on inside and installs them at its first start. Updates and extensions come as small package files (*.qbpkg*), on the Releases page of the project page (https://github.com/Shelin-boop/Quillbinder_Public/releases) next to the AppImage. Install them with **File > Install Update or Add-on…** (or double-click the file). **Help > Add-on Manager…** switches add-ons on and off and goes back to an earlier program version if an update does not suit you. Add-ons include extra themes, project templates, compile formats, the Name Generator, the Scratch Pad, Text Statistics, audio and video playback (one package for every format, *media-all-formats.qbpkg*; or *media-playback.qbpkg* for the free formats only), and the import of web pages and old Word files.
 
 ---
 

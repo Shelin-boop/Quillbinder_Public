@@ -31,7 +31,9 @@ once the release workflow has published that version (about 15 minutes after the
 Nothing is pushed by the script. Pushing the public `main` branch (`git push origin main` in the public
 clone) is a separate step. A new version on the public `main` starts `.github/workflows/release.yml`
 there: it builds the AppImage, the program update and the add-ons in a clean Ubuntu 24.04, checks the
-AppImage, collects the source code of every third-party library and publishes the release, as a full
+AppImage, builds the full version (`packaging/build-full-appimage.sh`: the AppImage with every add-on package
+inside, installed at its first start by the AppImage's start script) and checks it as well, collects the source
+code of every third-party library and publishes the release, as a full
 release marked "Latest" (also for an alpha, whose title and text say so), so that GitHub's "Latest" badge
 and the address `.../releases/latest` lead to the program. The workflow runs only in the public repository.
 

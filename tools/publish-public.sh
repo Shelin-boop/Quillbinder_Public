@@ -35,7 +35,8 @@ VERSION=$(sed -n 's/^set(APP_VERSION *"\(.*\)")/\1/p' CMakeLists.txt)
 LABEL=$(sed -n 's/^set(APP_VERSION_LABEL *"\(.*\)")/\1/p' CMakeLists.txt)
 # the download links at the top of the README must name this version (0.60)
 TAG="v$VERSION${LABEL:+-$LABEL}"
-for f in "Quillbinder-$VERSION${LABEL:+-$LABEL}-x86_64.AppImage" media-all-formats.qbpkg; do
+for f in "Quillbinder-$VERSION${LABEL:+-$LABEL}-x86_64.AppImage" "Quillbinder-$VERSION-full${LABEL:+-$LABEL}-x86_64.AppImage" \
+         media-all-formats.qbpkg; do
     if ! grep -qF "releases/download/$TAG/$f)" README.md; then
         echo "README.md: the download links must point to $TAG (releases/download/$TAG/$f)." >&2
         exit 2
