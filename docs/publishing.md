@@ -24,11 +24,16 @@ The script
 4. makes the files of the public clone equal to the export and commits them as "Quillbinder
    <version> <label>", naming the development commit it came from.
 
+The script refuses to run when the download links at the top of `README.md` do not name the version being
+published (`releases/download/v<version>-<label>/...`): update them with the version number. They work
+once the release workflow has published that version (about 15 minutes after the push).
+
 Nothing is pushed by the script. Pushing the public `main` branch (`git push origin main` in the public
 clone) is a separate step. A new version on the public `main` starts `.github/workflows/release.yml`
 there: it builds the AppImage, the program update and the add-ons in a clean Ubuntu 24.04, checks the
-AppImage, collects the source code of every third-party library and publishes the release. The workflow
-runs only in the public repository.
+AppImage, collects the source code of every third-party library and publishes the release, as a full
+release marked "Latest" (also for an alpha, whose title and text say so), so that GitHub's "Latest" badge
+and the address `.../releases/latest` lead to the program. The workflow runs only in the public repository.
 
 ## What the checks look for
 

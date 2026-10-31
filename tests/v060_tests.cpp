@@ -261,6 +261,19 @@ int main(int argc, char **argv)
                   && readme.contains(QLatin1String("not made by or connected with Literature & Latte"))
                   && readme.contains(QLatin1String("contains no code, files or pictures of those programs")),
               QStringLiteral("README: the one media package, no old known issues, independent of Literature & Latte"));
+        // download links at the top of the README (the public main page): this version's files, the newest release
+        const QString tag = QStringLiteral("v%1").arg(QString::fromLatin1(QB_APP_VERSION_SHOWN).replace(QLatin1Char(' '), QLatin1Char('-')));
+        const QString dl = QStringLiteral("https://github.com/Shelin-boop/Quillbinder_Public/releases/download/") + tag + QLatin1Char('/');
+        const int download = readme.indexOf(QLatin1String("## Download"));
+        check(download > 0 && download < 1500
+                  && readme.contains(QStringLiteral("(%1Quillbinder-%2-x86_64.AppImage)").arg(dl, tag.mid(1)))
+                  && readme.contains(QStringLiteral("(%1media-all-formats.qbpkg)").arg(dl))
+                  && readme.contains(QLatin1String("(https://github.com/Shelin-boop/Quillbinder_Public/releases/latest)")),
+              QStringLiteral("README: near the top, direct links to this version's AppImage and media package, and to the newest release"),
+              readme.mid(download, 900));
+        const QString pubRel = QString::fromUtf8(readAll(kSource + QStringLiteral("/tools/publish-release.sh")));
+        check(pubRel.contains(QLatin1String("PRE=(--prerelease=false --latest)")) && !pubRel.contains(QLatin1String("PRE=(--prerelease)")),
+              QStringLiteral("program releases are published as full releases marked Latest, so .../releases/latest leads to the program"));
         const QString wf = QString::fromUtf8(readAll(kSource + QStringLiteral("/.github/workflows/release.yml")));
         check(wf.contains(QLatin1String("if: github.repository == 'Shelin-boop/Quillbinder_Public'")),
               QStringLiteral("the release workflow runs in the public repository only"));
@@ -332,6 +345,20 @@ int main(int argc, char **argv)
             check(rc == 2 && dirty.contains(QLatin1String("only committed files are published")),
                   QStringLiteral("a private tree with files not committed is refused"), dirty.right(800));
             QFile::remove(priv.path() + QStringLiteral("/notes-not-committed.txt"));
+            // download links of another version in the README: refused
+            {
+                const QByteArray readme = readAll(priv.path() + QStringLiteral("/README.md"));
+                QByteArray stale = readme;
+                stale.replace("releases/download/v" QB_APP_VERSION, "releases/download/v0.59.0");
+                writeFile(priv.path() + QStringLiteral("/README.md"), stale);
+                git(priv.path(), {QStringLiteral("commit"), QStringLiteral("-q"), QStringLiteral("-a"), QStringLiteral("-m"), QStringLiteral("old links")});
+                const QString old = run(QStringLiteral("bash"), {script, P, QStringLiteral("--commit")}, &rc, priv.path());
+                check(rc == 2 && old.contains(QLatin1String("README.md: the download links must point to"))
+                          && git(P, {QStringLiteral("rev-list"), QStringLiteral("--count"), QStringLiteral("HEAD")}).trimmed() == QLatin1String("2"),
+                      QStringLiteral("a README whose download links name another version is refused"), old.right(600));
+                writeFile(priv.path() + QStringLiteral("/README.md"), readme);
+                git(priv.path(), {QStringLiteral("commit"), QStringLiteral("-q"), QStringLiteral("-a"), QStringLiteral("-m"), QStringLiteral("links again")});
+            }
             // a failed legal check: nothing reaches the public copy
             writeFile(priv.path() + QStringLiteral("/README.md"), "\n" + kBadLine + "\n", true);
             git(priv.path(), {QStringLiteral("commit"), QStringLiteral("-q"), QStringLiteral("-a"), QStringLiteral("-m"), QStringLiteral("bad")});

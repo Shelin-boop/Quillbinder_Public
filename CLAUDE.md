@@ -269,6 +269,9 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
 
 ## Publishing, legal check (0.60)
 
+- `README.md` starts with direct download links of the current version (`releases/download/v<version>-<label>/...`
+  for the AppImage and `media-all-formats.qbpkg`): change them with every new version; `tools/publish-public.sh`
+  refuses to publish otherwise. Releases are full releases marked "Latest" (`tools/publish-release.sh`).
 - `tools/publish-public.sh` (see "One source" above) and `tools/public-exclude.txt`. Never publish the history of
   the development repository: it holds texts that were taken out (the old tutorial, a pen name).
 - `tools/legal-check.py [--public] [tree]`: LICENSE is 0BSD without a person; README, AppStream text, About and the

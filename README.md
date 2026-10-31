@@ -12,11 +12,17 @@ between the programs. Scrivener and Scapple are names of products of Literature 
 
 ## Download
 
-The AppImage, the program update and the add-ons are on the
-[Releases page](https://github.com/Shelin-boop/Quillbinder_Public/releases), built by GitHub from this
-source code (`.github/workflows/release.yml`). Download `Quillbinder-<version>-x86_64.AppImage`, make it
-executable (right-click > Properties > Permissions, or `chmod +x`), and start it. Add-ons are installed with
-**File > Install Update or Add-on**. Each release lists SHA-256 checksums of its files.
+**Quillbinder 0.60.0 alpha for Linux (x86_64):**
+
+- **[Quillbinder-0.60.0-alpha-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.60.0-alpha/Quillbinder-0.60.0-alpha-x86_64.AppImage)**: the program
+- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.60.0-alpha/media-all-formats.qbpkg)**: audio and video in every format (an add-on; optional)
+- [All files of the newest version](https://github.com/Shelin-boop/Quillbinder_Public/releases/latest): the other
+  add-ons, the program update and SHA-256 checksums. Earlier versions: [Releases](https://github.com/Shelin-boop/Quillbinder_Public/releases).
+
+To start, make the AppImage executable (right-click > Properties > Permissions > *Is executable*, or
+`chmod +x`) and double-click it; **Help > Add to Application Menu** puts it into the menu of the desktop.
+Add-ons are installed with **File > Install Update or Add-on**. Everything on the Releases page is built by
+GitHub from this source code (`.github/workflows/release.yml`).
 
 **Quillbinder is alpha software.** Keep backups of your projects (**File > Back Up > Back Up Now**; the
 automatic backups are set under **File > Options > Backup**), and keep a copy of your manuscripts outside

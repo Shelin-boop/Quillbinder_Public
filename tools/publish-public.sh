@@ -9,7 +9,9 @@
 # 2. Checks the export with tools/legal-check.py --public and stops when a check fails.
 # 3. Makes the public clone's files equal to the export (its .git and its own history stay) and
 #    shows what changed.
-# 4. With --commit: commits there as "Quillbinder <version> <label>", naming the private commit.
+# 4. With --commit: commits there as "Quillbinder <version> <label>" (or QB_COMMIT_SUBJECT for a
+#    change within a version), naming the private commit.
+# Before all this it checks that the download links at the top of README.md name this version.
 #
 # Pushing is a separate step, done only when the user says so:
 #    git -C <clone of Quillbinder_Public> push origin main
@@ -31,6 +33,14 @@ fi
 SHA=$(git rev-parse --short=12 HEAD)
 VERSION=$(sed -n 's/^set(APP_VERSION *"\(.*\)")/\1/p' CMakeLists.txt)
 LABEL=$(sed -n 's/^set(APP_VERSION_LABEL *"\(.*\)")/\1/p' CMakeLists.txt)
+# the download links at the top of the README must name this version (0.60)
+TAG="v$VERSION${LABEL:+-$LABEL}"
+for f in "Quillbinder-$VERSION${LABEL:+-$LABEL}-x86_64.AppImage" media-all-formats.qbpkg; do
+    if ! grep -qF "releases/download/$TAG/$f)" README.md; then
+        echo "README.md: the download links must point to $TAG (releases/download/$TAG/$f)." >&2
+        exit 2
+    fi
+done
 EXPORT=$(mktemp -d)
 trap 'rm -rf "$EXPORT"' EXIT
 
@@ -80,7 +90,7 @@ echo "$CHANGED file(s) changed"
 # 4. commit (no push)
 if [ "$COMMIT" = --commit ] && [ "$CHANGED" -gt 0 ]; then
     git -C "$PUB" -c user.name="${GIT_AUTHOR_NAME:-Claude}" -c user.email="${GIT_AUTHOR_EMAIL:-noreply@anthropic.com}" \
-        commit -q -m "Quillbinder $VERSION${LABEL:+ $LABEL}" -m "Source of the development repository, commit $SHA (tools/publish-public.sh)." \
+        commit -q -m "${QB_COMMIT_SUBJECT:-Quillbinder $VERSION${LABEL:+ $LABEL}}" -m "Source of the development repository, commit $SHA (tools/publish-public.sh)." \
         ${QB_COMMIT_NOTE:+-m "$QB_COMMIT_NOTE"}
     git -C "$PUB" log --oneline -1
     echo "Committed, not pushed. To publish: git -C $PUB push origin main"

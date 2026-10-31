@@ -57,8 +57,10 @@ cp "$SRC/SOURCES.txt" "$DIST/THIRD-PARTY-SOURCES.txt"
 (cd "$DIST" && rm -f SHA256SUMS.txt && sha256sum -- * > "$RUNNER_TEMP/SHA256SUMS.txt" && mv "$RUNNER_TEMP/SHA256SUMS.txt" SHA256SUMS.txt)
 python3 -I "$ROOT/tools/release-notes.py" "$DIST" > "$RUNNER_TEMP/notes.md"
 TITLE="$NAME $VERSION${LABEL:+ $LABEL}"
-PRE=()
-[ -n "$LABEL" ] && PRE=(--prerelease)
+# A full release marked "Latest" (0.60), also for an alpha (its title and text say so): GitHub's
+# "Latest" badge and the link .../releases/latest then lead to the program, not to the release
+# "Third-party source code" (the only full release before).
+PRE=(--prerelease=false --latest)
 if gh release view "$TAG" > /dev/null 2>&1; then
     gh release edit "$TAG" --title "$TITLE" --notes-file "$RUNNER_TEMP/notes.md" "${PRE[@]}"
     gh release upload "$TAG" "$DIST"/* --clobber
