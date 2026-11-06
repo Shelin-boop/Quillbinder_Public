@@ -328,7 +328,7 @@ Each project stores its documents in one of two formats. You choose when you cre
 
 Switching converts every document. From RTF to Markdown, fonts, colors, alignment, left and right indents, and tab stops are kept. Line spacing, first line indent, and paragraph spacing of text that came from other programs follow the project afterwards. Take a backup first (**File > Back Up > Back Up Now**).
 
-Text pasted from other programs into a Markdown project takes the look of the text around it (bold, italics, and links stay). Text copied inside {{APP}} keeps its fonts. **Edit > Paste with Formatting** (**Ctrl+Alt+Shift+V**) keeps the look of text from a word processor or a web page as well: fonts, sizes, colors, and the alignment, indents and spacing of its paragraphs (the first pasted paragraph brings its paragraph formatting only into an empty paragraph). **Edit > Paste and Match Style** (**Ctrl+Shift+V**) does the opposite and pastes plain text.
+Text pasted from other programs into a Markdown project takes the look of the text around it (bold, italics, and links stay). Text copied inside {{APP}} keeps its fonts. **Edit > Paste with Formatting** (**Ctrl+Alt+Shift+V**) keeps the look of text from a word processor or a web page as well: fonts, sizes, colors, and the alignment, indents and spacing of its paragraphs (the first pasted paragraph brings its paragraph formatting only into an empty paragraph). **Edit > Paste and Match Style** (**Ctrl+Shift+V**) does the opposite and pastes plain text. The right-click menu of the text offers all three, one below the other: **Paste**, **Paste and Match Style**, and **Paste with Formatting**.
 
 To convert a single file outside a project, use **File > Convert Markdown ⇄ RTF File…**.
 

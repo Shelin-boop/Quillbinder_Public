@@ -98,7 +98,8 @@ changed and what was checked. Preferences:
   style changes reaching all text of the style), `qb_v0403_tests` (0.40.3: titles from the first line, No Style redefined
   from the panel, the short spelling menu, the format bar showing what is seen, dialogs above the Styles panel, the alignment
   of the main text, the chosen style list), `qb_v0601_tests` (0.60.1: Paste with Formatting, Show Invisibles, the total of a
-  folder, paragraph styles over several paragraphs), menu audit.
+  folder, paragraph styles over several paragraphs), `qb_v0602_tests` (0.60.2: the three ways to paste in the right-click menu),
+  menu audit.
 - Printing checks print into PDF files (Print to File) and read them with poppler-utils.
 - The add-on Media Playback needs FFmpeg: `tools/get-ffmpeg.sh` once (5 to 10 minutes),
   then the test runner builds the add-ons.
@@ -195,7 +196,9 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
 - **Edit > Paste with Formatting** (`pasteKeep`, Ctrl+Alt+Shift+V): `TextEditor::pasteKeepingFormatting()` sets
   `m_pasteKeepAll` around `paste()`; `insertFromMimeData` then reads RTF with `keepFormatting` and HTML with fonts, and
   `insertSemantic(..., keepParagraphs)` gives each pasted paragraph `direct::withParaSpec(effectiveParaSpec(source))` (the
-  first one only when it lands in an empty paragraph). Plain Paste is unchanged.
+  first one only when it lands in an empty paragraph). Plain Paste is unchanged. 0.60.2: `TextEditor::contextMenuEvent` puts
+  `ctx-pastePlain` (`pasteMatchingStyle()`, also behind Edit > Paste and Match Style) and `ctx-pasteKeep` right after Qt's
+  `edit-paste` action, with the shortcuts of `commands::shortcutOf`.
 - **Show Invisibles** (`showInvisibles`, `AppSettings::showInvisibles`, toolbar standard set, View button menu):
   `TextEditor::paintInvisibles` draws over the text from the block layouts (not in notes editors); the document's
   text option is never touched, so prints, compile and mirrors stay clean. `blockBoundingRect(b).topLeft()` is the

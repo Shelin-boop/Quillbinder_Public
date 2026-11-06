@@ -1,4 +1,5 @@
 #include "ui/TextEditor.h"
+#include "ui/Commands.h"
 #include "ui/Zoom.h"
 #include "core/Replace.h"
 #include "core/Search.h"
@@ -917,11 +918,32 @@ void TextEditor::contextMenuEvent(QContextMenuEvent *e)
         }
     }
     QMenu *std = createStandardContextMenu(e->pos());
+    QAction *paste = nullptr;
     for (QAction *a : std->actions()) {
         a->setParent(menu);
         menu->addAction(a);
+        if (a->objectName() == QLatin1String("edit-paste"))
+            paste = a;
     }
     std->deleteLater();
+    // the three ways to paste side by side (0.60.2): Qt's Paste, then Paste and Match Style and
+    // Paste with Formatting, with the shortcuts they have in the Edit menu
+    if (paste) {
+        const QList<QAction *> all = menu->actions();
+        QAction *after = all.value(int(all.indexOf(paste)) + 1);
+        auto entry = [&](const QString &key, const QString &text, bool enabled, auto fn) {
+            const QKeySequence ks = commands::shortcutOf(key);
+            auto *a = new QAction(ks.isEmpty() ? text : text + QLatin1Char('\t') + ks.toString(QKeySequence::NativeText), menu);
+            a->setObjectName(QStringLiteral("ctx-") + key);
+            a->setEnabled(enabled);
+            connect(a, &QAction::triggered, this, fn);
+            menu->insertAction(after, a);
+        };
+        const QMimeData *md = QApplication::clipboard()->mimeData();
+        entry(QStringLiteral("pastePlain"), tr("Paste and &Match Style"), paste->isEnabled() && md && md->hasText(),
+              [this] { pasteMatchingStyle(); });
+        entry(QStringLiteral("pasteKeep"), tr("Paste with &Formatting"), paste->isEnabled(), [this] { pasteKeepingFormatting(); });
+    }
     if (contextHook())
         contextHook()(this, menu, e->pos());
     top->popup(e->globalPos());
@@ -988,6 +1010,24 @@ static void insertSemantic(QTextCursor &c, QTextDocument *src, const Formatting 
             c.insertText(frag.text(), merged);
         }
     }
+}
+
+void TextEditor::pasteMatchingStyle()
+{
+    // plain text in the look of the text at the cursor
+    const Formatting f = m_project ? m_project->formatting : Formatting();
+    QTextCharFormat cf = textCursor().charFormat();
+    text::clearNoteProps(cf);
+    const QStringList lines = QApplication::clipboard()->text().split(QLatin1Char('\n'));
+    QTextCursor c = textCursor();
+    c.beginEditBlock();
+    for (int i = 0; i < lines.size(); ++i) {
+        if (i)
+            c.insertBlock(display::normalBlockFormat(f));
+        c.insertText(QString(lines[i]).remove(QLatin1Char('\r')), cf);
+    }
+    c.endEditBlock();
+    setTextCursor(c);
 }
 
 void TextEditor::pasteKeepingFormatting()

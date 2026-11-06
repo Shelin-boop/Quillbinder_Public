@@ -3,6 +3,11 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.60.2 alpha (2026-11-06)
+
+- **Three ways to paste in the right-click menu** of the text: Paste, Paste and Match Style, and Paste with
+  Formatting, one below the other, with their shortcuts (on a misspelled word under More Commands).
+
 ## 0.60.1 alpha (2026-11-06)
 
 - **Paste with Formatting** (Edit menu, **Ctrl+Alt+Shift+V**): text from a word processor or a web page keeps

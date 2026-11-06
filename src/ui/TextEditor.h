@@ -138,6 +138,8 @@ public:
     // fonts, sizes, colors and paragraph formatting (Paste keeps them only for text copied in
     // this program or in RTF projects)
     void pasteKeepingFormatting();
+    // Edit > Paste and Match Style: the clipboard's plain text in the look of the text at the cursor
+    void pasteMatchingStyle();
 
     // View > Text Editing > Show Invisibles (0.60.1): spaces, tabs, line breaks and paragraph
     // ends are drawn in the main text; only on the screen, never in the text or a print

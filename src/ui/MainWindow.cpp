@@ -733,19 +733,8 @@ void MainWindow::createActions()
             this, route([](QTextEdit *e) { e->paste(); }, [](QPlainTextEdit *e) { e->paste(); }, [](QLineEdit *e) { e->paste(); }));
     connect(act(QStringLiteral("pastePlain"), tr("Paste and &Match Style"), QString(), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_V)),
             &QAction::triggered, this, [this] {
-                if (TextEditor *e = editor()) {
-                    QTextCharFormat cf = e->textCursor().charFormat();
-                    text::clearNoteProps(cf);
-                    const QStringList lines = QApplication::clipboard()->text().split(QLatin1Char('\n'));
-                    QTextCursor c = e->textCursor();
-                    c.beginEditBlock();
-                    for (int i = 0; i < lines.size(); ++i) {
-                        if (i)
-                            c.insertBlock(display::normalBlockFormat(m_project->formatting));
-                        c.insertText(QString(lines[i]).remove(QLatin1Char('\r')), cf);
-                    }
-                    c.endEditBlock();
-                }
+                if (TextEditor *e = editor())
+                    e->pasteMatchingStyle();
             });
     // 0.60.1: text from a word processor or a web page with its fonts, sizes, colors and paragraphs
     connect(act(QStringLiteral("pasteKeep"), tr("Paste with &Formatting"), QString(),
