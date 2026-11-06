@@ -3,8 +3,8 @@
 A writing studio for long texts (binder, corkboard, outliner, combined text,
 snapshots, targets, composition mode, mind maps, object sheets, compile to DOCX,
 PDF and EPUB, projects in its own format or in Scrivener 3 format), written in
-C++17 with Qt 6 for Ubuntu 24.04 LTS and KDE Plasma. "Quillbinder" is a working
-name; it is set once in `CMakeLists.txt` (`APP_NAME`, `APP_ID`).
+C++17 with Qt 6 for Ubuntu 24.04 LTS and KDE Plasma. Works under Kubuntu 26.04 LTS
+Wayland. "Quillbinder" is a working name; it is set once in `CMakeLists.txt` (`APP_NAME`, `APP_ID`).
 
 Quillbinder is an independent program. It is not made by or connected with Literature & Latte,
 the maker of Scrivener and Scapple; it reads and writes their file formats so that projects can move
