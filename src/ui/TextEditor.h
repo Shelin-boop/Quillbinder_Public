@@ -134,6 +134,15 @@ public:
     void copyFormatting();
     void pasteFormatting();
     static bool hasCopiedFormatting();
+    // Edit > Paste with Formatting (0.60.1): text from a word processor or a web page keeps its
+    // fonts, sizes, colors and paragraph formatting (Paste keeps them only for text copied in
+    // this program or in RTF projects)
+    void pasteKeepingFormatting();
+
+    // View > Text Editing > Show Invisibles (0.60.1): spaces, tabs, line breaks and paragraph
+    // ends are drawn in the main text; only on the screen, never in the text or a print
+    static void setShowInvisibles(bool on);
+    static bool showInvisibles();
 
     // notes
     QString addLinkedNote(NoteKind kind, const QString &text = QString()); // returns note id
@@ -227,6 +236,8 @@ protected:
 
 private:
     void updateHeight();
+    void paintSheets(QPaintEvent *e);
+    void paintInvisibles(QPaintEvent *e);
     void mergeFormat(const QTextCharFormat &fmt);
     bool isRtfProject() const;
     QList<QTextBlock> selectedBlocks() const;
@@ -260,7 +271,9 @@ private:
     int m_mouseMoving = 0;   // see cursorMovedByMouse()
     QCompleter *m_scriptCompleter = nullptr;
     QStringListModel *m_scriptModel = nullptr;
+    bool m_pasteKeepAll = false;   // pasteKeepingFormatting() is at work
     static int s_revision;
+    static bool s_invisibles;
 };
 
 // Lets the main window add entries to every editor's context menu.

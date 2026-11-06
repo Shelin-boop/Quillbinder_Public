@@ -225,7 +225,7 @@ void MainWindow::createMenus()
 
     // ---- Edit
     QMenu *edit = mb->addMenu(tr("&Edit"));
-    add(edit, {"undo", "redo", "", "cut", "copy", "paste", "pastePlain", "", "selectAll"});
+    add(edit, {"undo", "redo", "", "cut", "copy", "paste", "pastePlain", "pasteKeep", "", "selectAll"});
     QMenu *select = edit->addMenu(tr("&Select"));
     add(select, {"selectAnnotation"});
     edit->addSeparator();
@@ -295,7 +295,7 @@ void MainWindow::createMenus()
     QMenu *bars = view->addMenu(tr("Tool&bars"));
     add(bars, {"showToolbar", "showFormatBar", "showIconBar", "", "customizeToolbars", "customizeIconBar"});
     QMenu *te = view->addMenu(tr("&Text Editing"));
-    add(te, {"pageView", "pageSetup", "", "showRuler", "typewriter", "scrivTitles", "fixedWidth"});
+    add(te, {"pageView", "pageSetup", "", "showRuler", "showInvisibles", "typewriter", "scrivTitles", "fixedWidth"});
     QMenu *cork = view->addMenu(tr("&Corkboard Options"));
     add(cork, {"stamps", "", "corkFreeform", "corkLabels", "corkCommit", "", "selectionAffectsOther", "selectionAffectsCopyholder"});
     QMenu *outl = view->addMenu(tr("&Outliner Options"));
@@ -655,7 +655,7 @@ void MainWindow::createToolBars()
     viewMenu->addSeparator();
     viewMenu->addAction(a[QStringLiteral("pageView")]);
     viewMenu->addSeparator();
-    for (const char *k : {"showFormatBar", "showRuler", "customizeToolbars"})
+    for (const char *k : {"showFormatBar", "showRuler", "showInvisibles", "customizeToolbars"})
         viewMenu->addAction(a[QLatin1String(k)]);
     viewBtn->setMenu(viewMenu);
     wrap(QStringLiteral("view"), viewBtn);

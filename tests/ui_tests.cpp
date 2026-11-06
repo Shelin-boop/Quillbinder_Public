@@ -1996,7 +1996,7 @@ int main(int argc, char **argv)
             auto *quick = w.findChild<QLineEdit *>(QStringLiteral("quickSearch"));
             auto *styleCombo = w.findChild<QComboBox *>(QStringLiteral("styleCombo"));
             const QStringList standardKeys = barKeys(mainBar);
-            check(viewBtn && viewBtn->isVisible() && quick && quick->isVisible() && mainBar->actions().size() == 20
+            check(viewBtn && viewBtn->isVisible() && quick && quick->isVisible() && mainBar->actions().size() == 21 // 0.60.1: + Show Invisibles
                       && mainBar->widgetForAction(mainBar->actions().first()) == viewBtn
                       && standardKeys.contains(QStringLiteral("viewCork")) && standardKeys.last() == QLatin1String("showInspector")
                       && viewBtn->x() < quick->x(),

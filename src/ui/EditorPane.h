@@ -107,6 +107,8 @@ public:
     void refresh();         // after structural changes
     void refreshHeader();
     void updateFooter();
+    // "Folder: 1,234 words": the total of the folder (or the items) shown; empty when none is (0.60.1)
+    QString folderCountText() const;
     void showFindBar(bool replace);
     void findNext(bool backward);
     void setSearchHighlight(const QString &term);
@@ -165,6 +167,7 @@ private:
     void applyMode();
     void pushHistory();
     void updateCounts();
+    void updateFolderCount();
     void updatePageLabel();
     void placeCopyholder(const QString &placement);
     void updateAffectButtons();
@@ -216,6 +219,7 @@ private:
     QStackedWidget *m_footer;
     QComboBox *m_zoom;
     QToolButton *m_countButton;
+    QLabel *m_folderCount, *m_corkCount, *m_outlinerCount; // the total of a folder (0.60.1)
     QLabel *m_scriptHint;
     QToolButton *m_scriptElement;
     QToolButton *m_targetButton;

@@ -51,6 +51,21 @@ public:
     bool isFolder() const { return isFolderType(type); }
     bool hasText() const { return isTextType(type); }
     bool isContainer() const { return isFolder() || !children.isEmpty(); }
+    // the counts of the item's own text and of everything inside it (0.60.1: the total of a folder)
+    int totalWordCount() const
+    {
+        int n = hasText() ? wordCount : 0;
+        for (const BinderItem *c : children)
+            n += c->totalWordCount();
+        return n;
+    }
+    int totalCharCount() const
+    {
+        int n = hasText() ? charCount : 0;
+        for (const BinderItem *c : children)
+            n += c->totalCharCount();
+        return n;
+    }
     int row() const { return parent ? int(parent->children.indexOf(const_cast<BinderItem *>(this))) : 0; }
     int level() const
     {

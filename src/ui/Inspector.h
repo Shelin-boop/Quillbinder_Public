@@ -104,6 +104,7 @@ private:
     void refreshNotesTab();
     void refreshBookmarks();
     void refreshMetadata();
+    void refreshTotal();
     void refreshCustomFields();
     void refreshKeywords();
     void refreshSnapshots();
@@ -138,6 +139,8 @@ private:
     QPointer<QTextDocument> m_previewCopy; // the preview's copy of a document an editor shows
     // metadata
     QLabel *m_created = nullptr, *m_modified = nullptr;
+    QLabel *m_total = nullptr;            // words of a folder and everything in it (0.60.1)
+    QFormLayout *m_totalForm = nullptr;
     QCheckBox *m_include = nullptr;
     QComboBox *m_sectionType = nullptr;
     QWidget *m_customBox = nullptr;

@@ -35,8 +35,16 @@ void insertSeparator(QTextCursor &c, const QString &kind, const QString &custom,
 QTextBlockFormat blockFormatFor(const Formatting &f, const QString &style, const QTextBlockFormat &base = {});
 QTextCharFormat charFormatFor(const Formatting &f, const QString &style);
 
+// How applyParagraphStyle treats the text inside the paragraphs:
+//  KeepOwn     fonts, sizes, colors set by hand stay on top of the new style (Paste Formatting, scripts);
+//  Paragraphs  the chosen style takes over (0.60.1): those give way to the style; bold, italic, underline,
+//              strikethrough, highlights and character styles stay; a selection that ends right at the
+//              start of a paragraph leaves that paragraph alone.
+enum class StyleOver { KeepOwn, Paragraphs };
+
 // Apply a paragraph style to every block touched by the cursor.
-void applyParagraphStyle(QTextCursor cursor, const QString &style, const Formatting &f);
+void applyParagraphStyle(QTextCursor cursor, const QString &style, const Formatting &f,
+                         StyleOver over = StyleOver::KeepOwn);
 
 // Set the default font, margins etc. of a document.
 void prepareDocument(QTextDocument *doc, const Formatting &f, double zoom);

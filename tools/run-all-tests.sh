@@ -151,5 +151,6 @@ done
 [ -x $B/tests/qb_v0403_tests ] && run v0403 $B/tests/qb_v0403_tests "$OUT/shots-v0403"
 [ -x $B/tests/qb_v050_tests ] && run v050 $B/tests/qb_v050_tests "$OUT/shots-v050"
 [ -x $B/tests/qb_v060_tests ] && run v060 $B/tests/qb_v060_tests "$OUT/shots-v060"
+[ -x $B/tests/qb_v0601_tests ] && run v0601 $B/tests/qb_v0601_tests "$OUT/shots-v0601"
 [ -x $B/tests/qb_menu_audit ] && run menu_audit $B/tests/qb_menu_audit "$OUT/shots-audit"
 exit 0

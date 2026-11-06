@@ -74,6 +74,7 @@ public:
     bool smartQuotes = true;
     bool smartDashes = true;
     bool showRuler = true;
+    bool showInvisibles = false;   // View > Text Editing > Show Invisibles (0.60.1)
     QString rulerUnit;            // "cm" | "in"; empty = from the system's region
     // formatting of new projects (File > Options > Editing); empty font = automatic
     // (0.21.2, the writer's standard: 11.0 pt, line spacing 1.09, no first line indent, 6 pt

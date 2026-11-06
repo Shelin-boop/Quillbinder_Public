@@ -37,11 +37,13 @@
 #include <QPlainTextEdit>
 #include <QFrame>
 #include <QPainter>
+#include <QPainterPath>
 #include <QTextFrame>
 #include <QTimer>
 #include <QRegularExpression>
 #include <QScrollBar>
 #include <QTextBlock>
+#include <QTextLayout>
 #include <QTextDocumentFragment>
 #include <QTextList>
 #include <QUrl>
@@ -51,6 +53,7 @@
 namespace qb {
 
 int TextEditor::s_revision = 0;
+bool TextEditor::s_invisibles = false;
 
 // ------------------------------------------------------------------ widths
 
@@ -322,8 +325,14 @@ int TextEditor::textInsetRight() const
 void TextEditor::paintEvent(QPaintEvent *e)
 {
     QTextEdit::paintEvent(e);
-    if (!isPaged())
-        return;
+    if (isPaged())
+        paintSheets(e);
+    if (s_invisibles && !m_isNotes)
+        paintInvisibles(e);
+}
+
+void TextEditor::paintSheets(QPaintEvent *e)
+{
     // The sheets follow one another every step() pixels of the layout; the
     // gap between two sheets lies inside the margins and is painted over.
     const PageMetrics m = pagelayout::metrics(document());
@@ -347,6 +356,116 @@ void TextEditor::paintEvent(QPaintEvent *e)
         p.fillRect(QRect(0, bottom, m.paperW, m.gapBelow()), outside);
         p.setPen(edge);
         p.drawRect(QRect(0, top, m.paperW - 1, bottom - top - 1));
+    }
+}
+
+void TextEditor::setShowInvisibles(bool on)
+{
+    if (s_invisibles == on)
+        return;
+    s_invisibles = on;
+    for (QWidget *w : QApplication::allWidgets())
+        if (auto *te = qobject_cast<TextEditor *>(w))
+            te->viewport()->update();
+}
+
+bool TextEditor::showInvisibles() { return s_invisibles; }
+
+// The marks are drawn over the text from its layout (the document is not touched, so
+// nothing reaches files, prints or the compile): a dot for a space, an arrow for a tab,
+// a small circle for a no-break space, a bent arrow for a line break (Shift+Enter) and
+// a pilcrow at the end of each paragraph.
+void TextEditor::paintInvisibles(QPaintEvent *e)
+{
+    QAbstractTextDocumentLayout *lay = document()->documentLayout();
+    if (!lay)
+        return;
+    const int xOff = horizontalScrollBar()->value(), yOff = verticalScrollBar()->value();
+    const QRectF area = QRectF(e->rect()).translated(xOff, yOff); // layout coordinates
+    QColor ink = palette().color(QPalette::Text);
+    ink.setAlphaF(0.45);
+    QPainter p(viewport());
+    p.setRenderHint(QPainter::Antialiasing);
+    p.translate(-xOff, -yOff);
+    p.setPen(Qt::NoPen);
+    const int start = lay->hitTest(area.topLeft(), Qt::FuzzyHit);
+    QTextBlock b = document()->findBlock(qMax(0, start));
+    // a block may begin above the area and still reach into it
+    if (b.isValid() && b.previous().isValid())
+        b = b.previous();
+    for (; b.isValid(); b = b.next()) {
+        if (!b.isVisible())
+            continue;
+        const QRectF br = lay->blockBoundingRect(b);
+        if (br.top() > area.bottom())
+            break;
+        if (br.bottom() < area.top())
+            continue;
+        QTextLayout *tl = b.layout();
+        if (!tl || tl->lineCount() == 0)
+            continue;
+        const QString text = b.text();
+        // the layout's origin (Qt puts the block's rect there; its lines are relative to it)
+        const QPointF origin = br.topLeft();
+        for (int li = 0; li < tl->lineCount(); ++li) {
+            const QTextLine line = tl->lineAt(li);
+            const double top = origin.y() + line.y();
+            if (top > area.bottom() || top + line.height() < area.top())
+                continue;
+            const double asc = line.ascent();
+            const double mid = top + line.ascent() - asc * 0.32; // about the middle of a small letter
+            const double r = qMax(0.9, asc * 0.075);
+            const int from = line.textStart(), to = from + line.textLength();
+            for (int i = from; i < to && i < text.size(); ++i) {
+                const QChar ch = text.at(i);
+                if (ch != QLatin1Char(' ') && ch != QLatin1Char('\t') && ch != QChar(0x00A0) && ch != QChar::LineSeparator)
+                    continue;
+                const double x1 = origin.x() + line.cursorToX(i), x2 = origin.x() + line.cursorToX(i + 1);
+                const double cx = (x1 + x2) / 2;
+                if (ch == QLatin1Char(' ')) {
+                    p.setBrush(ink);
+                    p.drawEllipse(QPointF(cx, mid), r, r);
+                } else if (ch == QChar(0x00A0)) {
+                    p.setBrush(Qt::NoBrush);
+                    p.setPen(QPen(ink, qMax(0.8, r * 0.6)));
+                    p.drawEllipse(QPointF(cx, mid - r), r * 1.6, r * 1.6);
+                    p.setPen(Qt::NoPen);
+                } else if (ch == QLatin1Char('\t')) {
+                    const double w = qMax(asc * 0.5, qAbs(x2 - x1) - asc * 0.3), l = qMin(x1, x2) + asc * 0.15;
+                    const double h = asc * 0.18;
+                    p.setPen(QPen(ink, qMax(0.9, r * 0.9), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+                    p.drawLine(QPointF(l, mid), QPointF(l + w, mid));
+                    p.drawLine(QPointF(l + w - h, mid - h), QPointF(l + w, mid));
+                    p.drawLine(QPointF(l + w - h, mid + h), QPointF(l + w, mid));
+                    p.setPen(Qt::NoPen);
+                } else { // line break (Shift+Enter): a bent arrow back to the start of the line
+                    const double h = asc * 0.45, w = asc * 0.5, x = x1 + asc * 0.12;
+                    QPainterPath path;
+                    path.moveTo(x + w, mid - h);
+                    path.lineTo(x + w, mid + h * 0.35);
+                    path.lineTo(x, mid + h * 0.35);
+                    p.setPen(QPen(ink, qMax(0.9, r * 0.9), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+                    p.setBrush(Qt::NoBrush);
+                    p.drawPath(path);
+                    p.drawLine(QPointF(x, mid + h * 0.35), QPointF(x + h * 0.4, mid + h * 0.35 - h * 0.4));
+                    p.drawLine(QPointF(x, mid + h * 0.35), QPointF(x + h * 0.4, mid + h * 0.35 + h * 0.4));
+                    p.setPen(Qt::NoPen);
+                }
+            }
+            if (li != tl->lineCount() - 1)
+                continue;
+            // the end of the paragraph: a pilcrow after its last character
+            const double x = origin.x() + line.cursorToX(b.length() - 1) + asc * 0.12;
+            const double h = asc * 0.78;               // from the baseline up
+            const double base = top + line.ascent();
+            const double stem = qMax(1.0, asc * 0.075), bowl = h * 0.26;
+            const double s1 = x + 2 * bowl - stem, s2 = x + 2 * bowl + bowl * 0.7;
+            p.setBrush(ink);
+            p.drawEllipse(QPointF(x + bowl, base - h + bowl * 1.15), bowl, bowl * 1.15);
+            p.drawRect(QRectF(x + bowl, base - h, s2 + stem - x - bowl, stem));
+            p.drawRect(QRectF(s1, base - h, stem, h));
+            p.drawRect(QRectF(s2, base - h, stem, h));
+        }
     }
 }
 
@@ -831,15 +950,24 @@ QMimeData *TextEditor::createMimeDataFromSelection() const
     return md;
 }
 
-static void insertSemantic(QTextCursor &c, QTextDocument *src, const Formatting &f, bool keepFonts)
+// keepParagraphs (Paste with Formatting, 0.60.1): every pasted paragraph also brings its
+// alignment, indents, spacing, line spacing and tab stops; the first one only when it lands in
+// an empty paragraph (else it joins the paragraph at the cursor, which keeps its own).
+static void insertSemantic(QTextCursor &c, QTextDocument *src, const Formatting &f, bool keepFonts,
+                           bool keepParagraphs = false)
 {
     bool first = true;
     for (QTextBlock b = src->begin(); b.isValid(); b = b.next()) {
         QString style = b.blockFormat().property(props::Style).toString();
         if (style.isEmpty() && b.blockFormat().headingLevel() > 0)
             style = styles::forHeadingLevel(b.blockFormat().headingLevel());
+        QTextBlockFormat bf = display::blockFormatFor(f, style);
+        if (keepParagraphs)
+            bf = direct::withParaSpec(bf, direct::effectiveParaSpec(b.blockFormat()), f, false);
         if (!first)
-            c.insertBlock(display::blockFormatFor(f, style), display::charFormatFor(f, style));
+            c.insertBlock(bf, display::charFormatFor(f, style));
+        else if (keepParagraphs && c.block().length() <= 1)
+            c.setBlockFormat(bf);
         first = false;
         for (auto it = b.begin(); !it.atEnd(); ++it) {
             const QTextFragment frag = it.fragment();
@@ -862,10 +990,18 @@ static void insertSemantic(QTextCursor &c, QTextDocument *src, const Formatting 
     }
 }
 
+void TextEditor::pasteKeepingFormatting()
+{
+    m_pasteKeepAll = true;
+    paste();
+    m_pasteKeepAll = false;
+}
+
 void TextEditor::insertFromMimeData(const QMimeData *source)
 {
     QTextCursor c = textCursor();
     const Formatting f = m_project ? m_project->formatting : Formatting();
+    const bool keepAll = m_pasteKeepAll;
     if (source->hasFormat(QString::fromLatin1(kItemsMime)) && m_project) {
         const QList<BinderItem *> items = BinderModel::itemsFromMime(source, m_project);
         c.beginEditBlock();
@@ -913,15 +1049,15 @@ void TextEditor::insertFromMimeData(const QMimeData *source)
         QTextDocument tmp;
         // Markdown projects take the look of the text they are pasted into,
         // unless the text was copied in this program
-        const bool keep = isRtfProject() || source->hasFormat(QStringLiteral("application/x-quillbinder-text"));
+        const bool keep = keepAll || isRtfProject() || source->hasFormat(QStringLiteral("application/x-quillbinder-text"));
         rtf::ReadOptions o;
         o.keepFormatting = keep;
         rtf::read(data, &tmp, f, o);
-        insertSemantic(c, &tmp, f, keep);
+        insertSemantic(c, &tmp, f, keep, keepAll);
     } else if (source->hasHtml()) {
         QTextDocument tmp;
         tmp.setHtml(source->html());
-        insertSemantic(c, &tmp, f, false);
+        insertSemantic(c, &tmp, f, keepAll, keepAll);
     } else if (source->hasText()) {
         QString t = source->text();
         t.replace(QLatin1String("\r\n"), QLatin1String("\n"));
@@ -1274,7 +1410,10 @@ void TextEditor::applyHighlight(const QColor &color)
 
 void TextEditor::setParagraphStyle(const QString &style)
 {
-    display::applyParagraphStyle(textCursor(), style, m_project ? m_project->formatting : Formatting());
+    // a chosen style takes over the paragraphs: fonts, sizes and colors set by hand give way,
+    // bold, italic, underline and strikethrough stay (0.60.1)
+    display::applyParagraphStyle(textCursor(), style, m_project ? m_project->formatting : Formatting(),
+                                 display::StyleOver::Paragraphs);
 }
 
 static QTextCursor selectionOrWord(QTextCursor c)

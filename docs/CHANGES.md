@@ -3,6 +3,21 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.60.1 alpha (2026-11-06)
+
+- **Paste with Formatting** (Edit menu, **Ctrl+Alt+Shift+V**): text from a word processor or a web page keeps
+  its fonts, sizes, colors and the alignment, indents and spacing of its paragraphs, also in Markdown projects.
+  Paste itself is unchanged.
+- **Show Invisibles** (View > Text Editing, and a ¶ button on the toolbar): dots for spaces, arrows for tabs, a
+  circle for a no-break space, a bent arrow for a line break and ¶ at the end of each paragraph, drawn on the
+  screen only. If you changed the toolbar yourself, add the button under View > Toolbars > Customize Toolbars.
+- **The total of a folder**: the footer of a folder (text, corkboard or outliner) and the inspector's metadata
+  show the words of the folder and everything inside it (characters when the footer counts characters).
+- **Styles take over the paragraphs**: a paragraph style chosen for a selection over several paragraphs styles
+  all of them in full, and fonts, sizes, colors, letter spacing and capitals set by hand in them give way to the
+  style; bold, italics, underlining, strikethrough, highlights and character styles stay. A selection that ends
+  right at the start of a paragraph leaves that paragraph alone.
+
 ## 0.60.0 alpha (2026-10-31)
 
 - **Audio and video in one package**: *media-all-formats.qbpkg* installs the add-ons Media Playback and Extra

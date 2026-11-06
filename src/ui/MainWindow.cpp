@@ -747,6 +747,13 @@ void MainWindow::createActions()
                     c.endEditBlock();
                 }
             });
+    // 0.60.1: text from a word processor or a web page with its fonts, sizes, colors and paragraphs
+    connect(act(QStringLiteral("pasteKeep"), tr("Paste with &Formatting"), QString(),
+                QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_V)),
+            &QAction::triggered, this, [this] {
+                if (TextEditor *e = editor())
+                    e->pasteKeepingFormatting();
+            });
     connect(act(QStringLiteral("selectAll"), tr("Select &All"), QStringLiteral("edit-select-all"), QKeySequence::SelectAll),
             &QAction::triggered, this,
             route([](QTextEdit *e) { e->selectAll(); }, [](QPlainTextEdit *e) { e->selectAll(); }, [](QLineEdit *e) { e->selectAll(); }));
@@ -1275,6 +1282,21 @@ void MainWindow::createActions()
             AppSettings::instance().notifyChanged();
         });
     }
+    {
+        // 0.60.1: spaces, tabs and paragraph ends drawn in the text (also a button of the toolbar)
+        QAction *inv = act(QStringLiteral("showInvisibles"), tr("Show &Invisibles"), QString::fromLatin1(icons::kShowInvisibles));
+        inv->setCheckable(true);
+        inv->setChecked(AppSettings::instance().showInvisibles);
+        inv->setToolTip(tr("Show spaces, tabs, line breaks and paragraph ends in the text (not printed)"));
+        TextEditor::setShowInvisibles(AppSettings::instance().showInvisibles);
+        connect(inv, &QAction::toggled, this, [](bool on) {
+            TextEditor::setShowInvisibles(on);
+            if (AppSettings::instance().showInvisibles == on)
+                return;
+            AppSettings::instance().showInvisibles = on;
+            AppSettings::instance().notifyChanged();
+        });
+    }
     createScriptActions();
     createMediaActions();
     connect(act(QStringLiteral("defaultFormatting"), tr("Text to &Default Formatting…")), &QAction::triggered, this,
@@ -1774,7 +1796,7 @@ void MainWindow::updateFormatBar()
                               "clearFormat", "comment", "footnote", "annotation", "inlineFootnote", "image", "textColor",
                               "textColorAuto", "showFonts", "fontBigger", "fontSmaller", "paragraph", "indentMore", "indentLess",
                               "resetParagraph", "copyFormat", "line100", "line115", "line120", "line150", "line200",
-                              "insertDate", "insertTime", "pastePlain", "pasteFormat", "styleNew", "styleRedefine"})
+                              "insertDate", "insertTime", "pastePlain", "pasteKeep", "pasteFormat", "styleNew", "styleRedefine"})
             a[QLatin1String(k)]->setEnabled(objectKeys.contains(QLatin1String(k)));
         for (QAction *ac : m_styleActions)
             ac->setEnabled(false);
@@ -1797,7 +1819,7 @@ void MainWindow::updateFormatBar()
                           "clearFormat", "comment", "footnote", "annotation", "inlineFootnote", "image", "textColor",
                           "textColorAuto", "showFonts", "fontBigger", "fontSmaller", "paragraph", "indentMore", "indentLess",
                           "resetParagraph", "copyFormat", "line100", "line115", "line120", "line150", "line200",
-                          "insertDate", "insertTime", "pastePlain"})
+                          "insertDate", "insertTime", "pastePlain", "pasteKeep"})
         a[QLatin1String(k)]->setEnabled(enabled);
     for (QAction *ac : m_styleActions)
         ac->setEnabled(enabled);
@@ -2122,6 +2144,8 @@ void MainWindow::applySettings()
         m_project->setAutosaveDelay(qMax(1, s.autosaveSeconds) * 1000);
     sysinfo::refresh(m_project.get());
     a[QStringLiteral("showRuler")]->setChecked(s.showRuler);
+    a[QStringLiteral("showInvisibles")]->setChecked(s.showInvisibles);
+    TextEditor::setShowInvisibles(s.showInvisibles);
     for (EditorPane *p : m_panes) {
         p->updateRuler();
         p->textView()->applySettings();

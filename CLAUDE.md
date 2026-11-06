@@ -97,7 +97,8 @@ changed and what was checked. Preferences:
   the Appearance submenus of the right-click menus, project settings saved and loaded with the per-section choice,
   style changes reaching all text of the style), `qb_v0403_tests` (0.40.3: titles from the first line, No Style redefined
   from the panel, the short spelling menu, the format bar showing what is seen, dialogs above the Styles panel, the alignment
-  of the main text, the chosen style list), menu audit.
+  of the main text, the chosen style list), `qb_v0601_tests` (0.60.1: Paste with Formatting, Show Invisibles, the total of a
+  folder, paragraph styles over several paragraphs), menu audit.
 - Printing checks print into PDF files (Print to File) and read them with poppler-utils.
 - The add-on Media Playback needs FFmpeg: `tools/get-ffmpeg.sh` once (5 to 10 minutes),
   then the test runner builds the add-ons.
@@ -188,6 +189,27 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
   Compare and Transfer (`Compare.*` engine, `CompareFiles.*` Word/LibreOffice writers, `MiniXml.*`).
 - `addons/`: add-on packages; `packaging/`: AppImage, update and add-on build scripts;
   `tools/`: helper scripts; `resources/`: icons (`qbicons` themes), templates, manual.
+
+## Paste with formatting, invisibles, folder totals, styles over paragraphs (0.60.1)
+
+- **Edit > Paste with Formatting** (`pasteKeep`, Ctrl+Alt+Shift+V): `TextEditor::pasteKeepingFormatting()` sets
+  `m_pasteKeepAll` around `paste()`; `insertFromMimeData` then reads RTF with `keepFormatting` and HTML with fonts, and
+  `insertSemantic(..., keepParagraphs)` gives each pasted paragraph `direct::withParaSpec(effectiveParaSpec(source))` (the
+  first one only when it lands in an empty paragraph). Plain Paste is unchanged.
+- **Show Invisibles** (`showInvisibles`, `AppSettings::showInvisibles`, toolbar standard set, View button menu):
+  `TextEditor::paintInvisibles` draws over the text from the block layouts (not in notes editors); the document's
+  text option is never touched, so prints, compile and mirrors stay clean. `blockBoundingRect(b).topLeft()` is the
+  layout origin (Qt moves the rect there). The toolbar icon is drawn in code (`icons::kShowInvisibles`, `PilcrowEngine`
+  in `ItemIcons.cpp`): neither Breeze nor the bundled set has a pilcrow.
+- **Folder totals**: `BinderItem::totalWordCount / totalCharCount`; `EditorPane::folderCountText()` (labels
+  `folderCount`, `folderCountCorkboard`, `folderCountOutliner`; refreshed in `updateCounts` and `refresh`), the
+  inspector's `inspectorFolderCount` row (`Inspector::refreshTotal`, on `countsChanged` and settings changes). Counts
+  follow edits through `DocumentStore`'s 600 ms count timer, not through saving.
+- **Styles over paragraphs**: `display::applyParagraphStyle(..., StyleOver::Paragraphs)` (used by
+  `TextEditor::setParagraphStyle`, i.e. every style command) clears the char spec set by hand (family, size, weight
+  other than bold, color, letter spacing, capitals) before the style; bold, italic, underline, strikethrough,
+  highlights and character styles stay; a selection ending at a paragraph's start leaves it out. Paste Formatting and
+  script elements keep `StyleOver::KeepOwn`.
 
 ## Titles, format bar, style list, alignment (0.40.3)
 

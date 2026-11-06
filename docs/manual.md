@@ -69,7 +69,7 @@ The **toolbar** at the top holds, from left to right: the **View** button (binde
 
 The **format bar** below it holds the style, font, size, line spacing, default text formatting, the fonts window, bold, italic, underline, strikethrough, highlight, text color, alignment, lists, comments, footnotes, inline annotations, and images. Show or hide the two bars with **View > Toolbars**.
 
-The **footer** of each editor shows the word and character count (select text to count only the selection) and the target for the document. Click the count for details.
+The **footer** of each editor shows the word and character count (select text to count only the selection) and the target for the document. Click the count for details. When the editor shows a folder (or a document with subdocuments), the footer also shows the **total** of the folder: the words of its own text and of everything inside it, for example "Folder: 12,345 words". The corkboard and the outliner show the same total in their footer; with several items shown, it is the total of all of them. The inspector shows it under **Total** in the metadata of a folder.
 
 ### The menus
 
@@ -207,6 +207,7 @@ Collections are extra lists of documents, for example "Needs research" or "Scene
 | Zoom the area under the mouse | Ctrl+mouse wheel |
 | Show or hide the ruler | Ctrl+Alt+R |
 | Paste without formatting | Ctrl+Shift+V |
+| Paste with formatting (from other programs) | Ctrl+Alt+Shift+V |
 | Undo / redo | Ctrl+Z / Ctrl+Shift+Z |
 
 **Styles** (Heading 1–6, Title, Subtitle, Block Quote, and your own) are chosen from the list at the left of the format bar. Styles tell Compile what a paragraph is, so use them instead of making text large and bold by hand. See "Styles" below.
@@ -249,9 +250,13 @@ Choosing the project's own font or size is stored as "no font of its own": such 
 
 Quick ways: the alignment buttons, the line spacing list in the format bar, **Format > Paragraph > Line Spacing**, and **Increase Indent / Decrease Indent**.
 
-Applying a paragraph style replaces the paragraph formatting set by hand; fonts set by hand stay.
+Applying a paragraph style replaces the formatting set by hand in the paragraphs it reaches: indents, spacing, alignment and tab stops, and the fonts, sizes, colors, letter spacing and capitals of the text in them. Bold, italics, underlining, strikethrough, highlights and character styles stay. Select text across several paragraphs to give all of them the style, the whole of each paragraph; a selection that ends right at the start of a paragraph (for example after **Shift+Down**) leaves that paragraph alone.
 
 **Format > Copy Formatting** (**Ctrl+Alt+C**) remembers the font and paragraph formatting at the cursor; **Paste Formatting** (**Ctrl+Alt+V**) applies it to the selection, or to the whole paragraph when nothing is selected.
+
+### Invisible characters
+
+**View > Text Editing > Show Invisibles** (also the ¶ button of the toolbar) shows the characters you do not see: a dot for each space, an arrow for a tab, a small circle for a no-break space, a bent arrow for a line break (**Shift+Enter**) and ¶ at the end of each paragraph. They are drawn on the screen only, in the main text of every editor; they are never part of the text, a print or the compile. The choice is kept.
 
 ### The ruler
 
@@ -323,7 +328,7 @@ Each project stores its documents in one of two formats. You choose when you cre
 
 Switching converts every document. From RTF to Markdown, fonts, colors, alignment, left and right indents, and tab stops are kept. Line spacing, first line indent, and paragraph spacing of text that came from other programs follow the project afterwards. Take a backup first (**File > Back Up > Back Up Now**).
 
-Text pasted from other programs into a Markdown project takes the look of the text around it (bold, italics, and links stay). Text copied inside {{APP}} keeps its fonts.
+Text pasted from other programs into a Markdown project takes the look of the text around it (bold, italics, and links stay). Text copied inside {{APP}} keeps its fonts. **Edit > Paste with Formatting** (**Ctrl+Alt+Shift+V**) keeps the look of text from a word processor or a web page as well: fonts, sizes, colors, and the alignment, indents and spacing of its paragraphs (the first pasted paragraph brings its paragraph formatting only into an empty paragraph). **Edit > Paste and Match Style** (**Ctrl+Shift+V**) does the opposite and pastes plain text.
 
 To convert a single file outside a project, use **File > Convert Markdown ⇄ RTF File…**.
 
@@ -1346,6 +1351,7 @@ Shortcuts of styles belong to the name of the style: "Block Quote" has its short
 | Fonts window / paragraph window | Ctrl+T / Ctrl+Alt+P |
 | Font size bigger / smaller | Ctrl+> / Ctrl+< |
 | Copy formatting / paste formatting | Ctrl+Alt+C / Ctrl+Alt+V |
+| Paste with formatting / paste and match style | Ctrl+Alt+Shift+V / Ctrl+Shift+V |
 | No Style / Heading 1 / Heading 2 / Heading 3 | Ctrl+Alt+0 / Ctrl+Alt+1 / Ctrl+Alt+2 / Ctrl+Alt+3 |
 | Script mode / list of script elements | Ctrl+8 / Ctrl+\\ |
 | In a script: next element / change element | Enter / Tab (see section 4, Scriptwriting) |

@@ -109,15 +109,20 @@ QTextCharFormat charFormatFor(const Formatting &f, const QString &style)
     return cf;
 }
 
-void applyParagraphStyle(QTextCursor cursor, const QString &style, const Formatting &f)
+void applyParagraphStyle(QTextCursor cursor, const QString &style, const Formatting &f, StyleOver over)
 {
     QTextDocument *doc = cursor.document();
     if (!doc)
         return;
+    const bool takeOver = over == StyleOver::Paragraphs;
     const int start = cursor.selectionStart();
     const int end = cursor.selectionEnd();
     QTextBlock b = doc->findBlock(start);
-    const QTextBlock last = doc->findBlock(end);
+    QTextBlock last = doc->findBlock(end);
+    // selected down to the start of a paragraph (Shift+Down, a drag to the left edge): that
+    // paragraph holds nothing of the selection
+    if (takeOver && end > start && last != b && last.position() == end)
+        last = last.previous();
     const Style *ns = styles::find(f, style);
     cursor.beginEditBlock();
     while (b.isValid()) {
@@ -140,6 +145,11 @@ void applyParagraphStyle(QTextCursor cursor, const QString &style, const Formatt
         auto restyled = [&](QTextCharFormat cf) {
             const Style *chr = styles::findChar(f, cf.stringProperty(props::CharStyle));
             cf = styles::withoutStyles(cf, old, f);
+            if (takeOver) {
+                // fonts, sizes, colors, letter spacing and capitals set by hand go
+                direct::clearCharSpec(cf);
+                cf.clearProperty(QTextFormat::FontSizeAdjustment);
+            }
             const direct::CharSpec own = direct::charSpec(cf);
             if (ns)
                 styles::applyChars(cf, *ns);

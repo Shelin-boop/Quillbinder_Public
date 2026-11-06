@@ -176,8 +176,57 @@ QIcon get(const QString &name)
     return QIcon(new LiveEngine(name, false));
 }
 
+namespace {
+// A pilcrow drawn on a 16 x 16 grid in the color of the icon set in use (Breeze's text
+// colors), so it follows a change between light and dark like the other icons.
+class PilcrowEngine : public QIconEngine
+{
+public:
+    void paint(QPainter *p, const QRect &rect, QIcon::Mode mode, QIcon::State) override
+    {
+        QColor ink = s_darkIcons ? QColor(0xfc, 0xfc, 0xfc) : QColor(0x23, 0x26, 0x29);
+        if (mode == QIcon::Disabled)
+            ink.setAlphaF(0.4);
+        const double s = qMin(rect.width(), rect.height());
+        const double x0 = rect.x() + (rect.width() - s) / 2, y0 = rect.y() + (rect.height() - s) / 2;
+        const auto R = [&](double x, double y, double w, double h) { return QRectF(x0 + x * s / 16, y0 + y * s / 16, w * s / 16, h * s / 16); };
+        p->save();
+        p->setRenderHint(QPainter::Antialiasing);
+        p->setPen(Qt::NoPen);
+        p->setBrush(ink);
+        p->drawEllipse(R(2.5, 2, 7, 7.5));   // the bowl
+        p->drawRect(R(6, 2, 7.5, 1.5));      // the bar over both stems
+        p->drawRect(R(8, 2, 1.6, 12));       // first stem
+        p->drawRect(R(11.9, 2, 1.6, 12));    // second stem
+        p->restore();
+    }
+    QPixmap pixmap(const QSize &size, QIcon::Mode mode, QIcon::State state) override
+    {
+        return scaledPixmap(size, mode, state, 1.0);
+    }
+    QPixmap scaledPixmap(const QSize &size, QIcon::Mode mode, QIcon::State state, qreal scale) override
+    {
+        QImage img(size * scale, QImage::Format_ARGB32_Premultiplied);
+        img.fill(Qt::transparent);
+        {
+            QPainter p(&img);
+            paint(&p, QRect(QPoint(0, 0), img.size()), mode, state);
+        }
+        img.setDevicePixelRatio(scale);
+        return QPixmap::fromImage(img);
+    }
+    QSize actualSize(const QSize &size, QIcon::Mode, QIcon::State) override { return size; }
+    QList<QSize> availableSizes(QIcon::Mode, QIcon::State) override { return {QSize(16, 16), QSize(22, 22), QSize(32, 32)}; }
+    QString iconName() override { return QString::fromLatin1(kShowInvisibles); }
+    bool isNull() override { return false; }
+    QIconEngine *clone() const override { return new PilcrowEngine; }
+};
+} // namespace
+
 QIcon action(const QString &name)
 {
+    if (name == QLatin1String(kShowInvisibles))
+        return QIcon(new PilcrowEngine);
     return QIcon(new LiveEngine(name, true));
 }
 

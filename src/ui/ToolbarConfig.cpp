@@ -57,7 +57,8 @@ QStringList standard(Bar bar)
         return {QStringLiteral("view"), Separator, QStringLiteral("add"), QStringLiteral("newFolder"), QStringLiteral("trash"),
                 Spacer, QStringLiteral("searchMenu"), QStringLiteral("search"), QStringLiteral("viewModes"), Spacer,
                 QStringLiteral("bookmarks"), QStringLiteral("quickRef"), QStringLiteral("notes"), Separator,
-                QStringLiteral("compile"), Separator, QStringLiteral("composition"), QStringLiteral("showInspector")};
+                QStringLiteral("compile"), Separator, QStringLiteral("showInvisibles"), QStringLiteral("composition"),
+                QStringLiteral("showInspector")};
     return {QStringLiteral("styleCombo"), QStringLiteral("fontCombo"), QStringLiteral("sizeSpin"), QStringLiteral("lineCombo"),
             QStringLiteral("defaultTextFormatting"), QStringLiteral("showFonts"), Separator,
             QStringLiteral("bold"), QStringLiteral("italic"), QStringLiteral("underline"), QStringLiteral("strike"),

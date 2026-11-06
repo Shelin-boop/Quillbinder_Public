@@ -156,6 +156,7 @@ void AppSettings::load()
     smartQuotes = s.value(QStringLiteral("smartQuotes"), smartQuotes).toBool();
     smartDashes = s.value(QStringLiteral("smartDashes"), smartDashes).toBool();
     showRuler = s.value(QStringLiteral("showRuler"), showRuler).toBool();
+    showInvisibles = s.value(QStringLiteral("showInvisibles"), showInvisibles).toBool();
     rulerUnit = s.value(QStringLiteral("rulerUnit"), rulerUnit).toString();
     newFontFamily = s.value(QStringLiteral("newFontFamily"), newFontFamily).toString();
     newPageSetup = s.value(QStringLiteral("newPageSetup"), newPageSetup).toString();
@@ -377,6 +378,7 @@ void AppSettings::save()
     s.setValue(QStringLiteral("smartQuotes"), smartQuotes);
     s.setValue(QStringLiteral("smartDashes"), smartDashes);
     s.setValue(QStringLiteral("showRuler"), showRuler);
+    s.setValue(QStringLiteral("showInvisibles"), showInvisibles);
     s.setValue(QStringLiteral("rulerUnit"), rulerUnit);
     s.setValue(QStringLiteral("newFontFamily"), newFontFamily);
     s.setValue(QStringLiteral("newPageSetup"), newPageSetup);

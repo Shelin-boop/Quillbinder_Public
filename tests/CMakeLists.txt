@@ -132,6 +132,12 @@ target_compile_definitions(qb_v0402_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CU
 add_executable(qb_v0403_tests v0403_tests.cpp ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
 target_link_libraries(qb_v0403_tests PRIVATE qbui Qt6::Test)
 target_compile_definitions(qb_v0403_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+# Version 0.60.1: Paste with Formatting, Show Invisibles (menu, toolbar button, drawing), the total of a folder in
+# the footer and the inspector, paragraph styles over several paragraphs (xvfb-run -a ./qb_v0601_tests /tmp/shots).
+add_executable(qb_v0601_tests v0601_tests.cpp ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
+target_link_libraries(qb_v0601_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_v0601_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
 # 0.50: the release on the project page, the source files named in the license list, the media add-ons split into free
 # formats and "Extra Video and Audio Formats" (QT_QPA_PLATFORM=offscreen ./qb_v050_tests /tmp/shots). Installs
 # <build>/addons-dist/media-playback.qbpkg and media-extra-formats.qbpkg (tools/get-ffmpeg.sh, then

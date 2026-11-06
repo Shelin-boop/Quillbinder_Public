@@ -24,6 +24,7 @@
 #include <QFileInfo>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QRegularExpression>
 #include <QTemporaryDir>
 #include <QTextDocument>
 #include <cstdio>
@@ -156,8 +157,9 @@ int main(int argc, char **argv)
     const QString tools = kSource + QStringLiteral("/tools/");
 
     // ================================================================ version
-    check(QLatin1String(QB_APP_VERSION) == QLatin1String("0.60.0") && QLatin1String(QB_APP_VERSION_SHOWN) == QLatin1String("0.60.0 alpha"),
-          QStringLiteral("the version is 0.60.0, shown as \"0.60.0 alpha\""), QStringLiteral(QB_APP_VERSION_SHOWN));
+    check(Project::compareVersionText(QLatin1String(QB_APP_VERSION), QStringLiteral("0.60.0")) >= 0
+              && QLatin1String(QB_APP_VERSION_SHOWN).endsWith(QLatin1String(" alpha")),
+          QStringLiteral("the version is 0.60.0 or newer, shown with \"alpha\""), QStringLiteral(QB_APP_VERSION_SHOWN));
 
     // ================================================================ About names FFmpeg with its license
     {
@@ -329,8 +331,12 @@ int main(int argc, char **argv)
                   && notes.contains(QLatin1String("the full version, with all add-ons and the libraries they need included")),
               QStringLiteral("the release text names the one media package in the steps and first among the add-ons"), notes.left(2500));
         const QString news = run(QStringLiteral("python3"), {QStringLiteral("-I"), tools + QStringLiteral("release-notes.py"), QStringLiteral("--whats-new")}, &rc);
-        check(rc == 0 && news.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size() >= 3 && news.contains(QLatin1String("one package")),
-              QStringLiteral("the what's-new lines of 0.60 come from docs/CHANGES.md"), news);
+        // the newest section of docs/CHANGES.md (0.60.0: "one package"; later versions: their first item)
+        const QString changes = QString::fromUtf8(readAll(kSource + QStringLiteral("/docs/CHANGES.md")));
+        const QRegularExpressionMatch first = QRegularExpression(QStringLiteral("\\n- \\*\\*([^*]+)\\*\\*")).match(changes);
+        check(rc == 0 && news.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size() >= 3 && first.hasMatch()
+                  && news.contains(first.captured(1)),
+              QStringLiteral("the what's-new lines of this version come from the newest section of docs/CHANGES.md"), news);
         const QString readme = QString::fromUtf8(readAll(kSource + QStringLiteral("/README.md")));
         check(readme.contains(QLatin1String("media-all-formats.qbpkg")) && !readme.contains(QLatin1String("Known issues in 0.50"))
                   && readme.contains(QLatin1String("not made by or connected with Literature & Latte"))

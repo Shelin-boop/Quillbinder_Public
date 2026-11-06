@@ -15,6 +15,9 @@ namespace icons {
 QIcon get(const QString &name);
 // Toolbar / menu icon: desktop theme first (KDE Breeze), bundled fallback.
 QIcon action(const QString &name);
+// Icons drawn by the program (no set has them under a standard name): the pilcrow of
+// View > Text Editing > Show Invisibles (0.60.1).
+inline constexpr char kShowInvisibles[] = "qb-show-invisibles";
 
 QIcon forItem(const Project *project, const BinderItem *item);
 QString defaultIconName(const Project *project, const BinderItem *item);

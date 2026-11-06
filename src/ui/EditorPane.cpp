@@ -439,6 +439,11 @@ void EditorPane::buildFooter()
     m_countButton->setAutoRaise(true);
     m_countButton->setToolTip(tr("Click for details"));
     tl->addWidget(m_countButton);
+    // a folder (or a text with subdocuments) shown alone: the total of everything in it (0.60.1)
+    m_folderCount = new QLabel(tf);
+    m_folderCount->setObjectName(QStringLiteral("folderCount"));
+    m_folderCount->hide();
+    tl->addWidget(m_folderCount);
     tl->addStretch(1);
     // script mode: what Tab and Enter do, and the element of the paragraph
     m_scriptHint = new QLabel(tf);
@@ -543,6 +548,10 @@ void EditorPane::buildFooter()
     cl->addWidget(m_corkLabels);
     cl->addWidget(m_corkCommit);
     cl->addStretch(1);
+    m_corkCount = new QLabel(cf);
+    m_corkCount->setObjectName(QStringLiteral("folderCountCorkboard"));
+    cl->addWidget(m_corkCount);
+    cl->addSpacing(12);
     cl->addWidget(new QLabel(tr("Size"), cf));
     cl->addWidget(m_cardSize);
     cl->addWidget(m_affectCork);
@@ -570,6 +579,10 @@ void EditorPane::buildFooter()
     ol->addWidget(m_synopsisToggle);
     ol->addWidget(cols);
     ol->addStretch(1);
+    m_outlinerCount = new QLabel(of);
+    m_outlinerCount->setObjectName(QStringLiteral("folderCountOutliner"));
+    ol->addWidget(m_outlinerCount);
+    ol->addSpacing(12);
     ol->addWidget(m_affectOutliner);
     m_footer->addWidget(of);
     connect(m_synopsisToggle, &QToolButton::toggled, m_outliner, &Outliner::setShowSynopsis);
@@ -1030,6 +1043,7 @@ void EditorPane::refresh()
         }
     }
     refreshHeader();
+    updateFolderCount(); // items moved into or out of the folder shown
 }
 
 void EditorPane::pushHistory()
@@ -1270,8 +1284,44 @@ void EditorPane::focusEditor()
         m_outliner->setFocus();
 }
 
+QString EditorPane::folderCountText() const
+{
+    QList<BinderItem *> roots;
+    if (m_mode == ViewMode::Single) {
+        if (m_items.size() == 1 && m_items.first()->isContainer())
+            roots << m_items.first();
+    } else if (m_mode == ViewMode::Corkboard || m_mode == ViewMode::Outliner) {
+        roots = BinderModel::topLevelOnly(m_items);
+    }
+    if (roots.isEmpty())
+        return QString();
+    const bool chars = AppSettings::instance().countCharacters;
+    int n = 0;
+    for (const BinderItem *it : std::as_const(roots))
+        n += chars ? it->totalCharCount() : it->totalWordCount();
+    const QString num = QLocale().toString(n);
+    if (roots.size() > 1)
+        return chars ? tr("Total: %1 characters").arg(num) : tr("Total: %1 words").arg(num);
+    if (roots.first()->isFolder())
+        return chars ? tr("Folder: %1 characters").arg(num) : tr("Folder: %1 words").arg(num);
+    return chars ? tr("With subdocuments: %1 characters").arg(num) : tr("With subdocuments: %1 words").arg(num);
+}
+
+void EditorPane::updateFolderCount()
+{
+    const QString t = folderCountText();
+    const QString tip = m_items.size() > 1 ? tr("The words of the items shown and of everything inside them")
+                                           : tr("The words of this item's own text and of everything inside it");
+    for (QLabel *l : {m_folderCount, m_corkCount, m_outlinerCount}) {
+        l->setText(t);
+        l->setToolTip(tip);
+    }
+    m_folderCount->setVisible(m_mode == ViewMode::Single && !t.isEmpty());
+}
+
 void EditorPane::updateCounts()
 {
+    updateFolderCount();
     if (m_mode != ViewMode::Single && m_mode != ViewMode::Combined)
         return;
     const bool chars = AppSettings::instance().countCharacters;

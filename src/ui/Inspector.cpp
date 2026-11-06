@@ -115,6 +115,11 @@ protected:
 
 Inspector::Inspector(QWidget *parent) : QWidget(parent)
 {
+    // words or characters for the total of a folder (File > Options)
+    connect(&AppSettings::instance(), &AppSettings::changed, this, [this] {
+        if (m_total)
+            refreshTotal();
+    });
     auto *lay = new QVBoxLayout(this);
     lay->setContentsMargins(0, 0, 0, 0);
     lay->setSpacing(0);
@@ -756,6 +761,12 @@ QWidget *Inspector::buildMetadataTab()
     m_sectionType = new QComboBox(w);
     gen->addRow(tr("Created:"), m_created);
     gen->addRow(tr("Modified:"), m_modified);
+    // a folder or a text with subdocuments: the words of all its texts (0.60.1)
+    m_total = new QLabel(w);
+    m_total->setObjectName(QStringLiteral("inspectorFolderCount"));
+    m_total->setToolTip(tr("The words of this item's own text and of everything inside it"));
+    gen->addRow(tr("Total:"), m_total);
+    m_totalForm = gen;
     gen->addRow(QString(), m_include);
     gen->addRow(tr("Section type:"), m_sectionType);
     l->addLayout(gen);
@@ -872,6 +883,19 @@ QWidget *Inspector::buildMetadataTab()
     return scroll;
 }
 
+void Inspector::refreshTotal()
+{
+    const bool show = m_item && m_project && m_item->isContainer();
+    if (show) {
+        const bool chars = AppSettings::instance().countCharacters;
+        const QString n = QLocale().toString(chars ? m_item->totalCharCount() : m_item->totalWordCount());
+        m_total->setText(chars ? tr("%1 characters").arg(n) : tr("%1 words").arg(n));
+    }
+    m_total->setVisible(show);
+    if (QWidget *label = m_totalForm->labelForField(m_total))
+        label->setVisible(show);
+}
+
 void Inspector::refreshMetadata()
 {
     m_updating = true;
@@ -879,6 +903,7 @@ void Inspector::refreshMetadata()
     QLocale loc;
     m_created->setText(has ? m_item->created.toString(QStringLiteral("yyyy-MM-dd HH:mm")) : QString());
     m_modified->setText(has ? m_item->modified.toString(QStringLiteral("yyyy-MM-dd HH:mm")) : QString());
+    refreshTotal();
     m_include->setEnabled(has && m_project->isInDraft(m_item) && m_item != m_project->draft());
     m_include->setChecked(has && m_item->includeInCompile);
     m_sectionType->clear();
@@ -1683,6 +1708,7 @@ void Inspector::setProject(Project *p)
                     return;
                 }
         });
+        connect(p, &Project::countsChanged, this, [this] { refreshTotal(); });
         connect(p, &Project::itemChanged, this, [this](BinderItem *it) {
             if (it == m_item && !m_updating) {
                 m_updating = true;
