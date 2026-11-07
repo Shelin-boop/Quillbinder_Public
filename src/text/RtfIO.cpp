@@ -1,4 +1,5 @@
 #include "text/RtfIO.h"
+#include "text/FontFaces.h"
 
 #include "text/Script.h"
 #include "text/DirectFormat.h"
@@ -559,6 +560,7 @@ private:
 
     // tables
     QMap<int, QString> m_fonts;
+    QMap<int, fontfaces::Resolved> m_fontFaces; // what a font name that is no family stands for
     QMap<int, int> m_fontCharset;
     int m_curFont = -1;
     QString m_fontName;
@@ -1156,8 +1158,11 @@ private:
         if (d == D_FontTable) {
             for (char ch : bytes) {
                 if (ch == ';') {
-                    if (m_curFont >= 0)
+                    if (m_curFont >= 0) {
                         m_fonts[m_curFont] = m_fontName.trimmed();
+                        // a face name such as "SitkaTextItalic" stands for an installed family (0.60.3)
+                        m_fontFaces[m_curFont] = fontfaces::substituteUnknown(m_fonts[m_curFont]);
+                    }
                     m_fontName.clear();
                 } else {
                     m_fontName += QLatin1Char(ch);
@@ -1273,6 +1278,12 @@ private:
             const QString fam = c.f >= 0 ? m_fonts.value(c.f) : QString();
             if (!fam.isEmpty() && fam.compare(m_bodyFamily, Qt::CaseInsensitive) != 0)
                 f.setFontFamilies(QStringList{fam});
+            // a face name that says italic or bold ("Georgia-BoldItalic") without \i or \b (0.60.3)
+            const fontfaces::Resolved face = c.f >= 0 ? m_fontFaces.value(c.f) : fontfaces::Resolved();
+            if (face.italic)
+                f.setFontItalic(true);
+            if (face.bold && !c.b)
+                f.setFontWeight(QFont::Bold);
             if (c.fs > 0 && qAbs(c.fs / 2.0 - m_f.fontSize) > 0.01)
                 f.setFontPointSize(c.fs / 2.0);
             if (c.cf > 0 && c.cf < m_colors.size()) {

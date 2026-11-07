@@ -109,6 +109,9 @@ public:
     void updateFooter();
     // "Folder: 1,234 words": the total of the folder (or the items) shown; empty when none is (0.60.1)
     QString folderCountText() const;
+    // The details of the folder total (words, characters, characters without spaces,
+    // paragraphs, pages), one line each, as the count of a text shows them (0.60.3).
+    QStringList folderCountDetails() const;
     void showFindBar(bool replace);
     void findNext(bool backward);
     void setSearchHighlight(const QString &term);
@@ -149,6 +152,8 @@ signals:
     void navigateSibling(qb::EditorPane *pane, bool next);
     void quickReferenceRequested(qb::BinderItem *item);
     void copyholderChanged(qb::EditorPane *pane);
+    // a double-click beside the text: show its document in the binder (0.60.3)
+    void revealRequested(qb::EditorPane *pane);
 
 protected:
     bool eventFilter(QObject *o, QEvent *e) override;
@@ -168,6 +173,8 @@ private:
     void pushHistory();
     void updateCounts();
     void updateFolderCount();
+    QList<BinderItem *> countRoots() const;
+    void showCountDetails(QToolButton *button, const QStringList &lines);
     void updatePageLabel();
     void placeCopyholder(const QString &placement);
     void updateAffectButtons();
@@ -219,7 +226,8 @@ private:
     QStackedWidget *m_footer;
     QComboBox *m_zoom;
     QToolButton *m_countButton;
-    QLabel *m_folderCount, *m_corkCount, *m_outlinerCount; // the total of a folder (0.60.1)
+    // the total of a folder (0.60.1); buttons with the details since 0.60.3
+    QToolButton *m_folderCount, *m_corkCount, *m_outlinerCount;
     QLabel *m_scriptHint;
     QToolButton *m_scriptElement;
     QToolButton *m_targetButton;

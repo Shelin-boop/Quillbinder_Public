@@ -221,12 +221,96 @@ public:
     bool isNull() override { return false; }
     QIconEngine *clone() const override { return new PilcrowEngine; }
 };
+
+// The paragraph buttons (0.60.4), drawn on a 16 x 16 grid like the pilcrow: lines of text, and
+// an arrow that shows the space or the indent the button sets.
+class ParagraphEngine : public QIconEngine
+{
+public:
+    explicit ParagraphEngine(const QString &kind) : m_kind(kind) {}
+    void paint(QPainter *p, const QRect &rect, QIcon::Mode mode, QIcon::State) override
+    {
+        QColor ink = s_darkIcons ? QColor(0xfc, 0xfc, 0xfc) : QColor(0x23, 0x26, 0x29);
+        if (mode == QIcon::Disabled)
+            ink.setAlphaF(0.4);
+        QColor accent(0x3d, 0xae, 0xe9); // the arrow, in Breeze's blue
+        if (mode == QIcon::Disabled)
+            accent.setAlphaF(0.4);
+        const double s = qMin(rect.width(), rect.height());
+        const double x0 = rect.x() + (rect.width() - s) / 2, y0 = rect.y() + (rect.height() - s) / 2;
+        const auto P = [&](double x, double y) { return QPointF(x0 + x * s / 16, y0 + y * s / 16); };
+        const auto line = [&](double x, double y, double w) { p->fillRect(QRectF(P(x, y), P(x + w, y + 1.4)), ink); };
+        // an arrow from a to b with a head at b (and at a when both)
+        const auto arrow = [&](QPointF a, QPointF b, bool both) {
+            p->setPen(QPen(accent, qMax(1.0, s / 11), Qt::SolidLine, Qt::FlatCap));
+            p->drawLine(a, b);
+            p->setPen(Qt::NoPen);
+            p->setBrush(accent);
+            const auto head = [&](QPointF tip, QPointF from) {
+                const QPointF d = tip - from;
+                const double len = std::hypot(d.x(), d.y());
+                const QPointF u = d / len, n(-u.y(), u.x());
+                const double h = s * 3.2 / 16;
+                p->drawPolygon(QPolygonF({tip + u * (h * 0.25), tip - u * h + n * (h * 0.75), tip - u * h - n * (h * 0.75)}));
+            };
+            head(b, a);
+            if (both)
+                head(a, b);
+        };
+        p->save();
+        p->setRenderHint(QPainter::Antialiasing);
+        if (m_kind == QLatin1String(kSpaceBefore)) {
+            line(1, 1, 14);                                  // the paragraph above
+            arrow(P(4, 3.4), P(4, 8.0), true);              // the space
+            for (double y : {9.6, 12.0, 14.4})
+                line(1, y, 14);
+        } else if (m_kind == QLatin1String(kSpaceAfter)) {
+            for (double y : {0.6, 3.0, 5.4})
+                line(1, y, 14);
+            arrow(P(4, 7.8), P(4, 12.4), true);
+            line(1, 14.6, 14);                               // the paragraph below
+        } else if (m_kind == QLatin1String(kIndentFirst)) {
+            arrow(P(1, 2.7), P(6.2, 2.7), false);           // the first line moves in
+            line(7.5, 2, 7.5);
+            for (double y : {6.0, 9.6, 13.2})
+                line(1, y, 14);
+        } else { // the whole paragraph
+            arrow(P(1, 8), P(5.4, 8), false);
+            for (double y : {2.0, 5.6, 9.2, 12.8})
+                line(7, y, 8);
+        }
+        p->restore();
+    }
+    QPixmap pixmap(const QSize &size, QIcon::Mode mode, QIcon::State state) override { return scaledPixmap(size, mode, state, 1.0); }
+    QPixmap scaledPixmap(const QSize &size, QIcon::Mode mode, QIcon::State state, qreal scale) override
+    {
+        QImage img(size * scale, QImage::Format_ARGB32_Premultiplied);
+        img.fill(Qt::transparent);
+        {
+            QPainter p(&img);
+            paint(&p, QRect(QPoint(0, 0), img.size()), mode, state);
+        }
+        img.setDevicePixelRatio(scale);
+        return QPixmap::fromImage(img);
+    }
+    QSize actualSize(const QSize &size, QIcon::Mode, QIcon::State) override { return size; }
+    QList<QSize> availableSizes(QIcon::Mode, QIcon::State) override { return {QSize(16, 16), QSize(22, 22), QSize(32, 32)}; }
+    QString iconName() override { return m_kind; }
+    bool isNull() override { return false; }
+    QIconEngine *clone() const override { return new ParagraphEngine(m_kind); }
+
+private:
+    QString m_kind;
+};
 } // namespace
 
 QIcon action(const QString &name)
 {
     if (name == QLatin1String(kShowInvisibles))
         return QIcon(new PilcrowEngine);
+    for (const char *k : {kSpaceBefore, kSpaceAfter, kIndentFirst, kIndentLeft})
+        if (name == QLatin1String(k))
+            return QIcon(new ParagraphEngine(name));
     return QIcon(new LiveEngine(name, true));
 }
 

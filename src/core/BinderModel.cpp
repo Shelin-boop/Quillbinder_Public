@@ -106,8 +106,16 @@ QVariant BinderModel::data(const QModelIndex &index, int role) const
             return icons::forItem(m_project, it);
         if (role == Qt::ToolTipRole) {
             QString tip = it->title;
-            if (it->hasText())
-                tip += QStringLiteral("\n") + text::plural(it->wordCount, tr("word"), tr("words"));
+            const auto words = [](int n) { return QLocale().toString(n) + QLatin1Char(' ') + (n == 1 ? tr("word") : tr("words")); };
+            if (it->isContainer() && it->type != ItemType::Trash) {
+                // a folder (or a text with subdocuments): its own text and everything inside it,
+                // as the editor's footer shows it (0.60.3; was the folder's own text only)
+                tip += QStringLiteral("\n") + words(it->totalWordCount());
+                if (it->hasText() && it->wordCount > 0 && !it->children.isEmpty())
+                    tip += QStringLiteral("\n") + tr("(its own text: %1)").arg(words(it->wordCount));
+            } else if (it->hasText()) {
+                tip += QStringLiteral("\n") + words(it->wordCount);
+            }
             return tip;
         }
         return QVariant();

@@ -4,6 +4,8 @@
 #include <QFontDatabase>
 #include <QGuiApplication>
 #include <QList>
+#include <QMutex>
+#include <atomic>
 #include <QMap>
 #include <QSet>
 #include <QTimer>
@@ -488,6 +490,127 @@ void install()
 QHash<QString, QString> separatedFamilies()
 {
     return s_made;
+}
+
+// ---- font names that are not families (0.60.3)
+
+static QString squeezed(const QString &s)
+{
+    QString out;
+    out.reserve(s.size());
+    for (const QChar c : s)
+        if (c.isLetterOrNumber())
+            out += c;
+    return out;
+}
+
+// What was worked out, kept until the fonts change (every text that is read asks again).
+static QMutex s_namesLock;
+static std::atomic<bool> s_namesDirty{true}; // set without the lock: the signal may come while it is held
+static QHash<QString, QString> s_familiesByKey; // "sitkatext" -> "Sitka Text"
+static QHash<QString, Resolved> s_resolved;
+
+static const QHash<QString, QString> &familiesByKey()
+{
+    static bool hooked = false;
+    if (!hooked && qGuiApp) {
+        hooked = true;
+        QObject::connect(qGuiApp, &QGuiApplication::fontDatabaseChanged, qGuiApp, [] { s_namesDirty = true; });
+    }
+    if (s_namesDirty) {
+        s_familiesByKey.clear();
+        s_resolved.clear();
+        for (const QString &f : QFontDatabase::families()) {
+            const QString k = squeezed(f).toLower();
+            if (!s_familiesByKey.contains(k) || f.size() < s_familiesByKey.value(k).size())
+                s_familiesByKey.insert(k, f);
+        }
+        s_namesDirty = false;
+    }
+    return s_familiesByKey;
+}
+
+static Resolved resolveUnlocked(const QString &name);
+
+Resolved resolve(const QString &name)
+{
+    QMutexLocker lock(&s_namesLock);
+    familiesByKey();
+    const auto hit = s_resolved.constFind(name);
+    if (hit != s_resolved.constEnd())
+        return *hit;
+    const Resolved r = resolveUnlocked(name);
+    s_resolved.insert(name, r);
+    return r;
+}
+
+static Resolved resolveUnlocked(const QString &name)
+{
+    Resolved r;
+    const QString trimmed = name.trimmed();
+    if (trimmed.isEmpty())
+        return r;
+    const QHash<QString, QString> &fams = s_familiesByKey;
+    QString stem = squeezed(trimmed); // the case is kept for the words of a name such as "SitkaText"
+    auto found = [&](const QString &s) { return fams.value(s.toLower()); };
+    if (QString f = found(stem); !f.isEmpty()) {
+        r.family = f;
+        if (f.compare(trimmed, Qt::CaseInsensitive) == 0)
+            return r; // a family as it is
+    }
+    // style words at the end, as in face and PostScript names: "...BoldItalic", "...-ItalicMT"
+    static const struct {
+        const char *word;
+        bool bold, italic;
+    } words[] = {{"bolditalic", true, true}, {"boldoblique", true, true}, {"semibolditalic", false, true}, {"italic", false, true},
+                 {"oblique", false, true}, {"semibold", false, false}, {"demibold", false, false}, {"extrabold", false, false},
+                 {"bold", true, false}, {"regular", false, false}, {"medium", false, false}, {"light", false, false},
+                 {"book", false, false}, {"psmt", false, false}, {"mt", false, false}, {"ps", false, false}};
+    bool changed = true;
+    while (r.family.isEmpty() && changed) {
+        changed = false;
+        for (const auto &w : words) {
+            const QLatin1String word(w.word);
+            if (stem.size() > word.size() + 1 && stem.endsWith(word, Qt::CaseInsensitive)) {
+                stem.chop(word.size());
+                r.bold = r.bold || w.bold;
+                r.italic = r.italic || w.italic;
+                changed = true;
+                r.family = found(stem);
+                break;
+            }
+        }
+    }
+    // a design that is not a family of its own here: "SitkaText" -> "Sitka"
+    if (r.family.isEmpty()) {
+        QStringList parts;
+        QString cur;
+        for (int i = 0; i < stem.size(); ++i) {
+            if (i > 0 && stem.at(i).isUpper() && !cur.isEmpty() && !stem.at(i - 1).isUpper()) {
+                parts << cur;
+                cur.clear();
+            }
+            cur += stem.at(i);
+        }
+        if (!cur.isEmpty())
+            parts << cur;
+        while (parts.size() > 1 && r.family.isEmpty()) {
+            parts.removeLast();
+            r.family = found(parts.join(QString()));
+        }
+    }
+    return r;
+}
+
+Resolved substituteUnknown(const QString &name)
+{
+    const Resolved r = resolve(name);
+    const QString n = name.trimmed();
+    if (r.family.isEmpty() || r.family.compare(n, Qt::CaseInsensitive) == 0)
+        return r;
+    if (!QFont::substitutes(n).contains(r.family))
+        QFont::insertSubstitution(n, r.family);
+    return r;
 }
 
 } // namespace fontfaces

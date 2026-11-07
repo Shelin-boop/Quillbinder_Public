@@ -18,6 +18,12 @@ QIcon action(const QString &name);
 // Icons drawn by the program (no set has them under a standard name): the pilcrow of
 // View > Text Editing > Show Invisibles (0.60.1).
 inline constexpr char kShowInvisibles[] = "qb-show-invisibles";
+// The paragraph buttons of the format bar (0.60.4): space before, space after, first line
+// indent, indent of the whole paragraph.
+inline constexpr char kSpaceBefore[] = "qb-space-before";
+inline constexpr char kSpaceAfter[] = "qb-space-after";
+inline constexpr char kIndentFirst[] = "qb-indent-first";
+inline constexpr char kIndentLeft[] = "qb-indent-left";
 
 QIcon forItem(const Project *project, const BinderItem *item);
 QString defaultIconName(const Project *project, const BinderItem *item);

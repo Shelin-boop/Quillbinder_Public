@@ -261,7 +261,7 @@
   },
   {
    "name": "pcre2",
-   "version": "10.42-4ubuntu2.1",
+   "version": "10.42-4ubuntu2.2",
    "license": "BSD-3-clause-Cambridge with BINARY LIBRARY-LIKE PACKAGES exception, BSD-3-clause, X11, BSD-2-clause, public-domain",
    "where": "libpcre2-16.so.0",
    "files": [
@@ -269,8 +269,8 @@
    ],
    "text": "ubuntu-pcre2.txt",
    "package": "pcre2",
-   "sourceFile": "pcre2_10.42-4ubuntu2.1.src.tar",
-   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file pcre2_10.42-4ubuntu2.1.src.tar (the Ubuntu 24.04 source package pcre2 10.42-4ubuntu2.1; also from Ubuntu: apt-get source pcre2=10.42-4ubuntu2.1)"
+   "sourceFile": "pcre2_10.42-4ubuntu2.2.src.tar",
+   "source": "https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources, file pcre2_10.42-4ubuntu2.2.src.tar (the Ubuntu 24.04 source package pcre2 10.42-4ubuntu2.2; also from Ubuntu: apt-get source pcre2=10.42-4ubuntu2.2)"
   },
   {
    "name": "qt6-base",

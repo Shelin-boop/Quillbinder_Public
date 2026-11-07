@@ -1,4 +1,5 @@
 #include "text/DirectFormat.h"
+#include "text/FontFaces.h"
 
 #include "text/DisplayFormat.h"
 #include "text/TextProps.h"
@@ -225,6 +226,7 @@ CharSpec charSpecFromCss(const QString &css)
             // first family of a list, without quotes
             val = val.section(QLatin1Char(','), 0, 0);
             s.family = cleanFamily(val);
+            fontfaces::substituteUnknown(s.family); // a face name such as "SitkaTextItalic" (0.60.3)
         } else if (key == QLatin1String("font-size")) {
             bool ok = false;
             const double px = lengthToPx(val, &ok);

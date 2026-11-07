@@ -39,6 +39,11 @@ QList<Special> specials(Bar bar)
         {QStringLiteral("fontCombo"), QObject::tr("Font list"), QStringLiteral("font")},
         {QStringLiteral("sizeSpin"), QObject::tr("Font size"), QStringLiteral("format-font-size-more")},
         {QStringLiteral("lineCombo"), QObject::tr("Line spacing list"), QStringLiteral("format-justify-fill")},
+        // the paragraph buttons (0.60.4)
+        {QStringLiteral("spaceBefore"), QObject::tr("Space before the paragraph"), QLatin1String(icons::kSpaceBefore)},
+        {QStringLiteral("spaceAfter"), QObject::tr("Space after the paragraph"), QLatin1String(icons::kSpaceAfter)},
+        {QStringLiteral("indentFirst"), QObject::tr("Indent of the first line"), QLatin1String(icons::kIndentFirst)},
+        {QStringLiteral("indentLeft"), QObject::tr("Indent of the whole paragraph"), QLatin1String(icons::kIndentLeft)},
     };
 }
 
@@ -65,7 +70,8 @@ QStringList standard(Bar bar)
             QStringLiteral("highlight"), QStringLiteral("textColor"), Separator,
             QStringLiteral("alignLeft"), QStringLiteral("alignCenter"), QStringLiteral("alignRight"), QStringLiteral("alignJustify"),
             Separator, QStringLiteral("bullets"), QStringLiteral("numbers"), Separator,
-            QStringLiteral("comment"), QStringLiteral("footnote"), QStringLiteral("annotation"), QStringLiteral("image")};
+            QStringLiteral("spaceBefore"), QStringLiteral("spaceAfter"), QStringLiteral("indentFirst"), QStringLiteral("indentLeft"),
+            Separator, QStringLiteral("comment"), QStringLiteral("footnote"), QStringLiteral("annotation"), QStringLiteral("image")};
 }
 
 QStringList configured(Bar bar)

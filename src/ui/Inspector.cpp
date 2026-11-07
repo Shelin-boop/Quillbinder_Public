@@ -2077,6 +2077,22 @@ void Inspector::applyTheme()
     QPalette p = QApplication::palette();
     p.setColor(QPalette::Window, theme::color(theme::Role::InspectorBackground));
     p.setColor(QPalette::WindowText, theme::color(theme::Role::InspectorText));
+    // the lists and text fields of the inspector: "Inspector Background" (0.60.3), with a text
+    // color that can be read on it
+    const QColor fields = theme::color(theme::Role::InspectorFields), text = theme::readableOn(fields);
+    for (QPalette::ColorGroup g : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
+        p.setColor(g, QPalette::Base, fields);
+        p.setColor(g, QPalette::AlternateBase, fields.lightness() < 128 ? fields.lighter(118) : fields.darker(104));
+    }
+    for (QPalette::ColorGroup g : {QPalette::Active, QPalette::Inactive}) {
+        p.setColor(g, QPalette::Text, text);
+        QColor ph = text;
+        ph.setAlpha(140);
+        p.setColor(g, QPalette::PlaceholderText, ph);
+    }
+    QColor off = text;
+    off.setAlpha(120);
+    p.setColor(QPalette::Disabled, QPalette::Text, off);
     setPalette(p);
     theme::styleView(m_synopsis, theme::Role::SynopsisPaper, theme::Role::SynopsisText, theme::FontRole::Synopsis);
     theme::styleView(m_notes, theme::Role::NotesPaper, theme::Role::NotesText);

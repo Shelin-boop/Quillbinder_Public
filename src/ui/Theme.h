@@ -39,6 +39,9 @@ enum class Role {
     Window, WindowText, Base, AlternateBase, Text, Button, ButtonText, Highlight, HighlightedText, Link,
     ToolTipBase, ToolTipText, Mid, Dark, Light, DisabledText,
     TargetSession, TargetDraft, TargetReached,
+    // the lists and text fields of the inspector, the same in every project (0.60.3: was the
+    // background of all lists and text fields, "Lists and text fields")
+    InspectorFields,
     // binder
     BinderBackground, BinderText,
     // main editor
@@ -170,6 +173,14 @@ bool nameInUse(const QString &name, const QString &exceptId = QString());
 // Background, text color and font of a list, tree or text field.
 void styleView(QWidget *view, Role background, Role text, FontRole font);
 void styleView(QWidget *view, Role background, Role text);
+
+// The lists and text fields inside w (and w itself) take the color of the window and its text
+// (0.60.3: the toolbars, the page list of the options), also after the theme changes.
+void panelFields(QWidget *w);
+
+// Text that can be read on a background: the theme's text color when the background is as dark
+// as the theme's lists, else a light or a dark gray.
+QColor readableOn(const QColor &background);
 
 // Emits changed() at the end of apply(); widgets that paint with theme
 // colors connect to it.

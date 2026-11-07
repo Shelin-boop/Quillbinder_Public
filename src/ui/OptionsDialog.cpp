@@ -106,7 +106,7 @@ QList<LookPage> lookPages()
         return out;
     };
     return {{QT_TRANSLATE_NOOP("OptionsDialog", "General Interface"),
-             l({"window", "windowText", "base", "alternateBase", "text", "button", "buttonText", "highlight", "highlightedText", "link",
+             l({"window", "windowText", "inspectorFields", "alternateBase", "text", "button", "buttonText", "highlight", "highlightedText", "link",
                 "toolTipBase", "toolTipText", "mid", "dark", "light", "disabledText"}),
              l({"interface"})},
             {QT_TRANSLATE_NOOP("OptionsDialog", "Binder"), l({"binderBackground", "binderText"}), l({"binder"})},
@@ -180,6 +180,7 @@ OptionsDialog::OptionsDialog(QWidget *parent, int page) : QDialog(parent)
     m_pages->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_pages->setFrameShape(QFrame::NoFrame);
     m_pages->setBackgroundRole(QPalette::Window);
+    theme::panelFields(m_pages); // the color of the window, as the menus (0.60.3)
     const QList<std::pair<QString, QString>> sections = {
         {tr("General"), QStringLiteral("configure")},          {tr("Editing"), QStringLiteral("document-edit")},
         {tr("Behaviors"), QStringLiteral("view-choose")},       {tr("Appearance"), QStringLiteral("format-text-color")},
@@ -260,6 +261,7 @@ QWidget *OptionsDialog::subPages(int section, const QList<std::pair<QString, QWi
     auto *list = new QListWidget(w);
     list->setObjectName(listName);
     list->setFixedWidth(190);
+    theme::panelFields(list);
     auto *stack = new QStackedWidget(w);
     for (const auto &p : pages) {
         list->addItem(p.first);
@@ -1060,6 +1062,7 @@ QWidget *OptionsDialog::appearanceSection()
     m_areas = new QListWidget(w);
     m_areas->setObjectName(QStringLiteral("appearanceAreas"));
     m_areas->setFixedWidth(190);
+    theme::panelFields(m_areas);
     m_areaStack = new QStackedWidget(w);
     const QList<LookPage> pages = lookPages();
     for (int i = 0; i < pages.size(); ++i) {

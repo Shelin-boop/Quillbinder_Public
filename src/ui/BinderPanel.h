@@ -3,6 +3,7 @@
 #include "core/ProjectTypes.h"
 
 #include <QListWidget>
+#include <QPersistentModelIndex>
 #include <QPointer>
 #include <QTabBar>
 #include <QTimer>
@@ -132,6 +133,9 @@ public:
     BinderItem *currentItem() const;
     void select(const QList<BinderItem *> &items, bool notify);
     void reveal(BinderItem *item);
+    // The item's row blinks twice in a color that stands out (0.60.3: Reveal in Binder, and a
+    // double-click beside the text). The blink is a widget named "binderFlash" over the row.
+    void flash(BinderItem *item);
     void editTitle(BinderItem *item);
     void setFooterMenus(QMenu *addMenu, QMenu *gearMenu);
 
@@ -184,9 +188,14 @@ private:
     void onTabChanged(int index);
     void buildSearchMenu();
     void selectSearchTab(bool search);
+    void flashStep();
 
     QPointer<Project> m_project;
     BinderTree *m_tree = nullptr;
+    QWidget *m_flash = nullptr;
+    QTimer m_flashTimer;
+    QPersistentModelIndex m_flashIndex;
+    int m_flashStep = 0;
     QWidget *m_searchBar = nullptr;
     QLineEdit *m_searchEdit = nullptr;
     QToolButton *m_searchOptions = nullptr;

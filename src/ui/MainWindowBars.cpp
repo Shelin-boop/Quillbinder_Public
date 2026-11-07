@@ -11,6 +11,7 @@
 #include "core/Search.h"
 #include "text/Styles.h"
 #include "ui/AppSettings.h"
+#include "text/DirectFormat.h"
 #include "ui/BinderPanel.h"
 #include "ui/Commands.h"
 #include "ui/Corkboard.h"
@@ -27,6 +28,7 @@
 #include "ui/Windows.h"
 
 #include <QActionGroup>
+#include <QInputDialog>
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -870,6 +872,101 @@ void MainWindow::createToolBars()
             showParagraphDialog(e);
         e->setFocus();
         updateFormatBar();
+    });
+
+    // the paragraph buttons (0.60.4): a menu of usual values and "Other..." each
+    const char *paraIds[4] = {"spaceBefore", "spaceAfter", "indentFirst", "indentLeft"};
+    const char *paraIcons[4] = {icons::kSpaceBefore, icons::kSpaceAfter, icons::kIndentFirst, icons::kIndentLeft};
+    const QString paraTips[4] = {tr("Space before the paragraph (pt)"), tr("Space after the paragraph (pt)"),
+                                 tr("Indent of the first line"), tr("Indent of the whole paragraph")};
+    for (int i = 0; i < 4; ++i) {
+        auto *b = new QToolButton;
+        b->setObjectName(QLatin1String("para_") + QLatin1String(paraIds[i]));
+        b->setIcon(icons::action(QLatin1String(paraIcons[i])));
+        b->setToolTip(paraTips[i]);
+        b->setAutoRaise(true);
+        b->setFocusPolicy(Qt::NoFocus);
+        b->setPopupMode(QToolButton::InstantPopup);
+        auto *menu = new QMenu(b);
+        menu->setObjectName(QLatin1String("paraMenu_") + QLatin1String(paraIds[i]));
+        connect(menu, &QMenu::aboutToShow, this, [this, menu, i] { fillParagraphMenu(menu, i); });
+        b->setMenu(menu);
+        m_paraButtons[i] = b;
+        wrap(QLatin1String(paraIds[i]), b);
+    }
+}
+
+// The menu of a paragraph button: the value at the cursor is ticked; spacing in pt, indents in
+// the unit of the ruler (cm or in).
+void MainWindow::fillParagraphMenu(QMenu *menu, int which)
+{
+    menu->clear();
+    TextEditor *e = editor();
+    if (!e)
+        return;
+    const direct::ParaSpec now = e->paraSpecAtCursor();
+    const bool spacing = which < 2;
+    const double currentPx = which == 0 ? now.before : which == 1 ? now.after : which == 2 ? now.first : now.left;
+    const double current = spacing ? direct::pxToPt(currentPx) : units::fromPx(currentPx);
+    const bool cm = units::metric();
+    const QList<double> values = spacing ? QList<double>{0, 3, 6, 9, 12, 18}
+                                 : which == 2 ? (cm ? QList<double>{0, 0.5, 0.75, 1, 1.25, 1.5} : QList<double>{0, 0.25, 0.375, 0.5, 0.75, 1})
+                                              : (cm ? QList<double>{0, 0.5, 1, 1.5, 2, 3} : QList<double>{0, 0.25, 0.5, 0.75, 1, 1.5});
+    const QString unit = spacing ? tr(" pt") : units::suffix();
+    const int decimals = spacing ? 1 : (cm ? 2 : 3);
+    auto show = [&](double v) {
+        QString t = QLocale().toString(v, 'f', decimals);
+        // 6.0 -> 6, 0.50 -> 0.5
+        if (t.contains(QLocale().decimalPoint())) {
+            while (t.endsWith(QLatin1Char('0')))
+                t.chop(1);
+            if (t.endsWith(QLocale().decimalPoint()))
+                t.chop(1);
+        }
+        return t + unit;
+    };
+    auto apply = [this, which, spacing](double v) {
+        TextEditor *ed = editor();
+        if (!ed)
+            return;
+        direct::ParaSpec s;
+        const double px = spacing ? direct::ptToPx(v) : units::toPx(v);
+        switch (which) {
+        case 0: s.bits = direct::Before; s.before = px; break;
+        case 1: s.bits = direct::After; s.after = px; break;
+        case 2: s.bits = direct::First; s.first = px; break;
+        default: s.bits = direct::Left; s.left = px; break;
+        }
+        ed->applyParaSpec(s);
+        ed->setFocus();
+        updateFormatBar();
+    };
+    auto *group = new QActionGroup(menu);
+    bool known = false;
+    for (double v : values) {
+        QAction *ac = menu->addAction(show(v));
+        ac->setCheckable(true);
+        const bool on = qAbs(v - current) < (spacing ? 0.05 : 0.005);
+        ac->setChecked(on);
+        known = known || on;
+        ac->setData(v);
+        group->addAction(ac);
+        connect(ac, &QAction::triggered, this, [apply, v] { apply(v); });
+    }
+    menu->addSeparator();
+    QAction *other = menu->addAction(known ? tr("Other...") : tr("Other (%1)...").arg(show(current)));
+    other->setObjectName(QStringLiteral("paraOther"));
+    other->setCheckable(!known);
+    other->setChecked(!known);
+    const QString title = m_paraButtons[which]->toolTip();
+    connect(other, &QAction::triggered, this, [this, apply, current, spacing, which, title, unit] {
+        bool ok = false;
+        const double lo = spacing ? 0 : which == 2 ? units::fromPx(-1000) : 0;
+        const double hi = spacing ? 400 : units::fromPx(2000);
+        const double v = QInputDialog::getDouble(this, title, tr("%1 in%2:").arg(title.section(QLatin1String(" ("), 0, 0), unit), current, lo,
+                                                 hi, spacing ? 1 : 2, &ok, Qt::WindowFlags(), spacing ? 0.5 : (units::metric() ? 0.25 : 0.125));
+        if (ok)
+            apply(v);
     });
 }
 

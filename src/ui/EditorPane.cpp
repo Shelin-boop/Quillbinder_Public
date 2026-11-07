@@ -155,6 +155,7 @@ EditorPane::EditorPane(QWidget *parent) : QWidget(parent)
     });
     connect(m_text, &TextColumnView::linkActivated, this, [this](const QString &h) { emit linkActivated(this, h); });
     connect(m_text, &TextColumnView::noteClicked, this, &EditorPane::noteClicked);
+    connect(m_text, &TextColumnView::besideTextDoubleClicked, this, [this] { emit revealRequested(this); });
     connect(m_text, &TextColumnView::cursorMoved, this, [this](TextEditor *e) {
         emit cursorMoved(e);
         updateCounts();
@@ -414,6 +415,43 @@ void EditorPane::updateFindHighlights()
     m_findCount->setText(bar && !m_findEdit->text().isEmpty() ? text::plural(n, tr("match"), tr("matches")) : QString());
 }
 
+// The lines of the count details of a text or a folder.
+static QStringList countLines(int words, int chars, int nospace, int paras)
+{
+    QLocale loc;
+    return EditorPane::tr("Words: %1\nCharacters: %2\nCharacters (no spaces): %3\nParagraphs: %4\nPages (250 words): %5")
+        .arg(loc.toString(words), loc.toString(chars), loc.toString(nospace), loc.toString(paras))
+        .arg(loc.toString(words / 250.0, 'f', 1))
+        .split(QLatin1Char('\n'));
+}
+
+// A footer with its tools on the left and on the right and one widget exactly in the middle
+// (0.60.3): both sides get the same width, so the middle stays centered whatever they hold.
+static void centeredFooter(QWidget *footer, QWidget *middle, QHBoxLayout **left, QHBoxLayout **right)
+{
+    auto *row = new QHBoxLayout(footer);
+    row->setContentsMargins(4, 1, 4, 1);
+    auto *l = new QWidget(footer), *r = new QWidget(footer);
+    *left = new QHBoxLayout(l);
+    *right = new QHBoxLayout(r);
+    for (QHBoxLayout *h : {*left, *right})
+        h->setContentsMargins(0, 0, 0, 0);
+    row->addWidget(l, 1);
+    row->addWidget(middle, 0);
+    row->addWidget(r, 1);
+}
+
+void EditorPane::showCountDetails(QToolButton *button, const QStringList &lines)
+{
+    if (lines.isEmpty())
+        return;
+    QMenu m;
+    m.setObjectName(QStringLiteral("countDetails"));
+    for (const QString &l : lines)
+        m.addAction(l)->setEnabled(false);
+    m.exec(button->mapToGlobal(QPoint(0, -int(m.sizeHint().height()))));
+}
+
 void EditorPane::buildFooter()
 {
     m_footer = new QStackedWidget(this);
@@ -440,8 +478,15 @@ void EditorPane::buildFooter()
     m_countButton->setToolTip(tr("Click for details"));
     tl->addWidget(m_countButton);
     // a folder (or a text with subdocuments) shown alone: the total of everything in it (0.60.1)
-    m_folderCount = new QLabel(tf);
-    m_folderCount->setObjectName(QStringLiteral("folderCount"));
+    auto folderButton = [this](QWidget *parent, const QString &name) {
+        auto *b = new QToolButton(parent);
+        b->setObjectName(name);
+        b->setAutoRaise(true);
+        b->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        connect(b, &QToolButton::clicked, this, [this, b] { showCountDetails(b, folderCountDetails()); });
+        return b;
+    };
+    m_folderCount = folderButton(tf, QStringLiteral("folderCount"));
     m_folderCount->hide();
     tl->addWidget(m_folderCount);
     tl->addStretch(1);
@@ -503,7 +548,6 @@ void EditorPane::buildFooter()
     });
     connect(m_targetButton, &QToolButton::clicked, this, &EditorPane::editTarget);
     connect(m_countButton, &QToolButton::clicked, this, [this] {
-        QString txt;
         int words = 0, chars = 0, nospace = 0, paras = 0;
         for (TextEditor *e : m_text->editors()) {
             const text::Counts c = text::countDocument(e->document());
@@ -512,20 +556,14 @@ void EditorPane::buildFooter()
             nospace += c.charsNoSpaces;
             paras += c.paragraphs;
         }
-        QLocale loc;
-        txt = tr("Words: %1\nCharacters: %2\nCharacters (no spaces): %3\nParagraphs: %4\nPages (250 words): %5")
-                  .arg(loc.toString(words), loc.toString(chars), loc.toString(nospace), loc.toString(paras))
-                  .arg(loc.toString(words / 250.0, 'f', 1));
-        QMenu m;
-        for (const QString &l : txt.split(QLatin1Char('\n')))
-            m.addAction(l)->setEnabled(false);
-        m.exec(m_countButton->mapToGlobal(QPoint(0, -int(m.sizeHint().height()))));
+        showCountDetails(m_countButton, countLines(words, chars, nospace, paras));
     });
 
     // corkboard footer
     auto *cf = new QWidget(m_footer);
-    auto *cl = new QHBoxLayout(cf);
-    cl->setContentsMargins(4, 1, 4, 1);
+    QHBoxLayout *cl = nullptr, *cr = nullptr;
+    m_corkCount = folderButton(cf, QStringLiteral("folderCountCorkboard"));
+    centeredFooter(cf, m_corkCount, &cl, &cr);
     m_corkGrid = toolButton(cf, QStringLiteral("view-list-icons"), tr("Grid corkboard"));
     m_corkFree = toolButton(cf, QStringLiteral("games-config-board"), tr("Freeform corkboard: place cards anywhere"));
     m_corkLabels = toolButton(cf, QStringLiteral("view-time-schedule-baselined"), tr("Arrange by label (label threads)"));
@@ -548,13 +586,10 @@ void EditorPane::buildFooter()
     cl->addWidget(m_corkLabels);
     cl->addWidget(m_corkCommit);
     cl->addStretch(1);
-    m_corkCount = new QLabel(cf);
-    m_corkCount->setObjectName(QStringLiteral("folderCountCorkboard"));
-    cl->addWidget(m_corkCount);
-    cl->addSpacing(12);
-    cl->addWidget(new QLabel(tr("Size"), cf));
-    cl->addWidget(m_cardSize);
-    cl->addWidget(m_affectCork);
+    cr->addStretch(1);
+    cr->addWidget(new QLabel(tr("Size"), cf));
+    cr->addWidget(m_cardSize);
+    cr->addWidget(m_affectCork);
     m_footer->addWidget(cf);
     connect(m_corkGrid, &QToolButton::clicked, this, [this] { setCorkMode(int(Corkboard::Mode::Grid)); });
     connect(m_corkFree, &QToolButton::clicked, this, [this] { setCorkMode(int(Corkboard::Mode::Freeform)); });
@@ -568,8 +603,9 @@ void EditorPane::buildFooter()
 
     // outliner footer
     auto *of = new QWidget(m_footer);
-    auto *ol = new QHBoxLayout(of);
-    ol->setContentsMargins(4, 1, 4, 1);
+    QHBoxLayout *ol = nullptr, *orr = nullptr;
+    m_outlinerCount = folderButton(of, QStringLiteral("folderCountOutliner"));
+    centeredFooter(of, m_outlinerCount, &ol, &orr);
     m_synopsisToggle = toolButton(of, QStringLiteral("view-list-details"), tr("Show / hide synopses"));
     m_synopsisToggle->setCheckable(true);
     m_synopsisToggle->setChecked(true);
@@ -579,11 +615,8 @@ void EditorPane::buildFooter()
     ol->addWidget(m_synopsisToggle);
     ol->addWidget(cols);
     ol->addStretch(1);
-    m_outlinerCount = new QLabel(of);
-    m_outlinerCount->setObjectName(QStringLiteral("folderCountOutliner"));
-    ol->addWidget(m_outlinerCount);
-    ol->addSpacing(12);
-    ol->addWidget(m_affectOutliner);
+    orr->addStretch(1);
+    orr->addWidget(m_affectOutliner);
     m_footer->addWidget(of);
     connect(m_synopsisToggle, &QToolButton::toggled, m_outliner, &Outliner::setShowSynopsis);
     connect(cols, &QToolButton::clicked, this, [this, cols] { m_outliner->showColumnMenu(cols->mapToGlobal(QPoint(0, 0))); });
@@ -1284,7 +1317,7 @@ void EditorPane::focusEditor()
         m_outliner->setFocus();
 }
 
-QString EditorPane::folderCountText() const
+QList<BinderItem *> EditorPane::countRoots() const
 {
     QList<BinderItem *> roots;
     if (m_mode == ViewMode::Single) {
@@ -1293,6 +1326,35 @@ QString EditorPane::folderCountText() const
     } else if (m_mode == ViewMode::Corkboard || m_mode == ViewMode::Outliner) {
         roots = BinderModel::topLevelOnly(m_items);
     }
+    return roots;
+}
+
+QStringList EditorPane::folderCountDetails() const
+{
+    const QList<BinderItem *> roots = countRoots();
+    if (roots.isEmpty() || !m_project)
+        return {};
+    // the texts counted by the total: the items' own and everything inside them
+    QList<const BinderItem *> todo(roots.cbegin(), roots.cend());
+    text::Counts sum;
+    while (!todo.isEmpty()) {
+        const BinderItem *it = todo.takeLast();
+        if (it->hasText()) {
+            const text::Counts c = text::count(m_project->docs()->plainText(it->id));
+            sum.words += c.words;
+            sum.chars += c.chars;
+            sum.charsNoSpaces += c.charsNoSpaces;
+            sum.paragraphs += c.paragraphs;
+        }
+        for (const BinderItem *child : it->children)
+            todo << child;
+    }
+    return countLines(sum.words, sum.chars, sum.charsNoSpaces, sum.paragraphs);
+}
+
+QString EditorPane::folderCountText() const
+{
+    const QList<BinderItem *> roots = countRoots();
     if (roots.isEmpty())
         return QString();
     const bool chars = AppSettings::instance().countCharacters;
@@ -1310,13 +1372,15 @@ QString EditorPane::folderCountText() const
 void EditorPane::updateFolderCount()
 {
     const QString t = folderCountText();
-    const QString tip = m_items.size() > 1 ? tr("The words of the items shown and of everything inside them")
-                                           : tr("The words of this item's own text and of everything inside it");
-    for (QLabel *l : {m_folderCount, m_corkCount, m_outlinerCount}) {
+    const QString tip = m_items.size() > 1 ? tr("The words of the items shown and of everything inside them (click for details)")
+                                           : tr("The words of this item's own text and of everything inside it (click for details)");
+    for (QToolButton *l : {m_folderCount, m_corkCount, m_outlinerCount}) {
         l->setText(t);
         l->setToolTip(tip);
     }
     m_folderCount->setVisible(m_mode == ViewMode::Single && !t.isEmpty());
+    for (QToolButton *b : {m_corkCount, m_outlinerCount})
+        b->setVisible(!t.isEmpty());
 }
 
 void EditorPane::updateCounts()

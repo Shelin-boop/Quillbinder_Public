@@ -172,6 +172,37 @@ void fill(QMenu *menu, Part part, QWidget *parent)
         QObject::connect(reset, &QAction::triggered, m, [key, p] { changeLook([&](look::Values &lv) { lv.colors.remove(key); }, p); });
     }
 
+    // the inspector's lists and text fields: a color of the program, the same in every project (0.60.3)
+    if (part == Part::Inspector) {
+        const QString key = QStringLiteral("inspectorFields");
+        const QColor shown = theme::color(theme::Role::InspectorFields);
+        const bool own = AppSettings::instance().ownColors.contains(key);
+        QMenu *m = menu->addMenu(palette::swatch(shown), QObject::tr("Inspector Background (All Projects)")
+                                                            + (own ? QObject::tr(" (own color)") : QString()));
+        m->setObjectName(QStringLiteral("lookColor_") + key);
+        auto setOwn = [key](const QColor &c) {
+            AppSettings &s = AppSettings::instance();
+            if (c.isValid())
+                s.ownColors.insert(key, QColor(c.red(), c.green(), c.blue()));
+            else
+                s.ownColors.remove(key);
+            s.save();
+            s.notifyChanged(); // the main window applies the theme again
+        };
+        palette::fillMenu(
+            m, look::project(), shown,
+            [setOwn](const QColor &c) {
+                if (c.isValid())
+                    setOwn(c);
+            },
+            parent, QString(), colorLabel(key));
+        m->addSeparator();
+        QAction *reset = m->addAction(QObject::tr("The Theme's Color"));
+        reset->setObjectName(QStringLiteral("lookColorReset_") + key);
+        reset->setEnabled(own);
+        QObject::connect(reset, &QAction::triggered, m, [setOwn] { setOwn(QColor()); });
+    }
+
     // fonts
     for (const QString &key : info.fonts) {
         const theme::FontInfo *fi = fontInfo(key);

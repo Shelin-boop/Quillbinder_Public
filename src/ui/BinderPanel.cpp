@@ -1031,6 +1031,69 @@ void BinderPanel::reveal(BinderItem *item)
     select({item}, false);
 }
 
+namespace {
+// The blink over a row of the binder: a strong orange, half see-through, so the title stays legible
+class FlashBar : public QWidget
+{
+public:
+    explicit FlashBar(QWidget *parent) : QWidget(parent)
+    {
+        setObjectName(QStringLiteral("binderFlash"));
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        hide();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter p(this);
+        p.fillRect(rect(), QColor(255, 140, 0, 150));
+        p.setPen(QPen(QColor(255, 110, 0), 2));
+        p.drawRect(rect().adjusted(1, 1, -1, -1));
+    }
+};
+} // namespace
+
+void BinderPanel::flash(BinderItem *item)
+{
+    if (!m_project || !item)
+        return;
+    const QModelIndex idx = m_project->model()->indexFor(item);
+    if (!idx.isValid())
+        return;
+    if (!m_flash) {
+        m_flash = new FlashBar(m_tree->viewport());
+        m_flashTimer.setInterval(220);
+        connect(&m_flashTimer, &QTimer::timeout, this, &BinderPanel::flashStep);
+    }
+    m_flashTimer.stop();
+    m_flashIndex = QPersistentModelIndex(idx);
+    m_flashStep = 0;
+    m_flash->hide();
+    // the first blink once the tree has opened the folders and scrolled to the row
+    QTimer::singleShot(80, this, [this] {
+        if (m_flashTimer.isActive() || m_flashStep != 0)
+            return;
+        flashStep();
+        m_flashTimer.start();
+    });
+}
+
+// on, off, on, off: two blinks
+void BinderPanel::flashStep()
+{
+    const QRect r = m_flashIndex.isValid() ? m_tree->visualRect(m_flashIndex) : QRect();
+    if (m_flashStep >= 4 || r.isEmpty()) {
+        m_flashTimer.stop();
+        m_flash->hide();
+        return;
+    }
+    m_flash->setGeometry(0, r.top(), m_tree->viewport()->width(), r.height());
+    m_flash->setVisible(m_flashStep % 2 == 0);
+    m_flash->raise();
+    ++m_flashStep;
+}
+
 void BinderPanel::editTitle(BinderItem *item)
 {
     if (!m_project)

@@ -100,6 +100,9 @@ changed and what was checked. Preferences:
   of the main text, the chosen style list), `qb_v0601_tests` (0.60.1: Paste with Formatting, Show Invisibles, the total of a
   folder, paragraph styles over several paragraphs), `qb_v0602_tests` (0.60.2: the three ways to paste in the right-click menu),
   menu audit.
+- `qb_v0604_tests` (0.60.4: the paragraph buttons of the format bar, the Wayland line of the README).
+- `qb_v0603_tests` (0.60.3: folder totals in the binder and the footers, Inspector Background, the color of the toolbars,
+  font names that are not families, double-click beside the text reveals the document).
 - Printing checks print into PDF files (Print to File) and read them with poppler-utils.
 - The add-on Media Playback needs FFmpeg: `tools/get-ffmpeg.sh` once (5 to 10 minutes),
   then the test runner builds the add-ons.
@@ -190,6 +193,41 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
   Compare and Transfer (`Compare.*` engine, `CompareFiles.*` Word/LibreOffice writers, `MiniXml.*`).
 - `addons/`: add-on packages; `packaging/`: AppImage, update and add-on build scripts;
   `tools/`: helper scripts; `resources/`: icons (`qbicons` themes), templates, manual.
+
+## Paragraph buttons of the format bar (0.60.4)
+
+- Specials `spaceBefore`, `spaceAfter`, `indentFirst`, `indentLeft` (`toolbars::specials(Bar::Format)`, standard set after
+  `numbers`): `QToolButton`s `para_<id>` with the menus `paraMenu_<id>`, filled in `MainWindow::fillParagraphMenu` (values in pt for
+  spacing, `units::` for indents, the value at the cursor ticked, `paraOther` asks with `QInputDialog::getDouble`); they apply a
+  `direct::ParaSpec` with one bit through `TextEditor::applyParaSpec` (selected paragraphs, one undo step). Enabled with the
+  other format controls in `updateFormatBar`. Icons drawn in code (`icons::kSpaceBefore` ... , `ParagraphEngine` in
+  `ItemIcons.cpp`). `AppSettings::load` adds them once to a format bar the writer arranged (key `toolbars/paraButtons0604`).
+
+## Folder totals in binder and footers, Inspector Background (0.60.3)
+
+- **Binder tool tip** (`BinderModel::data`, `Qt::ToolTipRole`): a container shows `totalWordCount()` and, with text of its
+  own and children, "(its own text: ...)".
+- **Footers**: `folderCount`, `folderCountCorkboard`, `folderCountOutliner` are `QToolButton`s; a click runs
+  `EditorPane::showCountDetails(button, folderCountDetails())` (texts counted again with `text::count`; the document count
+  uses the same popup, `countLines`). Corkboard and outliner footers use `centeredFooter`: two side widgets with stretch 1
+  and the total between them, so it stays in the middle.
+- **Colors**: `theme::Role::InspectorFields` (key `inspectorFields`, label "Inspector Background", `Area::General`, defaults
+  to `base`; `NotesPaper` defaults to it). `Inspector::applyTheme` puts it into the inspector's Base / AlternateBase with
+  `theme::readableOn` as Text; it does not count as a change of the window palette in `theme::apply()`. `base` is no
+  longer offered (General Interface lists `inspectorFields` instead); `AppSettings::load` moves an own `base` to
+  `inspectorFields`. `InspectorBackground` (the strips) is labelled "Inspector Strips". `theme::panelFields(w)` gives a
+  widget Base = Window and Text = WindowText (only those roles; refreshed on `Notifier::changed`): the three main toolbars
+  and the option dialog's `optionPages`, sub-page lists and `appearanceAreas`. The ruler draws the column as a frame on
+  Window. `lookmenu::fill` adds `lookColor_inspectorFields` for `Part::Inspector` (writes `AppSettings::ownColors`).
+  `tests/v0402_tests.cpp` leaves `inspectorFields` out of the theme digest; `tests/v0603_tests.cpp` checks it equals `base`.
+- **Double-click beside the text**: `TextColumnView::besideTextDoubleClicked` -> `EditorPane::revealRequested` -> the action
+  `reveal` (Reveal in Binder) for that pane; `BinderPanel::flash` blinks the row twice (widget `binderFlash` over the row,
+  `flashStep`, 220 ms). A pane has a second, hidden `TextColumnView` (the copyholder): tests pick the visible one.
+- **Font names that are not families** (`fontfaces::resolve / substituteUnknown`, `src/text/FontFaces.cpp`): face and
+  PostScript names ("SitkaTextItalic", "Georgia-BoldItalic") are matched to an installed family (style words and "MT"/"PS"
+  taken off the end, spaces and case ignored, then shorter CamelCase stems) and given to Qt as a font substitution
+  (`QFont::insertSubstitution`), so the text keeps the name. Called for RTF font tables (the RTF reader also takes italic
+  and bold from the name) and for `font-family` in Markdown spans; results are cached until the fonts change.
 
 ## Paste with formatting, invisibles, folder totals, styles over paragraphs (0.60.1)
 

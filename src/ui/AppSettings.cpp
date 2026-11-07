@@ -123,6 +123,13 @@ void AppSettings::load()
             ownColors.insert(k, c);
     }
     s.endGroup();
+    // 0.60.3: "Lists and text fields" became "Inspector Background" (the inspector's lists and
+    // fields only); a color chosen for it before stays the writer's, now for the inspector
+    if (ownColors.contains(QStringLiteral("base"))) {
+        const QColor old = ownColors.take(QStringLiteral("base"));
+        if (!ownColors.contains(QStringLiteral("inspectorFields")))
+            ownColors.insert(QStringLiteral("inspectorFields"), old);
+    }
     s.beginGroup(QStringLiteral("fonts"));
     for (const QString &k : s.childKeys()) {
         theme::FontRole r;
@@ -304,6 +311,26 @@ void AppSettings::load()
     s.beginGroup(QStringLiteral("toolbars"));
     toolbarMain = s.value(QStringLiteral("main")).toStringList();
     toolbarFormat = s.value(QStringLiteral("format")).toStringList();
+    // 0.60.4: a format bar arranged by the writer gets the four paragraph buttons once, after the
+    // list buttons (they can be taken away again under View > Toolbars > Customize Toolbars)
+    if (!toolbarFormat.isEmpty() && !s.value(QStringLiteral("paraButtons0604")).toBool()) {
+        const QStringList ids = {QStringLiteral("spaceBefore"), QStringLiteral("spaceAfter"), QStringLiteral("indentFirst"),
+                                 QStringLiteral("indentLeft")};
+        bool any = false;
+        for (const QString &id : ids)
+            any = any || toolbarFormat.contains(id);
+        if (!any) {
+            int at = int(toolbarFormat.indexOf(QStringLiteral("numbers")));
+            if (at < 0)
+                at = int(toolbarFormat.indexOf(QStringLiteral("alignJustify")));
+            at = at < 0 ? int(toolbarFormat.size()) : at + 1;
+            toolbarFormat.insert(at, QStringLiteral("|"));
+            for (int i = 0; i < ids.size(); ++i)
+                toolbarFormat.insert(at + 1 + i, ids[i]);
+        }
+        s.setValue(QStringLiteral("paraButtons0604"), true);
+        s.setValue(QStringLiteral("format"), toolbarFormat);
+    }
     toolbarIconSize = qBound(16, s.value(QStringLiteral("iconSize"), toolbarIconSize).toInt(), 48);
     toolbarStyle = s.value(QStringLiteral("style"), toolbarStyle).toString();
     s.endGroup();

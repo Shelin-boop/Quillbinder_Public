@@ -147,8 +147,8 @@ void Ruler::paintEvent(QPaintEvent *)
         return;
     }
     const int x0 = originX(), w = textWidth();
+    // the text column: a frame on the color of the toolbars (0.60.3; was the color of lists)
     const QRect band(x0, 4, w, height() - 9);
-    p.fillRect(band, pal.color(QPalette::Base));
     QColor line = pal.color(QPalette::WindowText);
     line.setAlpha(110);
     p.setPen(line);

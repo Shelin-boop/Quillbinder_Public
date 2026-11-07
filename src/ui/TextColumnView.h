@@ -71,6 +71,8 @@ signals:
     void linkActivated(const QString &href);
     void noteClicked(const QString &noteId);
     void cursorMoved(qb::TextEditor *editor);
+    // a double-click on the paper beside the text or the space around the column (0.60.3)
+    void besideTextDoubleClicked();
 
 
 protected:

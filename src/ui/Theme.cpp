@@ -30,6 +30,7 @@ const QList<RoleInfo> &roles()
         {Role::Window, "window", QObject::tr("Window and panels"), Area::General},
         {Role::WindowText, "windowText", QObject::tr("Text on panels"), Area::General},
         {Role::Base, "base", QObject::tr("Lists and text fields"), Area::General},
+        {Role::InspectorFields, "inspectorFields", QObject::tr("Inspector Background"), Area::General},
         {Role::AlternateBase, "alternateBase", QObject::tr("Alternate list rows"), Area::General},
         {Role::Text, "text", QObject::tr("Text in lists and fields"), Area::General},
         {Role::Button, "button", QObject::tr("Buttons"), Area::General},
@@ -74,7 +75,7 @@ const QList<RoleInfo> &roles()
         {Role::OutlinerAlternate, "outlinerAlternate", QObject::tr("Alternate rows"), Area::Outliner},
         {Role::OutlinerText, "outlinerText", QObject::tr("Text"), Area::Outliner},
 
-        {Role::InspectorBackground, "inspectorBackground", QObject::tr("Background"), Area::Inspector},
+        {Role::InspectorBackground, "inspectorBackground", QObject::tr("Inspector Strips"), Area::Inspector},
         {Role::InspectorText, "inspectorText", QObject::tr("Labels"), Area::Inspector},
         {Role::SynopsisPaper, "synopsisPaper", QObject::tr("Synopsis card"), Area::Inspector},
         {Role::SynopsisText, "synopsisText", QObject::tr("Synopsis text"), Area::Inspector},
@@ -483,6 +484,7 @@ QMap<Role, QColor> resolvedColors(const Theme &t, const QMap<QString, QColor> &o
     put(Role::WindowText, desk ? sys.color(QPalette::WindowText) : text);
     put(Role::Base, desk ? sys.color(QPalette::Base) : (dark ? window.darker(125) : window.lighter(108)));
     const QColor base = c[Role::Base];
+    put(Role::InspectorFields, base);
     put(Role::AlternateBase, desk ? sys.color(QPalette::AlternateBase) : (dark ? base.lighter(118) : base.darker(104)));
     put(Role::Button, desk ? sys.color(QPalette::Button) : (dark ? window.lighter(118) : window));
     put(Role::ButtonText, desk ? sys.color(QPalette::ButtonText) : c[Role::WindowText]);
@@ -545,7 +547,7 @@ QMap<Role, QColor> resolvedColors(const Theme &t, const QMap<QString, QColor> &o
     put(Role::InspectorText, darkColor(c[Role::InspectorBackground]) == dark ? c[Role::WindowText] : (darkColor(c[Role::InspectorBackground]) ? QColor(235, 235, 235) : QColor(35, 38, 41)));
     put(Role::SynopsisPaper, dark ? c[Role::CardPaper] : (set.contains(Role::CardPaper) ? c[Role::CardPaper] : QColor(253, 251, 240)));
     put(Role::SynopsisText, darkColor(c[Role::SynopsisPaper]) ? QColor(225, 225, 225) : QColor(30, 30, 30));
-    put(Role::NotesPaper, base);
+    put(Role::NotesPaper, c[Role::InspectorFields]); // the notes are part of the inspector (0.60.3)
     put(Role::NotesText, darkColor(c[Role::NotesPaper]) == darkColor(base) ? text : (darkColor(c[Role::NotesPaper]) ? QColor(230, 230, 230) : QColor(30, 30, 30)));
 
     put(Role::CompositionBackground, QColor(28, 32, 40));
@@ -797,7 +799,8 @@ void apply()
     bool generalChanged = !t.followDesktop;
     for (const RoleInfo &i : roles())
         if (i.area == Area::General && (s.ownColors.contains(QLatin1String(i.key)) || t.colors.contains(i.role))
-            && i.role != Role::TargetSession && i.role != Role::TargetDraft && i.role != Role::TargetReached)
+            && i.role != Role::TargetSession && i.role != Role::TargetDraft && i.role != Role::TargetReached
+            && i.role != Role::InspectorFields) // the inspector's own, not the window palette's (0.60.3)
             generalChanged = true;
     const QPalette pal = generalChanged ? paletteFor(s_colors) : s_systemPalette;
     if ((generalChanged || s_ownPalette) && pal != QApplication::palette())
@@ -895,6 +898,36 @@ void styleView(QWidget *view, Role background, Role text, FontRole f)
 {
     styleView(view, background, text);
     view->setFont(font(f));
+}
+
+QColor readableOn(const QColor &background)
+{
+    if (darkColor(background) == darkColor(color(Role::Base)))
+        return color(Role::Text);
+    return darkColor(background) ? QColor(235, 235, 235) : QColor(35, 38, 41);
+}
+
+// Only the roles set here are the widget's own (an empty QPalette has none), so everything else
+// keeps following the window's palette; these follow it through Notifier::changed.
+void panelFields(QWidget *w)
+{
+    if (!w)
+        return;
+    auto set = [w] {
+        const QColor window = color(Role::Window), text = color(Role::WindowText);
+        QPalette p;
+        for (QPalette::ColorGroup g : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
+            p.setColor(g, QPalette::Base, window);
+            p.setColor(g, QPalette::AlternateBase, window);
+        }
+        for (QPalette::ColorGroup g : {QPalette::Active, QPalette::Inactive}) {
+            p.setColor(g, QPalette::Text, text);
+            p.setColor(g, QPalette::PlaceholderText, mix(text, window, 0.5));
+        }
+        w->setPalette(p);
+    };
+    set();
+    QObject::connect(&Notifier::instance(), &Notifier::changed, w, set);
 }
 
 // ------------------------------------------------------------------ own themes

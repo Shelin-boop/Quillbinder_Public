@@ -143,6 +143,17 @@ add_executable(qb_v0602_tests v0602_tests.cpp ${CMAKE_SOURCE_DIR}/resources/reso
 target_link_libraries(qb_v0602_tests PRIVATE qbui Qt6::Test)
 target_compile_definitions(qb_v0602_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
+# Version 0.60.3: folder totals in the binder and the footers, Inspector Background, the color of the toolbars
+# (xvfb-run -a ./qb_v0603_tests /tmp/shots).
+add_executable(qb_v0603_tests v0603_tests.cpp ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
+target_link_libraries(qb_v0603_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_v0603_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
+# Version 0.60.4: the paragraph buttons of the format bar, the README's Wayland line (xvfb-run -a ./qb_v0604_tests /tmp/shots).
+add_executable(qb_v0604_tests v0604_tests.cpp ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
+target_link_libraries(qb_v0604_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_v0604_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
 # 0.50: the release on the project page, the source files named in the license list, the media add-ons split into free
 # formats and "Extra Video and Audio Formats" (QT_QPA_PLATFORM=offscreen ./qb_v050_tests /tmp/shots). Installs
 # <build>/addons-dist/media-playback.qbpkg and media-extra-formats.qbpkg (tools/get-ffmpeg.sh, then

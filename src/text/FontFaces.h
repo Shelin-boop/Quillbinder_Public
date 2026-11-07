@@ -53,5 +53,23 @@ void install();
 // The families separate() made, each with the family it came from.
 QHash<QString, QString> separatedFamilies();
 
+// Font names that are not families (0.60.3). Scrivener for Windows and other programs can
+// name the font of a run by a face name, for example "SitkaTextItalic", "Georgia-BoldItalic",
+// "TimesNewRomanPS-ItalicMT" or "Sitka Text Italic". Linux knows only the family, so such
+// text was shown in the desktop's fallback font. resolve() finds the installed family that a
+// name stands for (the name itself when it is a family; empty when nothing fits) and says
+// whether the name asks for bold or italic.
+struct Resolved {
+    QString family;
+    bool bold = false;
+    bool italic = false;
+};
+Resolved resolve(const QString &name);
+
+// For a name that is not an installed family but stands for one: Qt's font matching uses that
+// family in its place everywhere (screen, printing, PDF), while the text keeps the name, so a
+// Scrivener project gets back what it had. Returns what resolve() found.
+Resolved substituteUnknown(const QString &name);
+
 } // namespace fontfaces
 } // namespace qb

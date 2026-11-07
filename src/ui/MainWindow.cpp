@@ -231,6 +231,10 @@ MainWindow::MainWindow()
     createToolBars();
     createFormatBar();
     createIconBar();
+    // the fields on the toolbars (quick search, style, font, size ...) in the color of the
+    // menus and toolbars, not of lists (0.60.3)
+    for (QToolBar *bar : {m_toolbar, m_formatBar, m_iconBar})
+        theme::panelFields(bar);
     rebuildStyleActions();
     rebuildScriptActions();
     rebuildLayoutActions();
@@ -528,6 +532,11 @@ void MainWindow::connectPane(EditorPane *p)
     connect(p, &EditorPane::navigateSibling, this, [this](EditorPane *pane, bool next) {
         setActivePane(pane);
         a[next ? QStringLiteral("nextDoc") : QStringLiteral("prevDoc")]->trigger();
+    });
+    // a double-click beside the text: Reveal in Binder for the document beside it (0.60.3)
+    connect(p, &EditorPane::revealRequested, this, [this](EditorPane *pane) {
+        setActivePane(pane);
+        a[QStringLiteral("reveal")]->trigger();
     });
 }
 
@@ -1163,6 +1172,7 @@ void MainWindow::createActions()
                     m_updatingUi = true;
                     m_binder->reveal(it);
                     m_updatingUi = false;
+                    m_binder->flash(it); // blinks twice, so it is found at once (0.60.3)
                 }
             });
     QAction *lock = act(QStringLiteral("lock"), tr("&Lock in Place"), QStringLiteral("object-locked"));
@@ -1793,6 +1803,9 @@ void MainWindow::updateFormatBar()
         m_fontCombo->setEnabled(false);
         m_sizeSpin->setEnabled(false);
         m_lineCombo->setEnabled(false);
+        for (QToolButton *b : m_paraButtons)
+            if (b)
+                b->setEnabled(false);
         m_updatingUi = true;
         a[QStringLiteral("bold")]->setChecked(o->isOn(ObjectTextEdit::Toggle::Bold));
         a[QStringLiteral("italic")]->setChecked(o->isOn(ObjectTextEdit::Toggle::Italic));
@@ -1818,6 +1831,9 @@ void MainWindow::updateFormatBar()
     m_fontCombo->setEnabled(enabled);
     m_sizeSpin->setEnabled(enabled);
     m_lineCombo->setEnabled(enabled);
+    for (QToolButton *b : m_paraButtons)
+        if (b)
+            b->setEnabled(enabled);
     a[QStringLiteral("pasteFormat")]->setEnabled(enabled && TextEditor::hasCopiedFormatting());
     if (!e)
         return;

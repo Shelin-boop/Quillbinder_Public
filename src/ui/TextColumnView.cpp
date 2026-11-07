@@ -633,6 +633,9 @@ bool TextColumnView::eventFilter(QObject *o, QEvent *e)
             return true;
         if (!m_sections.isEmpty())
             clickBesideText(w->mapTo(m_container, me->pos()));
+        // 0.60.3: a double-click there shows the document beside it in the binder
+        if (e->type() == QEvent::MouseButtonDblClick && !m_sections.isEmpty())
+            emit besideTextDoubleClicked();
         return true;
     }
     if (around && e->type() == QEvent::ContextMenu) {

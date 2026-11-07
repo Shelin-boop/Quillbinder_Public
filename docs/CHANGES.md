@@ -3,6 +3,43 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.60.4 alpha (2026-11-07)
+
+- **Spacing and indents in the format bar**: four new buttons after the list buttons set the space before and
+  the space after the paragraph (0, 3, 6, 9, 12 or 18 pt, or any value), the indent of the first line, and the
+  indent of the whole paragraph (in cm or inches, as the ruler). They act on the paragraph at the cursor or all
+  selected paragraphs, and Edit > Undo takes the change back. A format bar you arranged yourself gets them once.
+- Brings the changes of 0.60.3 (below) to everyone: it is the first public version with them.
+- The README says that Quillbinder works under Kubuntu 26.04 LTS with Wayland (the sentence added on GitHub on
+  2026-11-06 is now part of the source, so publishing keeps it).
+
+## 0.60.3 alpha (2026-11-07)
+
+- **The binder counts a folder in full**: resting the mouse on a folder (or a text with subdocuments) shows the
+  words of the folder and everything inside it, as the editor's footer does, and the folder's own words when it
+  has text of its own. Before, it showed only the folder's own text (often "0 words").
+- **The folder total in the middle of the footer, with details**: on the corkboard and in the outliner the total
+  sits in the middle of the footer; a click shows words, characters, characters without spaces, paragraphs and
+  pages for the whole folder, as the count of a text does. The same for the total beside a folder shown as text.
+- **Inspector Background**: the color "Lists and text fields" (File > Options > Appearance > General Interface)
+  is now **Inspector Background** and colors only the inspector's lists and text fields (bookmarks, notes, the
+  title, the metadata fields ...), the same in every project; the text there turns light or dark to stay
+  readable. The inspector's right-click Appearance menu offers it as "Inspector Background (All Projects)". A
+  color you chose for "Lists and text fields" is kept as the Inspector Background. The inspector's own color
+  "Background" (Inspector & Notes) is now called **Inspector Strips**: the tab row, the headings and the
+  Label/Status row.
+- **Find the document you are writing in**: a double-click on the space beside the text (the paper beside the
+  column or the area around it) selects that document in the binder, opens the folders above it, and lets its row
+  blink twice in orange; the editor keeps what it shows. Navigate > Reveal in Binder (Ctrl+Shift+R) blinks too.
+- **Italics from Scrivener in the right font**: Scrivener for Windows names the font of italic text by its face
+  (for example "SitkaTextItalic"), which is no font family on Linux, so the text was shown in the desktop's
+  fallback font (Noto Sans). Such names (also "Georgia-BoldItalic", "TimesNewRomanPS-ItalicMT", "Sitka Text
+  Italic") are now shown in the family they stand for, in italic or bold as the name says; the text keeps the
+  name, so Scrivener gets back what it wrote.
+- **Toolbars and options in the color of the menus**: the fields on the toolbars (quick search, style, font,
+  size, line spacing), the ruler, and the row of pages and the lists on the left of File > Options have the color
+  of the window and the menus, no longer the color of lists.
+
 ## 0.60.2 alpha (2026-11-06)
 
 - **Three ways to paste in the right-click menu** of the text: Paste, Paste and Match Style, and Paste with

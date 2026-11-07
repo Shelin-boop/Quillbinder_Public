@@ -46,6 +46,7 @@
 #include <QStyleFactory>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QToolButton>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QToolBar>
@@ -475,8 +476,9 @@ static void folderChecks(MainWindow &w, Project *p, BinderItem *folder, BinderIt
         return;
     const int total = folder->totalWordCount();
     check(total == 26, QStringLiteral("(the folder holds 26 words: 3 of its own, 5, 7 and 11 in a subfolder)"), QString::number(total));
-    auto label = [&](const char *name) { return pane->findChild<QLabel *>(QLatin1String(name)); };
-    QLabel *single = label("folderCount"), *cork = label("folderCountCorkboard"), *outl = label("folderCountOutliner");
+    // buttons since 0.60.3 (a click shows the details)
+    auto label = [&](const char *name) { return pane->findChild<QToolButton *>(QLatin1String(name)); };
+    QToolButton *single = label("folderCount"), *cork = label("folderCountCorkboard"), *outl = label("folderCountOutliner");
     if (!single || !cork || !outl) {
         check(false, QStringLiteral("(the count labels are there)"));
         return;

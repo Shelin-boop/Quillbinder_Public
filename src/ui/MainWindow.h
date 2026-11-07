@@ -344,6 +344,9 @@ private:
     QFontComboBox *m_fontCombo = nullptr;
     QDoubleSpinBox *m_sizeSpin = nullptr;
     QComboBox *m_lineCombo = nullptr;
+    // space before, space after, first line indent, indent of the whole paragraph (0.60.4)
+    QToolButton *m_paraButtons[4] = {};
+    void fillParagraphMenu(QMenu *menu, int which);
     QList<QAction *> m_rtfOnly;
     QList<QAction *> m_markdownOnly;
     QHash<QString, QAction *> m_barItems;   // controls of the bars (id -> widget action)
