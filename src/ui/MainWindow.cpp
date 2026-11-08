@@ -1,5 +1,6 @@
 #include "ui/LicensesDialog.h"
 #include "ui/MainWindow.h"
+#include "core/SettingsLayer.h"
 #include "ui/LookMenu.h"
 #include "ui/ProjectLook.h"
 #include "import/ScrivenerFormat.h"
@@ -14,7 +15,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include "text/PageLayout.h"
+#include "core/Platform.h"
 #include "core/Paths.h"
+#include "core/Timing.h"
 #include "text/MarkdownIO.h"
 #include "AppInfo.h"
 #include "core/Backup.h"
@@ -156,6 +159,15 @@ private:
 
 namespace {
 // Notes the time of every key press and mouse click for Automatic Quit (0.21).
+// Qt's own animations of menus, lists, tooltips and tool boxes (sliding or fading in) stay
+// off (0.60.5): a desktop theme may ask for them, and they make menus look slow.
+void noUiAnimations()
+{
+    for (Qt::UIEffect e : {Qt::UI_AnimateMenu, Qt::UI_FadeMenu, Qt::UI_AnimateCombo, Qt::UI_AnimateTooltip,
+                           Qt::UI_FadeTooltip, Qt::UI_AnimateToolBox})
+        QApplication::setEffectEnabled(e, false);
+}
+
 class InputWatch : public QObject
 {
 public:
@@ -168,6 +180,9 @@ public:
         case QEvent::Wheel:
             if (m_window)
                 m_window->noteInput(QDateTime::currentDateTime());
+            break;
+        case QEvent::ThemeChange: // the desktop theme changed: Qt has read its effects again
+            noUiAnimations();
             break;
         default: break;
         }
@@ -321,10 +336,12 @@ MainWindow::MainWindow()
 
     // context menu entries in every text editor
     setTextEditorContextHook([this](TextEditor *ed, QMenu *menu, const QPoint &) {
+        timing::Laps laps;
         menu->addSeparator();
         QMenu *styles = menu->addMenu(tr("Style"));
         styles->setObjectName(QStringLiteral("contextStyleMenu"));
         fillStyleList(styles, ed);
+        laps.lap("styles");
         menu->addAction(a[QStringLiteral("comment")]);
         menu->addAction(a[QStringLiteral("footnote")]);
         menu->addAction(a[QStringLiteral("annotation")]);
@@ -357,15 +374,26 @@ MainWindow::MainWindow()
         const lookmenu::Part part = ed->isNotes()                                ? lookmenu::Part::Inspector
                                     : qobject_cast<CompositionWindow *>(ed->window()) ? lookmenu::Part::Composition
                                                                                         : lookmenu::Part::Editor;
+        laps.lap("notes+links");
         lookmenu::add(menu, part, this);
+        laps.lap("appearance");
+        laps.print("right-click menu, program entries");
     });
     // "Appearance Options..." of those menus: File > Options > Appearance at the part's page,
     // showing the open project's look
     lookmenu::setOptionsOpener([this](const QString &page) {
-        OptionsDialog dlg(this);
-        dlg.showSection(OptionsDialog::SAppearance, page);
-        dlg.exec();
+        OptionsDialog::run(this, [page](OptionsDialog &dlg) { dlg.showSection(OptionsDialog::SAppearance, page); });
     });
+    // 0.62: a project's own settings over the program's; what reads the settings reads them again
+    settingslayer::setReloader([this] {
+        AppSettings::instance().load();
+        MindMapPrefs::instance().load();
+        commands::reload();
+        look::setProgramSettingsAlways(!settingslayer::projectFirst());
+        emit AppSettings::instance().changed();
+        rebuildToolBars();
+    });
+    look::setProgramSettingsAlways(!settingslayer::projectFirst());
 
     connect(&AppSettings::instance(), &AppSettings::changed, this, &MainWindow::applySettings);
     // File > Options > General > Reset All Warnings: the project's "don't ask again" answers, too (0.21)
@@ -384,6 +412,7 @@ MainWindow::MainWindow()
     // File > Options > General > Automatic Quit (0.21): every key and mouse input counts
     m_lastInput = QDateTime::currentDateTime();
     qApp->installEventFilter(new InputWatch(this));
+    noUiAnimations();
     m_autoQuitTimer = new QTimer(this);
     m_autoQuitTimer->setInterval(20000);
     connect(m_autoQuitTimer, &QTimer::timeout, this, [this] {
@@ -687,10 +716,7 @@ void MainWindow::createActions()
     a[QStringLiteral("print")]->setToolTip(tr("Prints what the editor shows: the text, the index cards of the corkboard, "
                                              "the outliner, a picture or a PDF file"));
     connect(act(QStringLiteral("options"), tr("&Options…"), QStringLiteral("configure"), QKeySequence(Qt::CTRL | Qt::Key_Comma)),
-            &QAction::triggered, this, [this] {
-                OptionsDialog dlg(this);
-                dlg.exec();
-            });
+            &QAction::triggered, this, [this] { OptionsDialog::run(this); });
     connect(act(QStringLiteral("quit"), tr("E&xit"), QStringLiteral("application-exit"), QKeySequence::Quit),
             &QAction::triggered, this, &QWidget::close);
 
@@ -713,10 +739,7 @@ void MainWindow::createActions()
         dlg.exec();
     });
     connect(act(QStringLiteral("themeCustomize"), tr("&Colors and Fonts…"), QStringLiteral("preferences-desktop-color")),
-            &QAction::triggered, this, [this] {
-                OptionsDialog dlg(this, OptionsDialog::Appearance);
-                dlg.exec();
-            });
+            &QAction::triggered, this, [this] { OptionsDialog::run(this, {}, OptionsDialog::Appearance); });
 
     // ---- edit (routed to the focused text widget)
     auto route = [](auto textEditFn, auto plainFn, auto lineFn) {
@@ -1051,6 +1074,9 @@ void MainWindow::createActions()
                 m_project->model()->emptyTrash();
                 m_project->save();
             }));
+    // Project > Delete Old Snapshots (0.61.1)
+    connect(act(QStringLiteral("deleteSnapshots"), tr("Delete Old &Snapshots…"), QStringLiteral("edit-clear")), &QAction::triggered,
+            this, withProject([this] { deleteOldSnapshots(true); }));
     connect(act(QStringLiteral("showProjectFolder"), tr("Show Project in File &Manager"), QStringLiteral("folder-open")),
             &QAction::triggered, this, withProject([this] { QDesktopServices::openUrl(QUrl::fromLocalFile(m_project->displayFolder())); }));
 
@@ -1337,6 +1363,28 @@ void MainWindow::createActions()
         if (!f.isEmpty())
             e->insertImageFile(f);
     });
+    // tables and pictures (0.62)
+    fmt(QStringLiteral("insertTable"), tr("&Table…"), QStringLiteral("insert-table"), QKeySequence(),
+        [](TextEditor *e) { e->editInsertTable(); });
+    fmt(QStringLiteral("tableRowAbove"), tr("Insert Row &Above"), QString(), QKeySequence(), [](TextEditor *e) { e->tableInsertRows(false); });
+    fmt(QStringLiteral("tableRowBelow"), tr("Insert Row &Below"), QString(), QKeySequence(), [](TextEditor *e) { e->tableInsertRows(true); });
+    fmt(QStringLiteral("tableColLeft"), tr("Insert Column &Left"), QString(), QKeySequence(), [](TextEditor *e) { e->tableInsertColumns(false); });
+    fmt(QStringLiteral("tableColRight"), tr("Insert Column &Right"), QString(), QKeySequence(), [](TextEditor *e) { e->tableInsertColumns(true); });
+    fmt(QStringLiteral("tableDeleteRows"), tr("Delete R&ows"), QString(), QKeySequence(), [](TextEditor *e) { e->tableRemoveRows(); });
+    fmt(QStringLiteral("tableDeleteCols"), tr("Delete C&olumns"), QString(), QKeySequence(), [](TextEditor *e) { e->tableRemoveColumns(); });
+    fmt(QStringLiteral("tableDelete"), tr("Delete &Table"), QString(), QKeySequence(), [](TextEditor *e) { e->tableRemove(); });
+    fmt(QStringLiteral("tableMerge"), tr("&Merge Cells"), QString(), QKeySequence(), [](TextEditor *e) { e->tableMergeCells(); });
+    fmt(QStringLiteral("tableSplit"), tr("&Split Cell"), QString(), QKeySequence(), [](TextEditor *e) { e->tableSplitCell(); });
+    fmt(QStringLiteral("tableCellColor"), tr("Cell &Color…"), QString(), QKeySequence(), [this](TextEditor *e) {
+        const QColor c = QColorDialog::getColor(Qt::white, this, tr("Cell Color"));
+        if (c.isValid())
+            e->tableSetCellColor(c);
+    });
+    fmt(QStringLiteral("tableCellColorClear"), tr("Cell Color of the &Design"), QString(), QKeySequence(),
+        [](TextEditor *e) { e->tableSetCellColor(QColor()); });
+    fmt(QStringLiteral("tableProperties"), tr("Table &Properties…"), QString(), QKeySequence(), [](TextEditor *e) { e->editTableProperties(); });
+    fmt(QStringLiteral("picture"), tr("P&icture…"), QStringLiteral("insert-image"), QKeySequence(),
+        [](TextEditor *e) { e->editPicture(e->pictureAtCursor()); });
     fmt(QStringLiteral("insertDate"), tr("Current &Date"), QStringLiteral("view-calendar"), QKeySequence(), [](TextEditor *e) {
         // File > Options > Editing > "Insert the date using a custom format" (0.21)
         const QString f = AppSettings::instance().customDateFormat;
@@ -1426,8 +1474,13 @@ void MainWindow::createActions()
         QDir().mkpath(d);
         QDesktopServices::openUrl(QUrl::fromLocalFile(d));
     });
-    connect(act(QStringLiteral("integrate"), tr("Add to &Application Menu")), &QAction::triggered, this,
-            [this] { integrateDesktop(false); });
+    QAction *integrate = act(QStringLiteral("integrate"), tr("Add to &Application Menu"));
+    connect(integrate, &QAction::triggered, this, [this] { integrateDesktop(false); });
+#ifdef Q_OS_WIN
+    // Linux desktop files mean nothing on Windows; the installer registers the program there (port, W4)
+    integrate->setVisible(false);
+    integrate->setEnabled(false);
+#endif
     connect(act(QStringLiteral("installPackage"), tr("Install &Update or Add-on…"), QStringLiteral("system-software-update")),
             &QAction::triggered, this, [this] {
                 const QString f = QFileDialog::getOpenFileName(
@@ -1451,10 +1504,7 @@ void MainWindow::createActions()
         dlg.exec();
     });
     connect(act(QStringLiteral("keyboardShortcuts"), tr("&Keyboard Shortcuts…"), QStringLiteral("configure-shortcuts")),
-            &QAction::triggered, this, [this] {
-                OptionsDialog dlg(this, OptionsDialog::Keyboard);
-                dlg.exec();
-            });
+            &QAction::triggered, this, [this] { OptionsDialog::run(this, {}, OptionsDialog::Keyboard); });
 
     // ---- edit: select
     fmt(QStringLiteral("selectAnnotation"), tr("Select &Annotation or Note"), QString(), QKeySequence(), [](TextEditor *e) {
@@ -1597,7 +1647,41 @@ QString MainWindow::aboutText()
 {
     QString version = QLatin1String(QB_APP_VERSION_SHOWN);   // "0.40.0 alpha"
     if (launcher::isOverlay())
+#ifdef Q_OS_WIN
+        version += tr(" (program update; installed version %1)").arg(launcher::builtInVersion());
+#else
         version += tr(" (program update; AppImage %1)").arg(launcher::builtInVersion());
+#endif
+#ifdef Q_OS_WIN
+    // Windows (port, W3): what the Windows program and its add-ons ship differs from the AppImage
+    return tr("<h2>%1 %2</h2><p>A writing studio for long texts: binder, corkboard, outliner, "
+              "combined text, snapshots, mind maps, objects and compile.</p>"
+              "<p>Built with Qt %3.</p>"
+              "<p><b>Credits</b><br>Main Developer: Claude.AI w. Opus 5.5 Extra</p>"
+              "<p><b>License</b><br>%1 is free software under the Zero-Clause BSD license (0BSD): anyone may use, "
+              "copy, change and pass it on, with or without fee, without conditions and without warranty.</p>"
+              "<p>The program uses parts of other projects, each under its own license; <b>Third-Party "
+              "Licenses…</b> below (also in the Help menu) lists them with their full texts:</p>"
+              "<ul><li>Qt, The Qt Company's own build for Windows, under the GNU LGPL version 3. Its libraries are "
+              "the separate Qt6*.dll files and plugin folders beside the program; each can be replaced by another "
+              "build of the same version.</li>"
+              "<li>Hunspell (spelling, used under the Mozilla Public License 1.1) and zlib, built into the program.</li>"
+              "<li>The spelling dictionaries for English and German from LibreOffice, unchanged: the German ones under "
+              "the GNU GPL version 2 or 3, British English under the GNU LGPL, American English under the SCOWL "
+              "license.</li>"
+              "<li>Microsoft's Visual C++ runtime files, passed on unchanged under Microsoft's terms for "
+              "redistributable code.</li></ul>"
+              "<p>The add-ons for audio and video bring Qt Multimedia (GNU LGPL version 3). The add-on \"Extra Video "
+              "and Audio Formats\" also brings the FFmpeg libraries as built by The Qt Company for Qt Multimedia "
+              "(avcodec, avformat, avutil, swresample, swscale), licensed under the GNU LGPL 2.1 or later and "
+              "replaceable as separate DLL files; its notes name the version and how it was built. Whether a patent "
+              "license is needed to play some of its formats depends on the country.</p>"
+              "<p>The source code of these parts, as used, is in the release \"Third-party source code\" of %4.</p>"
+              "<p>Scrivener and Scapple are products of Literature &amp; Latte. %1 is an independent program, not made "
+              "by or connected with Literature &amp; Latte; it reads and writes their file formats so that your "
+              "projects can move between the programs.</p>")
+        .arg(QLatin1String(QB_APP_NAME), version, QLatin1String(qVersion()), QLatin1String(QB_APP_HOMEPAGE));
+#endif
     return tr("<h2>%1 %2</h2><p>A writing studio for long texts: binder, corkboard, outliner, "
               "combined text, snapshots, mind maps, objects and compile.</p>"
               "<p>Built with Qt %3.</p>"
@@ -1679,7 +1763,7 @@ void MainWindow::updateActions()
                 ac->setEnabled(has);
     for (const char *k : {"save", "saveTemplate", "backupNow", "backupTo", "importFiles", "importWebPage", "importSplit", "exportFiles",
                           "compile", "closeProject", "newText", "newFolder", "projectSettings", "settingsExport", "settingsImport", "targets", "keywords",
-                          "statistics", "history", "emptyTrash", "showProjectFolder", "projectSearch", "projectReplace", "findFormat",
+                          "statistics", "history", "emptyTrash", "deleteSnapshots", "showProjectFolder", "projectSearch", "projectReplace", "findFormat",
                           "findFormatNext", "findFormatPrev", "trash", "duplicate",
                           "rename", "openOther", "quickRef", "split", "splitTitle", "merge", "toFolder", "toText",
                           "includeCompile", "snapshot", "snapshotTitle", "bookmark", "reveal", "lock", "composition",
@@ -1732,6 +1816,7 @@ void MainWindow::updateActions()
     a[QStringLiteral("lock")]->setChecked(m_active->isLocked());
     a[QStringLiteral("closeCopyholder")]->setEnabled(m_active->hasCopyholder());
     a[QStringLiteral("emptyTrash")]->setEnabled(!m_project->trash()->children.isEmpty());
+    updateSnapshotAction();
     const bool rtf = m_project->storage == StorageFormat::Rtf;
     for (QAction *ac : m_rtfOnly)
         ac->setVisible(rtf);
@@ -1795,7 +1880,10 @@ void MainWindow::updateFormatBar()
                               "clearFormat", "comment", "footnote", "annotation", "inlineFootnote", "image", "textColor",
                               "textColorAuto", "showFonts", "fontBigger", "fontSmaller", "paragraph", "indentMore", "indentLess",
                               "resetParagraph", "copyFormat", "line100", "line115", "line120", "line150", "line200",
-                              "insertDate", "insertTime", "pastePlain", "pasteKeep", "pasteFormat", "styleNew", "styleRedefine"})
+                              "insertDate", "insertTime", "pastePlain", "pasteKeep", "pasteFormat", "styleNew", "styleRedefine",
+                              "insertTable", "tableRowAbove", "tableRowBelow", "tableColLeft", "tableColRight", "tableDeleteRows",
+                              "tableDeleteCols", "tableDelete", "tableMerge", "tableSplit", "tableCellColor", "tableCellColorClear",
+                              "tableProperties", "picture"})
             a[QLatin1String(k)]->setEnabled(objectKeys.contains(QLatin1String(k)));
         for (QAction *ac : m_styleActions)
             ac->setEnabled(false);
@@ -1835,6 +1923,18 @@ void MainWindow::updateFormatBar()
         if (b)
             b->setEnabled(enabled);
     a[QStringLiteral("pasteFormat")]->setEnabled(enabled && TextEditor::hasCopiedFormatting());
+    // tables and pictures (0.62): what the cursor is in
+    {
+        const bool editable = e && !e->isReadOnly();
+        const bool inTable = editable && e->currentTable();
+        a[QStringLiteral("insertTable")]->setEnabled(editable && !inTable);
+        for (const char *k : {"tableRowAbove", "tableRowBelow", "tableColLeft", "tableColRight", "tableDeleteRows", "tableDeleteCols",
+                              "tableDelete", "tableCellColor", "tableCellColorClear", "tableProperties"})
+            a[QLatin1String(k)]->setEnabled(inTable);
+        a[QStringLiteral("tableMerge")]->setEnabled(inTable && e->canMergeCells());
+        a[QStringLiteral("tableSplit")]->setEnabled(inTable && e->canSplitCell());
+        a[QStringLiteral("picture")]->setEnabled(editable && e->pictureAtCursor() >= 0);
+    }
     if (!e)
         return;
     m_updatingUi = true;
@@ -2332,7 +2432,7 @@ bool MainWindow::openProject(const QString &path)
         lf.close();
         if (parts.size() == 2) {
             const bool sameHost = parts[0] == QSysInfo::machineHostName();
-            const bool alive = sameHost && QFile::exists(QStringLiteral("/proc/") + parts[1])
+            const bool alive = sameHost && platform::processAlive(parts[1].toLongLong())
                                && parts[1].toLongLong() != QCoreApplication::applicationPid();
             if (alive || !sameHost) {
                 if (QMessageBox::question(this, tr("Open Project"),
@@ -2425,6 +2525,8 @@ bool MainWindow::adoptProject(std::unique_ptr<Project> p, bool isNew)
     // every project keeps its own look (0.40.2): a project opened for the first time by this
     // version keeps the look it had, a new one gets the look for new projects
     look::activate(proj, look::settle(proj, isNew));
+    // 0.62: the project's own settings (File > Options, "This project") over the program's
+    settingslayer::activate(settingslayer::fileFor(proj->settingsDir()));
     {
         QFile lf(lockPath(proj));
         if (lf.open(QIODevice::WriteOnly))
@@ -2595,6 +2697,7 @@ bool MainWindow::closeProject()
     setSplit(Qt::Vertical, false);
     palette::setProject(nullptr);
     look::activate(nullptr); // the areas show the look for new projects again
+    settingslayer::activate(QString()); // the program's own settings again (0.62)
     m_project.reset();
     crash::setSessionProject(QString());
     crash::note(QStringLiteral("project closed"));
@@ -2811,8 +2914,16 @@ void MainWindow::saveForTermination()
 
 void MainWindow::changeEvent(QEvent *e)
 {
-    if (e->type() == QEvent::ActivationChange && !isActiveWindow() && m_project)
-        m_project->save(); // save when switching to another program
+    if (e->type() == QEvent::ActivationChange && !isActiveWindow() && m_project) {
+        // switching to another program: a full save (the .scriv gets its search index and the
+        // rest); a window of this program taking over (a dialog, a panel, the composition
+        // window): the quick save of the autosave (0.60.5; the full one took a moment with a
+        // large project in Scrivener format)
+        if (QApplication::activeWindow())
+            m_project->autosave();
+        else
+            m_project->save();
+    }
     QMainWindow::changeEvent(e);
 }
 

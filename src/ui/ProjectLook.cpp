@@ -168,12 +168,14 @@ Values settle(Project *p, bool isNew)
 
 static QPointer<Project> s_project;
 static Values s_values;
-static bool s_follow = false;
+static bool s_followForTests = false; // setFollowSettings: the test runs written before 0.40.2
+static bool s_programAlways = false;  // 0.62: "the program's settings always" (File > Options > General)
+static bool following() { return s_followForTests || s_programAlways; }
 
 static void pushToTheme()
 {
     theme::AreaLook a;
-    a.set = s_project != nullptr && !s_follow;
+    a.set = s_project != nullptr && !following();
     if (a.set) {
         a.theme = s_values.theme;
         a.colors = s_values.colors;
@@ -192,17 +194,23 @@ void activate(Project *p, const Values &v)
 
 Project *project() { return s_project; }
 
-Values active() { return s_project && !s_follow ? s_values : forNewProjects(); }
+Values active() { return s_project && !following() ? s_values : forNewProjects(); }
 
 void setFollowSettings(bool on)
 {
-    s_follow = on;
+    s_followForTests = on;
+    pushToTheme();
+}
+
+void setProgramSettingsAlways(bool on)
+{
+    s_programAlways = on;
     pushToTheme();
 }
 
 bool change(const Values &v, QString *error)
 {
-    if (s_project && !s_follow) {
+    if (s_project && !following()) {
         if (!write(s_project, v, error))
             return false;
         s_values = v;

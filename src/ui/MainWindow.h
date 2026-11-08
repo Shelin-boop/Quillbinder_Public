@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QDateTime>
 #include <QMainWindow>
+#include <QHash>
 #include <QSet>
 #include <QPointer>
 #include <QVariantMap>
@@ -75,6 +76,11 @@ public:
     bool compareWithFile(const QString &path);
     bool closeProject();
     Project *project() const { return m_project.get(); }
+    void updateFormatBar();   // the format bar and the format commands follow the cursor (public for the tests, 0.62)
+    // File > Options > Corrections, Convert Quotes (0.61.1): the dialog over `parent` (the Options window)
+    void convertQuotes(bool typographic, const QString &style, QWidget *parent = nullptr);
+    // Project > Delete Old Snapshots (0.61.1); ask: confirm first. Returns the snapshots deleted.
+    int deleteOldSnapshots(bool ask = true);
     void showStartDialog(bool recentFirst);
     // First start from an AppImage: offer to add the program to the application menu.
     void offerDesktopIntegration();
@@ -114,6 +120,11 @@ public:
     QJsonObject toolProjectInfo() const;     // title, file, binder (instance link "info")
     // A note of the scratch pad (or another tool): new document or added to a text.
     bool receiveFromTool(const tools::SendRequest &request, QString *error);
+    // tool interface 1.1 (0.61)
+    void toolShowInspectorTab(const QString &key);
+    void toolSetCommandState(const QString &commandKey, bool checked, const QString &icon, const QString &toolTip);
+    void toolShowOptions(const QString &toolId);
+    static QIcon toolIcon(const QString &icon);   // a theme name or a file (tools' icons)
 
     // ---- import (MainWindowImport.cpp)
     // File > Import > Web Page (address may be empty: the add-on's window asks);
@@ -175,6 +186,7 @@ private:
     QList<QAction *> toolActionsAt(const QString &place) const;
     void fillWritingToolsMenu(QMenu *menu);
     void updateToolActions();
+    void placeToolButtons();                      // the arrows (menus) beside tool buttons of the toolbars (0.61)
     void createToolBars();
     void createFormatBar();
     // menus, toolbars, layouts, shortcut lists (MainWindowBars.cpp)
@@ -191,7 +203,6 @@ private:
     void applyQuickRefFloating();
     EditorPane *binderTarget() const;
     void updateActions();
-    void updateFormatBar();
     void updateViewButtons();
     void updateWindowTitle();
     void showFontDialog(TextEditor *e);
@@ -247,6 +258,8 @@ private:
     void showScriptSettings();
     // search tools (MainWindowSearch.cpp)
     void projectReplace();
+    void afterProjectWideChange(int changes);   // refresh and save after Project Replace, Convert Quotes
+    void updateSnapshotAction();                // Delete Old Snapshots: enabled while there are snapshots
     void showFormatFind();
     // Select the next (previous) text with the formatting asked for in the
     // Find by Formatting window; goes on into the following documents.
@@ -329,6 +342,7 @@ private:
     QPointer<CompositionWindow> m_composition;
     QStringList m_lastSettingsNotes;
     QList<QAction *> m_toolActions;
+    QHash<QString, QPointer<QMenu>> m_toolMenus;   // menus beside tool buttons, by command key (0.61)
 
     // toolbars
     QToolBar *m_toolbar = nullptr;

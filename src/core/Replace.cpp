@@ -4,6 +4,7 @@
 #include "core/Project.h"
 #include "core/Search.h"
 #include "core/Snapshots.h"
+#include "text/AutoCorrect.h"
 #include "text/TextProps.h"
 
 #include <QCoreApplication>
@@ -54,44 +55,46 @@ QString replacement(const QRegularExpressionMatch &m, const QString &with, bool 
 }
 
 namespace {
-struct Hit {
-    int start, length;
-    QString text;
-};
-
-QList<Hit> hitsIn(const QString &s, const QRegularExpression &re, const QString &with, bool regex)
+ChangeFinder searchFinder(const QRegularExpression &re, const QString &with, bool regex)
 {
-    QList<Hit> hits;
-    if (!re.isValid())
+    return [re, with, regex](const QString &s) {
+        QList<TextChange> hits;
+        if (!re.isValid())
+            return hits;
+        auto it = re.globalMatch(s);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch m = it.next();
+            if (m.capturedLength() == 0)
+                continue; // an empty match would only insert text everywhere
+            hits.append({int(m.capturedStart()), int(m.capturedLength()), replacement(m, with, regex)});
+        }
         return hits;
-    auto it = re.globalMatch(s);
-    while (it.hasNext()) {
-        const QRegularExpressionMatch m = it.next();
-        if (m.capturedLength() == 0)
-            continue; // an empty match would only insert text everywhere
-        hits.append({int(m.capturedStart()), int(m.capturedLength()), replacement(m, with, regex)});
-    }
-    return hits;
+    };
 }
 } // namespace
 
-int inString(QString *s, const QRegularExpression &re, const QString &with, bool regex, bool countOnly)
+int inString(QString *s, const ChangeFinder &find, bool countOnly)
 {
-    const QList<Hit> hits = hitsIn(*s, re, with, regex);
+    const QList<TextChange> hits = find(*s);
     if (!countOnly)
         for (int i = int(hits.size()) - 1; i >= 0; --i)
             s->replace(hits[i].start, hits[i].length, hits[i].text);
     return int(hits.size());
 }
 
-int inDocument(QTextDocument *doc, const QRegularExpression &re, const QString &with, bool regex, bool countOnly)
+int inString(QString *s, const QRegularExpression &re, const QString &with, bool regex, bool countOnly)
+{
+    return inString(s, searchFinder(re, with, regex), countOnly);
+}
+
+int inDocument(QTextDocument *doc, const ChangeFinder &find, bool countOnly)
 {
     int n = 0;
     QTextCursor edit(doc);
     bool editing = false;
     // from the end, so that the positions of earlier blocks stay valid
     for (QTextBlock b = doc->lastBlock(); b.isValid(); b = b.previous()) {
-        const QList<Hit> hits = hitsIn(b.text(), re, with, regex);
+        const QList<TextChange> hits = find(b.text());
         n += int(hits.size());
         if (countOnly || hits.isEmpty())
             continue;
@@ -101,7 +104,7 @@ int inDocument(QTextDocument *doc, const QRegularExpression &re, const QString &
         }
         const int base = b.position();
         for (int i = int(hits.size()) - 1; i >= 0; --i) {
-            const Hit &h = hits[i];
+            const TextChange &h = hits[i];
             QTextCursor c(doc);
             c.setPosition(base + h.start + 1);
             const QTextCharFormat cf = c.charFormat(); // format of the first character of the match
@@ -117,7 +120,12 @@ int inDocument(QTextDocument *doc, const QRegularExpression &re, const QString &
     return n;
 }
 
-int inNoteTexts(QTextDocument *doc, const QRegularExpression &re, const QString &with, bool regex, bool countOnly)
+int inDocument(QTextDocument *doc, const QRegularExpression &re, const QString &with, bool regex, bool countOnly)
+{
+    return inDocument(doc, searchFinder(re, with, regex), countOnly);
+}
+
+int inNoteTexts(QTextDocument *doc, const ChangeFinder &find, bool countOnly)
 {
     struct Piece {
         int start, end;
@@ -134,7 +142,7 @@ int inNoteTexts(QTextDocument *doc, const QRegularExpression &re, const QString 
             if (!isLinkedNote(NoteKind(cf.intProperty(props::NoteKind))))
                 continue;
             QString text = cf.stringProperty(props::NoteText);
-            const int hits = inString(&text, re, with, regex, false);
+            const int hits = inString(&text, find, false);
             if (hits == 0)
                 continue;
             const QString id = cf.stringProperty(props::NoteId);
@@ -162,6 +170,11 @@ int inNoteTexts(QTextDocument *doc, const QRegularExpression &re, const QString 
     return n;
 }
 
+int inNoteTexts(QTextDocument *doc, const QRegularExpression &re, const QString &with, bool regex, bool countOnly)
+{
+    return inNoteTexts(doc, searchFinder(re, with, regex), countOnly);
+}
+
 ReplaceResult run(Project *p, const ReplaceOptions &o, bool countOnly, const std::function<bool(int, int)> &progress)
 {
     ReplaceResult r;
@@ -172,6 +185,14 @@ ReplaceResult run(Project *p, const ReplaceOptions &o, bool countOnly, const std
         r.error = QCoreApplication::translate("qb::replace", "The regular expression has a mistake: %1").arg(re.errorString());
         return r;
     }
+    return run(p, o, searchFinder(re, o.with, o.regex), [re](const QString &s) { return re.match(s).hasMatch(); }, countOnly,
+               progress);
+}
+
+ReplaceResult run(Project *p, const ReplaceOptions &o, const ChangeFinder &find, const std::function<bool(const QString &)> &mayChange,
+                  bool countOnly, const std::function<bool(int, int)> &progress)
+{
+    ReplaceResult r;
     QSet<BinderItem *> scope;
     for (const QString &id : o.scopeIds)
         if (BinderItem *s = p->item(id))
@@ -198,13 +219,13 @@ ReplaceResult run(Project *p, const ReplaceOptions &o, bool countOnly, const std
         int here = 0;
         bool metaChanged = false;
         if (o.inTitles && !it->isRootFolder()) {
-            const int n = inString(&it->title, re, o.with, o.regex, countOnly);
+            const int n = inString(&it->title, find, countOnly);
             r.titles += n;
             here += n;
             metaChanged |= n > 0;
         }
         if (o.inSynopses) {
-            const int n = inString(&it->synopsis, re, o.with, o.regex, countOnly);
+            const int n = inString(&it->synopsis, find, countOnly);
             r.synopses += n;
             here += n;
             metaChanged |= n > 0;
@@ -213,7 +234,7 @@ ReplaceResult run(Project *p, const ReplaceOptions &o, bool countOnly, const std
             for (auto c = it->custom.begin(); c != it->custom.end(); ++c) {
                 if (!textFields.contains(c.key()))
                     continue;
-                const int n = inString(&c.value(), re, o.with, o.regex, countOnly);
+                const int n = inString(&c.value(), find, countOnly);
                 r.custom += n;
                 here += n;
                 metaChanged |= n > 0;
@@ -221,23 +242,23 @@ ReplaceResult run(Project *p, const ReplaceOptions &o, bool countOnly, const std
         }
         if ((o.inText || o.inComments) && it->hasText()) {
             // look at the plain text first: most documents have no match and need not be read as rich text
-            const bool maybeText = o.inText && re.match(docs->plainText(it->id)).hasMatch();
+            const bool maybeText = o.inText && mayChange(docs->plainText(it->id));
             if (maybeText || o.inComments) {
                 int nText = 0, nComments = 0;
                 bool snapshotTaken = false;
                 const int res = docs->editStored(it->id, false, [&](QTextDocument *doc) {
                     if (o.inText)
-                        nText = inDocument(doc, re, o.with, o.regex, true);
+                        nText = inDocument(doc, find, true);
                     if (o.inComments)
-                        nComments = inNoteTexts(doc, re, o.with, o.regex, true);
+                        nComments = inNoteTexts(doc, find, true);
                     if (countOnly || nText + nComments == 0)
                         return nText + nComments;
                     if (o.snapshotFirst && snapshots::take(p, it->id, o.snapshotTitle, nullptr, doc))
                         snapshotTaken = true;
                     if (nText)
-                        inDocument(doc, re, o.with, o.regex, false);
+                        inDocument(doc, find, false);
                     if (nComments)
-                        inNoteTexts(doc, re, o.with, o.regex, false);
+                        inNoteTexts(doc, find, false);
                     return nText + nComments;
                 }, &r.error);
                 if (res >= 0) {
@@ -249,9 +270,9 @@ ReplaceResult run(Project *p, const ReplaceOptions &o, bool countOnly, const std
                 }
             }
         }
-        if (o.inNotes && re.match(docs->notesPlainText(it->id)).hasMatch()) {
+        if (o.inNotes && mayChange(docs->notesPlainText(it->id))) {
             const int res = docs->editStored(it->id, true, [&](QTextDocument *doc) {
-                return inDocument(doc, re, o.with, o.regex, countOnly);
+                return inDocument(doc, find, countOnly);
             }, &r.error);
             if (res > 0) {
                 r.notes += res;
@@ -268,6 +289,25 @@ ReplaceResult run(Project *p, const ReplaceOptions &o, bool countOnly, const std
     if (!countOnly && r.total() > 0)
         p->scheduleSave();
     return r;
+}
+
+ReplaceResult convertQuotes(Project *p, const ReplaceOptions &where, bool typographic, const QString &style, bool countOnly,
+                            const std::function<bool(int, int)> &progress)
+{
+    const ChangeFinder find = [typographic, style](const QString &s) {
+        QList<TextChange> out;
+        for (const auto &c : autocorrect::convertQuotes(s, typographic, style))
+            out.append({c.first, 1, QString(c.second)});
+        return out;
+    };
+    const QString marks = typographic ? QStringLiteral("\"'") : QStringLiteral("“”„‟«»‘’‚‛‹›");
+    const auto mayChange = [marks](const QString &s) {
+        for (const QChar c : s)
+            if (marks.contains(c))
+                return true;
+        return false;
+    };
+    return run(p, where, find, mayChange, countOnly, progress);
 }
 
 } // namespace replace

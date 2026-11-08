@@ -35,6 +35,15 @@ public:
     static QString resolveProjectFile(const QString &path);
 
     bool save(QString *error = nullptr);
+    // The save of the autosave timer (0.60.5): the same as save() for the texts and the
+    // binder, but a project in Scrivener format gets only what changed (scrivener::sync,
+    // quick), and a change of counts alone rewrites the project file at most once a minute.
+    // Every other save (switching to another program, closing, File > Save) is a full save.
+    bool autosave(QString *error = nullptr);
+    // the binder or the project's settings changed since the .scrivx of a project in Scrivener
+    // format was last written (0.60.5): set by markIndexDirty (not by a change of counts),
+    // cleared by scrivener::write; a quick write leaves the .scrivx alone while it is false
+    bool binderChangedSinceSync = true;
     bool saveIndex(QString *error = nullptr);
     // Saves when no change came for the autosave delay, but at the latest
     // max(maxSaveWait, delay) after the first unsaved change (0.20: before, changes
@@ -163,6 +172,9 @@ public:
     static QString neededVersion(const QString &projectFile);
 
     void notifyItemChanged(BinderItem *item, bool touchModified = true);
+    // the counts of an item's text changed while it was edited (0.60.5): like
+    // notifyItemChanged, but the project file waits for the next full save or a minute
+    void notifyItemCounted(BinderItem *item);
     void notifySettingsChanged();
     // project bookmarks or the bookmarks of a document were changed
     void notifyBookmarksChanged();
@@ -202,6 +214,9 @@ private:
     int m_maxSaveWait = 30000;
     QByteArray m_loadedIndex;   // the project file as it was read (for the spare copy)
     bool m_indexDirty = false;
+    bool m_countsDirty = false;     // counts and modification times only (0.60.5)
+    QElapsedTimer m_lastIndexWrite; // the last write of the project file
+    bool saveImpl(QString *error, bool quick);
 
     friend class ProjectIO;
 };

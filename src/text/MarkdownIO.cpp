@@ -3,7 +3,10 @@
 #include "text/DisplayFormat.h"
 #include "text/TextProps.h"
 #include "text/TextUtil.h"
+#include "text/Tables.h"
 
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMap>
 #include <QRegularExpression>
 #include <QTextBlock>
@@ -11,6 +14,7 @@
 #include <QTextDocument>
 #include <QTextFragment>
 #include <QTextList>
+#include <QTextTable>
 #include <QUuid>
 
 namespace qb {
@@ -1096,7 +1100,10 @@ private:
         if (path.isEmpty())
             return QString();
         path.replace(QLatin1Char(' '), QLatin1String("%20"));
-        QString md = QLatin1String("![](") + path + QLatin1Char(')');
+        // what the picture shows (0.62): the alt text
+        QString alt = s.imgFmt.stringProperty(props::ImageDescription);
+        alt.replace(QLatin1Char('\\'), QLatin1String("\\\\")).replace(QLatin1Char('['), QLatin1String("\\[")).replace(QLatin1Char(']'), QLatin1String("\\]")).replace(QLatin1Char('\n'), QLatin1Char(' '));
+        QString md = QLatin1String("![") + alt + QLatin1String("](") + path + QLatin1Char(')');
         const int w = qRound(s.imgFmt.width());
         const int h = qRound(s.imgFmt.height());
         if (w > 0 || h > 0) {
@@ -1295,27 +1302,17 @@ QString escapeInline(const QString &text, bool escapeBrackets)
     return out;
 }
 
-void read(const QString &markdown, QTextDocument *doc, const Formatting &f)
-{
-    const bool undo = doc->isUndoRedoEnabled();
-    doc->setUndoRedoEnabled(false);
-    doc->clear();
-    QString text = markdown;
-    text.replace(QLatin1String("\r\n"), QLatin1String("\n"));
-    text.replace(QLatin1Char('\r'), QLatin1Char('\n'));
-    if (text.startsWith(QChar(0xFEFF)))
-        text.remove(0, 1);
-    if (text.endsWith(QLatin1Char('\n')))
-        text.chop(1);
-    const QStringList lines = text.split(QLatin1Char('\n'));
-
-    QTextCursor cur(doc);
-    bool first = true;
+namespace {
+// One paragraph line into the text at the cursor: into the cursor's block (reuse) or a new block.
+struct LineReader {
+    QTextCursor &cur;
+    const Formatting &f;
     QMap<int, QTextList *> lists;
     QMap<int, int> listTypes;
     bool prevWasList = false;
 
-    for (const QString &line : lines) {
+    void line(const QString &line, bool reuse)
+    {
         const BlockInfo bi = parseBlock(line, f);
         QTextBlockFormat bf = display::blockFormatFor(f, bi.style);
         if (bi.centered) {
@@ -1334,10 +1331,9 @@ void read(const QString &markdown, QTextDocument *doc, const Formatting &f)
             && (bi.listType || ((own & direct::Align) && (bf.alignment() & (Qt::AlignHCenter | Qt::AlignRight)))))
             bf.setTextIndent(0);
         const QTextCharFormat cf = display::charFormatFor(f, bi.style);
-        if (first) {
+        if (reuse) {
             cur.setBlockFormat(bf);
             cur.setBlockCharFormat(cf);
-            first = false;
         } else {
             cur.insertBlock(bf, cf);
         }
@@ -1373,7 +1369,7 @@ void read(const QString &markdown, QTextDocument *doc, const Formatting &f)
 
         if (bi.literal) {
             cur.insertText(bi.content, cf);
-            continue;
+            return;
         }
         const QList<Run> runs = parseInline(bi.content, cf, f);
         for (const Run &r : runs) {
@@ -1386,92 +1382,305 @@ void read(const QString &markdown, QTextDocument *doc, const Formatting &f)
                     img.setWidth(r.width);
                 if (r.height > 0)
                     img.setHeight(r.height);
-                if (!r.text.isEmpty())
-                    img.setToolTip(r.text);
+                if (!r.text.isEmpty()) {
+                    QString alt = r.text;
+                    alt.replace(QLatin1String("\\]"), QLatin1String("]")).replace(QLatin1String("\\["), QLatin1String("[")).replace(QLatin1String("\\\\"), QLatin1String("\\"));
+                    img.setToolTip(alt);
+                    img.setProperty(props::ImageDescription, alt); // what the picture shows (0.62)
+                }
                 cur.insertImage(img);
             } else {
                 cur.insertText(r.text, r.fmt);
             }
         }
     }
+};
+
+// ":::table {json}" / ":::figure {json}" ... ":::" (0.62)
+QJsonObject sectionHeader(const QString &line, const QString &kind)
+{
+    const QString head = QStringLiteral(":::") + kind;
+    if (!line.startsWith(head))
+        return QJsonObject();
+    return QJsonDocument::fromJson(line.mid(head.size()).trimmed().toUtf8()).object();
+}
+
+bool isSectionStart(const QString &line) { return line.startsWith(QLatin1String(":::table")) || line.startsWith(QLatin1String(":::figure")); }
+
+// the cells of a row line "| a | b <p/> c |"
+QStringList rowCells(const QString &line)
+{
+    QStringList cells;
+    QString t = line.trimmed();
+    if (t.startsWith(QLatin1Char('|')))
+        t.remove(0, 1);
+    if (t.endsWith(QLatin1Char('|')) && !t.endsWith(QLatin1String("\\|")))
+        t.chop(1);
+    QString cell;
+    for (int i = 0; i < t.size(); ++i) {
+        if (t.at(i) == QLatin1Char('\\') && i + 1 < t.size()) {
+            cell += t.at(i);
+            cell += t.at(i + 1);
+            ++i;
+            continue;
+        }
+        if (t.at(i) == QLatin1Char('|')) {
+            cells << cell.trimmed();
+            cell.clear();
+            continue;
+        }
+        cell += t.at(i);
+    }
+    cells << cell.trimmed();
+    return cells;
+}
+
+} // namespace
+
+void read(const QString &markdown, QTextDocument *doc, const Formatting &f)
+{
+    const bool undo = doc->isUndoRedoEnabled();
+    doc->setUndoRedoEnabled(false);
+    doc->clear();
+    QString text = markdown;
+    text.replace(QLatin1String("\r\n"), QLatin1String("\n"));
+    text.replace(QLatin1Char('\r'), QLatin1Char('\n'));
+    if (text.startsWith(QChar(0xFEFF)))
+        text.remove(0, 1);
+    if (text.endsWith(QLatin1Char('\n')))
+        text.chop(1);
+    const QStringList lines = text.split(QLatin1Char('\n'));
+
+    QTextCursor cur(doc);
+    LineReader lr{cur, f};
+    bool reuse = true;   // the next line goes into the cursor's block (the first one, or the one after a table)
+
+    for (int i = 0; i < lines.size(); ++i) {
+        const QString &line = lines[i];
+        if (isSectionStart(line)) {
+            // a table or a figure: the lines up to ":::"
+            int end = i + 1;
+            while (end < lines.size() && lines[end] != QLatin1String(":::"))
+                ++end;
+            const QStringList body = lines.mid(i + 1, end - i - 1);
+            if (line.startsWith(QLatin1String(":::table"))) {
+                const QJsonObject h = sectionHeader(line, QStringLiteral("table"));
+                const int rows = qMax(1, int(body.size()));
+                int cols = 1;
+                for (const QString &rl : body)
+                    cols = qMax(cols, int(rowCells(rl).size()));
+                cur.movePosition(QTextCursor::EndOfBlock);
+                QTextTable *t = cur.insertTable(rows, cols, QTextTableFormat());
+                const QJsonObject cells = h.value(QStringLiteral("cells")).toObject();
+                for (int r = 0; r < rows; ++r) {
+                    const QStringList cs = rowCells(body.value(r));
+                    for (int c = 0; c < cols; ++c) {
+                        QTextCursor cc = t->cellAt(r, c).firstCursorPosition();
+                        LineReader cellReader{cc, f};
+                        const QStringList paras = cs.value(c).split(QStringLiteral(" <p/> "));
+                        for (int k = 0; k < paras.size(); ++k)
+                            cellReader.line(paras[k], k == 0);
+                        const QJsonObject co = cells.value(QStringLiteral("%1,%2").arg(r).arg(c)).toObject();
+                        if (const QColor bg(co.value(QStringLiteral("bg")).toString()); bg.isValid()) {
+                            QTextTableCellFormat cf = t->cellAt(r, c).format().toTableCellFormat();
+                            cf.setProperty(props::CellBackground, bg);
+                            t->cellAt(r, c).setFormat(cf);
+                        }
+                    }
+                }
+                // merged cells, the biggest first (merging needs the cells still single)
+                for (auto it = cells.begin(); it != cells.end(); ++it) {
+                    const QJsonObject co = it.value().toObject();
+                    const int rs = co.value(QStringLiteral("rs")).toInt(1), cs = co.value(QStringLiteral("cs")).toInt(1);
+                    const int r = it.key().section(QLatin1Char(','), 0, 0).toInt(), c = it.key().section(QLatin1Char(','), 1).toInt();
+                    if ((rs > 1 || cs > 1) && r < rows && c < cols)
+                        t->mergeCells(r, c, qMin(rs, rows - r), qMin(cs, cols - c));
+                }
+                tables::apply(t, tables::Spec::fromJson(h.value(QStringLiteral("spec")).toObject()));
+                cur.setPosition(t->lastPosition() + 1);
+            } else {
+                const QJsonObject h = sectionHeader(line, QStringLiteral("figure"));
+                const auto pos = figures::Position(qBound(1, h.value(QStringLiteral("pos")).toInt(3), 3));
+                cur.movePosition(QTextCursor::EndOfBlock);
+                QTextFrame *fr = cur.insertFrame(figures::frameFormatFor(pos, h.value(QStringLiteral("width")).toDouble(208) - figures::frameWidth(0)));
+                LineReader inner{cur, f};
+                for (int k = 0; k < body.size(); ++k)
+                    inner.line(body[k], k == 0);
+                cur.setPosition(fr->lastPosition() + 1);
+            }
+            reuse = true;
+            lr.lists.clear();
+            lr.prevWasList = false;
+            i = end;
+            continue;
+        }
+        lr.line(line, reuse);
+        reuse = false;
+    }
     doc->setUndoRedoEnabled(undo);
     doc->setModified(false);
 }
+
+namespace {
+QString paragraphLine(Writer &w, const QTextBlock &b, const Formatting &f)
+{
+    const QString style = b.blockFormat().property(props::Style).toString();
+    const ParagraphStyle *ps = styles::find(f, style);
+    const QString raw = b.text();
+    QString prefix, suffix;
+    QTextList *list = b.textList();
+    bool unstyled = false;
+    direct::ParaSpec own = direct::paraSpec(b.blockFormat());
+    if (list) {
+        const QTextListFormat lf = list->format();
+        const int level = qMax(0, lf.indent() - 1);
+        const auto st = lf.style();
+        const bool numbered = st == QTextListFormat::ListDecimal || st == QTextListFormat::ListLowerAlpha
+                              || st == QTextListFormat::ListUpperAlpha
+                              || st == QTextListFormat::ListLowerRoman
+                              || st == QTextListFormat::ListUpperRoman;
+        prefix = QString(level * 2, QLatin1Char(' '))
+                 + (numbered ? QString::number(list->itemNumber(b) + 1) + QLatin1String(". ")
+                             : QStringLiteral("- "));
+    } else if (ps && ps->headingLevel > 0) {
+        prefix = QString(ps->headingLevel, QLatin1Char('#')) + QLatin1Char(' ');
+    } else if (ps && ps->name == QLatin1String("Block Quote")) {
+        prefix = QStringLiteral("> ");
+    } else if (ps && ps->name == QLatin1String("Centered")) {
+        prefix = QStringLiteral("->");
+        suffix = QStringLiteral("<-");
+    } else if (ps) {
+        prefix = QLatin1String("::") + ps->name + QLatin1String(":: ");
+    } else if (b.blockFormat().alignment() & Qt::AlignHCenter) {
+        prefix = QStringLiteral("->");
+        suffix = QStringLiteral("<-");
+        own.bits &= ~direct::Align; // "->text<-" says it already
+    } else {
+        unstyled = true;
+    }
+    // a page break before the paragraph (from imported scripts and RTF files)
+    const bool pageBreak = b.blockFormat().property(props::PageBreak).toBool()
+                           || (b.blockFormat().pageBreakPolicy() & QTextFormat::PageBreak_AlwaysBefore);
+    QStringList paraAttrs;
+    if (own.bits)
+        paraAttrs << direct::toText(own);
+    if (pageBreak)
+        paraAttrs << QStringLiteral("page=before");
+    const QString paraPrefix = paraAttrs.isEmpty() ? QString()
+                                                   : QLatin1String("{: ") + paraAttrs.join(QLatin1Char(' ')) + QLatin1String("} ");
+
+    // Plain separator lines ("* * *", "#") are written verbatim.
+    bool plainFormatting = true;
+    for (auto it = b.begin(); !it.atEnd(); ++it) {
+        const QTextCharFormat cf = styles::withoutStyles(it.fragment().charFormat(), ps, f);
+        if (cf.fontWeight() >= QFont::DemiBold || cf.fontItalic() || cf.hasProperty(props::NoteKind)
+            || it.fragment().charFormat().hasProperty(props::CharStyle)
+            || cf.isAnchor() || cf.isImageFormat() || !direct::charSpec(cf).isEmpty())
+            plainFormatting = false;
+    }
+    QString body;
+    if (plainFormatting && isSeparatorLine(raw) && (unstyled || suffix == QLatin1String("<-"))) {
+        body = raw;
+    } else {
+        const bool escBrackets = raw.contains(QLatin1String("](")) || raw.contains(QLatin1String("!["))
+                                 || raw.contains(QLatin1String("^["));
+        body = w.block(b, ps, escBrackets);
+        if (unstyled)
+            body = escapeBlockStart(body, raw);
+        else if (!suffix.isEmpty())
+            body = body.trimmed();
+        else if (prefix.endsWith(QLatin1Char(' ')))
+            ; // prefix already separates
+    }
+    return paraPrefix + prefix + body + suffix;
+}
+
+QTextFrame *figureOf(const QTextBlock &b)
+{
+    QTextCursor c(b);
+    for (QTextFrame *fr = c.currentFrame(); fr && fr->parentFrame(); fr = fr->parentFrame())
+        if (figures::isFigure(fr))
+            return fr;
+    return nullptr;
+}
+
+QStringList tableLines(Writer &w, QTextTable *t, const Formatting &f)
+{
+    QJsonObject cells;
+    QStringList rows;
+    for (int r = 0; r < t->rows(); ++r) {
+        QStringList cs;
+        for (int c = 0; c < t->columns(); ++c) {
+            const QTextTableCell cell = t->cellAt(r, c);
+            if (cell.row() != r || cell.column() != c) {
+                cs << QString(); // covered by a merged cell
+                continue;
+            }
+            QJsonObject co;
+            if (cell.rowSpan() > 1)
+                co[QStringLiteral("rs")] = cell.rowSpan();
+            if (cell.columnSpan() > 1)
+                co[QStringLiteral("cs")] = cell.columnSpan();
+            const QColor bg = cell.format().property(props::CellBackground).value<QColor>();
+            if (bg.isValid())
+                co[QStringLiteral("bg")] = bg.name();
+            if (!co.isEmpty())
+                cells[QStringLiteral("%1,%2").arg(r).arg(c)] = co;
+            QStringList paras;
+            for (QTextFrame::iterator it = cell.begin(); !it.atEnd(); ++it)
+                if (it.currentBlock().isValid())
+                    paras << paragraphLine(w, it.currentBlock(), f).replace(QLatin1Char('|'), QLatin1String("\\|"));
+            cs << paras.join(QStringLiteral(" <p/> "));
+        }
+        rows << QStringLiteral("| ") + cs.join(QStringLiteral(" | ")) + QStringLiteral(" |");
+    }
+    QJsonObject h;
+    h[QStringLiteral("spec")] = tables::specOf(t).toJson();
+    if (!cells.isEmpty())
+        h[QStringLiteral("cells")] = cells;
+    QStringList out;
+    out << QStringLiteral(":::table ") + QString::fromUtf8(QJsonDocument(h).toJson(QJsonDocument::Compact));
+    out << rows;
+    out << QStringLiteral(":::");
+    return out;
+}
+
+QStringList figureLines(Writer &w, QTextFrame *fr, const Formatting &f)
+{
+    QJsonObject h;
+    h[QStringLiteral("pos")] = int(figures::positionOf(fr));
+    const QTextLength width = fr->frameFormat().width();
+    if (width.type() == QTextLength::FixedLength)
+        h[QStringLiteral("width")] = qRound(width.rawValue());
+    QStringList out;
+    out << QStringLiteral(":::figure ") + QString::fromUtf8(QJsonDocument(h).toJson(QJsonDocument::Compact));
+    for (QTextFrame::iterator it = fr->begin(); !it.atEnd(); ++it)
+        if (it.currentBlock().isValid())
+            out << paragraphLine(w, it.currentBlock(), f);
+    out << QStringLiteral(":::");
+    return out;
+}
+} // namespace
 
 QString write(const QTextDocument *doc, const Formatting &f, const ImageSaver &saver)
 {
     Writer w(saver, f);
     QStringList out;
-    for (QTextBlock b = doc->begin(); b.isValid(); b = b.next()) {
-        const QString style = b.blockFormat().property(props::Style).toString();
-        const ParagraphStyle *ps = styles::find(f, style);
-        const QString raw = b.text();
-        QString prefix, suffix;
-        QTextList *list = b.textList();
-        bool unstyled = false;
-        direct::ParaSpec own = direct::paraSpec(b.blockFormat());
-        if (list) {
-            const QTextListFormat lf = list->format();
-            const int level = qMax(0, lf.indent() - 1);
-            const auto st = lf.style();
-            const bool numbered = st == QTextListFormat::ListDecimal || st == QTextListFormat::ListLowerAlpha
-                                  || st == QTextListFormat::ListUpperAlpha
-                                  || st == QTextListFormat::ListLowerRoman
-                                  || st == QTextListFormat::ListUpperRoman;
-            prefix = QString(level * 2, QLatin1Char(' '))
-                     + (numbered ? QString::number(list->itemNumber(b) + 1) + QLatin1String(". ")
-                                 : QStringLiteral("- "));
-        } else if (ps && ps->headingLevel > 0) {
-            prefix = QString(ps->headingLevel, QLatin1Char('#')) + QLatin1Char(' ');
-        } else if (ps && ps->name == QLatin1String("Block Quote")) {
-            prefix = QStringLiteral("> ");
-        } else if (ps && ps->name == QLatin1String("Centered")) {
-            prefix = QStringLiteral("->");
-            suffix = QStringLiteral("<-");
-        } else if (ps) {
-            prefix = QLatin1String("::") + ps->name + QLatin1String(":: ");
-        } else if (b.blockFormat().alignment() & Qt::AlignHCenter) {
-            prefix = QStringLiteral("->");
-            suffix = QStringLiteral("<-");
-            own.bits &= ~direct::Align; // "->text<-" says it already
-        } else {
-            unstyled = true;
+    for (QTextBlock b = doc->begin(); b.isValid();) {
+        QTextCursor bc(b);
+        // a table of the text (not one inside a table cell) and a figure: a section of lines (0.62)
+        if (QTextTable *t = bc.currentTable(); t && t->parentFrame() == doc->rootFrame()) {
+            out << tableLines(w, t, f);
+            b = doc->findBlock(t->lastPosition() + 1);
+            continue;
         }
-        // a page break before the paragraph (from imported scripts and RTF files)
-        const bool pageBreak = b.blockFormat().property(props::PageBreak).toBool()
-                               || (b.blockFormat().pageBreakPolicy() & QTextFormat::PageBreak_AlwaysBefore);
-        QStringList paraAttrs;
-        if (own.bits)
-            paraAttrs << direct::toText(own);
-        if (pageBreak)
-            paraAttrs << QStringLiteral("page=before");
-        const QString paraPrefix = paraAttrs.isEmpty() ? QString()
-                                                       : QLatin1String("{: ") + paraAttrs.join(QLatin1Char(' ')) + QLatin1String("} ");
-
-        // Plain separator lines ("* * *", "#") are written verbatim.
-        bool plainFormatting = true;
-        for (auto it = b.begin(); !it.atEnd(); ++it) {
-            const QTextCharFormat cf = styles::withoutStyles(it.fragment().charFormat(), ps, f);
-            if (cf.fontWeight() >= QFont::DemiBold || cf.fontItalic() || cf.hasProperty(props::NoteKind)
-                || it.fragment().charFormat().hasProperty(props::CharStyle)
-                || cf.isAnchor() || cf.isImageFormat() || !direct::charSpec(cf).isEmpty())
-                plainFormatting = false;
+        if (QTextFrame *fr = figureOf(b); fr && fr->parentFrame() == doc->rootFrame()) {
+            out << figureLines(w, fr, f);
+            b = doc->findBlock(fr->lastPosition() + 1);
+            continue;
         }
-        QString body;
-        if (plainFormatting && isSeparatorLine(raw) && (unstyled || suffix == QLatin1String("<-"))) {
-            body = raw;
-        } else {
-            const bool escBrackets = raw.contains(QLatin1String("](")) || raw.contains(QLatin1String("!["))
-                                     || raw.contains(QLatin1String("^["));
-            body = w.block(b, ps, escBrackets);
-            if (unstyled)
-                body = escapeBlockStart(body, raw);
-            else if (!suffix.isEmpty())
-                body = body.trimmed();
-            else if (prefix.endsWith(QLatin1Char(' ')))
-                ; // prefix already separates
-        }
-        out << paraPrefix + prefix + body + suffix;
+        out << paragraphLine(w, b, f);
+        b = b.next();
     }
     return out.join(QLatin1Char('\n')) + QLatin1Char('\n');
 }

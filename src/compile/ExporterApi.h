@@ -51,6 +51,8 @@ struct Run {
     // interface 1.3: the character style of the run (its look is in the
     // members above; the name lets DOCX and EPUB name it)
     QString charStyle;
+    // interface 1.4: what a picture shows (alt text)
+    QString imageDescription;
 };
 
 struct TabStop {
@@ -104,6 +106,15 @@ struct Paragraph {
     int outlineLevel = 0;         // 1..6: an entry of the table of contents / PDF bookmarks; 0 = none
     QString tocText;              // the entry's text when it is not the paragraph's (titles of two lines)
     QString anchor;               // a name links can point to (EPUB, PDF)
+    // interface 1.4: a paragraph of a table cell (Manuscript::tables[table].cells[cell]); the
+    // paragraphs of one table follow each other, cell by cell, row by row
+    int table = -1;
+    int cell = -1;
+    // a picture with its caption: the picture's paragraph has the position (1 left, 2 right:
+    // the text flows around it; 3 centered on its own lines), the caption's paragraphs that
+    // follow have figureCaption
+    int figure = 0;
+    bool figureCaption = false;
 
     QString plainText() const
     {
@@ -117,6 +128,26 @@ struct Paragraph {
                 s += QLatin1Char('\n');
         return s;
     }
+};
+
+// interface 1.4: a table and its design
+struct TableCell {
+    int row = 0, column = 0, rowSpan = 1, columnSpan = 1;
+    QColor background;            // invalid = none
+};
+struct Table {
+    int rows = 0, columns = 0;
+    QList<double> columnShares;   // percent of the table's width, one per column
+    double borderPt = 0.75;       // 0 = no lines
+    QColor borderColor = QColor(0x80, 0x80, 0x80);
+    bool linesOnly = false;       // only the lines between the rows
+    double paddingPt = 3;         // inside the cells
+    double spacingPt = 0;         // between the cells
+    int headerRows = 0;           // repeated on every page
+    int widthPercent = 100;       // of the text width; 0 = as wide as the contents
+    Qt::Alignment align = Qt::AlignLeft;
+    int flow = 0;                 // 0 on its own lines, 1 left with the text beside it, 2 right
+    QList<TableCell> cells;       // each cell once (a merged cell with its spans), row by row
 };
 
 struct Footnote {
@@ -203,6 +234,8 @@ struct Manuscript {
     // interface 1.3
     OutputOptions options;
     QList<NamedStyle> styles;        // the styles named by Paragraph::styleName and Run::charStyle
+    // interface 1.4
+    QList<Table> tables;
 };
 
 } // namespace compile
@@ -224,5 +257,7 @@ public:
 // 1.2 (program version 0.10.0): Paragraph::script. Plugins built for 1.1 must be rebuilt.
 // 1.3 (program version 0.14.0): style names, outline levels, OutputOptions, NamedStyle,
 // more page settings. Plugins built for 1.2 must be rebuilt.
-#define QB_EXPORTER_IID "org.quillbinder.ExporterInterface/1.3"
+// 1.4 (program version 0.62.0): tables (Manuscript::tables, Paragraph::table and cell), figures
+// (Paragraph::figure, figureCaption), Run::imageDescription. Plugins built for 1.3 must be rebuilt.
+#define QB_EXPORTER_IID "org.quillbinder.ExporterInterface/1.4"
 Q_DECLARE_INTERFACE(qb::ExporterInterface, QB_EXPORTER_IID)

@@ -95,14 +95,28 @@ Plugins are Qt plugins (`QPluginLoader`) found in `plugins/` folders: of the App
 
 | Interface | Header | IID | Examples |
 |-----------|--------|-----|----------|
-| compile output | `src/compile/ExporterApi.h` | `org.quillbinder.ExporterInterface/1.3` | Markdown exporter (part of every program update) |
-| writing tools | `src/tools/ToolApi.h` | `org.quillbinder.ToolInterface/1.0` | Name Generator, Scratch Pad, Text Statistics |
+| compile output | `src/compile/ExporterApi.h` | `org.quillbinder.ExporterInterface/1.4` | Markdown exporter (part of every program update) |
+| writing tools | `src/tools/ToolApi.h` | `org.quillbinder.ToolInterface/1.0`, since 0.61 also `org.quillbinder.ToolExtension/1.1` | Name Generator, Scratch Pad, Text Statistics; Speech Transcription (1.1) |
 | importers | `src/import/ImporterApi.h` | `org.quillbinder.ImporterInterface/1.0` | Word 97–2003, Web Page |
 | audio and video | `src/media/MediaApi.h` | `org.quillbinder.MediaEngine/1.0` | Media Playback |
 
 Command plugins (`plugins/command/*.json`) run another program (LibreOffice, Pandoc) for a compile output; they need no code.
 
 Plugins are loaded once at program start, so an add-on with plugins needs a restart after it is installed.
+
+Compile output 1.4 (0.62): `Manuscript::tables` holds the tables of the text (rows, columns, column shares, lines,
+padding, header rows, width, alignment, the place beside the text, and each cell once with its spans and background);
+the paragraphs of a table cell carry `table` and `cell` and follow each other cell by cell. A picture with its caption:
+the picture's paragraph has `figure` (1 left and 2 right with the text flowing around it, 3 centered), the caption's
+paragraphs after it `figureCaption`. `Run::imageDescription` is the alt text of a picture. An exporter that knows none
+of this still gets every paragraph in order. The IID changed, so exporters built for 1.3 must be rebuilt.
+
+Writing tools 1.1 (0.61): a tool may also implement `ToolExtension` (list both interfaces in `Q_INTERFACES`, keep the
+IID of `Q_PLUGIN_METADATA` at 1.0) for tabs in the inspector, a button with a menu on the main toolbar and a section of
+its own in File > Options, and call the three newer `ToolHost` functions when `apiVersion()` is 110 or more. The 1.0
+parts never change, so tools built for 1.0 keep working and a 1.1 tool still loads in an older program (without the
+1.1 parts). A function that needs more of the program than the interface offers is the only reason for a program
+update; everything else of such a tool comes with an update of its add-on.
 
 ---
 

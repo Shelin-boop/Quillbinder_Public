@@ -1,5 +1,5 @@
 #pragma once
-// Interface between the program and writing tools (version 1.0).
+// Interface between the program and writing tools (version 1.1; 1.0 since 0.11, 1.1 since 0.61).
 //
 // A writing tool is a Qt plugin (a MODULE library, *.so) that implements
 // qb::tools::ToolInterface. It is delivered as an add-on: the library goes
@@ -18,6 +18,19 @@
 // toolbar button. Commands marked `standalone` also run without a main
 // window: `<program> --tool <key>` (the scratch pad uses this for a
 // shortcut that works in every program).
+//
+// Version 1.1 (0.61) adds to 1.0 without changing it, so tools built for 1.0
+// keep working and a 1.1 tool still loads in a 1.0 program (both use the IID
+// QB_TOOL_IID):
+//  - ToolHost has three more functions at its end (showInspectorTab,
+//    setCommandState, showOptions). A tool calls them only when
+//    host->apiVersion() >= 110: an older program does not have them.
+//  - What a tool gives the program in 1.1 is a second interface,
+//    ToolExtension (its own IID), which the program asks the plugin object
+//    for: tabs in the inspector, buttons of the main toolbar with a menu
+//    beside them, a section of its own in File > Options.
+// Nothing of 1.0 may change: the program reads the structs and calls the
+// functions of tools built years earlier.
 
 #include <QJsonArray>
 #include <QList>
@@ -26,6 +39,7 @@
 #include <QVariant>
 #include <QtPlugin>
 
+class QMenu;
 class QObject;
 class QWidget;
 
@@ -123,6 +137,16 @@ public:
     //   projectChanged()    a project was opened or closed in this window
     //   settingsChanged()   File > Options was applied
     virtual QObject *events() const = 0;
+
+    // ---- 1.1 (program 0.61): only when apiVersion() >= 110
+    // Shows the inspector of the main window with the tool's tab (InspectorTab::key).
+    virtual void showInspectorTab(const QString &key) = 0;
+    // The state of a command's menu entry and toolbar button: checked (on / off), its
+    // icon (theme name or file path; empty: the command's own) and its tool tip (empty:
+    // the command's own).
+    virtual void setCommandState(const QString &commandKey, bool checked, const QString &icon, const QString &toolTip) = 0;
+    // File > Options, at the tool's section (ToolInterface::optionsPage() "Section").
+    virtual void showOptions(const QString &toolId) = 0;
 };
 
 // A section a tool adds to File > Options (ToolInterface::optionsPage).
@@ -144,7 +168,9 @@ public:
     virtual QList<Command> commands() const = 0;
     virtual void setHost(ToolHost *host) = 0;  // once, before any command runs
     virtual void run(const QString &commandKey) = 0;
-    // Options: "" = none, "General" = a section on the General page.
+    // Options: "" = none, "General" = a section on the General page,
+    // "Section" (1.1) = a section of its own in the icon row of File > Options
+    // (ToolExtension::optionsTitle / optionsIcon; a 1.0 program shows none).
     virtual QString optionsPage() const = 0;
     virtual OptionsSection *createOptions(QWidget *parent) = 0;  // null if none
     // The program ends (or the main window closes): save open work.
@@ -154,8 +180,45 @@ public:
     virtual int openWindows() const = 0;
 };
 
+// ---- 1.1 (0.61)
+
+// A tab of the tool in the inspector; its button sits at the left end of the
+// row of tab buttons.
+struct InspectorTab {
+    QString key;        // unique: "<tool id>.<name>", e.g. "speech-transcription.list"
+    QString icon;       // icon theme name or file path
+    QString toolTip;
+};
+
+// A button of the main toolbar for one of the tool's commands. It is part of
+// the toolbar's standard set (before the item `before`, an item id of that set
+// such as "showInspector"; empty: at the end); a toolbar the writer arranged
+// gets it once.
+struct ToolbarButton {
+    QString commandKey;
+    QString before;
+};
+
+class ToolExtension
+{
+public:
+    virtual ~ToolExtension() = default;
+    virtual QList<InspectorTab> inspectorTabs() const = 0;
+    // The page of a tab; the inspector owns it. Asked once per main window.
+    virtual QWidget *createInspectorTab(const QString &key, QWidget *parent) = 0;
+    virtual QList<ToolbarButton> toolbarButtons() const = 0;
+    // The menu opened by the arrow beside the command's toolbar button (the tool
+    // owns it and may fill it when it opens); null: a button without an arrow.
+    virtual QMenu *commandMenu(const QString &commandKey) = 0;
+    // The section of File > Options when optionsPage() is "Section".
+    virtual QString optionsTitle() const = 0;
+    virtual QString optionsIcon() const = 0;   // icon theme name or file path
+};
+
 } // namespace tools
 } // namespace qb
 
 #define QB_TOOL_IID "org.quillbinder.ToolInterface/1.0"
 Q_DECLARE_INTERFACE(qb::tools::ToolInterface, QB_TOOL_IID)
+#define QB_TOOL_EXTENSION_IID "org.quillbinder.ToolExtension/1.1"
+Q_DECLARE_INTERFACE(qb::tools::ToolExtension, QB_TOOL_EXTENSION_IID)

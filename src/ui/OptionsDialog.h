@@ -24,6 +24,8 @@
 #include "tools/ToolApi.h"
 #include "ui/AlignButtons.h"
 #include "ui/ProjectLook.h"
+
+#include <functional>
 #include "ui/Theme.h"
 
 #include <QColor>
@@ -63,12 +65,29 @@ public:
     enum Section { SGeneral = 0, SEditing, SBehaviors, SAppearance, SCorrections, SKeyboard, SSharing, SBackup, SExtras, SectionCount };
 
     explicit OptionsDialog(QWidget *parent = nullptr, int page = 0);
+    ~OptionsDialog() override;
+
+    // 0.62: the options shown and changed are the program's (all projects) or the open project's.
+    // The scope is chosen at the top; changing it reopens the window (run() does that).
+    enum OptionScope { AllProjects = 0, ThisProject = 1 };
+    enum { SwitchScope = 7 };   // exec() result: open again in the other scope
+    int optionScope() const { return m_optScope; }
+    // Opens the window (setup may choose a section), again after a change of scope.
+    static int run(QWidget *parent, const std::function<void(OptionsDialog &)> &setup = {}, int page = 0);
+    // The scope the next window opens with (-1: this project when one is open and its
+    // settings come first, else all projects).
+    static void setNextScope(int scope);
+    // The number of options the project keeps a value of its own for.
+    static int projectValueCount();
     KeyboardPage *keyboardPage() const { return m_keyboard; }
     void accept() override;
     void apply();   // store everything without closing
 
     // Shows a section and, when given, a page of it by its name ("Playback", "Revisions").
     void showSection(int section, const QString &page = QString());
+    // Sections of writing tools (tool interface 1.1, 0.61) follow Extras in the icon row.
+    bool showToolSection(const QString &toolId);
+    QStringList toolSections() const { return m_toolSectionIds; }
     QStringList pageNames(int section) const;   // the pages (or tabs) of a section, for tests and the manual
 
     // Appearance (0.40.2): the pages show and change the look of the open project or the
@@ -122,6 +141,7 @@ private:
 
     // sections of writing tools on the General page (tools/ToolApi.h)
     std::vector<std::unique_ptr<tools::OptionsSection>> m_toolSections;
+    QStringList m_toolSectionIds;   // tools with a section of their own, in the order of the icon row
     QListWidget *m_pages;                       // the icon row ("optionPages")
     QStackedWidget *m_stack;                    // one widget per section
     QHash<int, QListWidget *> m_subLists;       // the page list of a section
@@ -184,6 +204,15 @@ private:
     QSpinBox *m_textBorder = nullptr;
     QComboBox *m_lookScope = nullptr;
     int m_scope = ScopeNew;
+    // 0.62: the scope of all options
+    int m_optScope = AllProjects;
+    bool m_suspendedLayer = false;
+    QCheckBox *m_projectFirst = nullptr;
+    QComboBox *m_scopeCombo = nullptr;
+    QLabel *m_scopeInfo = nullptr;
+    QPushButton *m_scopeReset = nullptr;
+    void updateScopeInfo();
+    void showProjectValues();
     look::Values m_scopeLooks[2];
     bool m_hasProject = false;
     QComboBox *m_toolbarIcons = nullptr;

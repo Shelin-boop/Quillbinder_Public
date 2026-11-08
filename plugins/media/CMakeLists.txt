@@ -3,7 +3,13 @@
 #  - libqb-media-impl.so  the players, built against Qt Multimedia   -> build/tool-plugins/media/
 # packaging/build-addons.sh puts both into the add-on together with the libraries
 # of addons/media-playback/stage.sh (Qt Multimedia, FFmpeg built by tools/build-ffmpeg.sh).
-add_library(qb-media MODULE MediaEngine.cpp MediaEngine.h ${CMAKE_SOURCE_DIR}/src/media/MediaApi.h)
+# Windows (port, W2): its own engine (LoadLibrary, Qt's Windows backend; see MediaEngineWin.cpp)
+if(WIN32)
+  set(QB_MEDIA_ENGINE_SOURCE MediaEngineWin.cpp)
+else()
+  set(QB_MEDIA_ENGINE_SOURCE MediaEngine.cpp)
+endif()
+add_library(qb-media MODULE ${QB_MEDIA_ENGINE_SOURCE} MediaEngine.h ${CMAKE_SOURCE_DIR}/src/media/MediaApi.h)
 target_include_directories(qb-media PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(qb-media PRIVATE Qt6::Core ${CMAKE_DL_LIBS})
 set_target_properties(qb-media PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tool-plugins)

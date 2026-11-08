@@ -460,7 +460,7 @@ void runOn(const QString &origin, const QString &label)
         check(!rtf.contains("Calm that night") && !rtf.contains("check the log"),
               L(QStringLiteral("notes: inline notes leave the text and become linked notes")));
         QDomDocument cd;
-        check(cd.setContent(readAll(base + QLatin1String("content.comments"))), L(QStringLiteral("notes: content.comments is XML")));
+        check(bool(cd.setContent(readAll(base + QLatin1String("content.comments")))), L(QStringLiteral("notes: content.comments is XML")));
         const QDomNodeList cs = cd.elementsByTagName(QStringLiteral("Comment"));
         int fns = 0;
         QStringList texts;

@@ -245,7 +245,7 @@ void MainWindow::createMenus()
     // ---- Insert
     QMenu *insert = mb->addMenu(tr("&Insert"));
     insert->setProperty("qbNeedsProject", true);
-    add(insert, {"image", "", "comment", "footnote", "annotation", "inlineFootnote", ""});
+    add(insert, {"image", "insertTable", "", "comment", "footnote", "annotation", "inlineFootnote", ""});
     menuAlias(insert, QStringLiteral("mediaTimestamp"), tr("Media &Timestamp"));
     insert->addSeparator();
     QMenu *autoNum = insert->addMenu(tr("Auto &Number"));
@@ -418,7 +418,8 @@ void MainWindow::createMenus()
     add(proj, {"", "projectSettings", "settingsExport", "settingsImport", "", "targets", "keywords", "objectTemplates", "statistics"});
     for (QAction *ac : toolActionsAt(QStringLiteral("project")))
         proj->addAction(ac);
-    add(proj, {"history", "", "emptyTrash"});
+    add(proj, {"history", "", "emptyTrash", "deleteSnapshots"});
+    connect(proj, &QMenu::aboutToShow, this, &MainWindow::updateSnapshotAction);
 
     // ---- Documents
     QMenu *docs = mb->addMenu(tr("&Documents"));
@@ -522,6 +523,12 @@ void MainWindow::createMenus()
     connect(m_styleMenu, &QMenu::aboutToShow, this, [this] { fillStyleMenu(m_styleMenu, nullptr, true); });
     QMenu *lists = format->addMenu(tr("&Lists"));
     add(lists, {"bullets", "numbers", "indent", "outdent"});
+    // tables and pictures (0.62)
+    QMenu *tableMenu = format->addMenu(icons::action(QStringLiteral("insert-table")), tr("&Table"));
+    tableMenu->setObjectName(QStringLiteral("tableMenu"));
+    add(tableMenu, {"tableRowAbove", "tableRowBelow", "tableColLeft", "tableColRight", "", "tableDeleteRows", "tableDeleteCols",
+                    "tableDelete", "", "tableMerge", "tableSplit", "", "tableCellColor", "tableCellColorClear", "", "tableProperties"});
+    add(format, {"picture"});
     add(format, {"", "highlight", "", "copyFormat", "pasteFormat", "clearFormat", ""});
     QMenu *rev = format->addMenu(tr("&Revision Mode"));
     for (int i = 0; i <= 5; ++i)
@@ -976,8 +983,9 @@ QAction *MainWindow::barItem(const QString &id) const
 {
     if (QAction *w = m_barItems.value(id))
         return w;
-    // commands only; the lists that come and go (styles, layouts) would leave holes
-    if (id.contains(QLatin1Char(':')))
+    // commands only; the lists that come and go (styles, layouts) would leave holes; the
+    // commands of writing tools stay while the tool is installed (0.61)
+    if (!toolbars::usableOnBar(id))
         return nullptr;
     return a.value(id);
 }
@@ -1042,6 +1050,7 @@ void MainWindow::rebuildToolBars()
         b->setToolButtonStyle(style);
     }
     installToolbarDropTargets();
+    placeToolButtons();
 }
 
 // Navigate > Go To: the commands that move the active editor, then the binder

@@ -50,6 +50,39 @@ private:
     QPushButton *m_countButton, *m_replaceButton;
 };
 
+// File > Options > Corrections, Convert Quotes (0.61.1): the quote marks of the project made
+// typographic (in a quote style) or straight, with the places and the scope of Project Replace.
+class ConvertQuotesDialog : public QDialog
+{
+    Q_OBJECT
+public:
+    ConvertQuotesDialog(Project *project, bool typographic, const QString &style, QWidget *parent = nullptr);
+    void setSelection(const QList<BinderItem *> &items);
+    ReplaceOptions where() const;
+    bool typographic() const;
+    QString style() const;
+    void setTypographic(bool on, const QString &style);
+    ReplaceResult count();
+    // ask: confirm first and report afterwards with message boxes
+    ReplaceResult convert(bool ask = true);
+    QString resultText() const;
+
+signals:
+    void converted(const qb::ReplaceResult &result);
+
+private:
+    void updateButtons();
+    QPointer<Project> m_project;
+    QStringList m_selection;
+    QRadioButton *m_toSmart, *m_toStraight;
+    QComboBox *m_style;
+    QCheckBox *m_titles, *m_text, *m_notes, *m_synopses, *m_custom, *m_comments;
+    QRadioButton *m_all, *m_selected;
+    QCheckBox *m_trash, *m_snapshots;
+    QLabel *m_result;
+    QPushButton *m_countButton, *m_convertButton;
+};
+
 // Tool window: choose a kind of formatting and step through the places that
 // have it. The window only holds the question; the main window does the walking.
 class FormatFindWindow : public QDialog

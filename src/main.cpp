@@ -1,6 +1,8 @@
 #include "AppInfo.h"
 #include "ui/Zoom.h"
 #include "compile/PluginManager.h"
+#include "core/SettingsLayer.h"
+#include "ui/FirstStartDialog.h"
 #include "core/Addons.h"
 #include "core/CrashGuard.h"
 #include "core/Launcher.h"
@@ -8,12 +10,16 @@
 #include "ui/AppSettings.h"
 #include "ui/CrashDialogs.h"
 #include "ui/MainWindow.h"
+#include "ui/MediaPlayback.h"
 #include "ui/ToolHost.h"
 
 #include <QAction>
 #include "text/PageLayout.h"
 #include <QApplication>
 #include <QTextDocument>
+#include <QThread>
+
+#include <cstdlib>
 #include <QHash>
 #include <QCommandLineParser>
 #include <QDir>
@@ -40,6 +46,9 @@ int main(int argc, char **argv)
     qb::launcher::maybeRunInstalledCore(argc, argv);
 
     // Names first: QSettings (~/.config/<name>/<name>.conf) works before QApplication.
+#ifdef Q_OS_WIN
+    QSettings::setDefaultFormat(QSettings::IniFormat); // a file in %APPDATA%\Quillbinder, not the registry (W3)
+#endif
     QCoreApplication::setOrganizationName(QStringLiteral(QB_APP_NAME));
     QCoreApplication::setApplicationName(QStringLiteral(QB_APP_NAME));
     QCoreApplication::setApplicationVersion(QStringLiteral(QB_APP_VERSION));
@@ -71,7 +80,9 @@ int main(int argc, char **argv)
             QStringList log;
             QString error;
             bool restart = false;
-            const bool ok = qb::addons::install(QString::fromLocal8Bit(argv[i + 1]), &log, &error, &restart);
+            // Windows: the wide command line, so that any letter in the path works (argv is the ANSI code page)
+            const QString file = QCoreApplication::arguments().value(i + 1, QString::fromLocal8Bit(argv[i + 1]));
+            const bool ok = qb::addons::install(file, &log, &error, &restart);
             for (const QString &l : log)
                 std::printf("%s\n", qPrintable(l));
             if (!ok)
@@ -82,6 +93,16 @@ int main(int argc, char **argv)
             if (qEnvironmentVariableIsSet("QB_DEBUG_ENV")) // developer check: nothing of the loader leaks to child processes
                 std::printf("LD_LIBRARY_PATH=[%s] QB_CORE_ACTIVE=[%s]\n", qgetenv("LD_LIBRARY_PATH").constData(),
                             qgetenv("QB_CORE_ACTIVE").constData());
+#ifdef Q_OS_WIN
+            // the update loader's check on the Windows runner (tools/win-ci.sh)
+            if (qEnvironmentVariableIsSet("QB_DEBUG_ENV"))
+                std::printf("overlay=[%d] base=[%s] program=[%s] QB_CORE_APPDIR=[%s] path-starts-with-program=[%d]\n",
+                            int(qb::launcher::isOverlay()), qPrintable(qb::launcher::builtInVersion()),
+                            qPrintable(QDir::toNativeSeparators(QCoreApplication::applicationFilePath())),
+                            qgetenv("QB_CORE_APPDIR").constData(),
+                            int(qEnvironmentVariable("PATH").startsWith(QDir::toNativeSeparators(qb::launcher::appDir()),
+                                                                        Qt::CaseInsensitive)));
+#endif
             for (const qb::addons::CoreVersion &cv : qb::addons::coreVersions())
                 std::printf("%s%s%s%s\n", qPrintable(cv.version), cv.builtIn ? " (built in)" : "",
                             cv.running ? " (running)" : "", cv.active ? " (active)" : "");
@@ -146,6 +167,19 @@ int main(int argc, char **argv)
         qb::crash::prune(qBound(1, qb::AppSettings::instance().keepReports, 200)); // File > Options > Extras (0.21)
         qb::sysinfo::installActivityRecorder();
     }
+#ifdef Q_OS_WIN
+    // The full version for Windows (W3): the add-ons in full-addons\ beside the program are installed
+    // once per version before the plugins load (on Linux the full AppImage's start script does this)
+    if (!selftest) {
+        QStringList log;
+        QString error;
+        const QString full = qb::launcher::appDir() + QStringLiteral("/full-addons");
+        if (!qb::addons::installBundled(full, &log, &error))
+            qWarning("full version: not every add-on could be installed: %s", qPrintable(error));
+        for (const QString &l : log)
+            qb::crash::note(QStringLiteral("full version: ") + l);
+    }
+#endif
     qb::compile::PluginManager::instance().load();
 
     // ---- a writing tool on its own (a desktop-wide shortcut starts this)
@@ -250,6 +284,12 @@ int main(int argc, char **argv)
         if (!previous.isEmpty() && !qEnvironmentVariableIsSet("QB_NO_DIALOGS")
             && qb::showPreviousEnds(&w, previous, reopening))
             toOpen.clear(); // the last session ended right after the start: not the last project this time
+        // 0.62: backups and which settings come first, once (also after an update from an older version)
+        if (qb::FirstStartDialog::due()) {
+            qb::FirstStartDialog first(&w);
+            first.exec();
+            first.take();
+        }
         w.offerDesktopIntegration();
         if (!toInstall.isEmpty()) {
             w.installPackage(toInstall);
@@ -270,7 +310,35 @@ int main(int argc, char **argv)
     // a freeze report when the window does not respond for 30 s (an endless loop ...);
     // the time is set in File > Options > Extras > Crash Reports (0.21)
     qb::crash::startWatchdog(qBound(10, qb::AppSettings::instance().freezeSeconds, 600));
+#ifdef Q_OS_WIN
+    // Checks of the crash guard on the Windows runner (tools/win-ci.sh; Linux sends signals instead).
+    // Nothing happens without the variable: QB_TEST_CRASH=access|abort|freeze|quit.
+    const QByteArray crashTest = qgetenv("QB_TEST_CRASH");
+    if (!crashTest.isEmpty())
+        QTimer::singleShot(4000, &app, [crashTest] {
+            qb::crash::note(QStringLiteral("check of the crash guard: %1").arg(QString::fromLatin1(crashTest)));
+            if (crashTest == "access") {
+                volatile int *nowhere = nullptr;
+                *nowhere = 42;
+            } else if (crashTest == "abort") {
+                std::abort();
+            } else if (crashTest == "media") { // the media add-on starts: Qt Multimedia and its backend load
+                QString error;
+                const bool ok = qb::playback::start(&error);
+                std::fprintf(stderr, "media: %s %s\n", ok ? "started" : "failed", qPrintable(ok ? qb::playback::status() : error));
+                std::fflush(stderr);
+                QCoreApplication::quit();
+            } else if (crashTest == "freeze") {
+                qb::crash::setFreezeSeconds(10);
+                QThread::msleep(14000);
+                QTimer::singleShot(3000, qApp, &QCoreApplication::quit);
+            } else {
+                QCoreApplication::quit();
+            }
+        });
+#endif
     const int rc = app.exec();
+    qb::settingslayer::sync(); // the last changes to the program's or the project's own file (0.62)
     qb::crash::endSession(); // a normal end
     return rc;
 }

@@ -180,11 +180,24 @@ static const char kRtf[] =
     "{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 DejaVu Serif;}{\\f1 DejaVu Sans Mono;}}{\\colortbl;\\red200\\green0\\blue0;}\n"
     "\\pard\\qc\\f0\\fs36\\cf1 Red serif words \\b bold\\b0\\par\n"
     "\\pard\\li720\\f1\\fs28\\cf0 Mono indented line\\par\n}";
+// The serif font of the pasted text. It must differ from the project's automatic font, which the
+// program treats as "no formatting" (W3: the Windows runner has neither Noto Serif nor Liberation
+// Serif, so DejaVu Serif is the automatic font there; FreeSerif is taken instead).
+static QString g_serif = QStringLiteral("DejaVu Serif");
+static void chooseSerif(const Project *p)
+{
+    if (display::resolvedFontFamily(p->formatting).compare(g_serif, Qt::CaseInsensitive) == 0)
+        g_serif = QStringLiteral("FreeSerif");
+}
+static QByteArray rtfSample()
+{
+    return QByteArray(kRtf).replace("DejaVu Serif", g_serif.toLatin1());
+}
 
 static void putRtf()
 {
     auto *md = new QMimeData;
-    md->setData(QStringLiteral("text/rtf"), QByteArray(kRtf));
+    md->setData(QStringLiteral("text/rtf"), rtfSample());
     md->setText(QStringLiteral("Red serif words bold\nMono indented line"));
     QApplication::clipboard()->setMimeData(md);
     settle(100);
@@ -251,7 +264,7 @@ static void pasteChecks(MainWindow &w, Project *p, BinderItem *doc)
     cf = formatAt(d, QStringLiteral("Red serif"));
     const QTextBlock red = blockWith(d, QStringLiteral("Red serif"));
     b = blockWith(d, QStringLiteral("Mono indented"));
-    check(familyOf(cf) == QLatin1String("DejaVu Serif") && qAbs(cf.fontPointSize() - 18) < 0.01
+    check(familyOf(cf) == g_serif && qAbs(cf.fontPointSize() - 18) < 0.01
               && cf.foreground().color() == QColor(200, 0, 0),
           QStringLiteral("Paste with Formatting: font, size and color of RTF text from another program kept"),
           familyOf(cf) + QStringLiteral(" %1pt ").arg(cf.fontPointSize()) + cf.foreground().color().name());
@@ -272,7 +285,7 @@ static void pasteChecks(MainWindow &w, Project *p, BinderItem *doc)
     p->docs()->saveDocument(doc->id, &err);
     QFile f(p->docs()->textPath(doc->id));
     const QString md = f.open(QIODevice::ReadOnly) ? QString::fromUtf8(f.readAll()) : QString();
-    check(md.contains(QLatin1String("DejaVu Serif")) && md.contains(QLatin1String("->")) && md.contains(QLatin1String("<-")),
+    check(md.contains(g_serif) && md.contains(QLatin1String("->")) && md.contains(QLatin1String("<-")),
           QStringLiteral("... and saved with the document (font span, centered line)"), md.left(600));
 
     // one Undo takes the whole paste back
@@ -709,6 +722,7 @@ int main(int argc, char **argv)
     if (!proj)
         return 1;
     Project *p = proj.get();
+    chooseSerif(p);
     BinderItem *draft = p->draft();
     BinderItem *pasteDoc = textDoc(p, draft, QStringLiteral("Paste Here"), {QStringLiteral("Host paragraph of the paste.")});
     BinderItem *gaps = textDoc(p, draft, QStringLiteral("Gaps"),

@@ -17,6 +17,9 @@
 #include "core/ItemIcons.h"
 #include "ui/TextEditor.h"
 #include "ui/ToolHost.h"
+#include "ui/Inspector.h"
+#include "ui/OptionsDialog.h"
+#include "ui/ToolbarConfig.h"
 
 #include <QApplication>
 #include <QDir>
@@ -31,6 +34,9 @@
 #include <QTextDocument>
 #include <QTextDocumentFragment>
 #include <QTextImageFormat>
+#include <QSettings>
+#include <QToolBar>
+#include <QToolButton>
 
 namespace qb {
 
@@ -60,6 +66,93 @@ void MainWindow::createToolActions()
         a[ac->objectName()] = ac;
         m_toolActions << ac;
     }
+
+    // tool interface 1.1 (0.61): tabs in the inspector, buttons of the main toolbar with a menu
+    QList<toolbars::ToolButton> buttons;
+    for (tools::ToolInterface *t : compile::PluginManager::instance().tools()) {
+        tools::ToolExtension *ext = toolhost::Host::extension(t);
+        if (!ext)
+            continue;
+        for (const tools::InspectorTab &tab : ext->inspectorTabs()) {
+            if (!m_inspector)
+                break;
+            if (QWidget *page = ext->createInspectorTab(tab.key, m_inspector))
+                m_inspector->addExtraTab(tab.key, page, toolIcon(tab.icon), tab.toolTip);
+        }
+        for (const tools::ToolbarButton &b : ext->toolbarButtons()) {
+            const QString id = QStringLiteral("tool:") + b.commandKey;
+            if (!a.contains(id))
+                continue;
+            buttons << toolbars::ToolButton{id, b.before};
+            if (QMenu *menu = ext->commandMenu(b.commandKey))
+                m_toolMenus.insert(b.commandKey, menu);
+        }
+    }
+    toolbars::setToolButtons(buttons);
+    // a main toolbar the writer arranged gets each tool button once (as the paragraph buttons in 0.60.4)
+    AppSettings &s = AppSettings::instance();
+    QSettings st;
+    QStringList done = st.value(QStringLiteral("toolbars/toolButtonsPlaced")).toStringList();
+    const QStringList before = done;
+    if (toolbars::placeToolButtonsOnce(s.toolbarMain, done))
+        st.setValue(QStringLiteral("toolbars/main"), s.toolbarMain);
+    if (done != before)
+        st.setValue(QStringLiteral("toolbars/toolButtonsPlaced"), done);
+}
+
+QIcon MainWindow::toolIcon(const QString &icon)
+{
+    if (icon.isEmpty())
+        return QIcon();
+    if (icon.contains(QLatin1Char('/')) && QFileInfo::exists(icon))
+        return QIcon(icon);
+    return icons::action(icon);
+}
+
+void MainWindow::placeToolButtons()
+{
+    // a tool command with a menu: the arrow beside its buttons opens it (the button itself runs the command)
+    for (auto it = m_toolMenus.cbegin(); it != m_toolMenus.cend(); ++it) {
+        QAction *ac = a.value(QStringLiteral("tool:") + it.key());
+        if (!ac || !it.value())
+            continue;
+        for (QToolBar *bar : {m_toolbar, m_formatBar})
+            if (bar)
+                if (auto *b = qobject_cast<QToolButton *>(bar->widgetForAction(ac))) {
+                    b->setMenu(it.value());
+                    b->setPopupMode(QToolButton::MenuButtonPopup);
+                    b->setObjectName(QStringLiteral("toolButton:") + it.key());
+                }
+    }
+}
+
+void MainWindow::toolShowInspectorTab(const QString &key)
+{
+    if (!m_inspector)
+        return;
+    if (QAction *si = a.value(QStringLiteral("showInspector")); si && !si->isChecked())
+        si->trigger();
+    m_inspector->showExtraTab(key);
+}
+
+void MainWindow::toolSetCommandState(const QString &commandKey, bool checked, const QString &icon, const QString &toolTip)
+{
+    QAction *ac = a.value(QStringLiteral("tool:") + commandKey);
+    if (!ac)
+        return;
+    if (!ac->property("qbToolIcon").isValid()) { // the command's own look, to go back to
+        ac->setProperty("qbToolIcon", QVariant::fromValue(ac->icon()));
+        ac->setProperty("qbToolTip", ac->toolTip());
+    }
+    ac->setCheckable(true);
+    ac->setChecked(checked);
+    ac->setIcon(icon.isEmpty() ? ac->property("qbToolIcon").value<QIcon>() : toolIcon(icon));
+    ac->setToolTip(toolTip.isEmpty() ? ac->property("qbToolTip").toString() : toolTip);
+}
+
+void MainWindow::toolShowOptions(const QString &toolId)
+{
+    OptionsDialog::run(this, [toolId](OptionsDialog &dlg) { dlg.showToolSection(toolId); });
 }
 
 QList<QAction *> MainWindow::toolActionsAt(const QString &place) const

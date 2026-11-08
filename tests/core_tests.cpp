@@ -441,6 +441,9 @@ int main(int argc, char **argv)
         check(contentDirs(QStringLiteral("themes")).size() == 1, QStringLiteral("add-on can be switched on again"));
 
         // program updates
+#ifdef Q_OS_WIN
+        qputenv("QB_TEST_NO_SELFTEST", "1"); // Windows: the fake program file would really be started (W3)
+#endif
         const QByteArray binary = "#!/bin/sh\necho fake program\n";
         QJsonObject cm = manifestOf("core", "core", "99.1.0", "Program update");
         cm.insert(QStringLiteral("binary"), QStringLiteral("quillbinder"));
@@ -478,7 +481,11 @@ int main(int argc, char **argv)
                   && cvs.last().running && !cvs.last().active,
               QStringLiteral("installed program version is active for the next start"));
         const QString bin = coreRoot() + QLatin1String("/99.1.0/quillbinder");
+#ifdef Q_OS_WIN
+        check(QFileInfo::exists(bin), QStringLiteral("program file is there")); // Windows: executable by its .exe name
+#else
         check(QFileInfo(bin).isExecutable(), QStringLiteral("program file is executable"));
+#endif
         check(setActiveCore(QString(), &perr) && coreVersions().last().active, QStringLiteral("roll back to the built-in version"));
         check(setActiveCore(QStringLiteral("99.1.0"), &perr) && coreVersions().first().active, QStringLiteral("roll forward again"));
         check(!setActiveCore(QStringLiteral("5.5.5"), &perr), QStringLiteral("unknown program version cannot be activated"));

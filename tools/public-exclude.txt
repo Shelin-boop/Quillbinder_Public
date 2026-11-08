@@ -4,3 +4,11 @@
 # lines "<!-- private:begin -->" and "<!-- private:end -->" (Markdown) instead.
 docs/status.md
 tools/put-asset.sh
+.github/workflows/windows.yml
+tools/win-ci.sh
+tools/win-addons.sh
+tools/win-check.sh
+tools/win-tests.sh
+tools/win-check-layout.sh
+tools/win-dictionaries.sh
+tools/win-dictionaries.sha256

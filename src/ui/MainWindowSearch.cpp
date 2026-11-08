@@ -4,7 +4,9 @@
 #include "core/DocumentStore.h"
 #include "core/ItemIcons.h"
 #include "core/Search.h"
+#include "core/Snapshots.h"
 #include "text/FormatFind.h"
+#include "text/TextUtil.h"
 #include "ui/BinderPanel.h"
 #include "ui/MainWindow.h"
 #include "ui/SearchTools.h"
@@ -14,6 +16,11 @@
 
 #include <QApplication>
 #include <QCompleter>
+#include <QDirIterator>
+#include <QLocale>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QStatusBar>
 #include <QSet>
 #include <QStandardItemModel>
 #include <QTextCursor>
@@ -41,19 +48,32 @@ void MainWindow::projectReplace()
 {
     ProjectReplaceDialog dlg(m_project.get(), this);
     dlg.setSelection(m_binder->selectedItems());
-    connect(&dlg, &ProjectReplaceDialog::replaced, this, [this](const ReplaceResult &r) {
-        if (r.total() == 0)
-            return;
-        for (EditorPane *pane : m_panes) {
-            pane->refreshHeader();
-            pane->updateFooter();
-        }
-        refreshInspector();
-        updateWindowTitle();
-        m_project->save(); // texts in files are already rewritten; bring the open ones and the titles along
-        if (m_binder->showsSearchResults())
-            m_binder->runSearch(m_binder->searchQuery());
-    });
+    connect(&dlg, &ProjectReplaceDialog::replaced, this, [this](const ReplaceResult &r) { afterProjectWideChange(r.total()); });
+    dlg.exec();
+}
+
+void MainWindow::afterProjectWideChange(int changes)
+{
+    if (changes == 0 || !m_project)
+        return;
+    for (EditorPane *pane : m_panes) {
+        pane->refreshHeader();
+        pane->updateFooter();
+    }
+    refreshInspector();
+    updateWindowTitle();
+    m_project->save(); // texts in files are already rewritten; bring the open ones and the titles along
+    if (m_binder->showsSearchResults())
+        m_binder->runSearch(m_binder->searchQuery());
+}
+
+void MainWindow::convertQuotes(bool typographic, const QString &style, QWidget *parent)
+{
+    if (!m_project)
+        return;
+    ConvertQuotesDialog dlg(m_project.get(), typographic, style, parent ? parent : this);
+    dlg.setSelection(m_binder->selectedItems());
+    connect(&dlg, &ConvertQuotesDialog::converted, this, [this](const ReplaceResult &r) { afterProjectWideChange(r.total()); });
     dlg.exec();
 }
 
@@ -226,6 +246,79 @@ void MainWindow::fillQuickSearch()
         m_completerModel->appendRow(row);
     }
     m_completer->complete();
+}
+
+} // namespace qb
+
+namespace qb {
+
+// ---------------------------------------------------------- old snapshots (0.61.1)
+
+void MainWindow::updateSnapshotAction()
+{
+    QAction *ac = a.value(QStringLiteral("deleteSnapshots"));
+    if (!ac)
+        return;
+    bool any = false;
+    if (m_project)
+        for (BinderItem *it : m_project->allItems())
+            if (it->hasSnapshots) {
+                any = true;
+                break;
+            }
+    ac->setEnabled(any);
+}
+
+int MainWindow::deleteOldSnapshots(bool ask)
+{
+    if (!m_project)
+        return 0;
+    const snapshots::Totals t = snapshots::totals(m_project.get());
+    if (t.snapshots == 0) {
+        updateSnapshotAction();
+        return 0;
+    }
+    if (ask) {
+        // what the writer sees as the project: the .scriv of a Scrivener-format project
+        qint64 bytes = t.bytes;
+        if (!m_project->scrivenerPath.isEmpty()) {
+            qint64 scriv = 0;
+            QDirIterator it(m_project->scrivenerPath + QLatin1String("/Snapshots"), QDir::Files | QDir::Hidden,
+                            QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                it.next();
+                scriv += it.fileInfo().size();
+            }
+            bytes = qMax(bytes, scriv);
+        }
+        QMessageBox box(QMessageBox::Warning, tr("Delete Old Snapshots"),
+                        tr("Delete all %1 of %2 forever?")
+                            .arg(text::plural(t.snapshots, tr("snapshot"), tr("snapshots")),
+                                 text::plural(t.documents, tr("document"), tr("documents"))),
+                        QMessageBox::Cancel, this);
+        box.setObjectName(QStringLiteral("deleteSnapshotsQuestion"));
+        box.setInformativeText(tr("They take %1. The texts stay as they are now; only their earlier versions go, also those "
+                                  "of documents in the Trash. This cannot be undone: a backup (File > Back Up) beforehand "
+                                  "is a good idea.")
+                                   .arg(QLocale().formattedDataSize(bytes, 1, QLocale::DataSizeSIFormat)));
+        QPushButton *del = box.addButton(tr("Delete Snapshots"), QMessageBox::DestructiveRole);
+        box.setDefaultButton(QMessageBox::Cancel);
+        box.exec();
+        if (box.clickedButton() != del)
+            return 0;
+    }
+    QString err;
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    const int n = snapshots::removeAll(m_project.get(), &err);
+    m_project->save(); // a Scrivener-format project takes them out of the .scriv with this full save
+    QApplication::restoreOverrideCursor();
+    refreshInspector();
+    updateSnapshotAction();
+    if (!err.isEmpty())
+        QMessageBox::warning(this, tr("Delete Old Snapshots"), err);
+    else if (ask)
+        statusBar()->showMessage(tr("%1 deleted.").arg(text::plural(n, tr("snapshot"), tr("snapshots"))), 6000);
+    return n;
 }
 
 } // namespace qb

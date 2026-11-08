@@ -20,6 +20,7 @@
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTextFrame>
 #include <QTextDocumentFragment>
 #include <QTextFragment>
 #include <QUrl>
@@ -262,6 +263,13 @@ bool DocumentStore::writeEntry(const QString &key, Entry &e, QString *error)
     if (QFile::exists(other))
         QFile::remove(other);
     e.dirty = false;
+    // tables and pictures beside the text (0.62): older versions would turn them into text when they
+    // save, so the project names 0.62.0 as the version it needs (they ask before opening it)
+    if (!e.doc->rootFrame()->childFrames().isEmpty()
+        && Project::compareVersionText(m_project->needsVersion, QStringLiteral("0.62.0")) < 0) {
+        m_project->needsVersion = QStringLiteral("0.62.0");
+        m_project->markIndexDirty();
+    }
     return true;
 }
 
@@ -662,7 +670,7 @@ void DocumentStore::recount(const QString &id)
     it->charCount = c.chars;
     if (changed) {
         m_project->recordHistory();
-        m_project->notifyItemChanged(it, true);
+        m_project->notifyItemCounted(it); // the project file follows with the next full save or a minute later (0.60.5)
         if (hadText != (c.chars > 0))
             icons::clearCache();
         emit countsUpdated(id);

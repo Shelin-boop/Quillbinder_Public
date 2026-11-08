@@ -148,6 +148,16 @@ public:
     std::function<void(int)> fn;
 };
 
+// The widget's handler (a direct child). Not findChild<Handler *>: Handler has no Q_OBJECT,
+// which newer Qt (6.8, the Windows build) refuses there at compile time.
+Handler *handlerOf(const QObject *w)
+{
+    for (QObject *c : w->children())
+        if (auto *h = dynamic_cast<Handler *>(c); h && h->objectName() == QLatin1String("qbZoomHandler"))
+            return h;
+    return nullptr;
+}
+
 double clamp(double f) { return qBound(kMin, std::round(f * 100.0) / 100.0, kMax); }
 
 // A QSettings of its own each time: the settings file may be replaced from
@@ -197,7 +207,7 @@ void Filter::adopt(QWidget *w)
         return;
     for (QWidget *x = w->parentWidget(); x; x = x->parentWidget()) {
         if (x->property(kSkipProp).toBool() || x->property(kOwnProp).toBool()
-            || x->findChild<Handler *>(QStringLiteral("qbZoomHandler"), Qt::FindDirectChildrenOnly))
+            || handlerOf(x))
             return;
         if (!x->property("qbZoomAttached").toBool()) {
             if (!x->property(kAreaProp).toString().isEmpty())
@@ -247,7 +257,7 @@ bool Filter::eventFilter(QObject *o, QEvent *e)
     for (QWidget *x = w; x; x = x->parentWidget()) {
         if (x->property(kOwnProp).toBool())
             return false; // it zooms itself (the mind map board)
-        if (auto *h = x->findChild<Handler *>(QStringLiteral("qbZoomHandler"), Qt::FindDirectChildrenOnly)) {
+        if (auto *h = handlerOf(x)) {
             target = x;
             fn = h->fn;
             break;
@@ -474,7 +484,7 @@ void setHandler(QWidget *w, const std::function<void(int)> &handler)
 {
     if (!w)
         return;
-    if (auto *old = w->findChild<Handler *>(QStringLiteral("qbZoomHandler"), Qt::FindDirectChildrenOnly))
+    if (auto *old = handlerOf(w))
         delete old;
     new Handler(w, handler);
 }
@@ -503,7 +513,7 @@ void applyFonts(QWidget *root, double f)
         bool other = false;
         for (QWidget *x = c; x && x != root; x = x->parentWidget())
             if (x->property(kSkipProp).toBool() || x->property(kOwnProp).toBool() || !x->property(kAreaProp).toString().isEmpty()
-                || x->findChild<Handler *>(QStringLiteral("qbZoomHandler"), Qt::FindDirectChildrenOnly)) {
+                || handlerOf(x)) {
                 other = true;
                 break;
             }

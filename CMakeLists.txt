@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.16)
 # ---------------------------------------------------------------------------
 set(APP_NAME "Quillbinder")
 set(APP_ID   "quillbinder")
-set(APP_VERSION "0.60.4")
+set(APP_VERSION "0.63.0")
 # A word shown after the version number in Help > About, System Information and the
 # AppImage's file name ("alpha", "beta"; empty for a normal release). It is never part
 # of version comparisons: the program, the loader and the packages compare APP_VERSION only.
@@ -21,6 +21,11 @@ endif()
 # (.qbpkg "core" packages) only run on the runtime they were built for;
 # change it whenever the bundled libraries change (new Qt, new modules).
 set(APP_RUNTIME "u2404-qt6.4-r1")
+if(WIN32)
+  # Windows (port, W2): Qt 6.8.3 for MSVC with its DLLs in the program folder; program updates
+  # for Windows must be built with the same Qt (.github/workflows/windows.yml pins it)
+  set(APP_RUNTIME "win64-qt6.8.3-msvc-r1")
+endif()
 # The public project page (0.50): downloads, and the release "Third-party source code" with the
 # source of every library the AppImage and the add-ons carry (Help > Third-Party Licenses).
 set(APP_HOMEPAGE "https://github.com/Shelin-boop/Quillbinder_Public")
@@ -33,6 +38,17 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
+endif()
+# Windows with MSVC (the port, W1): the sources are UTF-8, M_PI comes from <cmath>, and
+# windows.h must not define min/max. Linux builds are not affected.
+if(MSVC)
+  add_compile_options(/utf-8 /bigobj)
+  add_compile_definitions(_USE_MATH_DEFINES NOMINMAX)
+  # a symbols file (.pdb) for every release build (W2): crash reports name program offsets, the
+  # .pdb turns them into function names. /Z7 keeps the debug data in the objects (sccache can cache
+  # them); the linker writes the .pdb.
+  add_compile_options($<$<CONFIG:Release>:/Z7>)
+  add_link_options($<$<CONFIG:Release>:/DEBUG> $<$<CONFIG:Release>:/OPT:REF> $<$<CONFIG:Release>:/OPT:ICF>)
 endif()
 
 # Network: local sockets between running instances (the AppImage has carried libQt6Network since 0.2.0).
@@ -47,6 +63,27 @@ find_package(ZLIB REQUIRED)
 find_package(PkgConfig)
 if(PkgConfig_FOUND)
   pkg_check_modules(HUNSPELL IMPORTED_TARGET hunspell)
+endif()
+if(HUNSPELL_FOUND)
+  set(QB_HUNSPELL_TARGET PkgConfig::HUNSPELL)
+else()
+  # Without pkg-config (Windows, Hunspell from vcpkg): look for the library itself.
+  find_path(QB_HUNSPELL_INCLUDE hunspell/hunspell.h)
+  find_library(QB_HUNSPELL_LIB NAMES hunspell-1.7 libhunspell-1.7 hunspell)
+  if(QB_HUNSPELL_INCLUDE AND QB_HUNSPELL_LIB)
+    add_library(qb_hunspell INTERFACE)
+    target_include_directories(qb_hunspell INTERFACE ${QB_HUNSPELL_INCLUDE})
+    target_link_libraries(qb_hunspell INTERFACE ${QB_HUNSPELL_LIB})
+    # a static Hunspell from vcpkg also needs libiconv
+    find_library(QB_ICONV_LIB NAMES iconv libiconv)
+    find_library(QB_CHARSET_LIB NAMES charset libcharset)
+    foreach(lib QB_ICONV_LIB QB_CHARSET_LIB)
+      if(${lib})
+        target_link_libraries(qb_hunspell INTERFACE ${${lib}})
+      endif()
+    endforeach()
+    set(QB_HUNSPELL_TARGET qb_hunspell)
+  endif()
 endif()
 
 configure_file(src/app/AppInfo.h.in ${CMAKE_BINARY_DIR}/generated/AppInfo.h @ONLY)
@@ -66,10 +103,19 @@ add_library(qbui STATIC ${UI_SOURCES})
 target_link_libraries(qbui PUBLIC qbcore
   Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Svg Qt6::PrintSupport Qt6::Pdf Qt6::PdfWidgets Qt6::Network)
 
-add_executable(${APP_ID} src/main.cpp resources/resources.qrc)
+# Windows (W3): the same resources with the license list of the Windows program (tools/gen-resources.py)
+if(WIN32)
+  set(QB_RESOURCES_QRC ${CMAKE_SOURCE_DIR}/resources/resources-windows.qrc)
+else()
+  set(QB_RESOURCES_QRC ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
+endif()
+add_executable(${APP_ID} src/main.cpp ${QB_RESOURCES_QRC})
 target_link_libraries(${APP_ID} PRIVATE qbui)
-if(HUNSPELL_FOUND)
-  target_link_libraries(qbcore PUBLIC PkgConfig::HUNSPELL)
+if(WIN32)
+  set_target_properties(${APP_ID} PROPERTIES WIN32_EXECUTABLE ON) # no console window
+endif()
+if(QB_HUNSPELL_TARGET)
+  target_link_libraries(qbcore PUBLIC ${QB_HUNSPELL_TARGET})
   target_compile_definitions(qbcore PUBLIC QB_HAVE_HUNSPELL=1)
 endif()
 # Plugins must see the exporter interface symbols of the executable.
@@ -85,7 +131,10 @@ install(DIRECTORY plugins/command/ DESTINATION share/${APP_ID}/plugins FILES_MAT
 file(COPY plugins/command/ DESTINATION ${CMAKE_BINARY_DIR}/plugins FILES_MATCHING PATTERN "*.json")
 
 # Example C++ exporter plugin (Markdown). Shows how third parties add formats.
-add_subdirectory(plugins/markdown-exporter)
+option(QB_BUILD_EXAMPLE_PLUGIN "Build the example exporter plugin (Markdown)" ON)
+if(QB_BUILD_EXAMPLE_PLUGIN)
+  add_subdirectory(plugins/markdown-exporter)
+endif()
 
 # Writing tools (tools/ToolApi.h). They are delivered as add-ons, not with the
 # program update: the libraries go to build/tool-plugins, from where
@@ -113,7 +162,12 @@ endif()
 # Tests (headless round-trip checks)
 option(QB_BUILD_TESTS "Build tests" ON)
 if(QB_BUILD_TESTS)
-  add_subdirectory(tests)
+  if(WIN32)
+    # Windows (W3): only the suites tools/win-tests.sh names are built (cmake --build build --target ...)
+    add_subdirectory(tests EXCLUDE_FROM_ALL)
+  else()
+    add_subdirectory(tests)
+  endif()
 endif()
 
 # Developer tools (not installed)

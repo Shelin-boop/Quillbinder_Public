@@ -148,7 +148,7 @@ void MainWindow::applyProjectSettings(const QJsonObject &take, QStringList *note
         return;
     QApplication::setOverrideCursor(Qt::WaitCursor);
     // the plain settings first (section types before compile, which names them)
-    for (sf::Section s : {sf::Labels, sf::Status, sf::SectionTypes, sf::CustomMetadata, sf::Keywords, sf::Targets, sf::Compile, sf::PageSetup, sf::Printing, sf::ObjectTemplates})
+    for (sf::Section s : {sf::Labels, sf::Status, sf::SectionTypes, sf::CustomMetadata, sf::Keywords, sf::Targets, sf::Compile, sf::PageSetup, sf::Printing, sf::ObjectTemplates, sf::Options})
         if (take.contains(sf::key(s)))
             sf::applyData(p, s, take.value(sf::key(s)), notes);
     // the formatting of the project: every document follows (as Project Settings > Formatting)

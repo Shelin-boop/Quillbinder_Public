@@ -10,6 +10,7 @@
 #include "text/DirectFormat.h"
 #include "text/DisplayFormat.h"
 #include "text/TextProps.h"
+#include "text/Tables.h"
 #include "text/TextUtil.h"
 
 #include <QDate>
@@ -17,6 +18,8 @@
 #include <QSet>
 #include <algorithm>
 #include <QTextBlock>
+#include <QTextFrame>
+#include <QTextTable>
 #include <QTextDocument>
 #include <QTextFragment>
 #include <QTextList>
@@ -433,10 +436,69 @@ void Compiler::appendDocument(Manuscript &m, QTextDocument *doc, const QString &
     QHash<QTextList *, int> listIds;
     QHash<QString, int> commentIndex;   // note id -> comment
     QList<Paragraph> paras;
+    // tables of the text (0.62): their index in the manuscript, and the index of each cell
+    QHash<QTextTable *, int> tableIndex;
+    QList<compile::Table> newTables;
+    QHash<QTextTable *, QHash<QPair<int, int>, int>> cellIndex;
 
     for (QTextBlock b = doc->begin(); b.isValid(); b = b.next()) {
         Paragraph p;
         p.sourceId = sourceId;
+        {
+            QTextCursor bc(b);
+            if (QTextTable *t = bc.currentTable(); t && t->parentFrame() == doc->rootFrame()) {
+                if (!tableIndex.contains(t)) {
+                    const tables::Spec spec = tables::specOf(t);
+                    compile::Table tab;
+                    tab.rows = t->rows();
+                    tab.columns = t->columns();
+                    double sum = 0;
+                    if (spec.columns.size() == t->columns())
+                        for (double v : spec.columns)
+                            sum += v;
+                    for (int c = 0; c < t->columns(); ++c)
+                        tab.columnShares << (sum > 0 ? spec.columns[c] * 100.0 / sum : 100.0 / t->columns());
+                    tab.borderPt = spec.border * 0.75;
+                    tab.borderColor = spec.borderColor;
+                    tab.linesOnly = spec.linesOnly;
+                    tab.paddingPt = spec.padding * 0.75;
+                    tab.spacingPt = spec.spacing * 0.75;
+                    tab.headerRows = qMin(spec.headerRows, t->rows());
+                    tab.widthPercent = spec.widthPercent;
+                    tab.align = spec.align;
+                    tab.flow = spec.flow;
+                    QHash<QPair<int, int>, int> idx;
+                    for (int r = 0; r < t->rows(); ++r)
+                        for (int c = 0; c < t->columns(); ++c) {
+                            const QTextTableCell cell = t->cellAt(r, c);
+                            if (cell.row() != r || cell.column() != c)
+                                continue;
+                            compile::TableCell tc;
+                            tc.row = r;
+                            tc.column = c;
+                            tc.rowSpan = cell.rowSpan();
+                            tc.columnSpan = cell.columnSpan();
+                            const QBrush bg = cell.format().background();
+                            if (bg.style() != Qt::NoBrush)
+                                tc.background = bg.color();
+                            idx.insert({r, c}, int(tab.cells.size()));
+                            tab.cells << tc;
+                        }
+                    tableIndex.insert(t, int(m.tables.size() + newTables.size()));
+                    cellIndex.insert(t, idx);
+                    newTables << tab;
+                }
+                const QTextTableCell cell = t->cellAt(b.position());
+                p.table = tableIndex.value(t);
+                p.cell = cellIndex.value(t).value({cell.row(), cell.column()}, -1);
+            } else if (QTextFrame *fr = figures::at(doc, b.position())) {
+                // a picture with its caption (0.62)
+                if (b.position() == fr->firstPosition())
+                    p.figure = int(figures::positionOf(fr));
+                else
+                    p.figureCaption = true;
+            }
+        }
         const QTextBlockFormat bf = b.blockFormat();
         const QString styleName = bf.property(props::Style).toString();
         p.style = forceStyle != Paragraph::Normal ? forceStyle : m_editorLook ? Paragraph::Normal : styleFromName(styleName);
@@ -668,6 +730,7 @@ void Compiler::appendDocument(Manuscript &m, QTextDocument *doc, const QString &
                                                        : (imf.width() > 0 ? img.height() * imf.width() / img.width()
                                                                           : img.height());
                     r.imageSize = QSizeF(w * 0.75, h * 0.75);
+                    r.imageDescription = figures::description(imf); // 0.62
                     pieces << r;
                 }
             } else {
@@ -776,6 +839,7 @@ void Compiler::appendDocument(Manuscript &m, QTextDocument *doc, const QString &
         }
     }
     m.paragraphs << paras;
+    m.tables << newTables;
 }
 
 Manuscript Compiler::build()

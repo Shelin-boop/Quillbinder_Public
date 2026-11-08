@@ -1,4 +1,5 @@
 #include "ui/AppSettings.h"
+#include "core/SettingsLayer.h"
 #include "core/Backup.h"
 #include "core/Addons.h"
 #include "core/ItemIcons.h"
@@ -24,6 +25,16 @@
 #include <QStyleFactory>
 
 namespace qb {
+
+#ifdef Q_OS_WIN
+// Windows (W3): the settings in a file (%APPDATA%\Quillbinder\Quillbinder.ini), as on Linux, not in
+// the registry: System Information names its folder, it can be backed up or copied like any file.
+// Set before main() (this file is in every program that uses the settings); main.cpp sets it as well.
+[[maybe_unused]] static const bool s_settingsInFile = [] {
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    return true;
+}();
+#endif
 
 AppSettings &AppSettings::instance()
 {
@@ -159,6 +170,20 @@ void AppSettings::load()
     s.beginGroup(QStringLiteral("editing"));
     countCharacters = s.value(QStringLiteral("countChars"), countCharacters).toBool();
     spellCheck = s.value(QStringLiteral("spellCheck"), spellCheck).toBool();
+#ifdef Q_OS_WIN
+    // Windows (W3): the first start takes the language of Windows when a dictionary for it comes
+    // with the program (English and German); Linux keeps en_US
+    if (!s.contains(QStringLiteral("spellLanguage"))) {
+        const QString sys = QLocale::system().name(); // "de_DE", "en_GB" ...
+        if (sys == QLatin1String("de_DE") || sys == QLatin1String("de_AT") || sys == QLatin1String("de_CH")
+            || sys == QLatin1String("en_GB") || sys == QLatin1String("en_US"))
+            spellLanguage = sys;
+        else if (sys.startsWith(QLatin1String("de_")))
+            spellLanguage = QStringLiteral("de_DE");
+        else if (sys.startsWith(QLatin1String("en_")))
+            spellLanguage = QStringLiteral("en_GB");
+    }
+#endif
     spellLanguage = s.value(QStringLiteral("spellLanguage"), spellLanguage).toString();
     smartQuotes = s.value(QStringLiteral("smartQuotes"), smartQuotes).toBool();
     smartDashes = s.value(QStringLiteral("smartDashes"), smartDashes).toBool();
@@ -529,6 +554,9 @@ void AppSettings::save()
     s.setValue(QStringLiteral("iconSize"), toolbarIconSize);
     s.setValue(QStringLiteral("style"), toolbarStyle);
     s.endGroup();
+    s.sync();
+    // 0.62: with a project's settings in use, what changed goes to the project or the program
+    settingslayer::sync();
 }
 
 void AppSettings::addRecent(const QString &path)

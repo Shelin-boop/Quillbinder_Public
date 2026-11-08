@@ -56,14 +56,59 @@ bool isSpecial(const QString &id)
     return false;
 }
 
+static QList<ToolButton> &toolButtonList()
+{
+    static QList<ToolButton> list;
+    return list;
+}
+
+void setToolButtons(const QList<ToolButton> &buttons) { toolButtonList() = buttons; }
+QList<ToolButton> toolButtons() { return toolButtonList(); }
+
+// puts the tool buttons into a bar before their items (at the end when the item is not there)
+static void insertToolButtons(QStringList &bar, const QList<ToolButton> &buttons)
+{
+    for (const ToolButton &b : buttons) {
+        if (bar.contains(b.id))
+            continue;
+        int at = b.before.isEmpty() ? -1 : int(bar.indexOf(b.before));
+        bar.insert(at < 0 ? int(bar.size()) : at, b.id);
+    }
+}
+
+bool placeToolButtonsOnce(QStringList &bar, QStringList &done)
+{
+    QList<ToolButton> fresh;
+    for (const ToolButton &b : toolButtonList())
+        if (!done.contains(b.id)) {
+            fresh << b;
+            done << b.id;
+        }
+    if (fresh.isEmpty() || bar.isEmpty()) // an empty list is the standard set, which has them
+        return false;
+    const QStringList before = bar;
+    insertToolButtons(bar, fresh);
+    return bar != before;
+}
+
+bool usableOnBar(const QString &id)
+{
+    return !id.contains(QLatin1Char(':')) || id.startsWith(QLatin1String("tool:"));
+}
+
 QStringList standard(Bar bar)
 {
-    if (bar == Bar::Main)
-        return {QStringLiteral("view"), Separator, QStringLiteral("add"), QStringLiteral("newFolder"), QStringLiteral("trash"),
-                Spacer, QStringLiteral("searchMenu"), QStringLiteral("search"), QStringLiteral("viewModes"), Spacer,
-                QStringLiteral("bookmarks"), QStringLiteral("quickRef"), QStringLiteral("notes"), Separator,
-                QStringLiteral("compile"), Separator, QStringLiteral("showInvisibles"), QStringLiteral("composition"),
-                QStringLiteral("showInspector")};
+    if (bar == Bar::Main) {
+        // Undo and Redo after Move to Trash (0.61, where the writer put them)
+        QStringList list = {QStringLiteral("view"), Separator, QStringLiteral("add"), QStringLiteral("newFolder"),
+                            QStringLiteral("trash"), QStringLiteral("undo"), QStringLiteral("redo"), Spacer,
+                            QStringLiteral("searchMenu"), QStringLiteral("search"), QStringLiteral("viewModes"), Spacer,
+                            QStringLiteral("bookmarks"), QStringLiteral("quickRef"), QStringLiteral("notes"), Separator,
+                            QStringLiteral("compile"), Separator, QStringLiteral("showInvisibles"), QStringLiteral("composition"),
+                            QStringLiteral("showInspector")};
+        insertToolButtons(list, toolButtonList());
+        return list;
+    }
     return {QStringLiteral("styleCombo"), QStringLiteral("fontCombo"), QStringLiteral("sizeSpin"), QStringLiteral("lineCombo"),
             QStringLiteral("defaultTextFormatting"), QStringLiteral("showFonts"), Separator,
             QStringLiteral("bold"), QStringLiteral("italic"), QStringLiteral("underline"), QStringLiteral("strike"),
@@ -301,8 +346,8 @@ bool ToolbarDialog::addItem(const QString &id, int row)
     const bool repeatable = id == toolbars::Separator || id == toolbars::Spacer;
     if (!repeatable && items().contains(id))
         return false;
-    // styles and layouts come and go with projects and files: not for a toolbar
-    if (id.contains(QLatin1Char(':')))
+    // styles and layouts come and go with projects and files: not for a toolbar (writing tools' commands are)
+    if (!toolbars::usableOnBar(id))
         return false;
     // the controls of one bar cannot move to the other one
     if (toolbars::isSpecial(id)) {

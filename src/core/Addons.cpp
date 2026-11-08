@@ -1,5 +1,6 @@
 #include "core/Addons.h"
 #include "core/Launcher.h"
+#include "core/Platform.h"
 #include "core/Paths.h"
 #include "core/Zip.h"
 #include "text/TextUtil.h"
@@ -188,6 +189,18 @@ PackageInfo inspectData(const QByteArray &data, const QString &appVersion, int d
     info.provides = summarize(m.files);
 
     if (m.kind == QLatin1String("addon")) {
+        // libraries fit one system only (port, W2): a package names its system; Linux packages
+        // made before that name none and carry .so files
+        bool linuxLibs = false;
+        for (const FileEntry &fe : m.files)
+            linuxLibs = linuxLibs || fe.path.endsWith(QLatin1String(".so")) || fe.path.contains(QLatin1String(".so."));
+        const QString made = !m.platform.isEmpty() ? m.platform : linuxLibs ? QStringLiteral("linux-x86_64") : QString();
+        if (!made.isEmpty() && made != platform::packagePlatform()) {
+            info.error = made.startsWith(QLatin1String("windows"))
+                             ? tr("This add-on was made for Windows; it does not work on this system.")
+                             : tr("This add-on was made for Linux; it does not work on this system. Use its Windows version.");
+            return info;
+        }
         if (!m.minApp.isEmpty() && compareVersions(m.minApp, appVersion) > 0) {
             info.error = tr("This add-on needs program version %1 or newer (you have %2).").arg(m.minApp, appVersion);
             return info;
@@ -201,21 +214,39 @@ PackageInfo inspectData(const QByteArray &data, const QString &appVersion, int d
         }
     } else if (m.kind == QLatin1String("core")) {
         if (m.runtime != QLatin1String(QB_RUNTIME_ID)) {
+#ifdef Q_OS_WIN
+            info.error = tr("This program update does not fit your installed program (it needs runtime \"%1\", you have "
+                            "\"%2\"). A new download of the program is required.")
+                             .arg(m.runtime, QLatin1String(QB_RUNTIME_ID));
+#else
             info.error = tr("This program update does not fit your AppImage (it needs runtime \"%1\", you have \"%2\"). "
                             "A new AppImage is required.")
                              .arg(m.runtime, QLatin1String(QB_RUNTIME_ID));
+#endif
             return info;
         }
         bool hasBinary = false;
         for (const FileEntry &fe : m.files)
-            hasBinary = hasBinary || fe.path == (m.binary.isEmpty() ? QStringLiteral(QB_APP_ID) : m.binary);
+            hasBinary = hasBinary || fe.path == (m.binary.isEmpty() ? platform::programFileName() : m.binary);
         if (!hasBinary) {
             info.error = tr("The program update is incomplete.");
             return info;
         }
         const int c = compareVersions(m.version, QStringLiteral(QB_APP_VERSION));
+        if (depth > 0 && compareVersions(m.version, launcher::builtInVersion()) <= 0) {
+            // in a bundle (an update with all add-ons, W3): the add-ons still go in, the program
+            // update is left out, since the program already is this version or newer
+            info.skip = true;
+            info.note = tr("Program version %1 is already there; this part is left out.").arg(m.version);
+            info.provides = QStringList{tr("program version %1 (already there)").arg(m.version)};
+            return info;
+        }
         if (compareVersions(m.version, launcher::builtInVersion()) <= 0) {
+#ifdef Q_OS_WIN
+            info.error = tr("Your installed program already is version %1 or newer.").arg(m.version);
+#else
             info.error = tr("Your AppImage already contains version %1 or newer.").arg(m.version);
+#endif
             return info;
         }
         info.note = c > 0   ? tr("Updates the program from %1 to %2.").arg(QStringLiteral(QB_APP_VERSION), m.version)
@@ -300,6 +331,11 @@ bool installData(const QByteArray &data, const PackageInfo &info, QStringList *l
             if (info.nested.at(i).manifest.kind == QLatin1String("core"))
                 order << i;
         for (int i : order) {
+            if (info.nested.at(i).skip) {
+                if (log)
+                    log->append(info.nested.at(i).note);
+                continue;
+            }
             const QByteArray pd = zr.fileData(QLatin1String("packages/") + m.packages.at(i));
             if (!installData(pd, info.nested.at(i), log, error, restart))
                 return false;
@@ -321,7 +357,7 @@ bool installData(const QByteArray &data, const PackageInfo &info, QStringList *l
         QDir(tmp).removeRecursively();
         return false;
     }
-    if (core && !launcher::selfTest(tmp, m.binary.isEmpty() ? QStringLiteral(QB_APP_ID) : m.binary, error)) {
+    if (core && !launcher::selfTest(tmp, m.binary.isEmpty() ? platform::programFileName() : m.binary, error)) {
         QDir(tmp).removeRecursively();
         return false;
     }
@@ -389,6 +425,8 @@ QJsonObject Manifest::toJson() const
         o.insert(QStringLiteral("runtime"), runtime);
     if (!binary.isEmpty())
         o.insert(QStringLiteral("binary"), binary);
+    if (!platform.isEmpty())
+        o.insert(QStringLiteral("platform"), platform);
     QJsonArray fa;
     for (const FileEntry &fe : files) {
         QJsonObject f;
@@ -421,6 +459,7 @@ Manifest Manifest::fromJson(const QJsonObject &o)
     m.minApp = o.value(QStringLiteral("minApp")).toString();
     m.runtime = o.value(QStringLiteral("runtime")).toString();
     m.binary = o.value(QStringLiteral("binary")).toString();
+    m.platform = o.value(QStringLiteral("platform")).toString();
     for (const QJsonValue &v : o.value(QStringLiteral("files")).toArray()) {
         const QJsonObject f = v.toObject();
         FileEntry fe;
@@ -456,6 +495,31 @@ PackageInfo inspect(const QString &file)
         return info;
     }
     return inspect(f.readAll());
+}
+
+bool installBundled(const QString &dir, QStringList *log, QString *error)
+{
+    const QFileInfoList packages = QDir(dir).entryInfoList({QStringLiteral("*.qbpkg")}, QDir::Files, QDir::Name);
+    const QString marker = dataDir() + QStringLiteral("/full-addons-installed-" QB_APP_VERSION);
+    if (packages.isEmpty() || QFile::exists(marker))
+        return true;
+    bool ok = true;
+    for (const QFileInfo &fi : packages) {
+        QString err;
+        bool restart = false;
+        if (!install(fi.absoluteFilePath(), log, &err, &restart)) {
+            ok = false;
+            if (error)
+                *error += (error->isEmpty() ? QString() : QStringLiteral("\n")) + fi.fileName() + QStringLiteral(": ") + err;
+        }
+    }
+    if (ok) {
+        QDir().mkpath(dataDir());
+        QFile m(marker);
+        if (m.open(QIODevice::WriteOnly))
+            m.write(QB_APP_VERSION "\n");
+    }
+    return ok;
 }
 
 bool install(const QString &file, QStringList *log, QString *error, bool *restartNeeded)

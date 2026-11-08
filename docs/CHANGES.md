@@ -3,6 +3,144 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.63.0 alpha (2026-11-08)
+
+A new AppImage (also as the full version with all add-ons) and a program update for the AppImages of the same runtime
+(0.60.0 alpha and later). It brings together 0.60.5, 0.61.0, 0.61.1 and 0.62.0, which were not published on their
+own (their sections in this file say more), and a few fixes:
+
+- **Speech Transcription** (a new add-on, part of the full version): speech becomes text on this computer, with a
+  model downloaded once under File > Options > Speech (0.61.0).
+- **Tables and pictures**: Insert > Table and Format > Table with ready-made designs or your own, pictures beside the
+  text with captions and descriptions, also in compile to PDF, Word, e-book and Markdown (0.62.0).
+- **Settings per project**: File > Options > Settings for: This project, and a window at the first start for backups
+  and settings (0.62.0).
+- **Quote marks of a whole project converted** (File > Options > Corrections) and **Project > Delete Old Snapshots**
+  (0.61.1).
+- **Undo and Redo** on the main toolbar, and the crash of Split at Selection from the text's right-click menu fixed
+  (0.61.0).
+- **Large projects in Scrivener format** save much faster while you write (0.60.5).
+
+- **German spelling knows words with umlauts and ß**: the German dictionaries (of LibreOffice and Ubuntu) are
+  stored in ISO 8859-1, and the program handed every word to them in UTF-8, so "Straße", "Jänner" or "Wörterbuch"
+  were always underlined. Words now go to each dictionary in its own encoding.
+- **An update package with add-ons installs on a program that already has its version**: inside a bundle, a
+  program update the program already contains is left out (and the bundle says so); the add-ons go in. Before,
+  the whole bundle was refused.
+- **Add-ons for another system are refused**: a package names the system its libraries were built for; a Windows
+  add-on cannot be installed on Linux (and the other way round).
+
+## 0.62.0 alpha (2026-11-08)
+
+A program update for the AppImage 0.61.0 alpha.
+
+- **Settings per project**: File > Options has **Settings for:** at the top, **All projects (the program)** or
+  **This project**. What you change for "This project" is kept with the project (in *settings/options.ini* of its
+  folder) and applies while it is open; everything it does not set comes from the program's settings. **Use Program
+  Settings** removes a project's own settings again; the line below the choice says how many it has and lists them.
+  A few settings belong to the program only: the recent projects, reopening the last project, the desktop's file
+  dialogs, window places and layouts, crash report times, and the look for new projects (a project's look has been
+  its own since 0.40.2).
+- **Which settings come first** (File > Options > General > Startup, for all projects): a project's own settings
+  first (the standard), or the program's settings always; then projects' own settings are not used (they stay in the
+  projects for later), and every project also shows the look for new projects.
+- **Project > Save Project Settings to File** has a new section, **Options of This Project**.
+- **First start**: a small window asks two things before the first project: backups (on closing, how many, the
+  folder) and which settings come first. Everything is filled in; OK keeps it.
+- **Tables**: **Insert > Table…** (rows, columns and the design at once), and **Format > Table** (also in the
+  right-click menu inside a table): insert rows above or below and columns left or right, delete rows, columns or
+  the table, merge and split cells, a cell's own color, and **Table Properties…**. Tab goes to the next cell (in
+  the last cell it adds a row), Shift+Tab back.
+- **Table design**: five ready-made designs (Grid, Grid with a header row, Striped rows, Lines between the rows, No
+  lines) or your own: lines (width, color, only between the rows), space inside and between cells, header rows
+  (with a color; printed again on every page), a color for every other row, the width (a share of the text or as
+  wide as the contents), column widths, the alignment, and the place: on its own lines, or left or right with the
+  text flowing beside it.
+- **Pictures** (**Format > Picture…** or right-click a picture): the width, the position (in the line, left or
+  right with the text flowing around it, or centered on its own lines), a **caption** under the picture, and a
+  **description** of what it shows. The description is not shown in the text; it goes along as the alt text of
+  e-books, Word files and Markdown, and screen readers read it.
+- Tables, pictures beside the text, captions and descriptions are kept in both storage formats (Markdown and RTF)
+  and in Scrivener format (as RTF tables; Scrivener shows pictures beside the text as ordinary paragraphs). Tables
+  from RTF files of other programs become tables.
+- **Compile**: tables and figures in PDF (a long table goes on over pages with its header rows on each), Word (real
+  tables; pictures beside the text in a borderless table with their caption, so Word and LibreOffice let the text
+  flow around them), e-books (tables, figures with captions and alt text), and Markdown (pipe tables, alt text).
+  Plugins for other output formats see tables and figures through the exporter interface 1.4 (plugins built for 1.3
+  must be rebuilt; the Markdown exporter that comes with the program is).
+
+## 0.61.1 alpha (2026-11-08)
+
+A program update for the AppImage 0.61.0 alpha.
+
+- **Convert quote marks** (File > Options > Corrections, under Smart quotes): **Convert to Typographic Quotes…**
+  turns the straight " and ' already in the project into the marks of the chosen style (“…” ‘…’, „…“ ‚…‘, and the
+  others), opening or closing by their neighbors, an apostrophe inside a word or before a number as ’;
+  **Convert to Straight Quotes…** goes back. A window like Project Replace chooses where (titles, text, notes,
+  synopses, custom metadata, comments and footnotes) and the scope (the whole project or the selected documents),
+  counts first, and takes a snapshot of every text it changes. Formatting stays.
+- **Project > Delete Old Snapshots…** (below Empty Trash): deletes every snapshot of the project, also of
+  documents in the Trash, so the project gets smaller; the texts stay as they are. It asks first, with the number
+  of snapshots and their size.
+- **Fixed, Scrivener format**: a snapshot deleted in the program (in the inspector) stayed in the *.scriv*: Scrivener
+  still showed it, and it came back whenever the program read the *.scriv* again. Snapshots deleted here now leave the *.scriv* with the next
+  full save (switching to another program, File > Save, closing); a snapshot only Scrivener has stays.
+- Speech Transcription, tested with real models for the first time (Small and Medium from Hugging Face): German
+  speech is written in English; German words inside English sentences come out right when they are listed under
+  Hint words (the manual says so now). The checksums of Small and Medium match the files on Hugging Face.
+
+## 0.61.0 alpha (2026-11-08)
+
+- **Speech Transcription** (a new add-on, "Speech Transcription" 1.0): speech becomes text on this computer only.
+  A microphone button on the main toolbar starts and stops a recording; the arrow beside it chooses the
+  microphone and opens the options. What you say is written into a new transcription file (named by date and
+  time, in *Documents/Quillbinder Transcriptions*), shown in the new inspector tab **Transcriptions** (the first
+  button of the inspector's row), where it can be edited, renamed, copied and deleted. A pause ends a piece; its
+  text follows a few seconds later; a long pause starts a new paragraph. Recognition by whisper.cpp 1.9.5.
+- **File > Options > Speech** (a section of its own): the model (Small, Medium (recommended), Large v3, Large v3
+  Turbo, each with a note on download size, memory, speed and translation), downloaded once when you choose it
+  from whisper.cpp's model files on Hugging Face, or from another address, or a file you downloaded yourself. Before
+  a model is used it is checked (its checksum, the model's description in the file, a test transcription of a
+  short recording); only then does it replace the model in use, which is deleted. An interrupted download goes on
+  where it stopped. Further: the processor or a graphics card (Vulkan; offered when one with enough memory is
+  found), processor threads, fast or careful, a speed test, the main language (the text) and a fallback language
+  (also spoken: with English as the main language it is written in English), hint words, the microphone,
+  sensitivity, the pauses for a piece and a paragraph, the folder, two advanced switches.
+- **Undo and Redo** on the main toolbar: in the standard set after Move to Trash (a toolbar you arranged
+  yourself keeps what it has).
+- **Crash fixed: Split at Selection from the text's right-click menu** (reported on 2026-11-08 with 0.60.5): the
+  split loads the new document into the editor, which replaced the editor while its right-click menu was still
+  handling the click; the program then used memory that was already given back and crashed. The menu now stays
+  until its click is handled. The same could happen with Split with Selection as Title and Open Link of that menu.
+  Ctrl+K and the Documents menu were not affected.
+- For add-ons: the **tool interface 1.1** lets a writing tool add a tab to the inspector, a button with a menu
+  to the main toolbar (a toolbar arranged by the writer gets it once) and a section of its own to File > Options.
+  It adds to 1.0 without changing it: the tools built for 1.0 keep working, and an update of such an add-on no
+  longer needs a program update.
+
+## 0.60.5 alpha (2026-11-07)
+
+- **No more short stops while writing in a large project in Scrivener format**: the automatic save now writes
+  only the texts, notes and synopses you changed into the *.scriv* (and the binder when it changed). Before, every
+  automatic save went through the whole project: it read and checked every file on both sides, rewrote Scrivener's
+  search index with every word and rewrote the binder file. With a test project of 500,000 words (1,000
+  documents) an automatic save took about 250 to 350 ms on the test machine and now takes about 30 to 40 ms.
+  Scrivener's search index, snapshots, pictures and the rest follow when you switch to another program, use
+  File > Save, or close the project, as before.
+- **Counts no longer rewrite the project file every few seconds**: new word counts while you type are written
+  with the next full save, or a minute later at the latest (the texts themselves are saved as before, a few
+  seconds after you stop). This helps large projects in either format.
+- **Opening a dialog or panel saves quickly**: when another window of Quillbinder takes over (a dialog, a panel,
+  the composition window), the quick save of the automatic save runs; the full save is kept for switching to
+  another program and for closing.
+- **Menus without animation**: Qt's own animations of menus, lists and tooltips stay off, whatever the desktop
+  theme asks for. (A check with Qt 6.4 and the KDE settings found them off already; now they are off for
+  certain.)
+- **Spelling suggestions** are remembered for the session: a second right-click on the same misspelled word
+  opens the menu at once (the first search of the dictionary took about 50 ms on the test machine).
+- For checking speed: started with `QB_TIMING=1`, the program writes the times of each save step and of the
+  right-click menu to its error output.
+
 ## 0.60.4 alpha (2026-11-07)
 
 - **Spacing and indents in the format bar**: four new buttons after the list buttons set the space before and

@@ -2,6 +2,7 @@
 #include "ui/Commands.h"
 #include "ui/Zoom.h"
 #include "core/Replace.h"
+#include "core/Timing.h"
 #include "core/Search.h"
 #include "core/BinderItem.h"
 #include "core/BinderModel.h"
@@ -44,6 +45,7 @@
 #include <QRegularExpression>
 #include <QScrollBar>
 #include <QTextBlock>
+#include <QTextTable>
 #include <QTextLayout>
 #include <QTextDocumentFragment>
 #include <QTextList>
@@ -153,7 +155,18 @@ TextEditor::TextEditor(QWidget *parent) : QTextEdit(parent)
     connect(&AppSettings::instance(), &AppSettings::changed, this, cursorLook);
 }
 
-TextEditor::~TextEditor() { widths::unregisterEditor(this); }
+TextEditor::~TextEditor()
+{
+    widths::unregisterEditor(this);
+    // The right-click menu is a child of the editor. A command chosen in it may replace the editor
+    // (Split at Selection loads the new document, Open Link another one): the editor is deleted
+    // while the menu still handles the click, and deleting the menu with it made Qt use freed
+    // memory (the crash of 2026-11-08). The menu leaves the editor and goes when its event is done.
+    for (QMenu *m : findChildren<QMenu *>(QString(), Qt::FindDirectChildrenOnly)) {
+        m->setParent(nullptr, m->windowFlags());
+        m->deleteLater();
+    }
+}
 
 void TextEditor::setProjectDocument(Project *project, BinderItem *item, QTextDocument *doc, bool isNotes)
 {
@@ -648,6 +661,32 @@ void TextEditor::keyPressEvent(QKeyEvent *e)
     // Return or punctuation is typed (0.21)
     if (noMods && !isReadOnly())
         correctWordBefore(e);
+    // tables (0.62): Tab and Shift+Tab go from cell to cell; Tab in the last cell adds a row
+    if ((e->key() == Qt::Key_Tab || e->key() == Qt::Key_Backtab) && noMods && !isReadOnly()) {
+        if (QTextTable *t = currentTable()) {
+            const QTextTableCell cell = t->cellAt(textCursor());
+            const bool back = e->key() == Qt::Key_Backtab || (e->modifiers() & Qt::ShiftModifier);
+            int r = cell.row(), col = back ? cell.column() - 1 : cell.column() + cell.columnSpan();
+            if (back && col < 0) {
+                --r;
+                col = t->columns() - 1;
+            } else if (!back && col >= t->columns()) {
+                ++r;
+                col = 0;
+            }
+            if (r < 0)
+                return;
+            if (r >= t->rows()) {
+                tableInsertRows(true);
+                return;
+            }
+            const QTextTableCell next = t->cellAt(r, col);
+            QTextCursor to = next.firstCursorPosition();
+            to.setPosition(next.lastCursorPosition().position(), QTextCursor::KeepAnchor);
+            setTextCursor(to);
+            return;
+        }
+    }
     const bool script = scriptActive();
     if (script && scriptKeyPress(e))
         return;
@@ -853,6 +892,7 @@ QString TextEditor::wordUnderCursor(QTextCursor *wordCursor) const
 
 void TextEditor::contextMenuEvent(QContextMenuEvent *e)
 {
+    timing::Laps laps;
     // move the cursor to the click position unless clicking inside a selection
     QTextCursor clickCursor = cursorForPosition(e->pos());
     const QTextCursor cur = textCursor();
@@ -877,11 +917,33 @@ void TextEditor::contextMenuEvent(QContextMenuEvent *e)
             t.setPosition(p);
             t.setPosition(p + 1, QTextCursor::KeepAnchor);
             if (t.charFormat().isImageFormat()) {
-                menu->addAction(tr("Image Size…"), this, [this, t] { editImageSize(t); });
+                // 0.62: size, position, caption and description in one window
+                menu->addAction(tr("Picture…"), this, [this, p] { editPicture(p); })->setObjectName(QStringLiteral("ctx-picture"));
                 menu->addSeparator();
                 break;
             }
         }
+    }
+    // tables (0.62): the commands of Format > Table
+    if (QTextTable *table = clickCursor.currentTable(); table && !isReadOnly()) {
+        if (!textCursor().currentTable() || textCursor().currentTable() != table)
+            setTextCursor(clickCursor);
+        QMenu *tm = menu->addMenu(tr("Table"));
+        tm->setObjectName(QStringLiteral("ctx-table"));
+        tm->addAction(tr("Insert Row Above"), this, [this] { tableInsertRows(false); });
+        tm->addAction(tr("Insert Row Below"), this, [this] { tableInsertRows(true); });
+        tm->addAction(tr("Insert Column Left"), this, [this] { tableInsertColumns(false); });
+        tm->addAction(tr("Insert Column Right"), this, [this] { tableInsertColumns(true); });
+        tm->addSeparator();
+        tm->addAction(tr("Delete Rows"), this, [this] { tableRemoveRows(); });
+        tm->addAction(tr("Delete Columns"), this, [this] { tableRemoveColumns(); });
+        tm->addAction(tr("Delete Table"), this, [this] { tableRemove(); });
+        tm->addSeparator();
+        tm->addAction(tr("Merge Cells"), this, [this] { tableMergeCells(); })->setEnabled(canMergeCells());
+        tm->addAction(tr("Split Cell"), this, [this] { tableSplitCell(); })->setEnabled(canSplitCell());
+        tm->addSeparator();
+        tm->addAction(tr("Table Properties…"), this, [this] { editTableProperties(); });
+        menu->addSeparator();
     }
     // spelling
     if (SpellChecker::isEnabled() && SpellChecker::instance().isAvailable() && !textCursor().hasSelection()) {
@@ -917,6 +979,7 @@ void TextEditor::contextMenuEvent(QContextMenuEvent *e)
             menu->setObjectName(QStringLiteral("spellingMore"));
         }
     }
+    laps.lap("cursor+spelling");
     QMenu *std = createStandardContextMenu(e->pos());
     QAction *paste = nullptr;
     for (QAction *a : std->actions()) {
@@ -944,17 +1007,33 @@ void TextEditor::contextMenuEvent(QContextMenuEvent *e)
               [this] { pasteMatchingStyle(); });
         entry(QStringLiteral("pasteKeep"), tr("Paste with &Formatting"), paste->isEnabled(), [this] { pasteKeepingFormatting(); });
     }
+    laps.lap("standard+paste");
     if (contextHook())
         contextHook()(this, menu, e->pos());
+    laps.lap("program entries");
     top->popup(e->globalPos());
+    laps.lap("popup");
+    laps.print("right-click menu");
 }
 
 // ------------------------------------------------------------------ clipboard
 
+// The clipboard format with RTF: "text/rtf" or "application/rtf" (Linux, this program); on Windows,
+// Word, WordPad and others offer it as the clipboard format "Rich Text Format", which Qt passes on
+// under its Windows name (W3)
+static QString rtfFormatOf(const QMimeData *source)
+{
+    for (const QString &f : {QStringLiteral("text/rtf"), QStringLiteral("application/rtf"),
+                             QStringLiteral("application/x-qt-windows-mime;value=\"Rich Text Format\"")})
+        if (source->hasFormat(f))
+            return f;
+    return QString();
+}
+
 bool TextEditor::canInsertFromMimeData(const QMimeData *source) const
 {
     return source->hasImage() || source->hasUrls() || source->hasFormat(QString::fromLatin1(kItemsMime))
-           || source->hasFormat(QStringLiteral("text/rtf")) || QTextEdit::canInsertFromMimeData(source);
+           || !rtfFormatOf(source).isEmpty() || QTextEdit::canInsertFromMimeData(source);
 }
 
 QMimeData *TextEditor::createMimeDataFromSelection() const
@@ -1083,9 +1162,8 @@ void TextEditor::insertFromMimeData(const QMimeData *source)
             return;
     }
     c.beginEditBlock();
-    if (source->hasFormat(QStringLiteral("text/rtf")) || source->hasFormat(QStringLiteral("application/rtf"))) {
-        const QByteArray data = source->hasFormat(QStringLiteral("text/rtf")) ? source->data(QStringLiteral("text/rtf"))
-                                                                              : source->data(QStringLiteral("application/rtf"));
+    if (const QString rtfFormat = rtfFormatOf(source); !rtfFormat.isEmpty()) {
+        const QByteArray data = source->data(rtfFormat);
         QTextDocument tmp;
         // Markdown projects take the look of the text they are pasted into,
         // unless the text was copied in this program
@@ -1093,7 +1171,19 @@ void TextEditor::insertFromMimeData(const QMimeData *source)
         rtf::ReadOptions o;
         o.keepFormatting = keep;
         rtf::read(data, &tmp, f, o);
-        insertSemantic(c, &tmp, f, keep, keepAll);
+        if (!tmp.rootFrame()->childFrames().isEmpty() && !c.currentTable()) {
+            // tables and figures (0.62) come as they are; pictures keep their resources
+            for (QTextBlock b = tmp.begin(); b.isValid(); b = b.next())
+                for (auto it = b.begin(); !it.atEnd(); ++it)
+                    if (it.fragment().charFormat().isImageFormat()) {
+                        const QString name = it.fragment().charFormat().toImageFormat().name();
+                        document()->addResource(QTextDocument::ImageResource, QUrl(name),
+                                                tmp.resource(QTextDocument::ImageResource, QUrl(name)));
+                    }
+            c.insertFragment(QTextDocumentFragment(&tmp));
+        } else {
+            insertSemantic(c, &tmp, f, keep, keepAll);
+        }
     } else if (source->hasHtml()) {
         QTextDocument tmp;
         tmp.setHtml(source->html());

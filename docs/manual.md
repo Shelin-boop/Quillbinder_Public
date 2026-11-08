@@ -25,6 +25,8 @@ When {{APP}} starts without a project, the **start window** opens:
 
 {{APP}} reopens the last project when it starts (you can switch this off under **File > Options > General**).
 
+**The very first start** asks two things in a small window, everything already filled in (**OK** keeps it): whether a project is backed up when it is closed, how many backups to keep and where, and which settings come first, a project's own or always the program's (section 16, *Settings for one project*). All of it can be changed later in **File > Options**.
+
 ### The welcome project and the Quick Start Guide
 
 The first time {{APP}} starts, it opens the **welcome project**: a short project that shows, one document each, what {{APP}} has beyond the usual (the icon bar, a zoom for every part of the window, mind maps, object sheets, the comments of a whole folder, Compare and Transfer, Scrivener projects, themes, updates and add-ons, and what protects your text). Begin with the document **Welcome** at the top of the binder; its links lead to every stop of the tour. Nothing you do in the welcome project can harm your own projects. (A project given on the command line, or a double-clicked project file, opens instead; the welcome project then comes at the next start.)
@@ -65,7 +67,7 @@ The window has three columns:
 
 Hide the binder with **Ctrl+Alt+B** and the inspector with **Ctrl+Alt+I** to get more room. The colors and fonts of all three, and of the corkboard, outliner, and composition mode, come from the theme (**Window > Themes**) and can be changed area by area (section 16), also with a right-click on the area (**Appearance**). Every project keeps its own look.
 
-The **toolbar** at the top holds, from left to right: the **View** button (binder, collections, inspector, layouts), new document (with a menu for folders, templates, and import), new folder, trash, the **search** button (project search; the arrow beside it lists the other search tools: Search in Document, Project Replace, Find by Formatting), the **quick search** field, the three view buttons (text, corkboard, outliner), project bookmarks, quick reference, comments and footnotes, compile, composition mode, and the inspector button. You decide what it holds (see "Toolbars of your own" below).
+The **toolbar** at the top holds, from left to right: the **View** button (binder, collections, inspector, layouts), new document (with a menu for folders, templates, and import), new folder, trash, **undo** and **redo**, the **search** button (project search; the arrow beside it lists the other search tools: Search in Document, Project Replace, Find by Formatting), the **quick search** field, the three view buttons (text, corkboard, outliner), project bookmarks, quick reference, comments and footnotes, compile, composition mode, the **microphone** of Speech Transcription (when that add-on is installed), and the inspector button. You decide what it holds (see "Toolbars of your own" below).
 
 The **format bar** below it holds the style, font, size, line spacing, default text formatting, the fonts window, bold, italic, underline, strikethrough, highlight, text color, alignment, lists, the space before and after the paragraph, the indent of the first line and of the whole paragraph, comments, footnotes, inline annotations, and images. Show or hide the two bars with **View > Toolbars**.
 
@@ -82,7 +84,7 @@ The **footer** of each editor shows the word and character count (select text to
 | **Insert** | Images, comments, footnotes, media timestamps, auto numbers, placeholders, special characters, date and time |
 | **View** | The three view modes, the split editor, binder, collections and inspector, toolbars, text editing options (page view, ruler, typewriter scrolling), corkboard and outliner options, label colors, zoom, composition mode, full screen |
 | **Navigate** | Back and forward, previous and next document, opening documents in the other editor, in the copyholder, or as quick reference, the editor lock, which editor the binder loads into, the inspector tabs |
-| **Project** | New documents, project settings (also saved to and loaded from a file), targets, keywords, statistics, writing history, trash |
+| **Project** | New documents, project settings (also saved to and loaded from a file), targets, keywords, statistics, writing history, trash, deleting old snapshots |
 | **Documents** | Snapshots, renaming, duplicating, splitting, merging, converting, icon, label, status, bookmarks |
 | **Format** | Font, paragraph, style, lists, highlight, copying formatting, revision mode |
 | **Window** | Themes, layouts, scratch pad, quick reference windows |
@@ -114,7 +116,7 @@ Choose a layout under **Window > Layouts** or from the **View** button of the to
 
 **View > Toolbars > Customize Toolbars** (or a right-click on a bar) opens a window with two lists: the available commands on the left, the contents of the bar on the right. Choose the main toolbar or the format bar at the top.
 
-- Add a command with the arrow button or a double-click. Every command of the menus is available; the search field above the list finds it.
+- Add a command with the arrow button or a double-click. Every command of the menus is available, also those of writing tools (Edit > Writing Tools); the search field above the list finds it.
 - Remove a button with the other arrow or a double-click, and move it with the up and down buttons or by dragging.
 - **Separator** and **Flexible Space** can be used as often as you like. A flexible space pushes what follows to the right; two of them center what stands between them.
 - Some entries are more than one command: **View**, **Add**, **Search**, the **Quick Search field**, **View Mode**, **Project Bookmarks**, **Comments and Footnotes**, and **Layouts** for the main toolbar; the style, font, size, and line spacing lists for the format bar.
@@ -355,6 +357,36 @@ A click on commented text opens the inspector with that comment. **Alt+click** o
 - **Edit > Link to Document…** (**Ctrl+L**) links the selected text to another document in the project. Clicking the link opens that document (in the other editor, the same editor, its copyholder, or a Quick Reference panel; see **File > Options > Behaviors**).
 - **Edit > Insert Web Link…** links to a web page.
 
+### Tables
+
+**Insert > Table…** asks for the number of rows and columns and the design, and puts the table at the cursor. Inside a table, **Tab** goes to the next cell (in the last cell it adds a row) and **Shift+Tab** goes back. **Format > Table**, also in the right-click menu inside a table, has the rest:
+
+- **Insert Row Above / Below**, **Insert Column Left / Right**.
+- **Delete Rows** and **Delete Columns** (those of the selected cells, or of the cell with the cursor), **Delete Table**.
+- **Merge Cells** joins the selected cells into one; **Split Cell** divides a merged cell again.
+- **Cell Color…** gives the selected cells a background of their own; **Cell Color of the Design** takes it away again.
+- **Table Properties…** changes the design.
+
+**The design.** Five designs are ready-made: **Grid**, **Grid with a header row**, **Striped rows**, **Lines between the rows**, and **No lines**. Choose one and change what you like; the design is then **My own**:
+
+- **Lines**: width (0: no lines), color, and **Only between the rows** (no lines at the sides).
+- **Cells**: the space inside a cell, and the space between cells (0: neighboring cells share one line).
+- **Header rows**: how many rows at the top are headings, with their color. Printing and compiling repeat them at the top of every page a long table goes on to. **Every other row** gets a color of its own if you choose one.
+- **Place in the text**: the width (a share of the text width, or as wide as its contents), the column widths (all the same, or shares such as "30, 70"), the alignment, and where it stands: **On its own lines**, or **Left** or **Right** with the text flowing beside it.
+
+Rows and columns you add later keep the design (the stripes go on). Tables are kept in both storage formats and in Scrivener format; tables in RTF files from other programs (for example a Word file saved as RTF) become tables as well.
+
+### Pictures beside the text, captions, and descriptions
+
+Right-click a picture and choose **Picture…** (or put the cursor next to it and choose **Format > Picture…**):
+
+- **Width on screen**: the height follows; **Original Size** goes back to the picture's own size.
+- **Position**: **In the line, like a letter** (as before), **Left** or **Right** with the text flowing around it, or **Centered on its own lines**.
+- **Caption**: shown under the picture and compiled with it. A picture in the line has no caption; give it a position first.
+- **Description**: what the picture shows, in a sentence or two. It is not shown in the text. E-books, Word files, and Markdown keep it with the picture (as its "alt text"), and screen readers read it to people who cannot see the picture.
+
+The picture with its caption moves as one piece; type the caption under the picture like any other text (it has the style **Caption**).
+
 ### Find and replace
 
 - **Ctrl+F** (**Edit > Find > Find**) opens the find bar above the text. It shows how many matches there are and highlights them; **F3** and **Shift+F3** go to the next and previous match. **Match case** and **Whole words** narrow the search.
@@ -379,6 +411,7 @@ The **Insert** menu also offers the current date and time, special characters (e
 
 - **Fix capitalization of sentences**: the first word of a sentence gets a capital letter (not after abbreviations such as "Dr." or "e.g."). **Capitalize "i"**: "i" and "i'm" become "I" and "I'm". Both are off at first.
 - **Smart quotes** in the style you choose (“English”, „German“, »German«, «French», ”Swedish”); an apostrophe inside a word is always ’. Two hyphens become an em dash (—); three periods can become one ellipsis character (off at first). In script mode these can be switched off.
+- **Quote marks already in the project** (since 0.61.1): under **Smart quotes**, **Convert to Typographic Quotes…** turns the straight " and ' of the project into the marks of the style chosen beside **Use smart quotes**, and **Convert to Straight Quotes…** turns every typographic quote mark and apostrophe back into " and '. A window like Project Replace (section 9) opens: the direction and the style once more, where to convert (titles, text, notes, synopses, custom metadata, comments and footnotes), the scope (the entire project or the documents selected in the binder, the Trash only when you tick it), and a snapshot of every text before it changes (ticked at first). **Count** shows how many marks would change; **Convert** asks once more and does it. Formatting stays (a bold quote mark stays bold). A mark opens after nothing, a space, a bracket, a dash, or an opening mark, and closes otherwise; an apostrophe inside a word or before a number ('90s) becomes ’. A straight mark with a space on both sides stays as it is, and an apostrophe at the start of a word ('tis) becomes an opening mark: look at those afterwards. Find and Replace cannot do this, because one mark has to become an opening or a closing one depending on its neighbors.
 - **Data detection**: a typed web address becomes a link; **[[Title]]** becomes a link to the document with that title, and if there is none, a new empty document of that name is made next to the text (Scrivener's "document links").
 - **Additional substitutions**: a list of what you type and what it becomes, for example "(c)" and ©, "->" and →. **Edit Substitutions...** changes the list; **Standard Substitutions** brings back the list the program comes with.
 - **Auto-completion**: in script mode, the list of character names and scene headings offered while you type.
@@ -618,6 +651,8 @@ The buttons at the top of the inspector switch between:
 - **Snapshots** (section 11).
 - **Comments and footnotes**.
 
+Writing tools of add-ons may add tabs of their own; their buttons come first in the row, for example **Transcriptions** of Speech Transcription (section 10).
+
 **The inspector's own zoom.** **Ctrl+mouse wheel** over a part of the inspector makes that part larger or smaller, without changing the editors. The tabs with two parts have a zoom for each: **Synopsis and notes** (the card, the notes), **Bookmarks** (the two lists, the bookmarked text below them), **Snapshots** (the list, the text of the snapshot), **Objects** (the category buttons with the list, the sheet). The **Zoom** list at the bottom shows and sets the zoom of the part with the keyboard, or of the part you zoomed last; its title names the part ("Zoom: Notes"), and on the Mind Map tab it is the zoom of the board. The other tabs (Metadata, Comments) and the rows of buttons at the top and the bottom share one zoom; with **View > Zoom Inspector Tabs Separately** (also in the right-click menu of the Zoom list) Metadata and Comments keep one each.
 
 **The inspector remembers** with the project which tab was open, where you put the dividers inside the tabs, the bookmark shown, and the object shown on the Objects tab.
@@ -732,7 +767,7 @@ Under **Project > Project Settings > Custom Metadata** you can add your own fiel
 
 ### Saving the project's settings to a file
 
-**Project > Save Project Settings to File…** writes the settings of the open project into a file of its own (*.qbsettings*): labels, status, section types, custom metadata, keywords, the default formatting, the styles, the script format, the targets, the compile settings, page view and page size, the print settings, the look (theme, colors, fonts, column width, border), and the templates and colors of the Objects sheet. The text of your documents is not part of it. Labels, section types, and the folders the compile settings name are stored by their names, so the file can be read into another project.
+**Project > Save Project Settings to File…** writes the settings of the open project into a file of its own (*.qbsettings*): labels, status, section types, custom metadata, keywords, the default formatting, the styles, the script format, the targets, the compile settings, page view and page size, the print settings, the look (theme, colors, fonts, column width, border), the project's own options (File > Options with "This project"), and the templates and colors of the Objects sheet. The text of your documents is not part of it. Labels, section types, and the folders the compile settings name are stored by their names, so the file can be read into another project.
 
 **Project > Load Project Settings from File…** reads such a file into the open project. When the project's settings are the same as in the file, it says so and changes nothing. When they differ, a window lists every section with what differs (for example "only in the file: Idea; only in the project: Revise") and lets you choose for each section:
 
@@ -823,7 +858,7 @@ Formatting stays as it is: the new text takes over the formatting of the text it
 - **Project > Project Statistics**: words and characters in the Draft, in the compiled text, and in the whole project, plus an estimate of the page count.
 - **Project > Writing History**: how many words you wrote on each day.
 
-The three writing tools below are add-ons (section 17): **Name Generator**, **Scratch Pad** and **Text Statistics**. They come with update 0.11 as one package; each can be switched off or removed in **Help > Add-on Manager**. Without them, **Edit > Writing Tools** says so and leads to the Add-on Manager.
+The writing tools below are add-ons (section 17): **Name Generator**, **Scratch Pad** and **Text Statistics** (they came with update 0.11 as one package) and **Speech Transcription** (0.61); each can be switched off or removed in **Help > Add-on Manager**. Without them, **Edit > Writing Tools** says so and leads to the Add-on Manager.
 
 ### Text Statistics
 
@@ -872,6 +907,27 @@ The notes are ordinary files in a folder, normally *Documents/{{APP}} Scratch Pa
 
 **The camera** takes the picture with KDE's screenshot program *Spectacle* when it is installed (needed under Wayland, where programs may not read the screen themselves): drag over the part you want. Without Spectacle, on X11, {{APP}} shows the screen and you drag over the part; **Esc** cancels, **Enter** takes the whole screen.
 
+### Speech Transcription
+
+Speak instead of typing: the add-on **Speech Transcription** (version 0.61 or later) writes down what you say. Everything happens on this computer; nothing is sent anywhere while you speak.
+
+**Before the first recording: choose a model.** Speech recognition needs a model, which is downloaded once. Open **File > Options > Speech** (or the arrow beside the microphone button, **Speech Transcription Options…**), choose a model and press **Download and Use**:
+
+- **Small**: a 190 MB download, fast; good for clear speech, translation only rough.
+- **Medium** (recommended): 539 MB; keeps up with speech on most processors of recent years; good recognition and translation.
+- **Large v3**: about 1.1 GB; the best, but on a processor often slower than speech, so in long stretches the text falls behind. A graphics card helps.
+- **Large v3 Turbo**: 574 MB; close to Large v3 and faster, but it cannot translate.
+
+The models come from whisper.cpp's model files on Hugging Face. Under **Source** you can give another address instead, or use **Use a File I Downloaded…** for a model file you fetched yourself. Before a model is used it is checked: its checksum, the description of the model inside the file, and a short test transcription. Only when all is well does it replace the model in use, which is then deleted. If the file differs from the one {{APP}} knows (the source may have updated it) but passes the other checks, you are asked. An interrupted download goes on where it stopped the next time. **Speed Test** shows how long this computer takes for a short recording with the chosen model and device.
+
+**Recording.** Press the microphone button on the main toolbar (or **Edit > Writing Tools > Speech Transcription**). The inspector opens on its tab **Transcriptions** (the microphone, first in the inspector's row of buttons), and a new transcription starts, named by date and time. Speak; a short pause ends a piece, and its text appears a few seconds later. A longer pause (3 s unless you change it) starts a new paragraph. Press the button again to stop: the pieces still waiting are written, then the text can be edited. The arrow beside the button chooses the microphone.
+
+**The transcriptions** are plain text files in a folder of their own, outside every project (normally *Documents/{{APP}} Transcriptions*), so your projects stay as they are. In the tab you can edit a transcription (saved by itself), rename it, copy the whole text to paste it wherever you need it, delete it (it goes to the desktop's trash), or open the folder. While a recording is written its text is read-only.
+
+**Languages.** The **main language** is the language of the text; the **fallback** is another language you also speak. With English as the main language, what you say in the fallback language is written in English (whisper translates only into English). Words of the fallback language inside English sentences can come out misheard (in a test, "Bahnhof" became "Bon Huff"); put the ones you use under **Hint words**, and they are written as you say them ("Bahnhof", "Brötchen"). With another main language, or with Large v3 Turbo, speech stays in the language it was spoken in. **Keep what was said beside a translation** adds the original in brackets after a translated piece (it takes longer). **Hint words**: names and words you use, so they are spelled your way.
+
+**Other options.** **Compute on**: the processor, or a graphics card that whisper.cpp can use through Vulkan (shown when one is found; cards with too little memory for the model are listed but cannot be chosen). **Processor threads**: one less than the processor has keeps typing smooth. **Accuracy**: *Careful* weighs several possible texts and finds the language of each piece first: better, but slower. **Microphone**, **Sensitivity** (low for a noisy room, high for a quiet voice), **A pause that ends a piece**, **New paragraph after a pause of** (*never* switches it off), the **folder**, and under **Advanced**: leaving out text in silence and noise (whisper sometimes invents a line such as "Thank you for watching" there), and using the text before as context for the next piece.
+
 ---
 
 ## 11. Snapshots
@@ -882,6 +938,7 @@ A snapshot is a saved copy of a document at a certain moment. Take one before a 
 - **Ctrl+5** takes a snapshot; **Ctrl+Shift+5** asks for a title.
 - With **File > Options > General > Saving**, **File > Save** (**Ctrl+S**) takes a snapshot of every text you changed since the last File > Save (titled "Saved"); **File > Options > Behaviors > Snapshots** shows a short message in the status bar when snapshots are taken.
 - In the inspector's snapshot tab you can **compare** a snapshot with the current text (additions are shown in color, deletions crossed out; choose whether to compare words, sentences, paragraphs, or characters), and **roll back** to it. Before rolling back, {{APP}} can take a snapshot of the current text, so nothing is lost.
+- **Project > Delete Old Snapshots…** (since 0.61.1, below Empty Trash) deletes every snapshot of the project, also those of documents in the Trash, to make the project smaller again. The texts stay as they are now; only their earlier versions go. A question first names how many snapshots there are, of how many documents, and how much space they take; this cannot be undone, so make a backup first (**File > Back Up**). The command is off while the project has no snapshots. In a project in Scrivener format the snapshots also leave the *.scriv* (with the save that follows at once); since 0.61.1 this is so as well for a single snapshot you delete in the inspector.
 
 ---
 
@@ -936,15 +993,15 @@ Your formats are kept in *~/.local/share/{{APP}}/CompileFormats* and are availab
 
 ### PDF
 
-The built-in PDF output lays out the pages itself: footnotes at the bottom of the page where they are referenced (a long one goes on to the next page), headers and footers, chapters on right-hand pages if the format says so, headings kept with the text that follows, no single lines at the top or bottom of a page, a table of contents with page numbers that can be clicked, bookmarks for the headings in the reader's side panel, and clickable links. Fonts are embedded. Pictures keep the size they have in the text; a picture larger than the text area is made smaller to fit.
+The built-in PDF output lays out the pages itself: footnotes at the bottom of the page where they are referenced (a long one goes on to the next page), headers and footers, chapters on right-hand pages if the format says so, headings kept with the text that follows, no single lines at the top or bottom of a page, a table of contents with page numbers that can be clicked, bookmarks for the headings in the reader's side panel, and clickable links. Fonts are embedded. Pictures keep the size they have in the text; a picture larger than the text area is made smaller to fit. Pictures and tables beside the text have the text flowing around them, as in the editor. A table goes on over as many pages as it needs, row by row, with its header rows at the top of each page.
 
 ### E-books
 
-The built-in e-book output writes EPUB 3 (with a table of contents for older readers as well): a file per chapter, the headings in the reader's table of contents, footnotes as notes that pop up (or at the end of each chapter or of the book), pictures, and the cover from **Metadata…**. The book gets an identifier the first time it is compiled; it stays with the project, so a reader takes a new version for the same book. Readers choose their own fonts and page size, so page settings, headers, and footers do not apply.
+The built-in e-book output writes EPUB 3 (with a table of contents for older readers as well): a file per chapter, the headings in the reader's table of contents, footnotes as notes that pop up (or at the end of each chapter or of the book), pictures, and the cover from **Metadata…**. Tables keep their design; a picture with a caption is a figure (beside the text if it is there in the editor), and its description is the picture's alt text, which screen readers read. The book gets an identifier the first time it is compiled; it stays with the project, so a reader takes a new version for the same book. Readers choose their own fonts and page size, so page settings, headers, and footers do not apply.
 
 ### Word
 
-The Word file uses named styles (Title, Subtitle, Heading 1 to 3, Quote, Centered, Caption, and your own paragraph and character styles), so its headings appear in Word's navigation pane. With **Include a table of contents**, a table of contents field is put at the start, and the file asks the word processor to update its fields when it is opened which fills in the page numbers; if a word processor does not, update the field there yourself. Facing headers, the first page, and the first page number come from the **Page** settings of the format.
+The Word file uses named styles (Title, Subtitle, Heading 1 to 3, Quote, Centered, Caption, and your own paragraph and character styles), so its headings appear in Word's navigation pane. With **Include a table of contents**, a table of contents field is put at the start, and the file asks the word processor to update its fields when it is opened which fills in the page numbers; if a word processor does not, update the field there yourself. Facing headers, the first page, and the first page number come from the **Page** settings of the format. Tables are Word tables with their lines, colors, merged cells, and header rows (repeated on every page in Word). A picture beside the text goes into a table of one cell without lines, together with its caption, so that Word and LibreOffice let the text flow around both; a picture's description is its alt text.
 
 ### Headings and placeholders
 
@@ -1074,6 +1131,7 @@ Instead of making a copy, {{APP}} can also work on a Scrivener 3 project itself,
 - **Opening**: **File > Open Project…** (**Open Other…** in the start window) and choose the *.scrivx* file inside the *.scriv* folder. The first time {{APP}} asks: **Work in Scrivener Format** (your changes are saved into the *.scriv*), **Convert…** (a {{APP}} project of its own is made from it, as with the import above), or **Cancel**. After that, the project opens without the question, also from **File > Open Recent**.
 - **New projects**: choose **Format: Scrivener 3 project (.scriv)** in the New Project window.
 - **Saving**: every save (also the automatic one) writes into the *.scriv*. Only what you changed is written; documents you did not touch keep the files Scrivener wrote. The window title says *(Scrivener format)*, and **File > Show Project in File Manager** and the backups take the *.scriv* folder.
+- **Large projects** (since 0.60.5): the automatic save while you write puts only the texts, notes, and synopses you changed into the *.scriv* (and the binder, when it changed), so it stays short even with hundreds of thousands of words. Everything else, such as Scrivener's search index, snapshots, and pictures, follows when you switch to another program, use **File > Save** (**Ctrl+S**), or close the project; so before you open the project in Scrivener, close it here or switch to another program first.
 - **One program at a time**: if Scrivener has the project open (or was not closed properly), {{APP}} says so and asks before opening it. Close the project in one program before you open it in the other. When the project was changed in Scrivener (or by a sync service) since you last had it open here, {{APP}} reads it again and tells you how many documents changed in the status bar; a document changed in Scrivener in the meantime is never overwritten with an older text.
 
 What goes into the *.scriv*: the binder, texts (as RTF), synopses, notes, labels, statuses, section types, **Include in Compile**, project bookmarks, project targets, snapshots, comments and footnotes, pictures and PDFs, icons (by Scrivener's names; your own icons in its *Icons* folder), and mind maps (as an extra file beside the document's files, which Scrivener leaves alone). What stays on the {{APP}} side only (in a working copy in *~/.local/share/{{APP}}/ScrivenerProjects*): keywords, custom metadata, collections, styles, script formats, compile settings, objects (section 7), and the window layout; whatever the *.scriv* already has of these is left in it as it is. Audio, video, web page documents, and other files go in as text documents that name the file, with the file beside them; {{APP}} reads them back as they were, Scrivener shows them as text.
@@ -1176,12 +1234,26 @@ A backup is written under a temporary name (*… .zip.part*), checked, and only 
 - **Sharing**: **Import** (comments, footnotes, styles, the encoding of plain text, HTML files; section 14), **Export** (the file format and notes of File > Export > Files), **Conversion** (how *.doc* files are read).
 - **Backup**: when to back up (on opening, on closing, with each File > Save), how many backups to keep, and where.
 - **Extras**, for {{APP}}'s own additions: **Mind Map** (the options of the boards, the shape and look of new notes, the background of boards without a color of their own in light and in dark themes, the size of icons on notes and lines), **Objects** (whether new projects get your own object templates or the standard ones), **Add-ons and Plugins** (the compile formats and writing tools installed, the plugin folders), **Crash Reports** (after how many seconds without an answer a freeze report is written, how many reports are kept).
+- **Speech** (with the add-on Speech Transcription): the model, the device, languages, microphone and pauses (see section 10, *Speech Transcription*). Writing tools of later add-ons may bring a section of their own as well.
 
 Other windows of the program can open the options at a page, for example the Playback page from the media player.
 
 Updates and add-ons have their own windows: **File > Install Update or Add-on…** and **Help > Add-on Manager…** (section 17).
 
 Project-specific settings (labels, status, section types, the look of the text, custom metadata, special folders, title and author for compiling) are under **Project > Project Settings**.
+
+### Settings for one project
+
+At the top of **File > Options**, **Settings for:** chooses where what you change is kept:
+
+- **All projects (the program)**: the program's settings, for every project. This is where the window opens.
+- **This project**: the open project keeps what you change here as a setting of its own (in *settings/options.ini* of its folder). It applies while that project is open; whatever the project does not set comes from the program's settings. The window's title says "Options: This Project", and the line under the choice says how many settings of its own the project has (click the number to see them). **Use Program Settings** removes them all; the program's settings apply to the project again. A change made outside the options, for example a shortcut changed in the keyboard window or a toolbar arranged, goes to the project when the project already has its own value for it, and to the program otherwise.
+
+A few settings belong to the program only and are not shown for a project: the recent projects, reopening the last project, the desktop's file dialogs, the places of windows and the layouts, the crash report times, and the look for new projects. A project's look has always been its own: the **Appearance** page shows the open project's look or the look for new projects (**Show and change the look of** at its top); with **This project** chosen above, it shows the project's look only. **Defaults** and **Manage > Load Options from File…** work on the program's settings only, so choose **All projects** for them.
+
+**Which settings come first** (**General > Startup**, for all projects): ticked (the standard), a project's own settings come first and the program fills in the rest. Unticked, the program's settings always apply: projects' own settings are not used (they stay in the projects for later), and every project shows the look for new projects.
+
+**Project > Save Project Settings to File…** includes the project's own options (the section **Options of This Project**), so they can be taken to another project.
 
 ### Themes, colors, and fonts
 
@@ -1284,12 +1356,15 @@ You do not need to know this to use {{APP}}; the editor shows formatted text. It
 - `**bold**`, `*italic*`, `~~strikethrough~~`, `==highlight==`, `<u>underline</u>`, `<sup>superscript</sup>`, `<sub>subscript</sub>`.
 - Revision colors: `<rev1>…</rev1>` to `<rev5>…</rev5>`.
 - Links: `[text](https://example.com)`; links to documents in the project: `[text](qb://ID)`.
-- Images: `![](images/picture.png){width=300}` (the pictures are stored in the document's folder).
+- Images: `![](images/picture.png){width=300}` (the pictures are stored in the document's folder). A picture's description (0.62) is the text in the brackets: `![A brass lamp](images/lamp.png){width=300}`.
+- Tables (0.62): a line `:::table` with the design in braces (JSON), one line per row with the cells between `|` (a cell's paragraphs separated by `<p/>`, a cell covered by a merged cell left empty, a `|` in the text written `\|`), and a line `:::` at the end.
+- A picture beside the text or centered (0.62): `:::figure {"pos":1,"width":168}` (1 left, 2 right, 3 centered), the picture's line, the caption's lines, and `:::`.
 - A line break inside a paragraph: `<br>`.
 - Fonts set by hand (from version 0.3): `<span style="font-family:'DejaVu Sans'; font-size:14pt; color:#aa0000">text</span>`. The declarations are ordinary CSS, so other Markdown programs that allow HTML show them too. Possible entries: `font-family`, `font-size` (pt), `font-weight` (100 to 900), `color`, `letter-spacing` (em), `font-variant:small-caps`, `text-transform:uppercase`.
 - Paragraph formatting set by hand (from version 0.3): a list in braces at the start of the line, before any other prefix: `{: align=right left=10mm right=5mm first=0mm before=6pt after=12pt line=1.5 tabs=20mm,50mmR} text`. `line` is a multiple (`1.5`), an exact height (`14pt`), or a minimum (`14pt+`). Tab stops end with `R` (right), `C` (centered), or `D` (decimal point); no letter means left. Only the entries you set are written.
 - Script elements (from version 0.10) are paragraph styles named after the element: `::Script > Scene Heading:: INT. LIGHTHOUSE - NIGHT`. What an element looks like is stored once, in the project file, with the script format.
 - A page break before a paragraph (from imported scripts and RTF files, from version 0.10): `{: page=before} text`.
+- Versions before 0.62 show tables and figures as lines of text (`:::table` ...). If you go back to an older version, do not edit documents with tables or pictures beside the text.
 - Version 0.2 shows both markers as plain text. If you go back to version 0.2 with the Add-on Manager, do not edit documents that contain them.
 - Versions before 0.4 do not know your own styles: they show `<span class=…>` as plain text and treat paragraphs of your own styles as body text. If you go back to an older version, do not edit documents that use your own styles.
 - Versions before 0.10 treat script elements as body text, and they remove the names of the elements from a script as soon as it has been shown in the editor and the project is saved. If you go back to an older version, do not open your scripts there (see section 21).
@@ -1454,6 +1529,7 @@ MyNovel{{SUFFIX}}/
   settings/                window layout and other preferences
   settings/spare-copy{{FILE}}  the project file as it was when the project was last opened
   settings/look.json       the project's look: theme, colors, fonts, column width, border (0.40.2)
+  settings/options.ini     the project's own options (File > Options, "This project"; 0.62)
   settings/settings-before-loading-<date>.qbsettings  the settings before Load Project Settings
 ```
 

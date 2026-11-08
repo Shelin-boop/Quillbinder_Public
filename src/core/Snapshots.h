@@ -24,6 +24,18 @@ void load(Project *p, const Snapshot &s, QTextDocument *into);
 bool remove(Project *p, const Snapshot &s);
 bool setTitle(Project *p, const Snapshot &s, const QString &title);
 bool rollBack(Project *p, const Snapshot &s);
+
+// All snapshots of a project (also of documents in the Trash and of documents no longer there).
+struct Totals {
+    int snapshots = 0;
+    int documents = 0;   // documents with snapshots
+    qint64 bytes = 0;    // the project's snapshot folder
+};
+Totals totals(Project *p);
+// Project > Delete Old Snapshots (0.61.1): every snapshot of the project; the texts stay as they
+// are. A Scrivener-format project loses them in the .scriv with its next full save.
+// Returns the snapshots deleted.
+int removeAll(Project *p, QString *error = nullptr);
 } // namespace snapshots
 
 // ---------------------------------------------------------------- diff

@@ -8,6 +8,7 @@
 #include <QWidget>
 
 class QTextDocument;
+class QIcon;
 
 class QButtonGroup;
 class QCheckBox;
@@ -47,6 +48,12 @@ public:
     BinderItem *item() const { return m_item; }
     void showTab(Tab t);
     int currentTab() const;
+    // Tabs of writing tools (tool interface 1.1, 0.61): their buttons sit at the left end
+    // of the row; their numbers follow Objects in the order they were added.
+    void addExtraTab(const QString &key, QWidget *page, const QIcon &icon, const QString &toolTip);
+    bool showExtraTab(const QString &key);
+    QString currentExtraTab() const;     // key of the tool tab shown; empty when a tab of the program is shown
+    QStringList extraTabs() const { return m_extraKeys; }
     void focusNote(const QString &noteId);
     void addLinkedNote(bool footnote);
     void takeSnapshot(bool askTitle);
@@ -124,6 +131,9 @@ private:
     QPointer<TextEditor> m_editor;
     QStackedWidget *m_stack = nullptr;
     QList<QToolButton *> m_tabButtons;
+    QButtonGroup *m_tabGroup = nullptr;
+    QStringList m_extraKeys;               // tabs of writing tools (0.61), after the program's tabs
+    QList<QToolButton *> m_extraButtons;
 
     // notes
     QLineEdit *m_cardTitle = nullptr;

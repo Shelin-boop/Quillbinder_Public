@@ -74,6 +74,9 @@ int border();
 // For the test runs written before 0.40.2 (one look for the whole program): the open
 // project shows and changes the look for new projects, as before. Not used by the program.
 void setFollowSettings(bool on);
+// 0.62: the program's settings always (File > Options > General, "Which settings come first" off):
+// every project shows the look for new projects; its own look stays in it for later.
+void setProgramSettingsAlways(bool on);
 
 } // namespace look
 } // namespace qb

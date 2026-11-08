@@ -10,6 +10,10 @@
 #include <QProcess>
 #include <QSet>
 #include <QStandardPaths>
+#ifdef Q_OS_WIN
+#include <QSettings>
+#include <windows.h>
+#endif
 
 namespace qb {
 namespace fontinstall {
@@ -96,7 +100,12 @@ QString userFontDir()
     QString base = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
     if (base.isEmpty())
         base = QDir::homePath() + QStringLiteral("/.local/share");
+#ifdef Q_OS_WIN
+    // Windows' own folder for fonts of one user (%LOCALAPPDATA%\Microsoft\Windows\Fonts, port W2)
+    const QString dir = base + QStringLiteral("/Microsoft/Windows/Fonts");
+#else
     const QString dir = base + QStringLiteral("/fonts");
+#endif
     QDir().mkpath(dir);
     return dir;
 }
@@ -197,6 +206,9 @@ QStringList fontManagerCommand()
 {
     // KDE Plasma 6 / 5 first (the user's desktop), then others
     const QList<QStringList> candidates = {
+#ifdef Q_OS_WIN
+        {QStringLiteral("control"), QStringLiteral("fonts")}, // Windows' fonts folder
+#endif
         {QStringLiteral("kcmshell6"), QStringLiteral("kcm_fontinst")},
         {QStringLiteral("systemsettings"), QStringLiteral("kcm_fontinst")},
         {QStringLiteral("kcmshell5"), QStringLiteral("fontinst")},
@@ -229,9 +241,32 @@ bool openFontManager(QString *which)
 
 void refreshCache(const QString &dir)
 {
+#ifdef Q_OS_WIN
+    // Windows: a user's font is a file in that folder plus a line under HKEY_CURRENT_USER; other
+    // programs see it after WM_FONTCHANGE
+    QSettings reg(QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts"),
+                  QSettings::NativeFormat);
+    bool changed = false;
+    for (const QFileInfo &fi : QDir(dir).entryInfoList(QDir::Files)) {
+        if (!isFontFile(fi.fileName()))
+            continue;
+        const QString path = QDir::toNativeSeparators(fi.absoluteFilePath());
+        const QString key = fi.completeBaseName()
+                            + (fi.suffix().compare(QLatin1String("otf"), Qt::CaseInsensitive) == 0 ? QStringLiteral(" (OpenType)")
+                                                                                                     : QStringLiteral(" (TrueType)"));
+        if (reg.value(key).toString() == path)
+            continue;
+        reg.setValue(key, path);
+        ::AddFontResourceW(reinterpret_cast<const wchar_t *>(path.utf16()));
+        changed = true;
+    }
+    if (changed)
+        ::PostMessageW(HWND_BROADCAST, WM_FONTCHANGE, 0, 0);
+#else
     const QString exe = QStandardPaths::findExecutable(QStringLiteral("fc-cache"));
     if (!exe.isEmpty())
         startClean(exe, {QStringLiteral("-f"), dir});
+#endif
 }
 
 } // namespace fontinstall

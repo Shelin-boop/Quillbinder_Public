@@ -36,6 +36,7 @@
 | Import and export settings | **File > Options > Sharing** |
 | Mind maps, objects, add-ons, crash reports | **File > Options > Extras** |
 | Labels, status, section types, custom metadata, special folders | **Project > Project Settings** |
+| Options for one project only | **File > Options**, **Settings for: This project** at the top; whether projects' own settings come first: **File > Options > General** |
 | Take your settings to another computer | **File > Options > Manage > Save Options to File… / Load Options from File…** |
 | Everything back to the standard | **File > Options > Defaults** (your projects, themes, layouts, and shortcuts stay) |
 
@@ -67,6 +68,7 @@
 
 - **Mind maps**: a board of notes, lines, and arrows for every document and folder (the **Mind Map** button of the inspector). **Help > Mind Map Help** shows how it works.
 - **Objects**: characters, locations, environments, points of interest, weather, and categories of your own, each with a sheet of fields and links between them (the **Objects** button of the inspector, or **Window > Objects…**).
+- **Tables and pictures**: **Insert > Table…** with ready-made designs or your own, **Format > Table** for rows, columns, merged cells, and colors; pictures beside the text with the text flowing around them, captions, and descriptions that e-books and Word files keep as alt text (right-click a picture, **Picture…**).
 - **The icon bar**: up to ten document icons, one click each. **Documents > Change Icon** also makes icons from text or from your own pictures.
 - **Zoom per part**: binder, editors, inspector parts, corkboard, outliner, and mind maps each keep their own zoom.
 - **Places kept**: every document opens where you left the cursor, also after reopening the project.

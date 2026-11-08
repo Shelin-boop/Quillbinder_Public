@@ -5,6 +5,7 @@
 #include "text/DirectFormat.h"
 #include "text/DisplayFormat.h"
 #include "text/TextProps.h"
+#include "text/Tables.h"
 #include "text/TextUtil.h"
 
 #include <QBuffer>
@@ -12,6 +13,11 @@
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTextDocumentFragment>
+#include <QJsonObject>
+#include <QJsonDocument>
+#include <QTextFrame>
+#include <QTextTable>
 #include <QTextFragment>
 #include <QTextList>
 #include <QUrl>
@@ -106,11 +112,39 @@ public:
         }
         QByteArray body;
         bool first = true;
-        for (QTextBlock b = m_doc->begin(); b.isValid(); b = b.next()) {
-            if (!first)
+        bool afterTable = false;
+        for (QTextBlock b = m_doc->begin(); b.isValid();) {
+            QTextCursor bc(b);
+            // a table of the text (0.62); a table inside a cell is written as its text
+            if (QTextTable *t = bc.currentTable(); t && t->parentFrame() == m_doc->rootFrame()) {
+                if (!first && !afterTable)
+                    body += "\\par\n";
+                first = false;
+                body += table(t);
+                afterTable = true;
+                b = m_doc->findBlock(t->lastPosition() + 1);
+                continue;
+            }
+            if (!first && !afterTable)
                 body += "\\par\n";
             first = false;
+            afterTable = false;
+            // a figure: its paragraphs between two marks other programs pass over (0.62)
+            QTextFrame *fig = nullptr;
+            for (QTextFrame *f = bc.currentFrame(); f && f->parentFrame(); f = f->parentFrame())
+                if (figures::isFigure(f))
+                    fig = f;
+            if (fig && b.position() == fig->firstPosition()) {
+                QJsonObject o;
+                o[QStringLiteral("pos")] = int(figures::positionOf(fig));
+                if (fig->frameFormat().width().type() == QTextLength::FixedLength)
+                    o[QStringLiteral("width")] = qRound(fig->frameFormat().width().rawValue());
+                body += "{\\*\\qbfigure " + escape(QString::fromUtf8(QJsonDocument(o).toJson(QJsonDocument::Compact))) + "}";
+            }
             body += paragraph(b);
+            if (fig && b.position() + b.length() - 1 == fig->lastPosition())
+                body += "{\\*\\qbfigureend}";
+            b = b.next();
         }
 
         QByteArray out = "{\\rtf1\\ansi\\ansicpg1252\\uc1\\deff0\n{\\fonttbl";
@@ -208,6 +242,96 @@ private:
             }
         }
         return out;
+    }
+
+    // 0.62: a table as RTF rows (Word, LibreOffice and Scrivener read them); the design whole in
+    // {\*\qbtable ...} for this program
+    QByteArray table(QTextTable *t)
+    {
+        const tables::Spec spec = tables::specOf(t);
+        const int total = 9360 * (spec.widthPercent > 0 ? spec.widthPercent : 100) / 100;
+        QList<int> rights;
+        {
+            double sum = 0;
+            QList<double> share = spec.columns.size() == t->columns() ? spec.columns : QList<double>();
+            if (share.isEmpty())
+                for (int c = 0; c < t->columns(); ++c)
+                    share << 1.0;
+            for (double v : share)
+                sum += v;
+            double x = 0;
+            for (double v : share) {
+                x += v / sum * total;
+                rights << qRound(x);
+            }
+        }
+        QJsonObject own;
+        for (int r = 0; r < t->rows(); ++r)
+            for (int c = 0; c < t->columns(); ++c) {
+                const QTextTableCell cell = t->cellAt(r, c);
+                const QColor bg = cell.format().property(props::CellBackground).value<QColor>();
+                if (bg.isValid() && cell.row() == r && cell.column() == c)
+                    own[QStringLiteral("%1,%2").arg(r).arg(c)] = bg.name();
+            }
+        QJsonObject qb{{QStringLiteral("spec"), spec.toJson()}};
+        if (!own.isEmpty())
+            qb[QStringLiteral("own")] = own;
+        QByteArray o;
+        for (int r = 0; r < t->rows(); ++r) {
+            o += "\\trowd\\trgaph" + twips(spec.padding) + "\\trleft0";
+            if (spec.align & Qt::AlignHCenter)
+                o += "\\trqc";
+            else if (spec.align & Qt::AlignRight)
+                o += "\\trqr";
+            if (r < spec.headerRows)
+                o += "\\trhdr";
+            if (r == 0)
+                o += "{\\*\\qbtable " + escape(QString::fromUtf8(QJsonDocument(qb).toJson(QJsonDocument::Compact))) + "}";
+            o += "\n";
+            for (int c = 0; c < t->columns(); ++c) {
+                const QTextTableCell cell = t->cellAt(r, c);
+                if (cell.column() < c)
+                    o += "\\clmrg";
+                else if (cell.columnSpan() > 1 && cell.row() == r)
+                    o += "\\clmgf";
+                if (cell.row() < r)
+                    o += "\\clvmrg";
+                else if (cell.rowSpan() > 1 && cell.column() == c)
+                    o += "\\clvmgf";
+                const QTextTableCellFormat cf = cell.format().toTableCellFormat();
+                const double widths[4] = {cf.topBorder(), cf.leftBorder(), cf.bottomBorder(), cf.rightBorder()};
+                const QTextFrameFormat::BorderStyle styles[4] = {cf.topBorderStyle(), cf.leftBorderStyle(), cf.bottomBorderStyle(),
+                                                                 cf.rightBorderStyle()};
+                const char *names[4] = {"\\clbrdrt", "\\clbrdrl", "\\clbrdrb", "\\clbrdrr"};
+                for (int k = 0; k < 4; ++k) {
+                    o += names[k];
+                    if (widths[k] > 0 && styles[k] != QTextFrameFormat::BorderStyle_None)
+                        o += "\\brdrs\\brdrw" + twips(widths[k]) + "\\brdrcf" + QByteArray::number(colorIndex(spec.borderColor));
+                    else
+                        o += "\\brdrnone";
+                }
+                if (cf.background().style() != Qt::NoBrush)
+                    o += "\\clcbpat" + QByteArray::number(colorIndex(cf.background().color()));
+                o += "\\cellx" + QByteArray::number(rights.value(c)) + "\n";
+            }
+            for (int c = 0; c < t->columns(); ++c) {
+                const QTextTableCell cell = t->cellAt(r, c);
+                if (cell.row() != r || cell.column() != c) {
+                    o += "\\pard\\plain\\intbl\\cell\n";
+                    continue;
+                }
+                QList<QByteArray> paras;
+                for (QTextFrame::iterator it = cell.begin(); !it.atEnd(); ++it)
+                    if (it.currentBlock().isValid()) {
+                        QByteArray p = paragraph(it.currentBlock());
+                        p.replace(0, int(qstrlen("\\pard\\plain")), "\\pard\\plain\\intbl");
+                        paras << p;
+                    }
+                o += paras.join("\\par\n") + "\\cell\n";
+            }
+            o += "\\row\n";
+        }
+        return o;
     }
 
     QByteArray paragraph(const QTextBlock &b)
@@ -427,8 +551,10 @@ private:
             for (int k = i; k < j; ++k) {
                 const Frag &fr = frags[k];
                 if (fr.cf.isImageFormat()) {
+                    // what the picture shows (0.62): a group other programs pass over
+                    const QString alt = fr.cf.stringProperty(props::ImageDescription);
                     for (int n = 0; n < fr.text.size(); ++n)
-                        inner += image(fr.cf.toImageFormat());
+                        inner += (alt.isEmpty() ? QByteArray() : "{\\*\\qbalt " + escape(alt) + "}") + image(fr.cf.toImageFormat());
                     continue;
                 }
                 inner += "{" + charCodes(fr.cf) + " " + escape(fr.text) + "}";
@@ -460,7 +586,8 @@ enum Dest {
     D_QbList,
     D_ScrvColor,
     D_Annotation,
-    D_Collect // generic text collection (e.g. atnid)
+    D_Collect, // generic text collection (e.g. atnid)
+    D_QbData   // 0.62: {\*\qbtable json}, {\*\qbfigure json}, {\*\qbfigureend}, {\*\qbalt text}
 };
 
 struct CharState {
@@ -496,6 +623,28 @@ struct ParState {
     QList<QTextOption::Tab> tabs;
     int tabKind = 0; // alignment of the next \tx: 0 left 1 right 2 centre 3 decimal
     int own = 0;     // direct::ParaBit set of a Quillbinder file
+    bool intbl = false; // a paragraph of a table cell (0.62)
+    int itap = 1;       // its table's depth (2 and more: a table in a cell, read as text)
+};
+
+// 0.62: a row of an RTF table as \trowd ... \cellx describes it
+struct RtfCellDef {
+    int right = 0;
+    bool mergeFirst = false, merged = false, vFirst = false, vMerged = false;
+    QColor bg;
+    int border[4] = {-1, -1, -1, -1}; // top, left, bottom, right in twips; -1 not given
+    QColor borderColor;
+};
+struct RtfRowDef {
+    QList<RtfCellDef> cells;
+    int align = 0;
+    bool header = false;
+    int gaph = -1;
+    QString qbSpec;
+};
+struct RtfRow {
+    RtfRowDef def;
+    QList<std::pair<int, int>> cells; // first and last block of each cell
 };
 
 struct Group {
@@ -531,6 +680,19 @@ public:
         }
         m_stack.append(Group());
         parse();
+        if (!m_rowCells.isEmpty())
+            endRow();
+        if (!m_tableRows.isEmpty() || m_figureEnd >= 0) {
+            // the last paragraph first, so that it keeps its format
+            flushParagraph(false);
+            if (!m_tableRows.isEmpty())
+                finishTable();
+            if (m_figureEnd >= 0) {
+                m_cur.insertBlock();
+                finishFigure();
+            }
+            m_afterPar = false;
+        }
         flushParagraph(true);
         res.ok = true;
         return res;
@@ -576,6 +738,17 @@ private:
     // destinations
     QString m_collect;
     Pict m_pict;
+    // 0.62: tables, figures, descriptions of pictures
+    QString m_qbDataKind;
+    RtfRowDef m_rowDef;
+    RtfCellDef m_cellDef;
+    int m_borderSide = -1;
+    QList<RtfRow> m_tableRows;
+    QList<std::pair<int, int>> m_rowCells;
+    int m_cellFirstBlock = -1;
+    int m_figureStart = -1, m_figureEnd = -1;
+    QString m_figureJson;
+    QString m_pendingAlt;
     struct Field {
         int depth;
         QString inst;
@@ -859,6 +1032,12 @@ private:
             setDest(D_Skip);
             return;
         }
+        if (w == "qbtable" || w == "qbfigure" || w == "qbfigureend" || w == "qbalt") {
+            setDest(D_QbData);
+            m_qbDataKind = QString::fromLatin1(w);
+            m_collect.clear();
+            return;
+        }
         if (starred) {
             setDest(D_Skip);
             return;
@@ -926,8 +1105,23 @@ private:
             m_pendingPageBreak = true;
             return;
         }
-        if (w == "row") { paragraphBreak(); return; }
-        if (w == "cell" || w == "nestcell") { emitChar(QLatin1Char('\t')); return; }
+        // 0.62: the cells and rows of a table become a table; tables in cells stay text
+        if (w == "row") {
+            if (top().dest == D_Normal && !cs().inFootnote && !m_rowCells.isEmpty())
+                endRow();
+            else
+                paragraphBreak();
+            return;
+        }
+        if (w == "nestrow") { paragraphBreak(); return; }
+        if (w == "cell") {
+            if (top().dest == D_Normal && !cs().inFootnote && ps().itap <= 1)
+                endCell();
+            else
+                emitChar(QLatin1Char('\t'));
+            return;
+        }
+        if (w == "nestcell") { emitChar(QLatin1Char('\t')); return; }
         if (w == "line") { emitChar(QChar::LineSeparator); return; }
         if (w == "tab") { emitChar(QLatin1Char('\t')); return; }
         if (w == "emdash") { emitChar(QChar(0x2014)); return; }
@@ -980,6 +1174,59 @@ private:
         if (w == "cs") { c.charStyle = hasParam ? p : -1; return; }
         if (w == "cf") { c.cf = p; return; }
         if (w == "cb" || w == "highlight" || w == "chcbpat") { c.cb = p; return; }
+
+        // --------------------------------------------------- tables (0.62)
+        if (w == "trowd") {
+            m_rowDef = RtfRowDef();
+            m_cellDef = RtfCellDef();
+            m_borderSide = -1;
+            return;
+        }
+        if (w == "trgaph") { m_rowDef.gaph = p; return; }
+        if (w == "trqc") { m_rowDef.align = 1; return; }
+        if (w == "trqr") { m_rowDef.align = 2; return; }
+        if (w == "trql") { m_rowDef.align = 0; return; }
+        if (w == "trhdr") { m_rowDef.header = true; return; }
+        if (w == "clmgf") { m_cellDef.mergeFirst = true; return; }
+        if (w == "clmrg") { m_cellDef.merged = true; return; }
+        if (w == "clvmgf") { m_cellDef.vFirst = true; return; }
+        if (w == "clvmrg") { m_cellDef.vMerged = true; return; }
+        if (w == "clcbpat") { m_cellDef.bg = m_colors.value(p); return; }
+        if (w == "clbrdrt" || w == "clbrdrl" || w == "clbrdrb" || w == "clbrdrr") {
+            m_borderSide = w == "clbrdrt" ? 0 : w == "clbrdrl" ? 1 : w == "clbrdrb" ? 2 : 3;
+            m_cellDef.border[m_borderSide] = 15;
+            return;
+        }
+        if (w == "brdrt" || w == "brdrb" || w == "brdrl" || w == "brdrr" || w == "box") { m_borderSide = -1; return; }
+        if (w == "brdrw") {
+            if (m_borderSide >= 0)
+                m_cellDef.border[m_borderSide] = p;
+            return;
+        }
+        if (w == "brdrnone" || w == "brdrnil") {
+            if (m_borderSide >= 0)
+                m_cellDef.border[m_borderSide] = 0;
+            return;
+        }
+        if (w == "brdrcf") {
+            if (m_borderSide >= 0)
+                m_cellDef.borderColor = m_colors.value(p);
+            return;
+        }
+        if (w == "cellx") {
+            m_cellDef.right = p;
+            m_rowDef.cells << m_cellDef;
+            m_cellDef = RtfCellDef();
+            m_borderSide = -1;
+            return;
+        }
+        if (w == "intbl") {
+            ps().intbl = true;
+            if (m_cellFirstBlock < 0 && top().dest == D_Normal && !cs().inFootnote)
+                m_cellFirstBlock = m_cur.blockNumber();
+            return;
+        }
+        if (w == "itap") { ps().itap = hasParam ? p : 1; return; }
 
         // --------------------------------------------------- paragraph
         ParState &q = ps();
@@ -1093,6 +1340,19 @@ private:
         case D_QbNote:
             if (parentDest != D_QbNote) {
                 cs().noteText = m_collect;
+            }
+            break;
+        case D_QbData:
+            if (parentDest != D_QbData) {
+                if (m_qbDataKind == QLatin1String("qbtable"))
+                    m_rowDef.qbSpec = m_collect.trimmed();
+                else if (m_qbDataKind == QLatin1String("qbfigure")) {
+                    m_figureStart = m_cur.blockNumber();
+                    m_figureJson = m_collect.trimmed();
+                } else if (m_qbDataKind == QLatin1String("qbfigureend"))
+                    m_figureEnd = m_cur.blockNumber();
+                else if (m_qbDataKind == QLatin1String("qbalt"))
+                    m_pendingAlt = m_collect.trimmed();
             }
             break;
         case D_QbColor:
@@ -1218,7 +1478,7 @@ private:
             return;
         const Dest d = top().dest;
         if (d == D_QbNote || d == D_QbColor || d == D_QbList || d == D_FldInst || d == D_Collect
-            || d == D_Annotation) {
+            || d == D_Annotation || d == D_QbData) {
             m_collect += s;
             return;
         }
@@ -1355,6 +1615,11 @@ private:
             imf.setWidth(w);
         if (h > 0)
             imf.setHeight(h);
+        if (!m_pendingAlt.isEmpty()) {
+            imf.setProperty(props::ImageDescription, m_pendingAlt);
+            imf.setToolTip(m_pendingAlt);
+            m_pendingAlt.clear();
+        }
         m_cur.insertImage(imf);
     }
 
@@ -1373,8 +1638,217 @@ private:
             return;
         }
         flushParagraph(false);
+        if (!m_tableRows.isEmpty() && m_rowCells.isEmpty() && !ps().intbl)
+            finishTable();
         m_cur.insertBlock();
         m_afterPar = true;
+        if (m_figureEnd >= 0)
+            finishFigure(); // now that a paragraph follows it
+    }
+
+    // ------------------------------------------------------------ tables (0.62)
+    void endCell()
+    {
+        flushParagraph(false);
+        const int last = m_cur.blockNumber();
+        m_rowCells << std::make_pair(m_cellFirstBlock >= 0 ? qMin(m_cellFirstBlock, last) : last, last);
+        m_cur.insertBlock();
+        m_afterPar = true;
+        m_cellFirstBlock = m_cur.blockNumber();
+    }
+
+    void endRow()
+    {
+        if (!m_rowCells.isEmpty())
+            m_tableRows << RtfRow{m_rowDef, m_rowCells};
+        m_rowCells.clear();
+    }
+
+    QTextDocumentFragment fragmentOf(int firstBlock, int lastBlock, QTextBlockFormat *firstFormat)
+    {
+        const QTextBlock fb = m_doc->findBlockByNumber(firstBlock), lb = m_doc->findBlockByNumber(lastBlock);
+        if (!fb.isValid() || !lb.isValid())
+            return QTextDocumentFragment();
+        if (firstFormat)
+            *firstFormat = fb.blockFormat();
+        QTextCursor c(m_doc);
+        c.setPosition(fb.position());
+        c.setPosition(lb.position() + lb.length() - 1, QTextCursor::KeepAnchor);
+        return c.selection();
+    }
+
+    // Takes blocks firstBlock..lastBlock out of the text; returns where the container that
+    // replaces them goes (the end of the block before, or 0) and, through after*, the format of
+    // the paragraph that follows them.
+    int cutBlocks(int firstBlock, int lastBlock, QTextBlockFormat *afterFormat, QTextCharFormat *afterChar)
+    {
+        const QTextBlock fb = m_doc->findBlockByNumber(firstBlock), lb = m_doc->findBlockByNumber(lastBlock);
+        const QTextBlock after = lb.next();
+        *afterFormat = after.blockFormat();
+        *afterChar = after.charFormat();
+        const int start = fb.position();
+        QTextCursor rm(m_doc);
+        rm.setPosition(start);
+        rm.setPosition(after.position(), QTextCursor::KeepAnchor);
+        rm.removeSelectedText();
+        return start == 0 ? 0 : start - 1;
+    }
+
+    // Qt splits the paragraph before a new frame at its end: that empty rest joins the paragraph after.
+    void joinRestAfter(QTextFrame *f, bool atStart, const QTextBlockFormat &afterFormat, const QTextCharFormat &afterChar)
+    {
+        if (atStart)
+            return;
+        const QTextBlock rest = m_doc->findBlock(f->lastPosition() + 1);
+        if (rest.isValid() && rest.length() <= 1 && rest.next().isValid()) {
+            const int at = rest.position();
+            QTextCursor d(m_doc);
+            d.setPosition(at);
+            d.deleteChar();
+            QTextCursor fix(m_doc);
+            fix.setPosition(at);
+            fix.setBlockFormat(afterFormat);
+            fix.setBlockCharFormat(afterChar);
+        }
+    }
+
+    void finishTable()
+    {
+        const QList<RtfRow> rows = m_tableRows;
+        m_tableRows.clear();
+        m_rowCells.clear();
+        m_cellFirstBlock = -1;
+        if (rows.isEmpty() || rows.first().cells.isEmpty())
+            return;
+        const int firstBlock = rows.first().cells.first().first;
+        const int lastBlock = rows.last().cells.last().second;
+        if (!m_doc->findBlockByNumber(lastBlock).next().isValid())
+            return;
+        int cols = 0;
+        for (const RtfRow &r : rows)
+            cols = qMax(cols, int(qMax(r.cells.size(), r.def.cells.size())));
+        QList<QList<QTextDocumentFragment>> frags;
+        QList<QList<QTextBlockFormat>> formats;
+        for (const RtfRow &r : rows) {
+            QList<QTextDocumentFragment> fr;
+            QList<QTextBlockFormat> fm;
+            for (const auto &c : r.cells) {
+                QTextBlockFormat bf;
+                fr << fragmentOf(c.first, c.second, &bf);
+                fm << bf;
+            }
+            frags << fr;
+            formats << fm;
+        }
+        QTextBlockFormat afterFormat;
+        QTextCharFormat afterChar;
+        const int at = cutBlocks(firstBlock, lastBlock, &afterFormat, &afterChar);
+        QTextCursor ins(m_doc);
+        ins.setPosition(at);
+        QTextTable *t = ins.insertTable(int(rows.size()), cols, QTextTableFormat());
+        joinRestAfter(t, at == 0, afterFormat, afterChar);
+        for (int r = 0; r < rows.size(); ++r)
+            for (int c = 0; c < frags[r].size() && c < cols; ++c) {
+                QTextCursor cc = t->cellAt(r, c).firstCursorPosition();
+                QTextBlockFormat bf = formats[r][c];
+                bf.setProperty(props::PageBreak, false);
+                bf.setPageBreakPolicy(QTextFormat::PageBreak_Auto);
+                cc.setBlockFormat(bf);
+                if (!frags[r][c].isEmpty())
+                    cc.insertFragment(frags[r][c]);
+            }
+        // what the rows say: the design (own files carry it whole), merged cells, colors
+        tables::Spec spec;
+        QJsonObject own;
+        if (!rows.first().def.qbSpec.isEmpty()) {
+            const QJsonObject o = QJsonDocument::fromJson(rows.first().def.qbSpec.toUtf8()).object();
+            spec = tables::Spec::fromJson(o.value(QStringLiteral("spec")).toObject());
+            own = o.value(QStringLiteral("own")).toObject();
+        } else {
+            const RtfRowDef &d = rows.first().def;
+            spec.style = QStringLiteral("custom");
+            int header = 0;
+            while (header < rows.size() && rows[header].def.header)
+                ++header;
+            spec.headerRows = header;
+            spec.align = d.align == 1 ? Qt::AlignHCenter : d.align == 2 ? Qt::AlignRight : Qt::AlignLeft;
+            spec.padding = d.gaph >= 0 ? d.gaph / 15.0 : 4;
+            spec.border = 0;
+            spec.linesOnly = false;
+            if (!d.cells.isEmpty()) {
+                const RtfCellDef &c0 = d.cells.first();
+                const int top = qMax(c0.border[0], c0.border[2]);
+                spec.border = top > 0 ? qMax(1.0, top / 15.0) : (top == 0 ? 0 : 1);
+                spec.linesOnly = top > 0 && c0.border[1] <= 0 && c0.border[3] <= 0;
+                if (c0.borderColor.isValid())
+                    spec.borderColor = c0.borderColor;
+                int prev = 0;
+                const int total = d.cells.last().right;
+                for (const RtfCellDef &c : d.cells) {
+                    spec.columns << qMax(1.0, (c.right - prev) * 100.0 / qMax(1, total));
+                    prev = c.right;
+                }
+                spec.widthPercent = qBound(10, qRound(total * 100.0 / 9360), 100);
+            }
+        }
+        // merged cells (horizontal, then vertical)
+        for (int r = 0; r < rows.size(); ++r) {
+            const QList<RtfCellDef> &cd = rows[r].def.cells;
+            for (int c = 0; c < cd.size() && c < cols; ++c) {
+                if (cd[c].mergeFirst) {
+                    int n = 1;
+                    while (c + n < cd.size() && cd[c + n].merged)
+                        ++n;
+                    if (n > 1)
+                        t->mergeCells(r, c, 1, qMin(n, cols - c));
+                }
+                if (cd[c].vFirst) {
+                    int n = 1;
+                    while (r + n < rows.size() && c < rows[r + n].def.cells.size() && rows[r + n].def.cells[c].vMerged)
+                        ++n;
+                    if (n > 1)
+                        t->mergeCells(r, c, n, t->cellAt(r, c).columnSpan());
+                }
+                // the cell's own color
+                QColor bg;
+                if (rows.first().def.qbSpec.isEmpty())
+                    bg = cd[c].bg;
+                else
+                    bg = QColor(own.value(QStringLiteral("%1,%2").arg(r).arg(c)).toString());
+                if (bg.isValid()) {
+                    QTextTableCell cell = t->cellAt(r, c);
+                    QTextTableCellFormat cf = cell.format().toTableCellFormat();
+                    cf.setProperty(props::CellBackground, bg);
+                    cell.setFormat(cf);
+                }
+            }
+        }
+        tables::apply(t, spec);
+        m_cur.movePosition(QTextCursor::End);
+    }
+
+    void finishFigure()
+    {
+        const int first = m_figureStart, last = m_figureEnd;
+        const QString json = m_figureJson;
+        m_figureStart = m_figureEnd = -1;
+        m_figureJson.clear();
+        if (first < 0 || last < first || !m_doc->findBlockByNumber(last).next().isValid())
+            return;
+        QTextBlockFormat firstFormat;
+        const QTextDocumentFragment frag = fragmentOf(first, last, &firstFormat);
+        QTextBlockFormat afterFormat;
+        QTextCharFormat afterChar;
+        const int at = cutBlocks(first, last, &afterFormat, &afterChar);
+        const QJsonObject o = QJsonDocument::fromJson(json.toUtf8()).object();
+        QTextCursor ins(m_doc);
+        ins.setPosition(at);
+        QTextFrame *fr = ins.insertFrame(figures::frameFormatFor(figures::Position(qBound(1, o.value(QStringLiteral("pos")).toInt(3), 3)),
+                                                               o.value(QStringLiteral("width")).toDouble(208) - figures::frameWidth(0)));
+        ins.setBlockFormat(firstFormat);
+        ins.insertFragment(frag);
+        joinRestAfter(fr, at == 0, afterFormat, afterChar);
+        m_cur.movePosition(QTextCursor::End);
     }
 
     void flushParagraph(bool last)

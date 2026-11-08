@@ -1,4 +1,5 @@
 #include "core/Project.h"
+#include "core/Timing.h"
 #include "core/Objects.h"
 #include "core/BinderModel.h"
 #include "core/DocumentStore.h"
@@ -99,7 +100,7 @@ Project::Project(QObject *parent) : QObject(parent)
     m_saveTimer.setInterval(2000);
     connect(&m_saveTimer, &QTimer::timeout, this, [this] {
         QString err;
-        if (!save(&err))
+        if (!autosave(&err))
             emit saveFailed(err);
     });
 }
@@ -508,6 +509,14 @@ void Project::notifyItemChanged(BinderItem *item, bool touchModified)
     emit itemChanged(item);
 }
 
+void Project::notifyItemCounted(BinderItem *item)
+{
+    item->modified = QDateTime::currentDateTime();
+    m_countsDirty = true;
+    scheduleSave();
+    emit itemChanged(item);
+}
+
 bool Project::setStyleSheet(const StyleSheet &sheet, const QHash<QString, QString> &renamed,
                             const std::function<bool(int, int)> &progress, QString *error)
 {
@@ -614,6 +623,7 @@ void Project::notifySettingsChanged()
 void Project::markIndexDirty()
 {
     m_indexDirty = true;
+    binderChangedSinceSync = true;
     scheduleSave();
 }
 
@@ -630,7 +640,7 @@ void Project::scheduleSave()
                 if (!hasUnsavedChanges())
                     return;
                 QString err;
-                if (!save(&err))
+                if (!autosave(&err))
                     emit saveFailed(err);
             });
         }
@@ -717,22 +727,41 @@ objects::Store *Project::objects()
     return m_objects;
 }
 
-bool Project::save(QString *error)
+bool Project::autosave(QString *error) { return saveImpl(error, true); }
+
+bool Project::save(QString *error) { return saveImpl(error, false); }
+
+bool Project::saveImpl(QString *error, bool quick)
 {
+    timing::Laps laps;
     m_saveTimer.stop();
     m_dirtySince.invalidate();
     bool ok = true;
     if (m_docs && !m_docs->saveDirty(error))
         ok = false;
+    laps.lap("texts");
     if (m_objects && m_objects->isDirty() && !m_objects->save(error))
         ok = false;
-    if (m_indexDirty || !QFileInfo::exists(m_indexFile)) {
+    // the project file: every change of the binder at once; new counts alone (while typing)
+    // with the next full save or a minute after the last write at the latest (0.60.5)
+    constexpr qint64 kCountsWait = 60000;
+    const qint64 since = m_lastIndexWrite.isValid() ? m_lastIndexWrite.elapsed() : kCountsWait;
+    const bool countsDue = m_countsDirty && (!quick || since >= kCountsWait);
+    if (m_indexDirty || countsDue || !QFileInfo::exists(m_indexFile)) {
         if (!saveIndex(error))
             ok = false;
+    } else if (m_countsDirty) {
+        QTimer::singleShot(int(kCountsWait - since) + 100, this, [this] {
+            if (m_countsDirty && m_lastIndexWrite.isValid() && m_lastIndexWrite.elapsed() >= kCountsWait)
+                scheduleSave();
+        });
     }
-    // a project in Scrivener format: the .scriv gets what changed
-    if (ok && !scrivenerPath.isEmpty() && !scrivener::sync(this, error))
+    laps.lap("project file");
+    // a project in Scrivener format: the .scriv gets what changed (the autosave: quickly)
+    if (ok && !scrivenerPath.isEmpty() && !scrivener::sync(this, error, quick))
         ok = false;
+    laps.lap("scrivener");
+    laps.print(quick ? "autosave" : "save");
     if (ok)
         emit saved();
     return ok;
@@ -1226,6 +1255,8 @@ bool Project::saveIndex(QString *error)
         ui.commit();
     }
     m_indexDirty = false;
+    m_countsDirty = false;
+    m_lastIndexWrite.start();
     return true;
 }
 

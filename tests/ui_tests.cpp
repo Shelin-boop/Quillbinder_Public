@@ -852,6 +852,7 @@ int main(int argc, char **argv)
             QFile tf2(proj->docs()->textPath(again->id));
             tf2.open(QIODevice::ReadOnly);
             const QString md2 = QString::fromUtf8(tf2.readAll());
+            tf2.close(); // Windows: an open file cannot be replaced by the next save (W3)
             check(!md2.contains(QLatin1String("<span")) && md2.contains(QLatin1String("{: align=justify tabs=60mmR} "))
                       && md2.contains(QLatin1String("**twice**")),
                   QStringLiteral("default formatting removes fonts and indents, keeps alignment, tabs and bold"), md2);
@@ -895,10 +896,12 @@ int main(int argc, char **argv)
                 fe->setTextCursor(t);
             };
             auto storedText = [&] {
-                proj->save();
+                QString serr;
+                const bool saved = proj->save(&serr);
                 QFile tf(proj->docs()->textPath(again->id));
                 tf.open(QIODevice::ReadOnly);
-                return QString::fromUtf8(tf.readAll());
+                // a save that fails is named in the detail line (W3: on Windows the text on disk stayed old)
+                return (saved ? QString() : QStringLiteral("[save failed: %1] ").arg(serr)) + QString::fromUtf8(tf.readAll());
             };
             auto *combo = w.findChild<QComboBox *>(QStringLiteral("styleCombo"));
             check(combo && combo->findData(QStringLiteral("Heading 1")) > 0 && combo->findData(QStringLiteral("Emphasis")) > 0
@@ -1996,9 +1999,11 @@ int main(int argc, char **argv)
             auto *quick = w.findChild<QLineEdit *>(QStringLiteral("quickSearch"));
             auto *styleCombo = w.findChild<QComboBox *>(QStringLiteral("styleCombo"));
             const QStringList standardKeys = barKeys(mainBar);
-            check(viewBtn && viewBtn->isVisible() && quick && quick->isVisible() && mainBar->actions().size() == 21 // 0.60.1: + Show Invisibles
+            check(viewBtn && viewBtn->isVisible() && quick && quick->isVisible() && mainBar->actions().size() == 23 // 0.60.1: + Show Invisibles; 0.61: + Undo, Redo
                       && mainBar->widgetForAction(mainBar->actions().first()) == viewBtn
                       && standardKeys.contains(QStringLiteral("viewCork")) && standardKeys.last() == QLatin1String("showInspector")
+                      && standardKeys.indexOf(QStringLiteral("undo")) == standardKeys.indexOf(QStringLiteral("trash")) + 1
+                      && standardKeys.indexOf(QStringLiteral("redo")) == standardKeys.indexOf(QStringLiteral("trash")) + 2
                       && viewBtn->x() < quick->x(),
                   QStringLiteral("main toolbar: View on the left, search and view modes in the middle, inspector on the right"),
                   standardKeys.join(QLatin1Char(' ')));
@@ -2046,7 +2051,16 @@ int main(int argc, char **argv)
             check(barKeys(formatBar).contains(QStringLiteral("superscript")) && fontCombo && !fontCombo->isVisible() && styleCombo
                       && styleCombo->isVisible() && w.findChild<QLineEdit *>(QStringLiteral("quickSearch")) == quick && quick->isVisible()
                       && as.toolbarMain.contains(QStringLiteral("snapshot")) && !as.toolbarFormat.contains(QStringLiteral("fontCombo")),
-                  QStringLiteral("format bar without the font list; the other controls stay and the choice is stored"));
+                  QStringLiteral("format bar without the font list; the other controls stay and the choice is stored"),
+                  QStringLiteral("superscript %1, font list shown %2, style list shown %3, search shown %4, stored %5 %6, window %7 x %8")
+                      .arg(barKeys(formatBar).contains(QStringLiteral("superscript")))
+                      .arg(fontCombo && fontCombo->isVisible())
+                      .arg(styleCombo && styleCombo->isVisible())
+                      .arg(quick && quick->isVisible())
+                      .arg(as.toolbarMain.contains(QStringLiteral("snapshot")))
+                      .arg(!as.toolbarFormat.contains(QStringLiteral("fontCombo")))
+                      .arg(w.width())
+                      .arg(w.height()));
             // the controls still work after a rebuild
             binder->select({item}, true);
             settle(200);

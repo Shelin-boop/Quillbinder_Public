@@ -2,6 +2,7 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QHash>
 #include <QSaveFile>
 
 using namespace qb::compile;
@@ -57,7 +58,8 @@ struct Writer {
                 const QString name = QStringLiteral("image%1.png").arg(++imageCount);
                 if (!r.image.save(imageDir + QLatin1Char('/') + name, "PNG"))
                     error = QStringLiteral("Cannot save %1").arg(name);
-                s += QStringLiteral("![](%1/%2)").arg(imageDirName, name);
+                // what the picture shows (interface 1.4): the alt text
+                s += QStringLiteral("![%3](%1/%2)").arg(imageDirName, name, escape(r.imageDescription.simplified()));
                 break;
             }
             case Run::Text: {
@@ -92,6 +94,43 @@ struct Writer {
         }
         return s;
     }
+
+    // a table (interface 1.4) as a pipe table; merged cells keep their text in the first place
+    QString table(const Table &t, const QList<const Paragraph *> &ps)
+    {
+        const int rows = qMax(1, t.rows), cols = qMax(1, t.columns);
+        QVector<int> origin(rows * cols, -1);
+        for (int k = 0; k < t.cells.size(); ++k) {
+            const TableCell &c = t.cells.at(k);
+            if (c.row < rows && c.column < cols)
+                origin[c.row * cols + c.column] = k;
+        }
+        QHash<int, QStringList> inCell;
+        for (const Paragraph *p : ps) {
+            QString text = runs(p->runs).trimmed();
+            text.replace(QLatin1String("\\\n"), QLatin1String("<br>"));
+            text.replace(QLatin1Char('\n'), QLatin1Char(' '));
+            text.replace(QLatin1Char('|'), QLatin1String("\\|"));
+            if (!text.isEmpty())
+                inCell[p->cell] << text;
+        }
+        auto row = [&](int r) {
+            QStringList cells;
+            for (int c = 0; c < cols; ++c) {
+                const int k = r >= 0 ? origin.at(r * cols + c) : -1;
+                cells << (k >= 0 ? inCell.value(k).join(QLatin1String("<br>")) : QString());
+            }
+            return QLatin1String("| ") + cells.join(QLatin1String(" | ")) + QLatin1String(" |\n");
+        };
+        QString o = row(t.headerRows > 0 ? 0 : -1);
+        QStringList rule;
+        for (int c = 0; c < cols; ++c)
+            rule << QStringLiteral("---");
+        o += QLatin1String("| ") + rule.join(QLatin1String(" | ")) + QLatin1String(" |\n");
+        for (int r = t.headerRows > 0 ? 1 : 0; r < rows; ++r)
+            o += row(r);
+        return o + QLatin1Char('\n');
+    }
 };
 
 } // namespace
@@ -107,8 +146,23 @@ bool MarkdownExporter::exportManuscript(const Manuscript &m, const QString &path
                    .arg(QString(m.title).replace(QLatin1Char('"'), QLatin1String("\\\"")),
                         QString(m.author).replace(QLatin1Char('"'), QLatin1String("\\\"")), m.language);
     int prevList = -1;
-    for (const Paragraph &p : m.paragraphs) {
-        const QString body = w.runs(p.runs);
+    for (int i = 0; i < m.paragraphs.size(); ++i) {
+        const Paragraph &p = m.paragraphs.at(i);
+        if (p.table >= 0 && p.table < m.tables.size()) {
+            QList<const Paragraph *> ps;
+            int j = i;
+            while (j < m.paragraphs.size() && m.paragraphs.at(j).table == p.table)
+                ps << &m.paragraphs.at(j++);
+            if (prevList != -1)
+                out += QLatin1Char('\n');
+            prevList = -1;
+            out += w.table(m.tables.at(p.table), ps);
+            i = j - 1;
+            continue;
+        }
+        QString body = w.runs(p.runs);
+        if (p.figureCaption && !body.trimmed().isEmpty())
+            body = QLatin1Char('*') + body.trimmed() + QLatin1Char('*'); // the caption of a picture
         const bool isList = p.style == Paragraph::ListBullet || p.style == Paragraph::ListNumber;
         QString line;
         switch (p.style) {

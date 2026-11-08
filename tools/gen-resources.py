@@ -30,9 +30,22 @@ for sub in ("licenses", "welcome"):
             rel = os.path.relpath(os.path.join(dirpath, f), RES)
             entries.append((rel, rel))
 
-with open(os.path.join(RES, "resources.qrc"), "w") as out:
-    out.write("<!DOCTYPE RCC>\n<RCC version=\"1.0\">\n  <qresource prefix=\"/\">\n")
-    for alias, path in entries:
-        out.write(f"    <file alias=\"{alias}\">{path}</file>\n")
-    out.write("  </qresource>\n</RCC>\n")
-print(f"{len(entries)} files")
+def write_qrc(name, items):
+    with open(os.path.join(RES, name), "w") as out:
+        out.write("<!DOCTYPE RCC>\n<RCC version=\"1.0\">\n  <qresource prefix=\"/\">\n")
+        for alias, path in items:
+            out.write(f"    <file alias=\"{alias}\">{path}</file>\n")
+        out.write("  </qresource>\n</RCC>\n")
+
+
+write_qrc("resources.qrc", entries)
+# Windows (port, W3): the same files, but the license list of what the Windows program ships
+# (resources/licenses-windows, tools/collect-licenses-windows.py) under the same names :/licenses/...
+win = [e for e in entries if not e[0].startswith("licenses/")]
+base = os.path.join(RES, "licenses-windows")
+for dirpath, _, files in sorted(os.walk(base)):
+    for f in sorted(files):
+        rel = os.path.relpath(os.path.join(dirpath, f), RES)
+        win.append(("licenses/" + os.path.relpath(os.path.join(dirpath, f), base), rel))
+write_qrc("resources-windows.qrc", win)
+print(f"{len(entries)} files ({len(win)} for Windows)")

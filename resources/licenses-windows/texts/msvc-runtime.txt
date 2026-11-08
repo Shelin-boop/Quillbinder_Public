@@ -1,0 +1,9 @@
+Microsoft Visual C++ Runtime
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+These DLL files are Microsoft's redistributable C++ runtime, copied unchanged from Visual Studio by
+Qt's deployment tool. Microsoft allows them to be distributed with programs built with Visual Studio
+under the terms for "Distributable Code" of the Microsoft Software License Terms of Visual Studio
+(https://visualstudio.microsoft.com/license-terms/, and the file redist.txt of Visual Studio).
+They are not covered by Quillbinder's license, may not be changed, and are used only as part of
+this program.

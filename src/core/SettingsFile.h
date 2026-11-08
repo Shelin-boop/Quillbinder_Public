@@ -17,7 +17,8 @@
 //     "sections": { "labels": { "title": "Label", "items": [ { "name": "Concept", "color": "#..." } ] },
 //                   "status": ..., "sectionTypes": ..., "customMetadata": ..., "keywords": ...,
 //                   "formatting": ..., "styles": ..., "scriptFormat": ..., "targets": ...,
-//                   "compile": ..., "pageSetup": ..., "printing": ..., "look": ..., "objectTemplates": ... } }
+//                   "compile": ..., "pageSetup": ..., "printing": ..., "look": ..., "objectTemplates": ...,
+//                   "options": { "editing/quoteStyle": "de", "keyboard/shortcuts": { "bytes": "<base64>" } } } }
 //
 // Taking a section over keeps what the documents still use: a label, status, section type,
 // keyword or custom metadata field that documents have but the file does not is kept (and
@@ -51,6 +52,7 @@ enum Section {
     Printing,
     Look,
     ObjectTemplates,
+    Options,          // 0.62: the options the project keeps a value of its own for (File > Options, "This project")
     SectionCount
 };
 

@@ -6,13 +6,17 @@
 #include <QTextBlock>
 #include <QTextFragment>
 #include "core/Addons.h"
+#include "core/Launcher.h"
 #include "core/Paths.h"
 #include "text/TextProps.h"
 #include "text/TextUtil.h"
 
 #include "AppInfo.h"
 
+#include <QCoreApplication>
 #include <QDir>
+#include <QFileInfo>
+#include <QHash>
 #include <QFile>
 #include <QRegularExpression>
 #include <QStandardPaths>
@@ -29,14 +33,95 @@ namespace qb {
 static bool s_enabled = true;
 static SpellChecker::Display s_display;
 static QList<QPointer<SpellHighlighter>> s_highlighters;
+// suggestions already looked up (0.60.5): a second right-click on the same word does not
+// search the dictionary again; emptied when the language or the personal words change
+static QHash<QString, QStringList> s_suggested;
 
 static QStringList dictionaryDirs()
 {
+#ifdef Q_OS_WIN
+    // Windows has no system dictionaries: they come with the program (port, W3: English and German),
+    // in the program folder (also when a program update runs) and beside a test program
+    QStringList dirs = {launcher::appDir() + QLatin1String("/dictionaries"),
+                        QCoreApplication::applicationDirPath() + QLatin1String("/dictionaries")};
+    dirs.removeDuplicates();
+#else
     QStringList dirs = {QStringLiteral("/usr/share/hunspell"), QStringLiteral("/usr/share/myspell/dicts"),
                         QStringLiteral("/usr/share/myspell"), QStringLiteral("/usr/local/share/hunspell")};
+#endif
     dirs << addons::contentDirs(QStringLiteral("dictionaries"));
     dirs << dataDir() + QLatin1String("/dictionaries");
     return dirs;
+}
+
+// Hunspell opens its files with the C library: on Windows only a path in the ANSI code page works,
+// unless it starts with \\?\ and is UTF-8 (Hunspell then opens it with the wide-character call)
+static QByteArray hunspellPath(const QString &file)
+{
+#ifdef Q_OS_WIN
+    return QByteArray("\\\\?\\") + QDir::toNativeSeparators(QFileInfo(file).absoluteFilePath()).toUtf8();
+#else
+    return QFile::encodeName(file);
+#endif
+}
+
+// Hunspell wants words in the encoding of the loaded dictionary ("SET" in its .aff file): the
+// German dictionaries of LibreOffice and Ubuntu are ISO 8859-1, so words with umlauts or ß passed
+// as UTF-8 were never found (W3, 2026-11-08). 0 UTF-8, 1 ISO 8859-1, 2 ISO 8859-15; other
+// encodings are handed over as UTF-8, as before.
+static int s_encoding = 0;
+
+static void takeEncoding(void *handle)
+{
+#ifdef QB_HAVE_HUNSPELL
+    const QByteArray e = QByteArray(Hunspell_get_dic_encoding(static_cast<Hunhandle *>(handle))).toUpper().replace('-', "");
+    s_encoding = (e == "ISO88591" || e == "LATIN1") ? 1 : e == "ISO885915" ? 2 : 0;
+#else
+    Q_UNUSED(handle);
+#endif
+}
+
+// ISO 8859-15 differs from 8859-1 in eight places
+static const ushort kLatin9[8][2] = {{0xA4, 0x20AC}, {0xA6, 0x0160}, {0xA8, 0x0161}, {0xB4, 0x017D},
+                                     {0xB8, 0x017E}, {0xBC, 0x0152}, {0xBD, 0x0153}, {0xBE, 0x0178}};
+
+static QByteArray toDictionary(const QString &word)
+{
+    if (s_encoding == 0)
+        return word.toUtf8();
+    QByteArray out;
+    out.reserve(word.size());
+    for (const QChar c : word) {
+        ushort u = c.unicode();
+        if (s_encoding == 2) {
+            bool mapped = false;
+            for (const auto &m : kLatin9) {
+                if (u == m[1]) {
+                    u = m[0];
+                    mapped = true;
+                } else if (u == m[0] && !mapped) {
+                    u = '?'; // a Latin-1 letter that ISO 8859-15 does not have there
+                }
+            }
+        }
+        out.append(u < 0x100 ? char(u) : '?'); // not in the dictionary's letters: cannot be in it
+    }
+    return out;
+}
+
+static QString fromDictionary(const char *text)
+{
+    if (s_encoding == 0)
+        return QString::fromUtf8(text);
+    QString out = QString::fromLatin1(text);
+    if (s_encoding == 2)
+        for (QChar &c : out)
+            for (const auto &m : kLatin9)
+                if (c.unicode() == m[0]) {
+                    c = QChar(m[1]);
+                    break;
+                }
+    return out;
 }
 
 SpellChecker &SpellChecker::instance()
@@ -98,19 +183,21 @@ bool SpellChecker::setLanguage(const QString &lang)
 #ifdef QB_HAVE_HUNSPELL
     if (lang == m_language && m_handle)
         return true;
+    s_suggested.clear();
     for (const QString &d : dictionaryDirs()) {
         const QString aff = QDir(d).filePath(lang + QLatin1String(".aff"));
         const QString dic = QDir(d).filePath(lang + QLatin1String(".dic"));
         if (QFile::exists(aff) && QFile::exists(dic)) {
             if (m_handle)
                 Hunspell_destroy(static_cast<Hunhandle *>(m_handle));
-            m_handle = Hunspell_create(QFile::encodeName(aff).constData(), QFile::encodeName(dic).constData());
+            m_handle = Hunspell_create(hunspellPath(aff).constData(), hunspellPath(dic).constData());
+            takeEncoding(m_handle);
             m_language = lang;
             m_cache.clear();
             for (const QString &w : m_personal)
-                Hunspell_add(static_cast<Hunhandle *>(m_handle), w.toUtf8().constData());
+                Hunspell_add(static_cast<Hunhandle *>(m_handle), toDictionary(w).constData());
             for (const QString &w : programWords())
-                Hunspell_add(static_cast<Hunhandle *>(m_handle), w.toUtf8().constData());
+                Hunspell_add(static_cast<Hunhandle *>(m_handle), toDictionary(w).constData());
             return true;
         }
     }
@@ -132,7 +219,7 @@ bool SpellChecker::isCorrect(const QString &word)
         return *it;
     QString w = word;
     w.replace(QChar(0x2019), QLatin1Char('\''));
-    const bool ok = Hunspell_spell(static_cast<Hunhandle *>(m_handle), w.toUtf8().constData()) != 0;
+    const bool ok = Hunspell_spell(static_cast<Hunhandle *>(m_handle), toDictionary(w).constData()) != 0;
     if (m_cache.size() > 50000)
         m_cache.clear();
     m_cache.insert(word, ok);
@@ -149,11 +236,17 @@ QStringList SpellChecker::suggestions(const QString &word)
 #ifdef QB_HAVE_HUNSPELL
     if (!m_handle)
         return out;
+    auto known = s_suggested.constFind(word);
+    if (known != s_suggested.constEnd())
+        return *known;
     char **list = nullptr;
-    const int n = Hunspell_suggest(static_cast<Hunhandle *>(m_handle), &list, word.toUtf8().constData());
+    const int n = Hunspell_suggest(static_cast<Hunhandle *>(m_handle), &list, toDictionary(word).constData());
     for (int i = 0; i < n && i < 8; ++i)
-        out << QString::fromUtf8(list[i]);
+        out << fromDictionary(list[i]);
     Hunspell_free_list(static_cast<Hunhandle *>(m_handle), &list, n);
+    if (s_suggested.size() > 500)
+        s_suggested.clear();
+    s_suggested.insert(word, out);
 #else
     Q_UNUSED(word);
 #endif
@@ -171,6 +264,7 @@ QStringList SpellChecker::personalWords() const
 // count as mistakes again (Hunspell cannot forget single added words reliably).
 void SpellChecker::setPersonalWords(const QStringList &words)
 {
+    s_suggested.clear();
     m_personal = QSet<QString>(words.cbegin(), words.cend());
     m_cache.clear();
     QDir().mkpath(QFileInfo(personalFile()).absolutePath());
@@ -193,11 +287,12 @@ void SpellChecker::setPersonalWords(const QStringList &words)
 
 void SpellChecker::addToPersonal(const QString &word)
 {
+    s_suggested.clear();
     m_personal.insert(word);
     m_cache.remove(word);
 #ifdef QB_HAVE_HUNSPELL
     if (m_handle)
-        Hunspell_add(static_cast<Hunhandle *>(m_handle), word.toUtf8().constData());
+        Hunspell_add(static_cast<Hunhandle *>(m_handle), toDictionary(word).constData());
 #endif
     QDir().mkpath(QFileInfo(personalFile()).absolutePath());
     QFile f(personalFile());

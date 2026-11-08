@@ -308,9 +308,13 @@ int main(int argc, char **argv)
         QTextDocument *t1 = p->docs()->text(d1->id);
         bool openWhileDialog = false, lineWhileDialog = false, dialogStays = false;
         QString detail;
-        projectFormatting(w, QStringLiteral("DejaVu Serif"), 14, 1.5, true, [&](ProjectSettingsDialog *d) {
+        // the font applied must differ from the project's automatic font (W3: on the Windows runner,
+        // without Noto Serif and Liberation Serif, that is DejaVu Serif; FreeSerif is taken there)
+        const QString serif = display::resolvedFontFamily(p->formatting) == QLatin1String("DejaVu Serif")
+                                  ? QStringLiteral("FreeSerif") : QStringLiteral("DejaVu Serif");
+        projectFormatting(w, serif, 14, 1.5, true, [&](ProjectSettingsDialog *d) {
             // Apply: the open editor shows the change at once, the dialog stays
-            openWhileDialog = familyAt(t1, QStringLiteral("wind")) == QLatin1String("DejaVu Serif")
+            openWhileDialog = familyAt(t1, QStringLiteral("wind")) == serif
                               && direct::charSpec(formatAt(t1, QStringLiteral("wind"))).isEmpty();
             lineWhileDialog = qAbs(blockOf(t1, QStringLiteral("wind")).lineHeight() - 150) < 0.5;
             dialogStays = d->isVisible();
@@ -324,7 +328,7 @@ int main(int argc, char **argv)
                              "the dialog stays open"),
               detail);
         QTextDocument *t2 = p->docs()->text(d2->id);
-        check(familyAt(t2, QStringLiteral("gulls")) == QLatin1String("DejaVu Serif")
+        check(familyAt(t2, QStringLiteral("gulls")) == serif
                   && direct::charSpec(formatAt(t2, QStringLiteral("gulls"))).isEmpty()
                   && qAbs(blockOf(t2, QStringLiteral("gulls")).lineHeight() - 150) < 0.5,
               QStringLiteral("... a closed document whose text had a font and size of its own (imported) follows as well"),
@@ -333,7 +337,7 @@ int main(int argc, char **argv)
         const direct::CharSpec mono = direct::charSpec(formatAt(t3, QStringLiteral("LOG-7")));
         const direct::CharSpec big = direct::charSpec(formatAt(t3, QStringLiteral("Arrivals")));
         check(mono.family == QLatin1String("DejaVu Sans Mono") && qAbs(big.size - 20) < 0.01
-                  && familyAt(t3, QStringLiteral("reef")) == QLatin1String("DejaVu Serif"),
+                  && familyAt(t3, QStringLiteral("reef")) == serif,
               QStringLiteral("... what differs from the main text of a document stays: a passage in another font, a larger line"),
               ownAt(t3, QStringLiteral("LOG-7")) + QLatin1String(" / ") + ownAt(t3, QStringLiteral("Arrivals")));
         const QString title = QStringLiteral("Before the project formatting changed");
@@ -341,7 +345,7 @@ int main(int argc, char **argv)
               QStringLiteral("... every document that changed has a snapshot from before (unchanged ones have none)"),
               QStringLiteral("%1 %2 %3").arg(hasSnapshot(p, d1, title)).arg(hasSnapshot(p, d2, title)).arg(hasSnapshot(p, d3, title)));
         QTextDocument *h = p->docs()->text(d2->id);
-        check(familyAt(h, QStringLiteral("Morning")) == QLatin1String("DejaVu Serif"),
+        check(familyAt(h, QStringLiteral("Morning")) == serif,
               QStringLiteral("... headings take the project font too (their style sets no font)"), familyAt(h, QStringLiteral("Morning")));
     }
     // the check box switched off: text with a font of its own keeps it
@@ -606,8 +610,9 @@ int main(int argc, char **argv)
         for (TextEditor *te : inspector->findChildren<TextEditor *>())
             if (te->isVisible() && te->toPlainText().contains(QLatin1String("counted the gulls")))
                 preview = te;
+        // (more than 300 px: the Windows runner's screen is 1024 x 768, the window is no wider)
         // (since 0.21.1 the copy can be edited: it is kept in step with the document, see qb_v0211_tests)
-        check(main && main->lineWrapColumnOrWidth() == widthBefore && widthBefore > 400 && preview && preview->document() != main->document(),
+        check(main && main->lineWrapColumnOrWidth() == widthBefore && widthBefore > 300 && preview && preview->document() != main->document(),
               QStringLiteral("... the preview of the document that the editor shows is a copy: the editor keeps its "
                              "line width"),
               QStringLiteral("width %1 -> %2, preview %3").arg(widthBefore).arg(main ? main->lineWrapColumnOrWidth() : -1).arg(preview != nullptr));

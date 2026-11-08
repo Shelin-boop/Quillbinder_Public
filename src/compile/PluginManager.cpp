@@ -7,6 +7,7 @@
 #include "compile/DocxWriter.h"
 #include "core/Addons.h"
 #include "core/Launcher.h"
+#include "core/Platform.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -151,12 +152,17 @@ QStringList PluginManager::searchDirs() const
                         QDir::cleanPath(appDir + QLatin1String("/../lib/" QB_APP_ID "/plugins")),
                         QDir::cleanPath(appDir + QLatin1String("/../share/" QB_APP_ID "/plugins"))};
     const QString image = launcher::appDir();
+#ifdef Q_OS_WIN
+    // the program folder's plugins (the Markdown exporter), also when a program update runs (W3)
+    dirs << QDir::cleanPath(image + QLatin1String("/plugins"));
+#else
     if (!image.isEmpty())
         dirs << QDir::cleanPath(image + QLatin1String("/usr/lib/" QB_APP_ID "/plugins"))
              << QDir::cleanPath(image + QLatin1String("/usr/share/" QB_APP_ID "/plugins"));
+#endif
     dirs << addons::contentDirs(QStringLiteral("plugins")) << userPluginDir();
-    // extra folders for developers and packagers (colon separated)
-    for (const QString &d : qEnvironmentVariable("QB_PLUGIN_PATH").split(QLatin1Char(':'), Qt::SkipEmptyParts))
+    // extra folders for developers and packagers (colon separated; Windows: semicolon)
+    for (const QString &d : qEnvironmentVariable("QB_PLUGIN_PATH").split(QDir::listSeparator(), Qt::SkipEmptyParts))
         dirs.prepend(QDir::cleanPath(d));
     dirs.removeDuplicates();
     return dirs;
@@ -228,7 +234,7 @@ void PluginManager::load()
         if (!d.exists())
             continue;
         // C++ plugins
-        for (const QFileInfo &fi : d.entryInfoList({QStringLiteral("*.so")}, QDir::Files)) {
+        for (const QFileInfo &fi : d.entryInfoList(platform::libraryPatterns(), QDir::Files)) {
             QPluginLoader loader(fi.absoluteFilePath());
             QObject *obj = loader.instance();
             if (!obj) {

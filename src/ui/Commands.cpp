@@ -184,6 +184,15 @@ void apply()
             c.action->setShortcut(effective(c, r.custom));
 }
 
+void reload()
+{
+    Registry &r = reg();
+    r.loaded = false;
+    r.custom.clear();
+    r.load();
+    apply();
+}
+
 void setCustom(const QMap<QString, QString> &map)
 {
     Registry &r = reg();

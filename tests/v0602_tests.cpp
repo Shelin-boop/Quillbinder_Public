@@ -139,11 +139,24 @@ static QAction *named(QMenu *m, const QString &name)
 
 static const char kRtf[] = "{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 DejaVu Serif;}}{\\colortbl;\\red200\\green0\\blue0;}\n"
                            "\\pard\\qc\\f0\\fs36\\cf1 Red serif words\\par\n}";
+// The serif font of the pasted text. It must differ from the project's automatic font, which the
+// program treats as "no formatting" (W3: the Windows runner has neither Noto Serif nor Liberation
+// Serif, so DejaVu Serif is the automatic font there; FreeSerif is taken instead).
+static QString g_serif = QStringLiteral("DejaVu Serif");
+static void chooseSerif(const Project *p)
+{
+    if (display::resolvedFontFamily(p->formatting).compare(g_serif, Qt::CaseInsensitive) == 0)
+        g_serif = QStringLiteral("FreeSerif");
+}
+static QByteArray rtfSample()
+{
+    return QByteArray(kRtf).replace("DejaVu Serif", g_serif.toLatin1());
+}
 
 static void putRtf()
 {
     auto *md = new QMimeData;
-    md->setData(QStringLiteral("text/rtf"), QByteArray(kRtf));
+    md->setData(QStringLiteral("text/rtf"), rtfSample());
     md->setText(QStringLiteral("Red serif words"));
     QApplication::clipboard()->setMimeData(md);
     settle(100);
@@ -208,6 +221,7 @@ int main(int argc, char **argv)
     if (!proj)
         return 1;
     Project *p = proj.get();
+    chooseSerif(p);
     BinderItem *doc = textDoc(p, QStringLiteral("Paste Here"), {QStringLiteral("The keeper climbed the stairs.")});
     BinderItem *spelled = textDoc(p, QStringLiteral("Spelling"), {QStringLiteral("They could not be boethered to leave the harbor.")});
     p->save(&err);
@@ -276,7 +290,7 @@ int main(int argc, char **argv)
         const bool pasted = b.text().startsWith(QLatin1String("Red serif words"));
         const QString fam = familyAt(d, QStringLiteral("Red serif"));
         const bool centered = b.blockFormat().alignment() & Qt::AlignHCenter;
-        check(found && pasted && (way.keepsFont ? (fam == QLatin1String("DejaVu Serif") && centered) : (fam.isEmpty() && !centered)),
+        check(found && pasted && (way.keepsFont ? (fam == g_serif && centered) : (fam.isEmpty() && !centered)),
               way.keepsFont ? QStringLiteral("right-click Paste with Formatting keeps the font and the centered paragraph")
                             : QStringLiteral("right-click %1 pastes in the look of the text").arg(label),
               QStringLiteral("text '%1', font '%2', centered %3").arg(b.text(), fam).arg(centered));

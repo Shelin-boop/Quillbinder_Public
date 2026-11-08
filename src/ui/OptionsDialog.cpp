@@ -17,6 +17,8 @@
 #include "ui/SpellChecker.h"
 #include "ui/ThemeDialogs.h"
 #include "ui/ToolHost.h"
+#include "ui/MainWindow.h"
+#include "core/SettingsLayer.h"
 #include "ui/Zoom.h"
 
 #include <QAbstractSpinBox>
@@ -157,11 +159,100 @@ void fillSeparators(QComboBox *c, bool pageBreak)
 
 // ==================================================================== frame
 
+namespace {
+int s_nextScope = -1;
+} // namespace
+
+void OptionsDialog::setNextScope(int scope) { s_nextScope = scope; }
+
+int OptionsDialog::projectValueCount() { return int(settingslayer::projectValues().size()); }
+
+int OptionsDialog::run(QWidget *parent, const std::function<void(OptionsDialog &)> &setup, int page)
+{
+    int section = -1;
+    int result = QDialog::Rejected;
+    for (int round = 0; round < 10; ++round) {
+        OptionsDialog dlg(parent, page);
+        if (setup)
+            setup(dlg);
+        if (section >= 0)
+            dlg.showSection(section);
+        result = dlg.exec();
+        if (result != SwitchScope)
+            break;
+        section = dlg.m_stack->currentIndex();
+    }
+    return result;
+}
+
 OptionsDialog::OptionsDialog(QWidget *parent, int page) : QDialog(parent)
 {
     setWindowTitle(tr("Options"));
-    resize(1080, 740);
+    resize(1080, 760);
     auto *lay = new QVBoxLayout(this);
+
+    // 0.62: whose options: the program's (all projects) or the open project's
+    {
+        const bool canProject = look::project() && !settingslayer::projectFile().isEmpty() && settingslayer::projectFirst();
+        m_optScope = s_nextScope >= 0 ? s_nextScope : (canProject ? ThisProject : AllProjects);
+        if (!canProject)
+            m_optScope = AllProjects;
+        s_nextScope = -1;
+        if (m_optScope == ThisProject) {
+            settingslayer::beginProjectEdit();
+            setWindowTitle(tr("Options: This Project (%1)").arg(look::project()->title()));
+        } else if (settingslayer::active()) {
+            settingslayer::suspend(); // the pages show the program's own values
+            m_suspendedLayer = true;
+        }
+        auto *row = new QHBoxLayout;
+        row->addWidget(new QLabel(tr("Settings for:"), this));
+        m_scopeCombo = new QComboBox(this);
+        m_scopeCombo->setObjectName(QStringLiteral("optScope"));
+        m_scopeCombo->addItem(tr("All projects (the program)"), int(AllProjects));
+        m_scopeCombo->addItem(look::project() ? tr("This project (%1)").arg(look::project()->title()) : tr("This project (none open)"),
+                              int(ThisProject));
+        if (!canProject)
+            if (auto *model = qobject_cast<QStandardItemModel *>(m_scopeCombo->model()))
+                if (QStandardItem *item = model->item(int(ThisProject)))
+                    item->setEnabled(false);
+        m_scopeCombo->setCurrentIndex(m_optScope);
+        m_scopeCombo->setToolTip(!look::project() ? tr("Open a project to give it settings of its own.")
+                                 : !settingslayer::projectFirst()
+                                     ? tr("Projects' own settings are not used: File > Options > General, \"Which settings come "
+                                          "first\".")
+                                     : tr("Changing this applies the changes made so far and shows the other settings."));
+        row->addWidget(m_scopeCombo);
+        m_scopeInfo = new QLabel(this);
+        m_scopeInfo->setObjectName(QStringLiteral("optScopeInfo"));
+        m_scopeInfo->setTextFormat(Qt::RichText);
+        m_scopeInfo->setTextInteractionFlags(Qt::LinksAccessibleByMouse);
+        connect(m_scopeInfo, &QLabel::linkActivated, this, [this](const QString &) { showProjectValues(); });
+        row->addWidget(m_scopeInfo, 1);
+        m_scopeReset = new QPushButton(tr("Use Program Settings"), this);
+        m_scopeReset->setObjectName(QStringLiteral("optScopeReset"));
+        m_scopeReset->setToolTip(tr("This project keeps no settings of its own: the program's settings apply again."));
+        row->addWidget(m_scopeReset);
+        lay->addLayout(row);
+        connect(m_scopeCombo, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int i) {
+            if (i == m_optScope)
+                return;
+            apply();
+            s_nextScope = i;
+            done(SwitchScope);
+        });
+        connect(m_scopeReset, &QPushButton::clicked, this, [this] {
+            if (QMessageBox::question(this, tr("Use Program Settings"),
+                                      tr("This project's own settings are removed; the program's settings apply to it "
+                                         "again. Its look (Appearance) stays as it is.\n\nGo on?"))
+                != QMessageBox::Yes)
+                return;
+            settingslayer::endProjectEdit();
+            settingslayer::clearProjectValues();
+            s_nextScope = ThisProject;
+            done(SwitchScope); // shown again with the program's values
+        });
+    }
 
     // the icon row: one large icon per section, as at the top of Scrivener's Options
     m_pages = new QListWidget(this);
@@ -206,6 +297,37 @@ OptionsDialog::OptionsDialog(QWidget *parent, int page) : QDialog(parent)
     m_stack->addWidget(sharingSection());
     m_stack->addWidget(backupSection());
     m_stack->addWidget(extrasSection());
+    // writing tools with a section of their own (0.61): an icon after Extras each
+    toolhost::host().attachTools();
+    for (tools::ToolInterface *t : compile::PluginManager::instance().tools()) {
+        tools::ToolExtension *ext = toolhost::Host::extension(t);
+        if (!ext || t->optionsPage() != QLatin1String("Section"))
+            continue;
+        auto *pw = new QWidget;
+        tools::OptionsSection *sec = t->createOptions(pw);
+        if (!sec || !sec->widget()) {
+            delete pw;
+            continue;
+        }
+        m_toolSections.emplace_back(sec);
+        auto *v = new QVBoxLayout(pw);
+        v->setContentsMargins(0, 0, 0, 0);
+        auto *scroll = new QScrollArea(pw);
+        scroll->setObjectName(QStringLiteral("toolSection:") + t->id());
+        scroll->setFrameShape(QFrame::NoFrame);
+        scroll->setWidgetResizable(true);
+        scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        scroll->setWidget(sec->widget());
+        v->addWidget(scroll);
+        m_stack->addWidget(pw);
+        const QString title = ext->optionsTitle().isEmpty() ? t->name() : ext->optionsTitle();
+        auto *li = new QListWidgetItem(MainWindow::toolIcon(ext->optionsIcon()), title, m_pages);
+        li->setTextAlignment(Qt::AlignHCenter | Qt::AlignBottom);
+        li->setSizeHint(cell - QSize(4, 2));
+        li->setToolTip(t->name());
+        m_toolSectionIds << t->id();
+    }
+    m_pages->setMinimumWidth(cell.width() * m_pages->count() + 4);
     lay->addWidget(m_stack, 1);
     // number fields and lists as wide as their contents (a form would stretch them over the page)
     for (QWidget *w : m_stack->findChildren<QWidget *>()) {
@@ -227,6 +349,11 @@ OptionsDialog::OptionsDialog(QWidget *parent, int page) : QDialog(parent)
     defaults->setObjectName(QStringLiteral("optionsDefaults"));
     defaults->setToolTip(tr("Set every option back to the program's standard"));
     connect(defaults, &QPushButton::clicked, this, [this] { restoreDefaults(true); });
+    if (m_optScope == ThisProject) {
+        // the program's standard is for all projects; this project goes back with Use Program Settings
+        defaults->setEnabled(false);
+        defaults->setToolTip(tr("Choose \"All projects\" at the top to set the program's options back to the standard"));
+    }
     bottom->addWidget(manage);
     bottom->addWidget(defaults);
     bottom->addStretch(1);
@@ -241,6 +368,60 @@ OptionsDialog::OptionsDialog(QWidget *parent, int page) : QDialog(parent)
     const int map[] = {SGeneral, SAppearance, SEditing, SBehaviors, SKeyboard, SBackup, SExtras};
     const int section = map[qBound(0, page, 6)];
     showSection(section, page == Plugins ? tr("Add-ons and Plugins") : QString());
+    updateScopeInfo();
+}
+
+OptionsDialog::~OptionsDialog()
+{
+    if (m_optScope == ThisProject)
+        settingslayer::endProjectEdit();
+    if (m_suspendedLayer)
+        settingslayer::resume(); // the project's values on top again
+}
+
+void OptionsDialog::updateScopeInfo()
+{
+    if (!m_scopeInfo)
+        return;
+    const int n = projectValueCount();
+    m_scopeReset->setVisible(m_optScope == ThisProject);
+    m_scopeReset->setEnabled(n > 0);
+    if (m_optScope == ThisProject)
+        m_scopeInfo->setText(n ? tr("What you change here is kept with this project. Its own settings: <a href=\"show\">%1</a>.")
+                                     .arg(text::plural(n, tr("setting"), tr("settings")))
+                               : tr("What you change here is kept with this project; it has no settings of its own yet."));
+    else if (look::project() && n > 0 && settingslayer::projectFirst())
+        m_scopeInfo->setText(tr("The open project has <a href=\"show\">%1</a> of its own, which it keeps.")
+                                 .arg(text::plural(n, tr("setting"), tr("settings"))));
+    else
+        m_scopeInfo->setText(look::project() && !settingslayer::projectFirst()
+                                 ? tr("Projects' own settings are not used (General > Which settings come first).")
+                                 : QString());
+}
+
+void OptionsDialog::showProjectValues()
+{
+    const QVariantMap own = settingslayer::projectValues();
+    const QVariantMap prog = settingslayer::programValues();
+    QStringList lines;
+    for (auto it = own.cbegin(); it != own.cend(); ++it) {
+        auto shown = [](const QVariant &v) {
+            QString t = v.typeId() == QMetaType::QStringList ? v.toStringList().join(QLatin1String(", ")) : v.toString();
+            if (t.size() > 60)
+                t = t.left(57) + QLatin1String("...");
+            return t.isEmpty() ? tr("(empty)") : t;
+        };
+        lines << tr("%1: %2 (program: %3)").arg(it.key(), shown(it.value()),
+                                                  prog.contains(it.key()) ? shown(prog.value(it.key())) : tr("standard"));
+    }
+    QMessageBox box(QMessageBox::Information, tr("This Project's Own Settings"),
+                    tr("The project %1 keeps these settings of its own; all others come from the program.")
+                        .arg(look::project() ? look::project()->title() : QString()),
+                    QMessageBox::Close, this);
+    box.setObjectName(QStringLiteral("optProjectValues"));
+    box.setDetailedText(lines.join(QLatin1Char('\n')));
+    box.setInformativeText(lines.mid(0, 12).join(QLatin1Char('\n')) + (lines.size() > 12 ? QStringLiteral("\n...") : QString()));
+    box.exec();
 }
 
 QWidget *OptionsDialog::page(QFormLayout **form)
@@ -296,6 +477,16 @@ QWidget *OptionsDialog::tabbed(int section, const QList<std::pair<QString, QWidg
     return tabs;
 }
 
+bool OptionsDialog::showToolSection(const QString &toolId)
+{
+    const int i = int(m_toolSectionIds.indexOf(toolId));
+    if (i < 0)
+        return false;
+    m_pages->setCurrentRow(int(SectionCount) + i);
+    m_stack->setCurrentIndex(int(SectionCount) + i);
+    return true;
+}
+
 void OptionsDialog::showSection(int section, const QString &pageName)
 {
     section = qBound(0, section, int(SectionCount) - 1);
@@ -343,6 +534,18 @@ QWidget *OptionsDialog::generalSection()
     m_portal->setChecked(s.useDesktopPortal);
     f->addRow(m_portal);
     f->addRow(hint(tr("Without a project to open, the start window offers the templates and the recent projects."), startup));
+    // 0.62: which settings come first (program-wide)
+    m_projectFirst = new QCheckBox(tr("Which settings come first: a project's own settings (what a project does not set "
+                                      "comes from the program)"),
+                                   startup);
+    m_projectFirst->setObjectName(QStringLiteral("optProjectFirst"));
+    m_projectFirst->setChecked(settingslayer::projectFirst());
+    m_projectFirst->setEnabled(m_optScope == AllProjects);
+    f->addRow(m_projectFirst);
+    f->addRow(hint(tr("Ticked, a project can keep settings of its own (choose \"This project\" at the top of this window); "
+                      "they apply while it is open. Unticked, the program's settings apply to every project, also its look; "
+                      "what projects keep stays in them for later."),
+                   startup));
     pages.append({tr("Startup"), startup});
 
     // Saving
@@ -1015,10 +1218,15 @@ QWidget *OptionsDialog::appearanceSection()
         scopeRow->addWidget(m_lookScope);
         scopeRow->addStretch(1);
         v->addLayout(scopeRow);
+        // 0.62: with "This project" at the top of the window, this page is the project's look only
+        if (m_optScope == ThisProject)
+            for (int i = 0; i < scopeRow->count(); ++i)
+                if (QWidget *x = scopeRow->itemAt(i)->widget())
+                    x->hide();
         auto *scopeHint = hint(tr("Every project keeps its own look: the theme, colors and fonts of the binder, editor, "
                                   "corkboard, outliner, inspector and composition mode, the text column width and the border "
-                                  "beside the text. \"New projects\" is the look a new project starts with. Menus and panels "
-                                  "(General) and the interface font are the same in every project."),
+                                  "beside the text, whatever \"Settings for\" says at the top. Menus and panels (General) "
+                                  "and the interface font are the same in every project."),
                                w);
         scopeHint->setObjectName(QStringLiteral("optLookScopeHint"));
         v->addWidget(scopeHint);
@@ -1536,6 +1744,30 @@ QWidget *OptionsDialog::correctionsSection()
         row->addWidget(m_quoteStyle);
         row->addStretch(1);
         bl->addLayout(row);
+        // the quote marks already in the project (0.61.1), in the style chosen above
+        auto *convertRow = new QHBoxLayout;
+        auto *toSmart = new QPushButton(tr("Convert to Typographic Quotes…"), box);
+        toSmart->setObjectName(QStringLiteral("optConvertQuotesSmart"));
+        auto *toStraight = new QPushButton(tr("Convert to Straight Quotes…"), box);
+        toStraight->setObjectName(QStringLiteral("optConvertQuotesStraight"));
+        auto *mw = qobject_cast<MainWindow *>(parentWidget());
+        const bool open = mw && mw->project();
+        for (QPushButton *b : {toSmart, toStraight}) {
+            b->setEnabled(open);
+            b->setToolTip(open ? tr("The quote marks already in this project's texts, titles, synopses and notes")
+                               : tr("Open a project first"));
+            convertRow->addWidget(b);
+        }
+        convertRow->addStretch(1);
+        bl->addLayout(convertRow);
+        connect(toSmart, &QPushButton::clicked, this, [this, mw] {
+            if (mw)
+                mw->convertQuotes(true, m_quoteStyle->currentData().toString(), this);
+        });
+        connect(toStraight, &QPushButton::clicked, this, [this, mw] {
+            if (mw)
+                mw->convertQuotes(false, m_quoteStyle->currentData().toString(), this);
+        });
         m_dashes = new QCheckBox(tr("Replace double hyphens with em dashes (—)"), box);
         m_dashes->setChecked(s.smartDashes);
         m_ellipsis = new QCheckBox(tr("Replace triple periods with ellipses (…)"), box);
@@ -2036,14 +2268,16 @@ QWidget *OptionsDialog::extrasSection()
 void OptionsDialog::fillManageMenu()
 {
     m_manageMenu->clear();
-    m_manageMenu->addAction(tr("Load Options from File..."), this, [this] {
+    QAction *load = m_manageMenu->addAction(tr("Load Options from File..."), this, [this] {
         const QString file = QFileDialog::getOpenFileName(this, tr("Load Options"), QDir::homePath(), tr("Options (*.qboptions)"));
         if (file.isEmpty())
             return;
         QString err;
         if (!loadOptionsFromFile(file, &err))
             QMessageBox::warning(this, tr("Load Options"), err);
-    })->setObjectName(QStringLiteral("manageLoad"));
+    });
+    load->setObjectName(QStringLiteral("manageLoad"));
+    load->setEnabled(m_optScope == AllProjects); // a file of options is the program's (0.62)
     m_manageMenu->addAction(tr("Save Options to File..."), this, [this] {
         apply();
         const QString file = QFileDialog::getSaveFileName(this, tr("Save Options"), QDir::home().filePath(QStringLiteral("Quillbinder.qboptions")),
@@ -2354,6 +2588,12 @@ void OptionsDialog::apply()
         if (!look::change(m_scopeLooks[ScopeProject], &err))
             QMessageBox::warning(this, tr("Options"), tr("The look of the project could not be saved:\n%1").arg(err));
     }
+    // 0.62: in "This project" the options that now differ from the program's are the project's
+    if (m_optScope == ThisProject)
+        settingslayer::takeProjectValues();
+    if (m_projectFirst && m_optScope == AllProjects && m_projectFirst->isChecked() != settingslayer::projectFirst())
+        settingslayer::setProjectFirst(m_projectFirst->isChecked());
+    updateScopeInfo();
 }
 
 } // namespace qb

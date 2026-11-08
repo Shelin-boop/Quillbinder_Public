@@ -50,6 +50,7 @@ QIcon listIcon(const QString &key);
 QMap<QString, QString> custom();
 void setCustom(const QMap<QString, QString> &map);   // stores and applies
 void apply();                                        // puts the shortcuts on the actions
+void reload();                                       // reads the shortcuts from the settings again (0.62: project settings)
 QKeySequence shortcutOf(const QString &key);         // with the changes
 // The shortcut a command would have with the given changes.
 QKeySequence effective(const Command &c, const QMap<QString, QString> &changes);

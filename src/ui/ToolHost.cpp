@@ -5,6 +5,7 @@
 #include "core/Addons.h"
 #include "core/Launcher.h"
 #include "core/Paths.h"
+#include "core/Platform.h"
 #include "text/TextUtil.h"
 #include "ui/MainWindow.h"
 
@@ -14,6 +15,7 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QFile>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QSettings>
@@ -22,7 +24,9 @@
 
 #include <csignal>
 #include <cstdio>
+#ifdef Q_OS_UNIX
 #include <unistd.h>
+#endif
 
 namespace qb {
 namespace toolhost {
@@ -102,7 +106,7 @@ QStringList Host::contentDirs(const QString &kind) const
 {
     QStringList dirs = addons::contentDirs(kind);
     // developers: extra data folders (QB_TOOL_DATA=<dir>, which holds <kind>/ sub-folders)
-    for (const QString &d : qEnvironmentVariable("QB_TOOL_DATA").split(QLatin1Char(':'), Qt::SkipEmptyParts)) {
+    for (const QString &d : qEnvironmentVariable("QB_TOOL_DATA").split(QDir::listSeparator(), Qt::SkipEmptyParts)) {
         const QString sub = QDir(d).filePath(kind);
         if (QFileInfo(sub).isDir())
             dirs.prepend(QDir::cleanPath(sub));
@@ -209,22 +213,62 @@ QString Host::commandLine(const QString &commandKey) const
     QString exe = qEnvironmentVariable("APPIMAGE");
     if (exe.isEmpty())
         exe = QCoreApplication::applicationFilePath();
+#ifdef Q_OS_WIN
+    exe = QDir::toNativeSeparators(launcher::startProgram()); // the built-in program, also when an update runs
+#endif
     QString quoted = exe;
     if (quoted.contains(QLatin1Char(' ')))
         quoted = QLatin1Char('"') + quoted + QLatin1Char('"');
     return QStringLiteral("%1 --tool %2").arg(quoted, commandKey);
 }
 
+// ------------------------------------------------------------------ 1.1 (0.61)
+
+void Host::showInspectorTab(const QString &key)
+{
+    if (m_window)
+        m_window->toolShowInspectorTab(key);
+}
+
+void Host::setCommandState(const QString &commandKey, bool checked, const QString &icon, const QString &toolTip)
+{
+    if (m_window)
+        m_window->toolSetCommandState(commandKey, checked, icon, toolTip);
+}
+
+void Host::showOptions(const QString &toolId)
+{
+    if (m_window)
+        m_window->toolShowOptions(toolId);
+}
+
+tools::ToolExtension *Host::extension(tools::ToolInterface *tool)
+{
+    // the plugin object answers for the interfaces it declares (Q_INTERFACES); a tool built
+    // for 1.0 does not know this one
+    auto *obj = dynamic_cast<QObject *>(tool);
+    return obj ? qobject_cast<tools::ToolExtension *>(obj) : nullptr;
+}
+
 // ------------------------------------------------------------------ instance link
 
 QString Host::linkDir()
 {
+#ifdef Q_OS_WIN
+    // Windows' "runtime" folder is the user's home: the per-user temporary folder instead (W2)
+    const QString base;
+#else
     QString base = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
+#endif
     QString dir;
     if (!base.isEmpty() && QFileInfo(base).isWritable())
         dir = base + QLatin1String("/" QB_APP_ID);
     else
+#ifdef Q_OS_UNIX
         dir = QDir::tempPath() + QStringLiteral("/" QB_APP_ID "-%1").arg(getuid());
+#else
+        dir = QDir::tempPath() + QStringLiteral("/" QB_APP_ID); // the temp folder is per user on Windows
+#endif
     if (!QFileInfo::exists(dir)) {
         QDir().mkpath(dir);
         QFile::setPermissions(dir, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
@@ -247,6 +291,16 @@ bool Host::startLink()
     QLocalServer::removeServer(path);
     if (!m_server->listen(path))
         return false;
+#ifdef Q_OS_WIN
+    // Windows: the server is a named pipe, which leaves no file in the folder; a marker file
+    // with the same name lets peers() find this instance (port, W2)
+    {
+        QFile marker(path);
+        if (marker.open(QIODevice::WriteOnly))
+            marker.write(m_server->fullServerName().toUtf8() + '\n');
+    }
+    connect(qApp, &QCoreApplication::aboutToQuit, this, [path] { QFile::remove(path); });
+#endif
     connect(m_server, &QLocalServer::newConnection, this, [this] {
         if (qEnvironmentVariableIsSet("QB_DEBUG_LINK"))
             std::fprintf(stderr, "link: new connection\n");
@@ -282,7 +336,12 @@ QStringList Host::peers() const
         if (path == own)
             continue;
         const qint64 pid = fi.completeBaseName().toLongLong();
-        if (pid <= 0 || ::kill(pid_t(pid), 0) != 0) {
+#ifdef Q_OS_UNIX
+        const bool gone = pid <= 0 || ::kill(pid_t(pid), 0) != 0;
+#else
+        const bool gone = !platform::processAlive(pid); // Windows: the marker file of a named pipe
+#endif
+        if (gone) {
             QFile::remove(path); // left behind by a process that ended without cleaning up
             continue;
         }

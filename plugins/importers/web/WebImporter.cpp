@@ -34,7 +34,9 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#ifndef Q_OS_WIN
 #include <dlfcn.h>
+#endif
 
 namespace qbweb {
 
@@ -664,17 +666,22 @@ void WebImportDialog::updatePreview()
 
 // ------------------------------------------------------------------ the plugin
 
+#ifndef Q_OS_WIN
 static void selfMarker() {}
+#endif
 
 WebImporter::WebImporter()
 {
+#ifndef Q_OS_WIN
     // the add-on's Qt plugins (TLS): <add-on>/plugins/<this library> -> <add-on>/qtplugins
+    // (Windows: Qt's TLS plugin comes with the program, port W2)
     Dl_info info;
     if (dladdr(reinterpret_cast<void *>(&selfMarker), &info) && info.dli_fname) {
         const QString dir = QFileInfo(QString::fromLocal8Bit(info.dli_fname)).absolutePath() + QStringLiteral("/../qtplugins");
         if (QFileInfo(dir).isDir())
             QCoreApplication::addLibraryPath(QDir::cleanPath(dir));
     }
+#endif
 }
 
 bool WebImporter::importWebPage(QWidget *parent, const QString &address, const QString &title, bool interactive,

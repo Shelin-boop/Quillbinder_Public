@@ -6,10 +6,12 @@
 #include <QPointer>
 #include <QRegularExpression>
 #include <QTextBlock>
+#include "text/Tables.h"
 #include <QTextEdit>
 #include <functional>
 
 class QMenu;
+class QTextTable;
 class QCompleter;
 class QStringListModel;
 
@@ -166,6 +168,30 @@ public:
     void insertLink(const QString &href, const QString &textIfNoSelection);
     void insertImageFile(const QString &path);
     void editImageSize(QTextCursor imageCursor);
+    // tables and pictures (0.62, TextEditorTables.cpp)
+    QTextTable *currentTable() const;
+    bool insertTableAtCursor(int rows, int columns, const tables::Spec &spec);
+    void tableInsertRows(bool below);
+    void tableInsertColumns(bool right);
+    void tableRemoveRows();
+    void tableRemoveColumns();
+    void tableRemove();
+    bool canMergeCells() const;
+    bool canSplitCell() const;
+    void tableMergeCells();
+    void tableSplitCell();
+    void tableSetCellColor(const QColor &c);   // invalid: the design's color again
+    void tableSetSpec(const tables::Spec &spec);
+    void editTableProperties();   // the Table Properties window
+    void editInsertTable();       // the Insert Table window
+    // the picture at the cursor (or just before it); -1: none
+    int pictureAtCursor() const;
+    // the Picture window: size, position, caption, description
+    void editPicture(int imagePos);
+    // what the window does, also for the tests
+    int setPicture(int imagePos, int width, figures::Position pos, const QString &caption, const QString &description);
+    // the cell format the paragraphs of a new table get
+    QTextBlockFormat cellBlockFormat() const;
     QString anchorAtCursor() const;
 
     // search highlight (per view)

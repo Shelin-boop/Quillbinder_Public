@@ -100,6 +100,54 @@ QChar smartQuote(QChar typed, QChar before, const QString &style)
     return typed;
 }
 
+QList<QPair<int, QChar>> convertQuotes(const QString &text, bool typographic, const QString &style)
+{
+    QList<QPair<int, QChar>> out;
+    if (!typographic) {
+        static const QString doubles = QStringLiteral("“”„‟«»");
+        static const QString singles = QStringLiteral("‘’‚‛‹›");
+        for (int i = 0; i < text.size(); ++i) {
+            if (doubles.contains(text.at(i)))
+                out.append({i, QLatin1Char('"')});
+            else if (singles.contains(text.at(i)))
+                out.append({i, QLatin1Char('\'')});
+        }
+        return out;
+    }
+    const QString q = quoteChars(style);
+    auto blank = [](QChar c) { return c.isNull() || c.isSpace() || c == QChar(0x2028) || c == QChar(0x2029); };
+    QChar before;   // the character before, as it is after the conversion so far
+    bool singleOpen = false;   // an opening single mark waits for its closing one
+    for (int i = 0; i < text.size(); ++i) {
+        const QChar c = text.at(i);
+        QChar now = c;
+        if (c == QLatin1Char('"') || c == QLatin1Char('\'')) {
+            const QChar after = i + 1 < text.size() ? text.at(i + 1) : QChar();
+            const bool opening = blank(before) || before == QLatin1Char('(') || before == QLatin1Char('[')
+                                 || before == QLatin1Char('{') || before == QChar(0x2014) || before == QChar(0x2013)
+                                 || before == q.at(0) || before == q.at(2);
+            if (c == QLatin1Char('\'') && before.isLetterOrNumber() && (after.isLetterOrNumber() || !singleOpen))
+                now = QChar(0x2019);                    // don't, Peter's
+            else if (c == QLatin1Char('\'') && opening && after.isDigit())
+                now = QChar(0x2019);                    // '90s
+            else if (opening && blank(after))
+                now = c;                                // a mark standing alone: left as it is
+            else if (c == QLatin1Char('"'))
+                now = opening ? q.at(0) : q.at(1);
+            else
+                now = opening ? q.at(2) : q.at(3);
+            if (c == QLatin1Char('\'') && now == q.at(2) && opening)
+                singleOpen = true;
+            else if (c == QLatin1Char('\'') && now == q.at(3) && !opening)
+                singleOpen = false;
+            if (now != c)
+                out.append({i, now});
+        }
+        before = now;
+    }
+    return out;
+}
+
 bool sentenceStartsAt(const QString &text, int pos)
 {
     int i = pos - 1;

@@ -95,7 +95,7 @@ answer_dialogs() {
     local want=$1 n=0 shot=1 pressed=" "
     for i in $(seq 1 60); do
         local d=""
-        for w in $(xdotool search --onlyvisible --name "Open Scrivener Project|Application Menu" 2>/dev/null); do
+        for w in $(xdotool search --onlyvisible --name "Open Scrivener Project|Application Menu|First Start" 2>/dev/null); do
             case "$pressed" in *" $w "*) ;; *) d=$w ;; esac
         done
         if [ -n "$d" ]; then
@@ -124,7 +124,12 @@ step "GUI: the first start opens the welcome project; its first document printed
 mkdir -p "$E/home/Documents"
 rm -f "$E/home"/*.pdf
 start_app "$E/work/app-start.log" --no-restore
-answer_dialogs "Welcome to Quillbinder"
+answer_dialogs "Welcome to Quillbinder" | tee "$E/work/dialogs-1.txt"
+# 0.62: the questions of the first start come once, before the welcome project (an older program has none)
+if [ "$(printf '%s\n' "$NEW" "0.62.0" | sort -V | head -1)" = "0.62.0" ]; then
+    expect 'grep -q "First Start" "$E/work/dialogs-1.txt" && grep -rqs "firstStartDone=true" "$XDG_CONFIG_HOME"' \
+        "the first-start questions came and were answered"
+fi
 W=$(timeout 60 xdotool search --sync --onlyvisible --name "Quillbinder" | head -1)
 sleep 3
 import -window root "$E/shots/1-start.png"

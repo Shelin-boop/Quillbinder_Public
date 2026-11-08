@@ -126,7 +126,9 @@ struct Writer {
                 const QString name = imageFor(r.image);
                 const double wPt = r.imageSize.width() > 0 ? r.imageSize.width() : r.image.width() * 0.75;
                 const double pct = qBound(5.0, wPt / 450.0 * 100.0, 100.0);
-                o += QStringLiteral("<img src=\"../images/%1\" alt=\"\" style=\"width: %2%\"/>").arg(name, num(pct));
+                // what the picture shows (0.62): the alt text
+                o += QStringLiteral("<img src=\"../images/%1\" alt=\"%3\" style=\"width: %2%\"/>")
+                         .arg(name, num(pct), esc(r.imageDescription.simplified()));
                 continue;
             }
             case Run::FootnoteRef: {
@@ -261,6 +263,117 @@ struct Writer {
             }
         };
         bool inQuote = false;
+        // a paragraph inside a table or a figure (0.62): a plain <p> with its style
+        auto plainPara = [&](const Paragraph &p, const QString &extraClass) {
+            const look::Para pl = look::paragraph(m, p);
+            const QString content = runs(p, pl, cur);
+            QStringList classes{extraClass};
+            if (!p.styleName.isEmpty() && p.style == Paragraph::Normal)
+                classes << slug(p.styleName);
+            if (p.style == Paragraph::Caption)
+                classes << QStringLiteral("caption");
+            classes.removeAll(QString());
+            const bool empty = p.plainText().trimmed().isEmpty() && !content.contains(QLatin1String("<img"));
+            return QStringLiteral("<p%1%2%3>%4</p>")
+                .arg(p.anchor.isEmpty() ? QString() : QStringLiteral(" id=\"%1\"").arg(p.anchor),
+                     QStringLiteral(" class=\"%1\"").arg(classes.join(QLatin1Char(' '))), paraStyle(p, pl),
+                     empty ? QString() : content);
+        };
+        auto tableHtml = [&](const Table &t, const QList<const Paragraph *> &ps) {
+            const int rows = qMax(1, t.rows), cols = qMax(1, t.columns);
+            QVector<int> cover(rows * cols, -1);
+            for (int k = 0; k < t.cells.size(); ++k) {
+                const TableCell &c = t.cells.at(k);
+                for (int r = c.row; r < qMin(rows, c.row + qMax(1, c.rowSpan)); ++r)
+                    for (int col = c.column; col < qMin(cols, c.column + qMax(1, c.columnSpan)); ++col)
+                        cover[r * cols + col] = k;
+            }
+            QHash<int, QString> inCell;
+            for (const Paragraph *p : ps)
+                inCell[p->cell] += plainPara(*p, QStringLiteral("cell"));
+            QStringList ts;
+            if (t.widthPercent > 0)
+                ts << QStringLiteral("width: %1%").arg(qBound(1, t.widthPercent, 100));
+            if (t.spacingPt > 0)
+                ts << QStringLiteral("border-collapse: separate") << QStringLiteral("border-spacing: %1pt").arg(num(t.spacingPt));
+            else
+                ts << QStringLiteral("border-collapse: collapse");
+            if (t.flow == 1)
+                ts << QStringLiteral("float: left") << QStringLiteral("margin: 0.2em 1em 0.5em 0");
+            else if (t.flow == 2)
+                ts << QStringLiteral("float: right") << QStringLiteral("margin: 0.2em 0 0.5em 1em");
+            else if (t.align & Qt::AlignHCenter)
+                ts << QStringLiteral("margin-left: auto") << QStringLiteral("margin-right: auto");
+            else if (t.align & Qt::AlignRight)
+                ts << QStringLiteral("margin-left: auto") << QStringLiteral("margin-right: 0");
+            const QString line = t.borderPt > 0 ? QStringLiteral("%1pt solid %2").arg(num(t.borderPt), t.borderColor.name())
+                                                : QStringLiteral("none");
+            QString o = QStringLiteral("<table class=\"qbtable\" style=\"%1\">\n<colgroup>").arg(ts.join(QLatin1String("; ")));
+            for (int c = 0; c < cols; ++c)
+                o += QStringLiteral("<col style=\"width: %1%\"/>").arg(num(c < t.columnShares.size() ? t.columnShares.at(c) : 100.0 / cols));
+            o += QStringLiteral("</colgroup>\n");
+            const int head = qBound(0, t.headerRows, rows);
+            for (int r = 0; r < rows; ++r) {
+                if (r == 0 && head > 0)
+                    o += QStringLiteral("<thead>\n");
+                if (r == head)
+                    o += QStringLiteral("<tbody>\n");
+                o += QStringLiteral("<tr>");
+                for (int c = 0; c < cols; ++c) {
+                    const int k = cover.at(r * cols + c);
+                    if (k >= 0 && (t.cells.at(k).row != r || t.cells.at(k).column != c))
+                        continue; // covered by a merged cell
+                    QStringList cs{QStringLiteral("padding: %1pt").arg(num(t.paddingPt))};
+                    if (t.linesOnly)
+                        cs << QStringLiteral("border-top: %1").arg(line) << QStringLiteral("border-bottom: %1").arg(line)
+                           << QStringLiteral("border-left: none") << QStringLiteral("border-right: none");
+                    else
+                        cs << QStringLiteral("border: %1").arg(line);
+                    QString spans;
+                    if (k >= 0) {
+                        const TableCell &cell = t.cells.at(k);
+                        if (cell.background.isValid())
+                            cs << QStringLiteral("background-color: %1").arg(cell.background.name());
+                        if (cell.columnSpan > 1)
+                            spans += QStringLiteral(" colspan=\"%1\"").arg(cell.columnSpan);
+                        if (cell.rowSpan > 1)
+                            spans += QStringLiteral(" rowspan=\"%1\"").arg(cell.rowSpan);
+                    }
+                    const QString tag = r < head ? QStringLiteral("th") : QStringLiteral("td");
+                    o += QStringLiteral("<%1%2 style=\"%3\">%4</%1>").arg(tag, spans, cs.join(QLatin1String("; ")), k >= 0 ? inCell.value(k) : QString());
+                }
+                o += QStringLiteral("</tr>\n");
+                if (r == head - 1)
+                    o += QStringLiteral("</thead>\n");
+            }
+            if (head < rows)
+                o += QStringLiteral("</tbody>\n");
+            o += QStringLiteral("</table>\n");
+            return o;
+        };
+        auto figureHtml = [&](const QList<const Paragraph *> &ps) {
+            const Paragraph &pic = *ps.first();
+            double wPt = 0;
+            for (const Run &r : pic.runs)
+                if (r.kind == Run::Image && !r.image.isNull()) {
+                    wPt = r.imageSize.width() > 0 ? r.imageSize.width() : r.image.width() * 0.75;
+                    break;
+                }
+            const double pct = wPt > 0 ? qBound(5.0, wPt / 450.0 * 100.0, 100.0) : 40.0;
+            QString img = runs(pic, look::paragraph(m, pic), cur);
+            img.replace(QRegularExpression(QStringLiteral("style=\"width: [0-9.]+%\"")), QStringLiteral("style=\"width: 100%\""));
+            const QString side = pic.figure == 1 ? QStringLiteral("left") : pic.figure == 2 ? QStringLiteral("right") : QStringLiteral("center");
+            QString o = QStringLiteral("<figure%1 class=\"qbfigure %2\" style=\"width: %3%\">%4")
+                            .arg(pic.anchor.isEmpty() ? QString() : QStringLiteral(" id=\"%1\"").arg(pic.anchor), side, num(pct), img);
+            if (ps.size() > 1) {
+                o += QStringLiteral("<figcaption>");
+                for (int k = 1; k < ps.size(); ++k)
+                    o += plainPara(*ps.at(k), QStringLiteral("caption"));
+                o += QStringLiteral("</figcaption>");
+            }
+            o += QStringLiteral("</figure>\n");
+            return o;
+        };
         for (int i = 0; i < m.paragraphs.size(); ++i) {
             const Paragraph &p = m.paragraphs[i];
             if (p.pageBreakBefore && m.options.splitAtPageBreaks && !cur.body.trimmed().isEmpty()) {
@@ -270,6 +383,26 @@ struct Writer {
                     inQuote = false;
                 }
                 startDoc();
+            }
+            if ((p.table >= 0 && p.table < m.tables.size()) || p.figure > 0) {
+                closeLists(0);
+                if (inQuote) {
+                    cur.body += QStringLiteral("</blockquote>\n");
+                    inQuote = false;
+                }
+                QList<const Paragraph *> ps{&p};
+                int j = i + 1;
+                if (p.table >= 0) {
+                    while (j < m.paragraphs.size() && m.paragraphs[j].table == p.table)
+                        ps << &m.paragraphs[j++];
+                    cur.body += tableHtml(m.tables.at(p.table), ps);
+                } else {
+                    while (j < m.paragraphs.size() && m.paragraphs[j].figureCaption)
+                        ps << &m.paragraphs[j++];
+                    cur.body += figureHtml(ps);
+                }
+                i = j - 1;
+                continue;
             }
             const look::Para pl = look::paragraph(m, p);
             const bool isList = p.style == Paragraph::ListBullet || p.style == Paragraph::ListNumber;
@@ -408,6 +541,15 @@ struct Writer {
         c += QStringLiteral("aside.footnote p, section.endnotes p { text-indent: 0; }\n");
         c += QStringLiteral("nav ol { list-style-type: none; padding-left: 1em; }\nbody.cover { margin: 0; text-align: center; }\n");
         c += QStringLiteral("body.cover img { max-height: 100%; max-width: 100%; }\n");
+        // tables and figures (0.62)
+        c += QStringLiteral("table.qbtable { margin-top: 0.6em; margin-bottom: 0.6em; }\n"
+                            "table.qbtable th, table.qbtable td { vertical-align: top; text-align: left; font-weight: inherit; }\n"
+                            "table.qbtable p { margin: 0; text-indent: 0; }\n"
+                            "figure.qbfigure { margin: 0.6em auto; text-align: center; }\n"
+                            "figure.qbfigure.left { float: left; margin: 0.2em 1em 0.5em 0; }\n"
+                            "figure.qbfigure.right { float: right; margin: 0.2em 0 0.5em 1em; }\n"
+                            "figure.qbfigure p { text-indent: 0; text-align: center; margin: 0; }\n"
+                            "figure.qbfigure figcaption p { margin-top: 0.2em; }\n");
         // the own styles of the text
         for (const NamedStyle &s : m.styles) {
             QStringList css;

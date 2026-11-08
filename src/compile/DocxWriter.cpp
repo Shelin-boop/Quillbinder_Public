@@ -5,6 +5,7 @@
 #include <QBuffer>
 #include <QDateTime>
 #include <QFile>
+#include <QHash>
 #include <QSaveFile>
 #include <QSet>
 
@@ -87,6 +88,14 @@ private:
     QString runs(const QList<Run> &runs, bool inFootnote);
     QString textRun(const Run &r, const QString &text);
     QString imageRun(const Run &r);
+    // 0.62: a table of the text, and a picture with its caption beside the text (a floating
+    // table of one cell, so the caption stays with the picture and the text flows around both)
+    QString table(int index, const QList<const Paragraph *> &paras);
+    QString floatingFigure(const QList<const Paragraph *> &paras);
+    int textWidthTwips() const
+    {
+        return twipsFromMm(m.page.widthMm - m.page.marginLeftMm - m.page.marginRightMm);
+    }
     QString styleId(Paragraph::Style s) const;
     QString ownStyleId(const QString &name) const;
     bool hasOwnStyle(const QString &name, bool character) const;
@@ -216,9 +225,13 @@ QString Builder::imageRun(const Run &r)
     }
     const qint64 cx = emuFromPt(w), cy = emuFromPt(h);
     const int id = m_drawingId++;
+    // what the picture shows (0.62): Word's alt text
+    const QString descr = r.imageDescription.trimmed().isEmpty()
+                              ? QString()
+                              : QStringLiteral(" descr=\"%1\"").arg(xmlEscape(r.imageDescription.trimmed()).replace(QLatin1Char('\n'), QLatin1String("&#10;")));
     return QStringLiteral(
                "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\">"
-               "<wp:extent cx=\"%1\" cy=\"%2\"/><wp:docPr id=\"%3\" name=\"Picture %3\"/>"
+               "<wp:extent cx=\"%1\" cy=\"%2\"/><wp:docPr id=\"%3\" name=\"Picture %3\"%6/>"
                "<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" noChangeAspect=\"1\"/></wp:cNvGraphicFramePr>"
                "<a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
                "<a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
@@ -231,7 +244,7 @@ QString Builder::imageRun(const Run &r)
         .arg(cx)
         .arg(cy)
         .arg(id)
-        .arg(name, rid);
+        .arg(name, rid, descr);
 }
 
 QString Builder::runs(const QList<Run> &list, bool inFootnote)
@@ -414,15 +427,185 @@ QString Builder::headerFooterParagraph(const QString &left, const QString &cente
     return out;
 }
 
+namespace {
+QString hexColor(const QColor &c) { return c.name().mid(1).toUpper(); }
+QString borderLine(const char *side, double pt, const QColor &c)
+{
+    if (pt <= 0)
+        return QStringLiteral("<w:%1 w:val=\"nil\"/>").arg(QLatin1String(side));
+    return QStringLiteral("<w:%1 w:val=\"single\" w:sz=\"%2\" w:space=\"0\" w:color=\"%3\"/>")
+        .arg(QLatin1String(side))
+        .arg(qBound(2, qRound(pt * 8), 96))
+        .arg(hexColor(c));
+}
+} // namespace
+
+QString Builder::table(int index, const QList<const Paragraph *> &paras)
+{
+    const Table &t = m.tables.at(index);
+    const int rows = qMax(1, t.rows), cols = qMax(1, t.columns);
+    // which cell covers each place of the grid
+    QVector<int> cover(rows * cols, -1);
+    for (int k = 0; k < t.cells.size(); ++k) {
+        const TableCell &c = t.cells.at(k);
+        for (int r = c.row; r < qMin(rows, c.row + qMax(1, c.rowSpan)); ++r)
+            for (int col = c.column; col < qMin(cols, c.column + qMax(1, c.columnSpan)); ++col)
+                cover[r * cols + col] = k;
+    }
+    QHash<int, QList<const Paragraph *>> inCell;
+    for (const Paragraph *p : paras)
+        inCell[p->cell] << p;
+
+    const int textW = textWidthTwips();
+    const int tableW = t.widthPercent > 0 ? textW * qBound(1, t.widthPercent, 100) / 100 : textW;
+    QList<int> colW;
+    for (int c = 0; c < cols; ++c)
+        colW << qMax(60, qRound(tableW * (c < t.columnShares.size() ? t.columnShares.at(c) : 100.0 / cols) / 100.0));
+
+    QString x = QLatin1String("<w:tbl><w:tblPr>");
+    if (t.flow == 1 || t.flow == 2)
+        x += QStringLiteral("<w:tblpPr w:leftFromText=\"170\" w:rightFromText=\"170\" w:topFromText=\"57\" w:bottomFromText=\"113\" "
+                            "w:vertAnchor=\"text\" w:horzAnchor=\"margin\" w:tblpXSpec=\"%1\"/>")
+                 .arg(t.flow == 1 ? QStringLiteral("left") : QStringLiteral("right"));
+    if (t.widthPercent > 0)
+        x += QStringLiteral("<w:tblW w:w=\"%1\" w:type=\"pct\"/>").arg(qBound(1, t.widthPercent, 100) * 50);
+    else
+        x += QLatin1String("<w:tblW w:w=\"0\" w:type=\"auto\"/>");
+    if (t.flow == 0 && (t.align & Qt::AlignHCenter))
+        x += QLatin1String("<w:jc w:val=\"center\"/>");
+    else if (t.flow == 0 && (t.align & Qt::AlignRight))
+        x += QLatin1String("<w:jc w:val=\"right\"/>");
+    if (t.spacingPt > 0)
+        x += QStringLiteral("<w:tblCellSpacing w:w=\"%1\" w:type=\"dxa\"/>").arg(twipsFromPt(t.spacingPt));
+    const double b = t.borderPt;
+    x += QLatin1String("<w:tblBorders>") + borderLine("top", b, t.borderColor)
+         + borderLine("left", t.linesOnly ? 0 : b, t.borderColor) + borderLine("bottom", b, t.borderColor)
+         + borderLine("right", t.linesOnly ? 0 : b, t.borderColor) + borderLine("insideH", b, t.borderColor)
+         + borderLine("insideV", t.linesOnly ? 0 : b, t.borderColor) + QLatin1String("</w:tblBorders>");
+    if (t.widthPercent > 0)
+        x += QLatin1String("<w:tblLayout w:type=\"fixed\"/>");
+    const int pad = twipsFromPt(t.paddingPt);
+    x += QStringLiteral("<w:tblCellMar><w:top w:w=\"%1\" w:type=\"dxa\"/><w:left w:w=\"%1\" w:type=\"dxa\"/>"
+                        "<w:bottom w:w=\"%1\" w:type=\"dxa\"/><w:right w:w=\"%1\" w:type=\"dxa\"/></w:tblCellMar>")
+             .arg(pad);
+    x += QLatin1String("<w:tblLook w:val=\"0000\" w:firstRow=\"0\" w:lastRow=\"0\" w:firstColumn=\"0\" w:lastColumn=\"0\" "
+                       "w:noHBand=\"1\" w:noVBand=\"1\"/></w:tblPr><w:tblGrid>");
+    for (int w : colW)
+        x += QStringLiteral("<w:gridCol w:w=\"%1\"/>").arg(w);
+    x += QLatin1String("</w:tblGrid>");
+
+    for (int r = 0; r < rows; ++r) {
+        x += QLatin1String("<w:tr>");
+        if (r < t.headerRows)
+            x += QLatin1String("<w:trPr><w:cantSplit/><w:tblHeader/></w:trPr>");
+        int c = 0;
+        while (c < cols) {
+            const int k = cover.at(r * cols + c);
+            const TableCell cell = k >= 0 ? t.cells.at(k) : TableCell{r, c, 1, 1, QColor()};
+            const int span = qBound(1, k >= 0 ? cell.columnSpan : 1, cols - c);
+            int w = 0;
+            for (int i = c; i < c + span; ++i)
+                w += colW.at(i);
+            QString tcpr = QStringLiteral("<w:tcW w:w=\"%1\" w:type=\"dxa\"/>").arg(w);
+            if (span > 1)
+                tcpr += QStringLiteral("<w:gridSpan w:val=\"%1\"/>").arg(span);
+            const bool first = k < 0 || cell.row == r;
+            if (k >= 0 && cell.rowSpan > 1)
+                tcpr += first ? QLatin1String("<w:vMerge w:val=\"restart\"/>") : QLatin1String("<w:vMerge/>");
+            if (cell.background.isValid())
+                tcpr += QStringLiteral("<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"%1\"/>").arg(hexColor(cell.background));
+            x += QLatin1String("<w:tc><w:tcPr>") + tcpr + QLatin1String("</w:tcPr>");
+            const QList<const Paragraph *> ps = first && k >= 0 ? inCell.value(k) : QList<const Paragraph *>();
+            if (ps.isEmpty())
+                x += QLatin1String("<w:p/>");
+            for (const Paragraph *p : ps) {
+                Paragraph q = *p;
+                q.noIndent = true;
+                q.pageBreakBefore = false;
+                x += paragraph(q, false);
+            }
+            x += QLatin1String("</w:tc>");
+            c += span;
+        }
+        x += QLatin1String("</w:tr>");
+    }
+    x += QLatin1String("</w:tbl>");
+    return x;
+}
+
+QString Builder::floatingFigure(const QList<const Paragraph *> &paras)
+{
+    const Paragraph &pic = *paras.first();
+    double wPt = 0;
+    for (const Run &r : pic.runs)
+        if (r.kind == Run::Image) {
+            wPt = r.imageSize.width() > 0 ? r.imageSize.width() : r.image.width() * 0.75;
+            break;
+        }
+    const int textW = textWidthTwips();
+    const int w = wPt > 0 ? qMin(textW, twipsFromPt(wPt)) : textW / 3;
+    QString x = QStringLiteral("<w:tbl><w:tblPr><w:tblpPr w:leftFromText=\"227\" w:rightFromText=\"227\" w:topFromText=\"57\" "
+                               "w:bottomFromText=\"113\" w:vertAnchor=\"text\" w:horzAnchor=\"margin\" w:tblpXSpec=\"%1\"/>"
+                               "<w:tblW w:w=\"%2\" w:type=\"dxa\"/><w:tblBorders><w:top w:val=\"nil\"/><w:left w:val=\"nil\"/>"
+                               "<w:bottom w:val=\"nil\"/><w:right w:val=\"nil\"/><w:insideH w:val=\"nil\"/><w:insideV w:val=\"nil\"/>"
+                               "</w:tblBorders><w:tblLayout w:type=\"fixed\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/>"
+                               "<w:left w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/><w:right w:w=\"0\" w:type=\"dxa\"/>"
+                               "</w:tblCellMar><w:tblLook w:val=\"0000\" w:firstRow=\"0\" w:lastRow=\"0\" w:firstColumn=\"0\" "
+                               "w:lastColumn=\"0\" w:noHBand=\"1\" w:noVBand=\"1\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"%2\"/></w:tblGrid>"
+                               "<w:tr><w:tc><w:tcPr><w:tcW w:w=\"%2\" w:type=\"dxa\"/></w:tcPr>")
+                    .arg(pic.figure == 1 ? QStringLiteral("left") : QStringLiteral("right"))
+                    .arg(w);
+    for (const Paragraph *p : paras) {
+        Paragraph q = *p;
+        q.noIndent = true;
+        q.pageBreakBefore = false;
+        if (!(q.align & (Qt::AlignHCenter | Qt::AlignRight | Qt::AlignJustify)))
+            q.align = Qt::AlignHCenter;
+        x += paragraph(q, false);
+    }
+    x += QLatin1String("</w:tc></w:tr></w:tbl>");
+    return x;
+}
+
 QByteArray Builder::document()
 {
     QString body;
     body.reserve(m.paragraphs.size() * 200);
     bool tocDone = !m.options.toc;
-    for (const Paragraph &p : m.paragraphs) {
+    for (int i = 0; i < m.paragraphs.size(); ++i) {
+        const Paragraph &p = m.paragraphs.at(i);
+        if (p.table >= 0 && p.table < m.tables.size()) {
+            // the paragraphs of one table follow each other (0.62)
+            QList<const Paragraph *> cells;
+            int j = i;
+            while (j < m.paragraphs.size() && m.paragraphs.at(j).table == p.table)
+                cells << &m.paragraphs.at(j++);
+            body += table(p.table, cells);
+            i = j - 1;
+            continue;
+        }
+        if (p.figure == 1 || p.figure == 2) {
+            QList<const Paragraph *> parts{&p};
+            int j = i + 1;
+            while (j < m.paragraphs.size() && m.paragraphs.at(j).figureCaption)
+                parts << &m.paragraphs.at(j++);
+            body += floatingFigure(parts);
+            i = j - 1;
+            continue;
+        }
         if (!tocDone && p.outlineLevel == 1) {
             body += tocField();
             tocDone = true;
+        }
+        if (p.figure == 3 || p.figureCaption) {
+            // a centered picture and its caption: on their own lines, kept together
+            Paragraph q = p;
+            q.noIndent = true;
+            if (!(q.align & (Qt::AlignHCenter | Qt::AlignRight | Qt::AlignJustify)))
+                q.align = Qt::AlignHCenter;
+            q.keepWithNext = p.figure == 3 && i + 1 < m.paragraphs.size() && m.paragraphs.at(i + 1).figureCaption;
+            body += paragraph(q, false);
+            continue;
         }
         body += paragraph(p, false);
     }
@@ -933,10 +1116,49 @@ bool writeMarkdown(const Manuscript &m, const QString &path, QString *error)
     if (!m.title.isEmpty())
         out += QStringLiteral("---\ntitle: \"%1\"\nauthor: \"%2\"\n---\n\n").arg(m.title, m.author);
     int prevListId = -1;
-    for (const Paragraph &p : m.paragraphs) {
+    for (int i = 0; i < m.paragraphs.size(); ++i) {
+        const Paragraph &p = m.paragraphs.at(i);
+        if (p.table >= 0 && p.table < m.tables.size()) {
+            // a table (0.62): a pipe table, merged cells keep their text in the first place
+            const Table &t = m.tables.at(p.table);
+            const int rows = qMax(1, t.rows), cols = qMax(1, t.columns);
+            QVector<int> origin(rows * cols, -1);
+            for (int k = 0; k < t.cells.size(); ++k)
+                if (t.cells[k].row < rows && t.cells[k].column < cols)
+                    origin[t.cells[k].row * cols + t.cells[k].column] = k;
+            QHash<int, QStringList> inCell;
+            int j = i;
+            for (; j < m.paragraphs.size() && m.paragraphs.at(j).table == p.table; ++j) {
+                QString text = mdRuns(m.paragraphs.at(j).runs, m, notes).simplified();
+                text.replace(QLatin1Char('|'), QLatin1String("\\|"));
+                if (!text.isEmpty())
+                    inCell[m.paragraphs.at(j).cell] << text;
+            }
+            auto row = [&](int r) {
+                QStringList cells;
+                for (int c = 0; c < cols; ++c) {
+                    const int k = r >= 0 ? origin.at(r * cols + c) : -1;
+                    cells << (k >= 0 ? inCell.value(k).join(QLatin1String("<br>")) : QString());
+                }
+                return QLatin1String("| ") + cells.join(QLatin1String(" | ")) + QLatin1String(" |\n");
+            };
+            if (prevListId != -1)
+                out += QLatin1Char('\n');
+            prevListId = -1;
+            out += row(t.headerRows > 0 ? 0 : -1);
+            out += QLatin1String("|") + QStringList(cols, QStringLiteral(" --- ")).join(QLatin1Char('|'))
+                   + QLatin1String("|\n");
+            for (int r = t.headerRows > 0 ? 1 : 0; r < rows; ++r)
+                out += row(r);
+            out += QLatin1Char('\n');
+            i = j - 1;
+            continue;
+        }
         if (p.pageBreakBefore && !out.isEmpty())
             out += QLatin1String("\n");
-        const QString body = mdRuns(p.runs, m, notes);
+        QString body = mdRuns(p.runs, m, notes);
+        if (p.figureCaption && !body.trimmed().isEmpty())
+            body = QLatin1Char('*') + body.trimmed() + QLatin1Char('*');
         QString line;
         switch (p.style) {
         case Paragraph::Title: line = QLatin1String("# ") + body; break;

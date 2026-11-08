@@ -20,6 +20,8 @@
 #include <QTextDocument>
 #include <QTextFragment>
 #include <QTextLayout>
+#include <QTextFrame>
+#include <QTextTable>
 #include <QUrl>
 #include <algorithm>
 #include <cmath>
@@ -59,7 +61,20 @@ struct Placed {
     double y;                      // top of the line (page coordinates; notes: from the top of the note area)
 };
 
+// a table row or a figure (0.62): a piece of the laid-out document painted as it is
+struct Region {
+    QRectF src;                    // in the coordinates of the document
+    double y;                      // top on the page
+};
+
+// what newBlock gave a block (kept with the block: tables add blocks in the middle)
+struct MetaData : QTextBlockUserData {
+    BlockMeta bm;
+    explicit MetaData(const BlockMeta &b) : bm(b) {}
+};
+
 struct PageOut {
+    QList<Region> regions;
     QList<Placed> lines;
     QList<Placed> notes;
     double notesHeight = 0;
@@ -264,13 +279,121 @@ struct Builder {
         bm.before = ptPx(pl.beforePt);
         bm.after = ptPx(pl.afterPt);
         bm.keepWithNext = bm.keepWithNext || pl.keepWithNext;
-        if (firstBlock) {
+        if (firstBlock || reuseNext) {
+            // the first block, or the one Qt keeps after a table or a figure
+            if (reuseNext)
+                c.movePosition(QTextCursor::End);
             c.setBlockFormat(blockFormat(pl));
             firstBlock = false;
+            reuseNext = false;
         } else {
             c.insertBlock(blockFormat(pl));
         }
-        meta << bm;
+        c.block().setUserData(new MetaData(bm));
+    }
+
+    // ------------------------------------------------ tables and figures (0.62)
+    bool reuseNext = false;
+    QHash<int, QTextTable *> madeTables;
+    QSet<int> filledCells;
+    QTextFrame *openFigure = nullptr;
+
+    void placeholderBlock(QTextCursor &c)
+    {
+        // a table or a figure goes after a block: the first one of the document is an empty one
+        if (firstBlock) {
+            c.block().setUserData(new MetaData(BlockMeta()));
+            firstBlock = false;
+        }
+        reuseNext = false;
+        c.movePosition(QTextCursor::End);
+    }
+
+    void closeFigure(QTextCursor &c)
+    {
+        if (!openFigure)
+            return;
+        c.setPosition(openFigure->lastPosition() + 1);
+        openFigure = nullptr;
+        reuseNext = true;
+    }
+
+    QTextTable *makeTable(QTextCursor &c, const Table &tab)
+    {
+        placeholderBlock(c);
+        QTextTableFormat tf;
+        tf.setBorder(ptScreen(tab.borderPt));
+        tf.setBorderBrush(tab.borderColor);
+        tf.setBorderStyle(tab.borderPt > 0 ? QTextFrameFormat::BorderStyle_Solid : QTextFrameFormat::BorderStyle_None);
+        tf.setBorderCollapse(tab.spacingPt <= 0);
+        tf.setCellSpacing(ptScreen(tab.spacingPt));
+        tf.setCellPadding(ptScreen(tab.paddingPt));
+        tf.setHeaderRowCount(tab.headerRows);
+        tf.setWidth(tab.widthPercent > 0 ? QTextLength(QTextLength::PercentageLength, tab.widthPercent) : QTextLength());
+        tf.setAlignment(tab.align);
+        tf.setPosition(tab.flow == 1 ? QTextFrameFormat::FloatLeft : tab.flow == 2 ? QTextFrameFormat::FloatRight : QTextFrameFormat::InFlow);
+        tf.setTopMargin(ptScreen(4));
+        tf.setBottomMargin(ptScreen(6));
+        if (tab.flow == 1)
+            tf.setRightMargin(ptScreen(10));
+        else if (tab.flow == 2)
+            tf.setLeftMargin(ptScreen(10));
+        QList<QTextLength> cols;
+        for (double share : tab.columnShares)
+            cols << QTextLength(QTextLength::PercentageLength, share);
+        if (cols.size() == tab.columns)
+            tf.setColumnWidthConstraints(cols);
+        QTextTable *t = c.insertTable(qMax(1, tab.rows), qMax(1, tab.columns), tf);
+        for (const TableCell &tc : tab.cells)
+            if (tc.rowSpan > 1 || tc.columnSpan > 1)
+                t->mergeCells(tc.row, tc.column, tc.rowSpan, tc.columnSpan);
+        for (const TableCell &tc : tab.cells) {
+            QTextTableCell cell = t->cellAt(tc.row, tc.column);
+            QTextTableCellFormat cf = cell.format().toTableCellFormat();
+            if (tc.background.isValid())
+                cf.setBackground(tc.background);
+            const double side = tab.linesOnly ? 0 : ptScreen(tab.borderPt);
+            cf.setLeftBorder(side);
+            cf.setRightBorder(side);
+            cf.setTopBorder(ptScreen(tab.borderPt));
+            cf.setBottomBorder(ptScreen(tab.borderPt));
+            cf.setBorderBrush(tab.borderColor);
+            cf.setBorderStyle(tab.borderPt > 0 ? QTextFrameFormat::BorderStyle_Solid : QTextFrameFormat::BorderStyle_None);
+            if (tab.linesOnly) {
+                cf.setLeftBorderStyle(QTextFrameFormat::BorderStyle_None);
+                cf.setRightBorderStyle(QTextFrameFormat::BorderStyle_None);
+            }
+            cell.setFormat(cf);
+        }
+        reuseNext = true;
+        return t;
+    }
+
+    // a paragraph of a table cell
+    void cellParagraph(int i, const Paragraph &p, look::Para pl)
+    {
+        QTextTable *t = madeTables.value(p.table);
+        if (!t)
+            return;
+        const Table &tab = m.tables[p.table];
+        if (p.cell < 0 || p.cell >= tab.cells.size())
+            return;
+        const TableCell &tc = tab.cells[p.cell];
+        QTextCursor cc = t->cellAt(tc.row, tc.column).lastCursorPosition();
+        pl.firstMm = 0;
+        pl.beforePt = 0;
+        pl.afterPt = qMin(pl.afterPt, 3.0);
+        const int key = p.table * 100000 + p.cell;
+        if (filledCells.contains(key)) {
+            cc.insertBlock(blockFormat(pl));
+        } else {
+            cc.setBlockFormat(blockFormat(pl));
+            filledCells.insert(key);
+        }
+        BlockMeta bm;
+        bm.para = i;
+        cc.block().setUserData(new MetaData(bm));
+        insertRuns(&doc, cc, pl, p.runs, true);
     }
 
     void flushEndnotes(QTextCursor &c, bool pageBreak)
@@ -352,6 +475,54 @@ struct Builder {
                 bm.tocSlot = true;
                 tocPlaced = true;
             }
+            // tables and figures (0.62)
+            if (p.table >= 0 && p.table < m.tables.size()) {
+                closeFigure(c);
+                if (!madeTables.contains(p.table))
+                    madeTables.insert(p.table, makeTable(c, m.tables[p.table]));
+                cellParagraph(i, p, pl);
+                continue;
+            }
+            if (p.figure > 0) {
+                closeFigure(c);
+                placeholderBlock(c);
+                double w = 0;
+                for (const Run &r : p.runs)
+                    if (r.kind == Run::Image)
+                        w = qMax(w, ptPx(r.imageSize.width() > 0 ? r.imageSize.width() : r.image.width() * 0.75));
+                // Qt scales the measures of frames to the device: they are given for a 96 dpi screen
+                QTextFrameFormat ff;
+                ff.setBorder(0);
+                ff.setPadding(ptScreen(2));
+                ff.setTopMargin(ptScreen(4));
+                ff.setBottomMargin(ptScreen(6));
+                if (p.figure == 1 || p.figure == 2) {
+                    ff.setPosition(p.figure == 1 ? QTextFrameFormat::FloatLeft : QTextFrameFormat::FloatRight);
+                    ff.setWidth(QTextLength(QTextLength::FixedLength, qMin(textW * 0.6, w + ptPx(6)) * kScreenDpi / kDpi));
+                    if (p.figure == 1)
+                        ff.setRightMargin(ptScreen(12));
+                    else
+                        ff.setLeftMargin(ptScreen(12));
+                }
+                openFigure = c.insertFrame(ff);
+                look::Para fp = pl;
+                fp.firstMm = 0;
+                fp.align = Qt::AlignHCenter;
+                c.setBlockFormat(blockFormat(fp));
+                c.block().setUserData(new MetaData(bm));
+                insertRuns(&doc, c, fp, p.runs, true);
+                continue;
+            }
+            if (p.figureCaption && openFigure) {
+                look::Para cp = pl;
+                cp.firstMm = 0;
+                cp.align = Qt::AlignHCenter;
+                c.insertBlock(blockFormat(cp));
+                c.block().setUserData(new MetaData(bm));
+                insertRuns(&doc, c, cp, p.runs, true);
+                continue;
+            }
+            closeFigure(c);
             newBlock(c, pl, bm);
             if (p.outlineLevel > 0 && p.outlineLevel <= m.options.tocLevels && !bm.outlineText.isEmpty())
                 toc.append({p.outlineLevel, bm.outlineText, c.block().blockNumber()});
@@ -368,6 +539,13 @@ struct Builder {
                 c.insertText(marker + QLatin1Char('\t'), charFormat(pl, Run()));
             }
             insertRuns(&doc, c, pl, p.runs, true);
+        }
+        closeFigure(c);
+        // the blocks in their order with what newBlock gave them (0.62: tables put blocks in between)
+        meta.clear();
+        for (QTextBlock blk = doc.begin(); blk.isValid(); blk = blk.next()) {
+            const auto *md = static_cast<const MetaData *>(blk.userData());
+            meta << (md ? md->bm : BlockMeta());
         }
         if (m.options.toc && !tocPlaced && !toc.isEmpty()) {
             // headings without a level-1 entry: the contents at the first entry
@@ -726,6 +904,66 @@ bool makePages(const Manuscript &m, QPaintDevice *layoutDev, QPagedPaintDevice *
         return h;
     };
 
+    // tables and figures (0.62): placed whole, a table row by row (its header rows again on every
+    // new page); painted from the layout of the document
+    int floatPage = -1;     // the page with the last picture or table beside the text
+    double floatBottom = 0; // and where it ends there
+    auto placeFrame = [&](QTextFrame *fr) {
+        QAbstractTextDocumentLayout *lay = b.doc.documentLayout();
+        const QRectF box = lay->frameBoundingRect(fr);
+        const bool floating = fr->frameFormat().position() != QTextFrameFormat::InFlow;
+        // what stands on its own lines goes below a picture or table beside the text, as in the layout
+        if (!floating && floatPage == pages.size())
+            cur = qMax(cur, floatBottom);
+        // the frame's area ends where the next paragraph starts (the frame's box may reach into it)
+        double bottom = box.bottom();
+        if (const QTextBlock after = b.doc.findBlock(fr->lastPosition() + 1); !floating && after.isValid())
+            bottom = qBound(box.top(), lay->blockBoundingRect(after).top(), box.bottom());
+        QList<QRectF> bands;
+        int headerBands = 0;
+        if (auto *t = qobject_cast<QTextTable *>(fr); t && !floating && t->rows() > 1) {
+            QList<double> tops(t->rows() + 1, bottom);
+            const double pad = (t->format().cellPadding() + t->format().border()) * kDpi / kScreenDpi; // screen px in the format
+            for (int r = 0; r < t->rows(); ++r) {
+                double y = box.bottom();
+                for (int c = 0; c < t->columns(); ++c) {
+                    const QTextTableCell cell = t->cellAt(r, c);
+                    if (cell.row() != r)
+                        continue;
+                    y = qMin(y, lay->blockBoundingRect(cell.firstCursorPosition().block()).top() - pad);
+                }
+                tops[r] = qBound(box.top(), y, bottom);
+            }
+            tops[0] = box.top();
+            for (int r = 1; r <= t->rows(); ++r)
+                tops[r] = qMax(tops[r], tops[r - 1]);
+            for (int r = 0; r < t->rows(); ++r)
+                bands << QRectF(box.left(), tops[r], box.width(), tops[r + 1] - tops[r]);
+            headerBands = qMin(t->format().headerRowCount(), t->rows() - 1);
+        } else {
+            bands << QRectF(box.left(), box.top(), box.width(), (floating ? box.bottom() : bottom) - box.top());
+        }
+        for (int i = 0; i < bands.size(); ++i) {
+            const QRectF &bd = bands[i];
+            if (cur + bd.height() + notesTotal(pages.last()) > textH && !pageEmpty()) {
+                newPage();
+                if (i >= headerBands)
+                    for (int h = 0; h < headerBands; ++h) {
+                        pages.last().regions.append({bands[h], top + cur});
+                        cur += bands[h].height();
+                    }
+            }
+            pages.last().regions.append({bd, top + cur});
+            pages.last().any = true;
+            if (!floating) {
+                cur += bd.height();
+            } else {
+                floatBottom = (floatPage == pages.size() ? qMax(floatBottom, cur + bd.height()) : cur + bd.height());
+                floatPage = int(pages.size());
+            }
+        }
+    };
+
     const QTextBlock lastBlock = b.doc.lastBlock();
     int bi = 0;
     for (QTextBlock blk = b.doc.begin(); blk.isValid(); blk = blk.next(), ++bi) {
@@ -752,6 +990,19 @@ bool makePages(const Manuscript &m, QPaintDevice *layoutDev, QPagedPaintDevice *
         }
         if (bm.chapterStart && pageEmpty())
             pages.last().chapterStart = true;
+        {
+            QTextFrame *outer = nullptr;
+            for (QTextFrame *f = QTextCursor(blk).currentFrame(); f && f != b.doc.rootFrame(); f = f->parentFrame())
+                outer = f;
+            if (outer) {
+                placeFrame(outer);
+                while (blk.next().isValid() && blk.next().position() <= outer->lastPosition()) {
+                    blk = blk.next();
+                    ++bi;
+                }
+                continue;
+            }
+        }
         QTextLayout *tl = blk.layout();
         const int n = tl->lineCount();
         double before = pageEmpty() ? 0 : bm.before;
@@ -871,6 +1122,13 @@ bool makePages(const Manuscript &m, QPaintDevice *layoutDev, QPagedPaintDevice *
         const double left = mmPx(verso ? pg.marginRightMm : pg.marginLeftMm);
         if (p.blank)
             continue;
+        for (const Region &rg : p.regions) {
+            painter.save();
+            painter.translate(left, rg.y - rg.src.y());
+            painter.setClipRect(rg.src.adjusted(-2, -2, 2, 2));
+            b.doc.drawContents(&painter, rg.src.adjusted(-2, -2, 2, 2));
+            painter.restore();
+        }
         for (const Placed &pl : p.lines) {
             const QTextLine line = pl.tl->lineAt(pl.line);
             const QPointF origin(left + pl.tl->position().x(), pl.y - line.y());

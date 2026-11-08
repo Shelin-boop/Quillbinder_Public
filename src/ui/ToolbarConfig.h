@@ -34,6 +34,21 @@ bool isSpecial(const QString &id);
 QStringList standard(Bar bar);
 // The list in use (settings, or the standard set).
 QStringList configured(Bar bar);
+// Buttons that writing tools want on the main toolbar (tool interface 1.1, 0.61):
+// "tool:<command>" before the item `before` of the standard set (empty: at the end).
+// They become part of the standard set while the tool is there.
+struct ToolButton {
+    QString id;
+    QString before;
+};
+void setToolButtons(const QList<ToolButton> &buttons);
+QList<ToolButton> toolButtons();
+// A main toolbar the writer arranged gets each tool button once (0.61): changes the list
+// and returns true when a button was added; `done` holds the buttons placed before.
+bool placeToolButtonsOnce(QStringList &bar, QStringList &done);
+// Items a bar can hold: commands of writing tools ("tool:...") yes, styles and layouts
+// (they come and go with projects and files) no.
+bool usableOnBar(const QString &id);
 QString label(const QString &id);   // for lists; empty for unknown ids
 QIcon icon(const QString &id);
 

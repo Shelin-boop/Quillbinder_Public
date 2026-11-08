@@ -92,6 +92,9 @@ jobs:
       - name: FFmpeg for the media add-ons (both sets)
         run: tools/ci-step.sh ffmpeg tools/get-ffmpeg.sh
 
+      - name: whisper.cpp for the add-on "Speech Transcription" (0.61)
+        run: tools/ci-step.sh whisper tools/get-whisper.sh
+
       - name: AppImage
         run: tools/ci-step.sh appimage packaging/build-appimage.sh
 

@@ -24,7 +24,12 @@ enum : int {
     // char: bool, not bold / not italic set by hand where the style is bold / italic (0.40.3):
     // the style's look is not given back over it (styles::applyChars)
     NotBold,
-    NotItalic
+    NotItalic,
+    // 0.62: tables and figures
+    TableSpec,                             // table frame: QString, JSON of tables::Spec (the table's design)
+    CellBackground,                        // table cell: QColor chosen for this cell (over the design's)
+    Figure,                                // frame: int figures::Position (a picture with its caption)
+    ImageDescription                       // char (image): QString, what the picture shows (alt text)
 };
 } // namespace props
 

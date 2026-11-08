@@ -2,6 +2,7 @@
 // program's own format, and converting between them (import/ScrivenerFormat.h).
 #include "ui/MainWindow.h"
 
+#include "core/Platform.h"
 #include "core/Project.h"
 #include "import/ScrivenerFormat.h"
 #include "text/TextUtil.h"
@@ -57,7 +58,7 @@ bool MainWindow::confirmNotOpenElsewhere(const QString &projectFolder)
     if (parts.size() != 2)
         return true;
     const bool sameHost = parts[0] == QSysInfo::machineHostName();
-    const bool alive = sameHost && QFile::exists(QStringLiteral("/proc/") + parts[1])
+    const bool alive = sameHost && platform::processAlive(parts[1].toLongLong())
                        && parts[1].toLongLong() != QCoreApplication::applicationPid();
     if (!alive && sameHost)
         return true;

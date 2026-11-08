@@ -104,6 +104,44 @@ bool remove(Project *p, const Snapshot &s)
     return ok;
 }
 
+Totals totals(Project *p)
+{
+    Totals t;
+    QDir root(p->snapshotsDir(QString()));
+    for (const QFileInfo &d : root.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        const QFileInfoList files = QDir(d.absoluteFilePath()).entryInfoList(QDir::Files | QDir::Hidden);
+        int n = 0;
+        for (const QFileInfo &f : files) {
+            t.bytes += f.size();
+            if (f.suffix() == QLatin1String("md") || f.suffix() == QLatin1String("rtf"))
+                ++n;
+        }
+        t.snapshots += n;
+        if (n > 0)
+            ++t.documents;
+    }
+    return t;
+}
+
+int removeAll(Project *p, QString *error)
+{
+    const Totals before = totals(p);
+    QDir root(p->snapshotsDir(QString()));
+    QStringList failed;
+    for (const QFileInfo &d : root.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot))
+        if (!QDir(d.absoluteFilePath()).removeRecursively())
+            failed << d.fileName();
+    for (BinderItem *it : p->allItems()) {
+        if (!it->hasSnapshots)
+            continue;
+        it->hasSnapshots = !list(p, it->id).isEmpty();
+        p->notifyItemChanged(it, false);
+    }
+    if (error && !failed.isEmpty())
+        *error = QObject::tr("Some snapshots could not be deleted:\n%1").arg(failed.join(QLatin1Char('\n')));
+    return before.snapshots - totals(p).snapshots;
+}
+
 bool setTitle(Project *, const Snapshot &s, const QString &title)
 {
     const QString dir = QFileInfo(s.file).absolutePath();

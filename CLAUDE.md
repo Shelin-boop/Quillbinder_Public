@@ -34,7 +34,7 @@ changed and what was checked. Preferences:
   same version number. Audio and video for everyone: the add-on "Media Playback" (free formats), the add-on "Extra
   Video and Audio Formats" (formats licensed under patents), and the package `media-all-formats.qbpkg` that installs
   both in one step (built by `packaging/build-addons.sh`).
-- **Runtime**: the current AppImage is 0.60.0 alpha (before it 0.40.0 alpha / 0.50.0 alpha, 0.30.0 alpha, 0.20.0,
+- **Runtime**: the current AppImage is 0.63.0 alpha (before it 0.61.0 alpha, 0.60.0 alpha, 0.40.0 alpha / 0.50.0 alpha, 0.30.0 alpha, 0.20.0,
   0.16.0 and 0.2.0, with the same libraries), runtime id `u2404-qt6.4-r1` (`APP_RUNTIME` in CMakeLists.txt; a new
   AppImage with other libraries needs a new id). Program updates (.qbpkg) run on its libraries:
   build on Ubuntu 24.04 with Ubuntu's Qt 6.4.2, use no Qt API newer than 6.4, and add
@@ -101,6 +101,27 @@ changed and what was checked. Preferences:
   folder, paragraph styles over several paragraphs), `qb_v0602_tests` (0.60.2: the three ways to paste in the right-click menu),
   menu audit.
 - `qb_v0604_tests` (0.60.4: the paragraph buttons of the format bar, the Wayland line of the README).
+- `qb_v0605_tests` (0.60.5: a generated 500,000-word project in Scrivener format: autosave times and what it writes,
+  the full save, the fingerprint, files changed in Scrivener; the right-click menu's time and size, Qt's animations off,
+  the quick save when a dialog takes over). Times are printed; the limits are generous for a two-core machine.
+- `qb_v061_tests` (0.61: tool interface 1.1 with a tool built for 1.0 (`tests/tool10`, the old header), Undo/Redo in the
+  standard toolbar, the add-on Speech Transcription: models, headers, languages, pieces, files, the package, the button and
+  its menu, the inspector tab, the options, downloads from a local test server, Vulkan through Mesa's lavapipe
+  (`GGML_VK_VISIBLE_DEVICES=0`), recordings from a WAV file and a PulseAudio pipe source). Needs `tools/get-whisper.sh` and
+  the add-on package; `QB_SPEECH_FAKE=1` writes "Piece n" instead of running a model; `QB_SPEECH_MODEL_FILE=<ggml model>`
+  adds checks with real recognition; `QB_SPEECH_OFFICIAL=small` downloads that model from Hugging Face through the add-on
+  (allowed in the cloud session since 2026-11-08: `huggingface.co` and its download host `us.aws.cdn.hf.co`);
+  `QB_SPEECH_EXTRA="<wav>=<word>|<word>;..."` (with `QB_SPEECH_HINT`) adds recordings that must hold one of the words.
+- `qb_v0611_tests` (0.61.1: the quote rules, Convert Quotes from File > Options > Corrections with every place and the
+  scope, Project > Delete Old Snapshots with its question, Scrivener format: deleted snapshots leave the .scriv).
+- `qb_v062_tests` (0.62: settings per project: the first start window, File > Options with "Settings for", what goes
+  where (also changes made outside the window), Use Program Settings, the switch "which settings come first" and the look
+  following it, the Options section of project settings files; tables and pictures: designs, the Markdown and RTF forms
+  and RTF of other programs, the editor's table and picture commands in both storage formats, Scrivener format, the
+  needed version 0.62.0, compile to PDF, Word, e-book and Markdown; LibreOffice opens the Word file when installed,
+  `QB_SKIP_SOFFICE=1` leaves that out). The runner sets `QB_SKIP_FIRST_START=1` for all other suites.
+- `qb_w2_tests` (Windows port W2, on Linux: the packages' platform field, the process check, pruning reports with
+  their memory dumps; no window).
 - `qb_v0603_tests` (0.60.3: folder totals in the binder and the footers, Inspector Background, the color of the toolbars,
   font names that are not families, double-click beside the text reveals the document).
 - Printing checks print into PDF files (Print to File) and read them with poppler-utils.
@@ -135,7 +156,8 @@ sends one, read it as described in `docs/developer-guide.md` section 10 ("Readin
 report"); `packaging/build-update.sh` keeps `dist/quillbinder-<version>-symbols.xz` (unstripped
 program, same build ID) for `addr2line`: keep it with the package (the release workflow publishes it with each release; in the development repository it goes on the branch `assets`).
 `src/core/CrashGuard.*` (handlers, watchdog, sessions) must stay async-signal-safe in the
-handlers: no allocation, no locks, no Qt there.
+handlers: no allocation, no locks, no Qt there. Windows (W2): `CrashGuardWin.cpp`, the same rule for its writer thread and
+watchdog (fixed buffers, Windows calls only); reports in `%LOCALAPPDATA%\Quillbinder\CrashReports` with a `.dmp` beside.
 
 ## Options, zoom, palette (0.21)
 
@@ -193,6 +215,106 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
   Compare and Transfer (`Compare.*` engine, `CompareFiles.*` Word/LibreOffice writers, `MiniXml.*`).
 - `addons/`: add-on packages; `packaging/`: AppImage, update and add-on build scripts;
   `tools/`: helper scripts; `resources/`: icons (`qbicons` themes), templates, manual.
+
+## Tool interface 1.1, Speech Transcription (0.61)
+
+- `src/tools/ToolApi.h` 1.1 adds to 1.0 without changing it: three functions at the end of `ToolHost` (a tool calls them
+  only when `apiVersion() >= 110`), and the plugin-side interface `ToolExtension` (own IID; `toolhost::Host::extension()`
+  asks the plugin object): inspector tabs (`Inspector::addExtraTab`, after Objects in the stack, buttons at the left of the
+  row, kept in the state by key `toolTab`), toolbar buttons (`toolbars::setToolButtons`: part of the standard set; a
+  toolbar the writer arranged gets each once, setting `toolbars/toolButtonsPlaced`; the arrow's menu set in
+  `MainWindow::placeToolButtons` after every rebuild), a section in File > Options (`optionsPage()` "Section",
+  `OptionsDialog::showToolSection`). Never change a 1.0 struct or function: the program reads tools built long ago.
+- `plugins/tools/speech-transcription`: `libqb-speech.so` (the tool: commands, `TranscriptPanel`, the options, models and
+  downloads with the checks) and `libqb-speech-impl.so` (`impl/SpeechEngine.cpp`: Qt Multimedia's `QAudioSource`,
+  `SpeechLogic`'s `Segmenter`, whisper.cpp in a thread; `SpeechApi.h` between the two). `SpeechLogic.*` is Qt Core only
+  (the tests compile it). whisper.cpp: `tools/get-whisper.sh` (v1.9.5, shared libraries, `GGML_BACKEND_DL` with all CPU
+  variants and Vulkan; about 7 minutes on 2 cores) into `build/whisper`; the engine loads the compute modules from its
+  `lib/` with `ggml_backend_load_all_from_path`. Translation: main language English and a fallback: every piece runs
+  with `translate` (whisper translates only into English); the language of a piece is found first only for Careful,
+  "keep the original" or another main language (an extra encoder run). Models: `SpeechLogic.cpp`'s catalog (SHA-1 of
+  whisper.cpp's list; Small's and Medium's checked against the files on Hugging Face on 2026-11-08), saved in
+  `<data>/tools/speech-transcription/models`; `QB_SPEECH_SOURCE` points the official source elsewhere (tests).
+- The add-on brings Qt Multimedia (only `libQt6Multimedia.so.6`: the microphone needs no Qt Multimedia plugin) and Qt's TLS
+  plugin; `addons/speech-transcription/stage.sh` exits with 3 when whisper is not built, and `packaging/build-addons.sh`
+  then leaves the add-on out. Icons of the add-on are in the program's icon set (Breeze: microphone, record, list).
+
+## Settings per project, first start, tables and pictures (0.62)
+
+- **Settings layer** (`src/core/SettingsLayer.*`): every `QSettings` of the program reads a merged copy (the program's
+  INI plus the project's `settings/options.ini`; QSettings' default path is pointed at it with `setPath`), and
+  `settingslayer::sync()` (called by `AppSettings::save` and at exit) sends each change to the project file when the
+  project holds that key, else to the program file. `programOnly()` lists the keys that never go to a project (recent
+  projects, window/, layouts/, the look for new projects, crash watchdog, the switch itself ...): add a key there when
+  a new setting must stay program-wide. `activate()` from `MainWindow::adoptProject` / `closeProject`; the switch
+  `projectFirst` (General > Startup, `optProjectFirst`) off means the layer never merges a project, and
+  `look::setProgramSettingsAlways` makes every project show the look for new projects (`look::setFollowSettings` stays the hook of the tests written before 0.40.2). File > Options in "This project"
+  scope (`OptionsDialog::run`, `optScope`): `beginProjectEdit` keeps the values the dialog started from,
+  `takeProjectValues` stores in the project what was changed (and what the project held); in "All projects" scope
+  with a project open the layer is suspended while the dialog runs. Defaults and Load Options are off in project scope.
+  Settings files: section `Options` (`sf::Options`).
+- **First start** (`src/ui/FirstStartDialog.*`, from `main.cpp` before the desktop question): backups and the switch;
+  `app/firstStartDone` in the program file. Skipped with `QB_NO_DIALOGS` or `QB_SKIP_FIRST_START` (the test runner sets it);
+  `tools/e2e-appimage.sh` answers it and checks it came.
+- **Tables and figures in the text** (`src/text/Tables.*`, see the comment at its top): `tables::Spec` as JSON in
+  `props::TableSpec`, `tables::apply` after every change; figures are `QTextFrame`s with `props::Figure`; the description
+  is `props::ImageDescription`. Qt keeps a block before and after every frame; Qt 6.4 crashes when rows or columns under a
+  merged cell are removed, so `TextEditorTables.cpp` splits those cells first. Storage: Markdown `:::table {json}` rows
+  `:::` and `:::figure {json}` ... `:::` (`MarkdownIO.cpp`), RTF `\trowd ... \row` with `{\*\qbtable json}`,
+  `{\*\qbfigure json}`, `{\*\qbfigureend}`, `{\*\qbalt text}` (`RtfIO.cpp`). `DocumentStore::writeEntry` sets
+  `Project::needsVersion` to 0.62.0 when a document has a frame. Dialogs: `src/ui/TableDialogs.*`; commands `insertTable`,
+  `table*`, `picture` (Format > Table, right-click menu).
+- **Compile** (exporter interface 1.4, `ExporterApi.h`): `Compiler::appendDocument` fills `Manuscript::tables` and the
+  paragraphs' `table`, `cell`, `figure`, `figureCaption`, `Run::imageDescription`. PDF: tables and figures are rebuilt as
+  frames of the layout document and placed as regions (`Region`, painted with `drawContents` clipped), a table in row bands
+  with its header rows again on a new page; floats do not move `cur`, and something on its own lines after a float starts
+  below it. Frame measures (borders, padding, margins, fixed widths) are given in 96-dpi pixels: Qt scales them to the
+  1200-dpi layout device. Word: `w:tbl` (floating with `w:tblpPr`), a figure beside the text as a borderless floating table
+  of one cell with its caption, `descr` on `wp:docPr`. EPUB: `<table class="qbtable">` and `<figure class="qbfigure">`.
+  Markdown (the plugin and `writeMarkdown` for Pandoc): pipe tables.
+
+## Quote conversion, Delete Old Snapshots (0.61.1)
+
+- `autocorrect::convertQuotes(text, typographic, style)` (pure, per paragraph) gives the positions and new characters;
+  `replace::convertQuotes` runs it through the project with Project Replace's engine: `replace::run(p, where, finder,
+  mayChange, ...)` takes any `ChangeFinder` (the search's finder is one); the old regex functions are wrappers.
+  `ConvertQuotesDialog` (`SearchTools.*`) is opened by `MainWindow::convertQuotes` from the buttons
+  `optConvertQuotesSmart` / `optConvertQuotesStraight` on File > Options > Corrections (the Options dialog's parent
+  must be the main window); afterwards `MainWindow::afterProjectWideChange` (shared with Project Replace) refreshes and saves.
+- `snapshots::totals / removeAll` work on the whole `snapshots/` folder (also folders of documents no longer there);
+  the action `deleteSnapshots` (`MainWindow::deleteOldSnapshots`, `updateSnapshotAction` on the Project menu's
+  `aboutToShow` and in `updateActions`) asks with `deleteSnapshotsQuestion` and saves in full at once.
+- Scrivener format: the full write (`scrivener::write`, not quick) takes snapshots out of the .scriv whose keys are in
+  `SyncState::snapshots` but no longer among the document's snapshots; files and index.xml entries are matched by
+  their moment (`snapshotMoment`, with the time zone of the name; a key's name is ours, the .scriv's file may carry
+  another offset). Snapshots the state does not know (Scrivener's own, never read) stay.
+
+
+## Speed with large projects (0.60.5)
+
+- **Autosave vs. full save**: `Project::autosave()` (the timers of `scheduleSave`, and `MainWindow::changeEvent` when
+  another window of the program becomes active) runs `saveImpl(quick = true)`; `save()` (switching to another program,
+  File > Save, closing, every other caller) is the full save as before.
+- **Quick Scrivener write** (`scrivener::sync(p, err, quick)` / `write(..., quick)`): texts, notes, synopses that changed
+  (our file's SHA-1 comes from `knownSha1File`, read again only when size or time changed; Scrivener's file is read only
+  when ours changed), docs.checksum, and the .scrivx only when `Project::binderChangedSinceSync` (set by `markIndexDirty`,
+  cleared by a write of the project's own .scriv). Snapshots, icons, media, mind maps, removed documents and
+  `Files/search.indexes` wait for the next full write; `SyncState::indexStale` (in scrivener-sync.json) makes the full write
+  write the index even when it finds nothing new. The fingerprint after a quick write comes from `FingerprintCache` (filled
+  by every `fingerprint()` call, lines of the files written updated); files changed elsewhere are not in it, so the next
+  opening reads the .scriv again (the safe way round). A quick write without a .scrivx is a full one.
+- **Counts**: `DocumentStore::recount` calls `Project::notifyItemCounted` (modified date, `m_countsDirty`, `itemChanged`),
+  not `notifyItemChanged`: the project file is written with the next full save or a minute after its last write
+  (`m_lastIndexWrite`); `hasUnsavedChanges()` does not count it.
+- **Timing**: `QB_TIMING=1` prints `timing: ...` lines (`src/core/Timing.h`, `timing::Laps`) for the save steps, the
+  Scrivener sync and write, and the editor's right-click menu.
+- **Menus**: `noUiAnimations()` in `MainWindow.cpp` (constructor, and on `QEvent::ThemeChange` in `InputWatch`) switches
+  off Qt's menu, combo, tooltip and tool box effects. `SpellChecker::suggestions` keeps the words looked up
+  (`s_suggested`, emptied by `setLanguage`, `addToPersonal`, `setPersonalWords`, and above 500 words).
+- Measured on the cloud machine (2 cores) with the v0605 project: autosave 250 to 350 ms before, 30 to 40 ms after; the
+  right-click menu about 10 ms (60 ms the first time on a misspelled word: Hunspell's suggestions). Not done: the
+  Combined Text view of a large folder (one editor per document, full layout and spell check of every document) and
+  unloading documents that are no longer shown.
 
 ## Paragraph buttons of the format bar (0.60.4)
 

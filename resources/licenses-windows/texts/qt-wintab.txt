@@ -1,0 +1,7 @@
+Wintab API
+Wintab is a de facto API for pointing devices on Windows.
+
+Copyright 1991-1998 by LCS/Telegraphics.
+
+The text and information contained in this file may be freely used,
+copied, or distributed without compensation or licensing restrictions.

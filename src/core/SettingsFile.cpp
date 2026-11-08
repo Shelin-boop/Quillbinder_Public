@@ -1,4 +1,5 @@
 #include "core/SettingsFile.h"
+#include "core/SettingsLayer.h"
 
 #include "AppInfo.h"
 #include "core/BinderItem.h"
@@ -17,6 +18,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QSaveFile>
+#include <QSettings>
 #include <QSet>
 #include <QTextBlock>
 #include <QTextDocument>
@@ -43,6 +45,7 @@ QString key(Section s)
     case Printing: return QStringLiteral("printing");
     case Look: return QStringLiteral("look");
     case ObjectTemplates: return QStringLiteral("objectTemplates");
+    case Options: return QStringLiteral("options");
     case SectionCount: break;
     }
     return QString();
@@ -65,6 +68,7 @@ QString title(Section s)
     case Printing: return QObject::tr("Print Settings");
     case Look: return QObject::tr("Look (Colors, Fonts, Width, Border)");
     case ObjectTemplates: return QObject::tr("Object Templates and Colors");
+    case Options: return QObject::tr("Options of This Project");
     case SectionCount: break;
     }
     return QString();
@@ -242,6 +246,23 @@ QJsonObject capture(Project *p)
         s.insert(key(Look), look);
     }
     s.insert(key(ObjectTemplates), p->objects()->schema().toJson(false));
+    {
+        // 0.62: the options the project keeps a value of its own for
+        QJsonObject o;
+        QSettings in(settingslayer::fileFor(p->settingsDir()), QSettings::IniFormat);
+        for (const QString &k : in.allKeys()) {
+            if (settingslayer::programOnly(k))
+                continue;
+            const QVariant v = in.value(k);
+            if (v.typeId() == QMetaType::QByteArray)
+                o.insert(k, QJsonObject{{QStringLiteral("bytes"), QString::fromLatin1(v.toByteArray().toBase64())}});
+            else if (v.typeId() == QMetaType::QStringList)
+                o.insert(k, QJsonArray::fromStringList(v.toStringList()));
+            else
+                o.insert(k, v.toString());
+        }
+        s.insert(key(Options), o);
+    }
     return s;
 }
 
@@ -369,6 +390,26 @@ QString differences(Section s, const QJsonValue &project, const QJsonValue &file
         if (!changed.isEmpty())
             d += (d.isEmpty() ? QString() : QStringLiteral("; ")) + QObject::tr("defined differently: %1").arg(changed.join(QStringLiteral(", ")));
         return d.isEmpty() ? QObject::tr("the styles differ") : d;
+    }
+    case Options: {
+        const QJsonObject a = project.toObject(), b = file.toObject();
+        QStringList only, differ;
+        for (auto it = b.begin(); it != b.end(); ++it)
+            if (!a.contains(it.key()))
+                only << it.key();
+            else if (a.value(it.key()) != it.value())
+                differ << it.key();
+        QStringList parts;
+        if (!only.isEmpty())
+            parts << QObject::tr("only in the file: %1").arg(only.join(QStringLiteral(", ")));
+        if (!differ.isEmpty())
+            parts << QObject::tr("different: %1").arg(differ.join(QStringLiteral(", ")));
+        int mine = 0;
+        for (auto it = a.begin(); it != a.end(); ++it)
+            mine += b.contains(it.key()) ? 0 : 1;
+        if (mine)
+            parts << QObject::tr("%1 only in the project").arg(mine);
+        return parts.join(QStringLiteral("; "));
     }
     case ObjectTemplates: {
         QStringList a, b;
@@ -750,6 +791,39 @@ void applyData(Project *p, Section s, const QJsonValue &value, QStringList *note
             p->uiState[QStringLiteral("printSettings")] = value.toObject().toVariantMap();
         break;
     case ObjectTemplates: applyObjectTemplates(p, value.toObject(), notes); break;
+    case Options: {
+        // the file's options become the project's own (those it had before are replaced)
+        const QString file = settingslayer::fileFor(p->settingsDir());
+        const bool open = !file.isEmpty() && file == settingslayer::projectFile();
+        if (open)
+            settingslayer::sync();
+        QFile::remove(file);
+        QDir().mkpath(p->settingsDir());
+        {
+            QSettings out(file, QSettings::IniFormat);
+            const QJsonObject o = value.toObject();
+            for (auto it = o.begin(); it != o.end(); ++it) {
+                if (settingslayer::programOnly(it.key()))
+                    continue;
+                const QJsonValue v = it.value();
+                if (v.isObject())
+                    out.setValue(it.key(), QByteArray::fromBase64(v.toObject().value(QStringLiteral("bytes")).toString().toLatin1()));
+                else if (v.isArray()) {
+                    QStringList l;
+                    for (const QJsonValue &x : v.toArray())
+                        l << x.toString();
+                    out.setValue(it.key(), l);
+                } else
+                    out.setValue(it.key(), v.toString());
+            }
+            out.sync();
+        }
+        if (open)
+            settingslayer::activate(file); // the program reads them at once
+        if (notes && !value.toObject().isEmpty())
+            *notes << QObject::tr("Options of this project: %1 taken from the file.").arg(value.toObject().size());
+        return;
+    }
     default: return; // the window takes these over
     }
     p->markIndexDirty();

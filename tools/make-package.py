@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Builds .qbpkg packages (developer tool; users never need this).
 
-  make-package.py addon  <folder> <out.qbpkg>
+  make-package.py addon  [--platform windows-x64] <folder> <out.qbpkg>
       <folder>/manifest.json   id, name, version, description, author, whatsNew, minApp
+      --platform: the system the add-on's libraries were built for (Windows add-ons, port W2;
+      Linux add-ons name none)
       <folder>/payload/...     themes/, templates/, compile-formats/, plugins/, dictionaries/
 
   make-package.py core   --binary <program> --version X.Y.Z --runtime <id>
@@ -40,13 +42,15 @@ def cmd_addon(a):
     manifest = json.load(open(os.path.join(a.folder, "manifest.json"), encoding="utf-8"))
     manifest.setdefault("format", 1)
     manifest["kind"] = "addon"
+    if a.platform:
+        manifest["platform"] = a.platform
     files, payload = [], []
     root = os.path.join(a.folder, "payload")
     for d, _, names in sorted(os.walk(root)):
         for n in sorted(names):
             p = os.path.join(d, n)
             rel = os.path.relpath(p, root).replace(os.sep, "/")
-            e, data = file_entry(p, rel, executable=n.endswith(".so"))
+            e, data = file_entry(p, rel, executable=n.endswith(".so") or n.lower().endswith(".dll"))
             files.append(e)
             payload.append((rel, data))
     manifest["files"] = files
@@ -61,8 +65,8 @@ def cmd_core(a):
     if a.plugins:
         for n in sorted(os.listdir(a.plugins)):
             p = os.path.join(a.plugins, n)
-            if os.path.isfile(p) and (n.endswith(".so") or n.endswith(".json")):
-                e2, d2 = file_entry(p, "plugins/" + n, executable=n.endswith(".so"))
+            if os.path.isfile(p) and (n.endswith(".so") or n.lower().endswith(".dll") or n.endswith(".json")):
+                e2, d2 = file_entry(p, "plugins/" + n, executable=n.endswith(".so") or n.lower().endswith(".dll"))
                 files.append(e2)
                 payload.append((e2["path"], d2))
     manifest = {"format": 1, "id": "core", "name": a.name, "version": a.version, "kind": "core",
@@ -81,7 +85,8 @@ def cmd_bundle(a):
 
 ap = argparse.ArgumentParser()
 sub = ap.add_subparsers(dest="cmd", required=True)
-s = sub.add_parser("addon"); s.add_argument("folder"); s.add_argument("out"); s.set_defaults(fn=cmd_addon)
+s = sub.add_parser("addon"); s.add_argument("--platform"); s.add_argument("folder"); s.add_argument("out")
+s.set_defaults(fn=cmd_addon)
 s = sub.add_parser("core")
 s.add_argument("--binary", required=True); s.add_argument("--version", required=True)
 s.add_argument("--runtime", required=True); s.add_argument("--plugins")

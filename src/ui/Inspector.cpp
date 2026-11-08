@@ -138,6 +138,7 @@ Inspector::Inspector(QWidget *parent) : QWidget(parent)
                                                  {QStringLiteral("qb-objects"),
                                                   tr("Objects of the project: characters, locations, environments, ...")}};
     auto *group = new QButtonGroup(this);
+    m_tabGroup = group;
     for (int i = 0; i < defs.size(); ++i) {
         auto *b = smallButton(tabs, defs[i].first, defs[i].second);
         b->setCheckable(true);
@@ -1843,12 +1844,52 @@ void Inspector::applyLabelTint()
 
 void Inspector::showTab(Tab t)
 {
+    if (int(t) < 0 || int(t) >= m_stack->count())
+        return;
     m_stack->setCurrentIndex(int(t));
-    for (int i = 0; i < m_tabButtons.size(); ++i)
-        m_tabButtons[i]->setChecked(i == int(t));
+    // one checked button: the group is exclusive, so checking one unchecks the others
+    if (QAbstractButton *b = m_tabGroup->button(int(t)))
+        b->setChecked(true);
     if (t == MindMap)
         refreshMindMap();
     refreshZoomBox();
+}
+
+void Inspector::addExtraTab(const QString &key, QWidget *page, const QIcon &icon, const QString &toolTip)
+{
+    if (!page || key.isEmpty() || m_extraKeys.contains(key))
+        return;
+    page->setParent(m_stack);
+    const int id = m_stack->addWidget(page);
+    auto *b = new QToolButton(m_tabsRow);
+    b->setAutoRaise(true);
+    b->setIcon(icon);
+    b->setToolTip(toolTip);
+    b->setCheckable(true);
+    b->setIconSize(QSize(20, 20));
+    b->setObjectName(QStringLiteral("inspectorTab:") + key);
+    m_tabGroup->addButton(b, id);
+    // at the left end of the row (after the stretch), in the order the tabs came
+    auto *row = qobject_cast<QHBoxLayout *>(m_tabsRow->layout());
+    row->insertWidget(1 + int(m_extraButtons.size()), b);
+    m_extraKeys << key;
+    m_extraButtons << b;
+    applyZoomMode();
+}
+
+bool Inspector::showExtraTab(const QString &key)
+{
+    const int i = int(m_extraKeys.indexOf(key));
+    if (i < 0)
+        return false;
+    showTab(Tab(int(Objects) + 1 + i)); // the tools' pages follow the program's
+    return true;
+}
+
+QString Inspector::currentExtraTab() const
+{
+    const int i = m_stack->currentIndex() - int(Objects) - 1;
+    return i >= 0 && i < m_extraKeys.size() ? m_extraKeys[i] : QString();
 }
 
 void Inspector::refreshMindMapZoom()
@@ -1868,6 +1909,8 @@ QString Inspector::zoomKey(int tab) const
 {
     if (tab < 0)
         tab = m_stack ? m_stack->currentIndex() : 0;
+    if (tab > int(Objects)) // the tabs of writing tools share one zoom (0.61)
+        return zoom::inspectorKey(QStringLiteral("tools"));
     return zoom::inspectorKey(QLatin1String(kTabNames[qBound(0, tab, 6)]));
 }
 
@@ -1997,6 +2040,9 @@ QVariantMap Inspector::saveState()
     rememberNotesPlace();
     QVariantMap m;
     m[QStringLiteral("tab")] = currentTab();
+    // a tool's tab by its key: the numbers of those tabs depend on the add-ons there (0.61)
+    if (!currentExtraTab().isEmpty())
+        m[QStringLiteral("tab")] = int(Notes), m[QStringLiteral("toolTab")] = currentExtraTab();
     auto sizes = [](QSplitter *sp) {
         QVariantList l;
         if (sp)
@@ -2041,7 +2087,7 @@ void Inspector::restoreState(const QVariantMap &m)
     if (m.contains(QStringLiteral("notesScope")))
         m_notesScope->setCurrentIndex(qBound(0, m.value(QStringLiteral("notesScope")).toInt(), 1));
     const int tab = m.value(QStringLiteral("tab"), -1).toInt();
-    if (tab >= 0 && tab < m_stack->count())
+    if (!showExtraTab(m.value(QStringLiteral("toolTab")).toString()) && tab >= 0 && tab <= int(Objects))
         showTab(Tab(tab));
     const QVariantMap bm = m.value(QStringLiteral("bookmark")).toMap();
     if (!bm.isEmpty()) {

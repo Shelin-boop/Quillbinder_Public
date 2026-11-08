@@ -22,7 +22,9 @@
 #include <QVideoSink>
 #include <QWidget>
 
+#ifndef Q_OS_WIN
 #include <dlfcn.h>
+#endif
 
 #if QB_MEDIA_PROBE
 extern "C" {
@@ -429,6 +431,9 @@ private:
 
 QString ffmpegVersion()
 {
+#ifdef Q_OS_WIN
+    return QString(); // Windows (port, W2): the FFmpeg of Qt's backend, if any, is not asked
+#else
     using Fn = const char *(*)();
     void *sym = dlsym(RTLD_DEFAULT, "av_version_info");
     if (!sym) {
@@ -436,6 +441,7 @@ QString ffmpegVersion()
             sym = dlsym(h, "av_version_info");
     }
     return sym ? QString::fromLatin1(reinterpret_cast<Fn>(sym)()) : QString();
+#endif
 }
 
 class QtEngine : public qb::media::EngineInterface
@@ -450,7 +456,11 @@ public:
     {
         // Load Qt's backend now, to report a missing library here and not as
         // a player that stays silent.
+#ifdef Q_OS_WIN
+        const QString file = QStringLiteral("%1mediaplugin.dll").arg(backend);
+#else
         const QString file = QStringLiteral("lib%1mediaplugin.so").arg(backend);
+#endif
         QString found;
         for (const QString &dir : QCoreApplication::libraryPaths()) {
             const QString p = dir + QLatin1String("/multimedia/") + file;
@@ -480,6 +490,13 @@ public:
     QString description() const override
     {
         QString s = QStringLiteral("Qt Multimedia %1").arg(QString::fromLatin1(qVersion()));
+#ifdef Q_OS_WIN
+        if (m_backend == QLatin1String("windows")) {
+            s += QCoreApplication::translate("qbmedia", " with the codecs of Windows (Media Foundation)");
+        } else if (m_backend == QLatin1String("ffmpeg")) {
+            s += QCoreApplication::translate("qbmedia", " with the FFmpeg of Qt");
+        }
+#else
         if (m_backend == QLatin1String("ffmpeg")) {
             const QString v = ffmpegVersion();
             s += QCoreApplication::translate("qbmedia", " with FFmpeg %1").arg(v.isEmpty() ? QStringLiteral("6.1") : v);
@@ -488,6 +505,7 @@ public:
         } else if (m_backend == QLatin1String("gstreamer")) {
             s += QCoreApplication::translate("qbmedia", " with GStreamer of the system");
         }
+#endif
         if (QMediaDevices::defaultAudioOutput().isNull())
             s += QCoreApplication::translate("qbmedia", "; no sound output found");
         return s;
@@ -502,7 +520,7 @@ private:
 } // namespace
 } // namespace qbmedia
 
-extern "C" __attribute__((visibility("default"))) qb::media::EngineInterface *qb_media_impl_create()
+extern "C" Q_DECL_EXPORT qb::media::EngineInterface *qb_media_impl_create()
 {
     return new qbmedia::QtEngine;
 }

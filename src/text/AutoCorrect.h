@@ -40,6 +40,16 @@ QString quoteChars(const QString &style);
 // nothing: opening). An apostrophe inside a word is always ’.
 QChar smartQuote(QChar typed, QChar before, const QString &style);
 
+// Quote marks of existing text (File > Options > Corrections, Convert Quotes, 0.61.1): the
+// positions in `text` that change and their new characters. typographic: straight " and '
+// become the marks of the style, opening after nothing, a space, a bracket, a dash or an
+// opening mark, else closing; ' inside a word, after a letter or a number with no single
+// mark open, or before a number ('90s), becomes the apostrophe ’; a straight mark with a space
+// or nothing on both sides stays.
+// Not typographic: every typographic quote mark and apostrophe (“ ” „ ‟ « » ‘ ’ ‚ ‛ ‹ ›)
+// becomes " or '.
+QList<QPair<int, QChar>> convertQuotes(const QString &text, bool typographic, const QString &style);
+
 // Corrections of the word that ends at the cursor (no selection). Returns what
 // was done, for the tests ("substitution", "link", "capital I", "capital"),
 // empty when nothing changed.

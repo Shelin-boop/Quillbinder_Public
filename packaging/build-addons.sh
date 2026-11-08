@@ -30,7 +30,15 @@ for dir in "$ROOT"/addons/*/; do
         rm -rf "$stage"; mkdir -p "$stage"
         cp -r "$dir/manifest.json" "$stage/"
         [ -d "$dir/payload" ] && cp -r "$dir/payload" "$stage/" || mkdir -p "$stage/payload"
-        "$dir/stage.sh" "$BUILD" "$stage"
+        # exit code 3: what the add-on needs is not built here (whisper.cpp for "Speech Transcription"): left out
+        rc=0
+        "$dir/stage.sh" "$BUILD" "$stage" || rc=$?
+        if [ $rc = 3 ]; then
+            echo "$id left out (see the message above)"
+            rm -rf "$stage"
+            continue
+        fi
+        [ $rc = 0 ] || exit $rc
         python3 "$ROOT/tools/make-package.py" addon "$stage" "$OUT/$id.qbpkg"
         rm -rf "$stage"
         continue

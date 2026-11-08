@@ -13,6 +13,8 @@
 #                          (counts from tests/check-counts.txt); QB_SEED=<n> repeats a draw
 # A full run in x11 mode (neither variable set) writes tests/check-counts.txt anew.
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+# 0.62: programs started by the suites skip the questions of the first start
+export QB_SKIP_FIRST_START=1
 OUT=${1:-$ROOT/build/test-results}
 MODE=${2:-offscreen}
 export QB_FFMPEG_DIR=${QB_FFMPEG_DIR:-$ROOT/build/ffmpeg}
@@ -155,5 +157,11 @@ done
 [ -x $B/tests/qb_v0602_tests ] && run v0602 $B/tests/qb_v0602_tests "$OUT/shots-v0602"
 [ -x $B/tests/qb_v0603_tests ] && run v0603 $B/tests/qb_v0603_tests "$OUT/shots-v0603"
 [ -x $B/tests/qb_v0604_tests ] && run v0604 $B/tests/qb_v0604_tests "$OUT/shots-v0604"
+[ -x $B/tests/qb_v0605_tests ] && run v0605 $B/tests/qb_v0605_tests "$OUT/shots-v0605"
+[ -x $B/tests/qb_v061_tests ] && run v061 $B/tests/qb_v061_tests "$OUT/shots-v061"
+run v0611 $B/tests/qb_v0611_tests "$OUT/shots-v0611"
+run v062 $B/tests/qb_v062_tests "$OUT/shots-v062"
+[ -x $B/tests/qb_w2_tests ] && run w2 $B/tests/qb_w2_tests "$OUT/shots-w2"
+[ -x $B/tests/qb_w3_tests ] && run w3 $B/tests/qb_w3_tests "$OUT/shots-w3"
 [ -x $B/tests/qb_menu_audit ] && run menu_audit $B/tests/qb_menu_audit "$OUT/shots-audit"
 exit 0

@@ -12,12 +12,15 @@
 #include <cmath>
 
 // Qt's own font list (Qt 6.4.2, the version of the AppImage's runtime; see FontFaces.h)
+// Linux only: on Windows Qt does not list fonts through FreeType, and separate() does nothing (W1).
+#ifdef Q_OS_LINUX
 #include <private/qfont_p.h>
 #include <private/qfontdatabase_p.h>
 #include <private/qfreetypefontdatabase_p.h>
 #include <private/qguiapplication_p.h>
 #include <qpa/qplatformfontdatabase.h>
 #include <qpa/qplatformintegration.h>
+#endif
 
 namespace qb {
 namespace fontfaces {
@@ -247,6 +250,9 @@ StyleParts parseStyle(const QString &styleName)
 
 int separate()
 {
+#ifndef Q_OS_LINUX
+    return 0;
+#else
     if (!qGuiApp)
         return 0;
     QPlatformIntegration *integration = QGuiApplicationPrivate::platformIntegration();
@@ -451,6 +457,7 @@ int separate()
         QFontCache::instance()->clear();
     }
     return made;
+#endif
 }
 
 void install()

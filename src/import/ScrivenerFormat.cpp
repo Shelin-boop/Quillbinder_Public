@@ -1,4 +1,5 @@
 #include "import/ScrivenerFormat.h"
+#include "core/Timing.h"
 #include "core/IconCatalog.h"
 #include "core/MindMap.h"
 
@@ -61,6 +62,82 @@ QString statHash(const QString &path)
     if (!fi.exists())
         return QString();
     return QStringLiteral("s:%1:%2").arg(fi.size()).arg(fi.lastModified().toMSecsSinceEpoch());
+}
+
+// SHA-1 of a file of this program, read again only when its size or time changed since it
+// was last hashed in this session (0.60.5, the quick write of the autosave). "" = no file.
+QString knownSha1File(const QString &path)
+{
+    static QHash<QString, QPair<QString, QString>> known; // path -> (size and time, SHA-1)
+    const QString st = statHash(path);
+    if (st.isEmpty()) {
+        known.remove(path);
+        return QString();
+    }
+    auto it = known.constFind(path);
+    if (it != known.constEnd() && it->first == st)
+        return it->second;
+    const QString h = sha1File(path);
+    known.insert(path, {st, h});
+    return h;
+}
+
+// What the last fingerprint of a .scriv saw (0.60.5): the SHA-1 of its .scrivx and one line
+// per file of Files/Data and Snapshots. A quick write brings the lines of the files it wrote
+// up to date, so the fingerprint is known without reading the folder again. Files that
+// another program changes meanwhile are not seen: the fingerprint then differs at the next
+// opening, and the .scriv is read again (the safe way round).
+struct FingerprintCache {
+    QString scrivDir;
+    QString scrivxSha;
+    QHash<QString, QString> lines; // relative path -> "path size time"
+};
+
+FingerprintCache &fingerprintCache()
+{
+    static FingerprintCache c;
+    return c;
+}
+
+QString fingerprintLine(const QString &scrivDir, const QFileInfo &fi)
+{
+    return QDir(scrivDir).relativeFilePath(fi.absoluteFilePath()) + QLatin1Char(' ') + QString::number(fi.size())
+           + QLatin1Char(' ') + QString::number(fi.lastModified().toMSecsSinceEpoch());
+}
+
+QString fingerprintOf(const QString &scrivxSha, QStringList lines)
+{
+    QCryptographicHash h(QCryptographicHash::Sha1);
+    h.addData(scrivxSha.toLatin1());
+    lines.sort();
+    h.addData(lines.join(QLatin1Char('\n')).toUtf8());
+    return QString::fromLatin1(h.result().toHex());
+}
+
+// the fingerprint after a quick write that wrote or removed these files; "" when the
+// cache does not hold this .scriv (then the folder is read)
+QString updatedFingerprint(const QString &scrivDir, const QSet<QString> &touched, const QString &scrivxSha)
+{
+    FingerprintCache &c = fingerprintCache();
+    if (c.scrivDir != scrivDir)
+        return QString();
+    if (!scrivxSha.isEmpty())
+        c.scrivxSha = scrivxSha;
+    const QString data = scrivDir + QLatin1String("/Files/Data/");
+    const QString snaps = scrivDir + QLatin1String("/Snapshots/");
+    for (const QString &path : touched) {
+        if (!path.startsWith(data) && !path.startsWith(snaps))
+            continue; // the .scrivx, the search index: not lines of their own
+        if (QFileInfo(path).fileName() == QLatin1String("docs.checksum"))
+            continue;
+        const QFileInfo fi(path);
+        const QString rel = QDir(scrivDir).relativeFilePath(fi.absoluteFilePath());
+        if (fi.exists())
+            c.lines.insert(rel, fingerprintLine(scrivDir, fi));
+        else
+            c.lines.remove(rel);
+    }
+    return fingerprintOf(c.scrivxSha, c.lines.values());
 }
 
 bool writeFile(const QString &path, const QByteArray &data, QString *error)
@@ -722,6 +799,28 @@ QString snapshotFileName(const QDateTime &dt)
            + QLatin1String(".rtf");
 }
 
+// "2025-10-27-02-20-40-0700(.rtf)" (a file name) or "2025-10-27 02:20:40 -0700" (index.xml)
+// -> the moment; without an offset local time; invalid when it is neither (0.61.1)
+QDateTime snapshotMoment(const QString &nameOrDate)
+{
+    QString t = nameOrDate.trimmed();
+    if (t.endsWith(QLatin1String(".rtf"), Qt::CaseInsensitive))
+        t.chop(4);
+    if (t.size() < 19)
+        return QDateTime();
+    QString clock = t.mid(11, 8);
+    clock.replace(QLatin1Char('-'), QLatin1Char(':'));
+    QDateTime d = QDateTime::fromString(t.left(10) + QLatin1Char(' ') + clock, QStringLiteral("yyyy-MM-dd HH:mm:ss"));
+    if (!d.isValid())
+        return d;
+    const QString off = t.mid(19).trimmed();
+    if (off.size() >= 5 && (off.at(0) == QLatin1Char('+') || off.at(0) == QLatin1Char('-'))) {
+        const int secs = off.mid(1, 2).toInt() * 3600 + off.mid(3, 2).toInt() * 60;
+        d.setOffsetFromUtc(off.at(0) == QLatin1Char('-') ? -secs : secs);
+    }
+    return d;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------- public helpers
@@ -767,11 +866,12 @@ QString scrivxIn(const QString &scrivDir)
     return QDir(scrivDir).filePath(base + QLatin1String(".scrivx"));
 }
 
-QString fingerprint(const QString &scrivDir)
+QString fingerprint(const QString &scrivDirIn)
 {
-    QCryptographicHash h(QCryptographicHash::Sha1);
-    h.addData(sha1File(scrivxIn(scrivDir)).toLatin1());
-    QStringList lines;
+    const QString scrivDir = QFileInfo(scrivDirIn).absoluteFilePath();
+    FingerprintCache c;
+    c.scrivDir = scrivDir;
+    c.scrivxSha = sha1File(scrivxIn(scrivDir));
     for (const QString &sub : {QStringLiteral("Files/Data"), QStringLiteral("Snapshots")}) {
         const QString base = QDir(scrivDir).filePath(sub);
         QDirIterator it(base, QDir::Files | QDir::Hidden, QDirIterator::Subdirectories);
@@ -780,13 +880,12 @@ QString fingerprint(const QString &scrivDir)
             const QFileInfo fi = it.fileInfo();
             if (fi.fileName() == QLatin1String("docs.checksum"))
                 continue;
-            lines << QDir(scrivDir).relativeFilePath(fi.absoluteFilePath()) + QLatin1Char(' ') + QString::number(fi.size())
-                         + QLatin1Char(' ') + QString::number(fi.lastModified().toMSecsSinceEpoch());
+            c.lines.insert(QDir(scrivDir).relativeFilePath(fi.absoluteFilePath()), fingerprintLine(scrivDir, fi));
         }
     }
-    lines.sort();
-    h.addData(lines.join(QLatin1Char('\n')).toUtf8());
-    return QString::fromLatin1(h.result().toHex());
+    const QString result = fingerprintOf(c.scrivxSha, c.lines.values());
+    fingerprintCache() = std::move(c);
+    return result;
 }
 
 bool lockedByScrivener(const QString &scrivDir, QString *who)
@@ -821,6 +920,7 @@ bool SyncState::load(const QString &file)
     scrivPath = o.value(QStringLiteral("scriv")).toString();
     identifier = o.value(QStringLiteral("identifier")).toString();
     fingerprint = o.value(QStringLiteral("fingerprint")).toString();
+    indexStale = o.value(QStringLiteral("indexStale")).toBool();
     ours.clear();
     theirs.clear();
     const QJsonObject a = o.value(QStringLiteral("ours")).toObject();
@@ -841,6 +941,8 @@ bool SyncState::save(const QString &file) const
     o[QStringLiteral("scriv")] = scrivPath;
     o[QStringLiteral("identifier")] = identifier;
     o[QStringLiteral("fingerprint")] = fingerprint;
+    if (indexStale)
+        o[QStringLiteral("indexStale")] = true;
     QJsonObject a, b;
     for (auto it = ours.cbegin(); it != ours.cend(); ++it)
         a[it.key()] = it.value();
@@ -859,8 +961,9 @@ bool SyncState::save(const QString &file) const
 
 // ---------------------------------------------------------------- write
 
-bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport *reportIn, QString *error)
+bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport *reportIn, QString *error, bool quick)
 {
+    timing::Laps laps;
     WriteReport localReport;
     WriteReport &rep = reportIn ? *reportIn : localReport;
     const QString scrivDir = QFileInfo(scrivDirIn).absoluteFilePath();
@@ -878,6 +981,8 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
             existing = f.readAll();
     }
     const bool fresh = existing.isEmpty();
+    if (fresh)
+        quick = false; // no .scrivx (yet, or no longer): everything is written
     if (state.identifier.isEmpty()) {
         QDomDocument d;
         if (!existing.isEmpty() && d.setContent(existing))
@@ -902,9 +1007,11 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
             }
     }
     bool textChanged = fresh;
+    QSet<QString> touched; // files written or removed (for the fingerprint of a quick write)
     auto put = [&](const QString &uuid, const QString &name, const QByteArray &bytes) -> bool {
         if (!writeFile(data + uuid + QLatin1Char('/') + name, bytes, error))
             return false;
+        touched.insert(data + uuid + QLatin1Char('/') + name);
         ++rep.written;
         state.theirs.insert(uuid + QLatin1Char('/') + name, sha1(bytes));
         if (name == QLatin1String("content.rtf") || name == QLatin1String("notes.rtf") || name == QLatin1String("synopsis.txt"))
@@ -916,6 +1023,7 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
         const QString path = data + uuid + QLatin1Char('/') + name;
         if (QFile::exists(path)) {
             QFile::remove(path);
+            touched.insert(path);
             textChanged = true;
         }
         state.theirs.remove(uuid + QLatin1Char('/') + name);
@@ -925,8 +1033,10 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
     // changed since the last write. Files changed in Scrivener meanwhile stay.
     auto mustWrite = [&](const QString &ourKey, const QString &ourHash, const QString &theirKey,
                          const QString &theirPath) -> bool {
-        const QString theirNow = sha1File(theirPath);
         const bool ourSame = state.ours.contains(ourKey) && state.ours.value(ourKey) == ourHash;
+        if (quick && ourSame)
+            return false; // nothing of ours to write: Scrivener's file is not even read
+        const QString theirNow = sha1File(theirPath);
         const bool theirSame = state.theirs.value(theirKey) == theirNow;
         if (ourSame && theirSame)
             return false;
@@ -937,6 +1047,7 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
         return true;
     };
 
+    laps.lap("start");
     QSet<QString> present;
     for (BinderItem *it : p->allItems()) {
         const QString uuid = uuidFor(it->id);
@@ -947,7 +1058,9 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
             // text
             const QString ourKey = it->id + QLatin1String("/text");
             const QString textFile = p->docs()->textPath(it->id);
-            QString ourHash = isPlaceholderType(it->type) ? statHash(p->mediaFilePath(it)) : sha1File(textFile);
+            QString ourHash = isPlaceholderType(it->type) ? statHash(p->mediaFilePath(it))
+                              : quick                       ? knownSha1File(textFile)
+                                                            : sha1File(textFile);
             if (mustWrite(ourKey, ourHash, uuid + QLatin1String("/content.rtf"), dir + QLatin1String("content.rtf"))) {
                 QList<Note> notes;
                 QByteArray rtfBytes;
@@ -986,7 +1099,8 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
             }
             // notes
             const QString notesKey = it->id + QLatin1String("/notes");
-            const QString notesHash = sha1File(p->docs()->notesPath(it->id));
+            const QString notesPath = p->docs()->notesPath(it->id);
+            const QString notesHash = quick ? knownSha1File(notesPath) : sha1File(notesPath);
             if (mustWrite(notesKey, notesHash, uuid + QLatin1String("/notes.rtf"), dir + QLatin1String("notes.rtf"))) {
                 QByteArray nb;
                 bool empty = true;
@@ -1015,8 +1129,8 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
                 state.ours.insert(key, h);
             }
         }
-        // the file of a picture, PDF, audio or video document
-        if (isMediaType(it->type)) {
+        // the file of a picture, PDF, audio or video document (a quick write leaves it for the next full one)
+        if (!quick && isMediaType(it->type)) {
             const QString src = p->mediaFilePath(it);
             const QString key = it->id + QLatin1String("/file");
             const QString h = statHash(src);
@@ -1043,7 +1157,7 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
                 copyDir(pageFiles, dir + QLatin1String("page-files"));
         }
         // the mind map of this program (0.17): beside Scrivener's files of the document
-        {
+        if (!quick) {
             const QString src = mindmap::pathFor(p->contentDir(it->id));
             const QString key = it->id + QLatin1String("/mindmap");
             const QString theirKey = uuid + QLatin1Char('/') + mindmap::scrivenerFileName();
@@ -1068,9 +1182,10 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
         Q_UNUSED(any);
     }
 
+    laps.lap("items");
     // own icons of the project in use: the Icons folder of the .scriv (a guess
     // of where Scrivener keeps the icons of a project)
-    {
+    if (!quick) {
         QSet<QString> used;
         for (BinderItem *it : p->allItems())
             if (icons::isCustom(it->icon))
@@ -1088,7 +1203,7 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
 
     // documents that are no longer there (emptied trash): their folders go,
     // as far as they belong to documents of this project or of the old binder
-    {
+    if (!quick) {
         QSet<QString> known;
         for (auto it = state.theirs.cbegin(); it != state.theirs.cend(); ++it)
             known.insert(it.key().section(QLatin1Char('/'), 0, 0));
@@ -1117,8 +1232,84 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
             it = p->item(it.key().section(QLatin1Char('/'), 0, 0)) ? std::next(it) : state.ours.erase(it);
     }
 
+    laps.lap("icons+removed");
+    // snapshots deleted in this program (one in the inspector, or Project > Delete Old Snapshots)
+    // since they came from the .scriv or went there: out of the .scriv too (0.61.1). Only those
+    // the sync state knows are taken out; a snapshot Scrivener has that was never read stays.
+    if (!quick && !state.snapshots.isEmpty()) {
+        QHash<QString, BinderItem *> byUuid;
+        for (BinderItem *it : p->allItems())
+            if (it->hasText())
+                byUuid.insert(uuidFor(it->id), it);
+        QHash<QString, QList<qint64>> gone; // uuid -> moments (seconds since the epoch) deleted here
+        QHash<QString, QSet<QString>> current;
+        QStringList keep;
+        for (const QString &key : std::as_const(state.snapshots)) {
+            const QString uuid = key.section(QLatin1Char('/'), 0, 0);
+            const QString name = key.section(QLatin1Char('/'), 1);
+            if (!current.contains(uuid)) {
+                QSet<QString> names;
+                if (BinderItem *it = byUuid.value(uuid))
+                    for (const Snapshot &s : snapshots::list(p, it->id))
+                        names.insert(snapshotFileName(s.date));
+                current.insert(uuid, names);
+            }
+            if (current.value(uuid).contains(name) || !byUuid.contains(uuid)) {
+                keep << key;   // still here (a removed document's folder went above)
+                continue;
+            }
+            const QDateTime when = snapshotMoment(name);
+            if (when.isValid())
+                gone[uuid] << when.toSecsSinceEpoch();
+            else
+                keep << key;
+        }
+        for (auto g = gone.cbegin(); g != gone.cend(); ++g) {
+            const QString sdir = scrivDir + QLatin1String("/Snapshots/") + g.key() + QLatin1String(".snapshots/");
+            auto isGone = [&g](const QDateTime &d) {
+                if (!d.isValid())
+                    return false;
+                for (const qint64 t : g.value())
+                    if (d.toSecsSinceEpoch() == t)   // to the second: two snapshots may be one second apart
+                        return true;
+                return false;
+            };
+            int left = 0;
+            for (const QFileInfo &fi : QDir(sdir).entryInfoList({QStringLiteral("*.rtf")}, QDir::Files)) {
+                QDateTime d = snapshotMoment(fi.completeBaseName());
+                if (!d.isValid())
+                    d = fi.lastModified(); // as the import dates a file whose name is no date
+                if (isGone(d)) {
+                    QFile::remove(fi.absoluteFilePath());
+                    touched.insert(fi.absoluteFilePath());
+                    ++rep.snapshotsRemoved;
+                } else {
+                    ++left;
+                }
+            }
+            if (left == 0) {
+                QDir(sdir).removeRecursively();
+                continue;
+            }
+            QFile f(sdir + QLatin1String("index.xml"));
+            QDomDocument d;
+            if (!f.open(QIODevice::ReadOnly) || !d.setContent(&f))
+                continue;
+            f.close();
+            const QDomNodeList ns = d.elementsByTagName(QStringLiteral("Snapshot"));
+            for (int i = ns.size() - 1; i >= 0; --i) {
+                QDomElement e = ns.at(i).toElement();
+                if (isGone(snapshotMoment(e.firstChildElement(QStringLiteral("Date")).text().trimmed())))
+                    e.parentNode().removeChild(e);
+            }
+            if (!writeFile(sdir + QLatin1String("index.xml"), d.toByteArray(4), error))
+                return false;
+        }
+        state.snapshots = keep;
+    }
+    laps.lap("snapshots removed");
     // snapshots of this program that Scrivener does not have yet
-    for (BinderItem *it : p->allItems()) {
+    for (BinderItem *it : quick ? QList<BinderItem *>() : p->allItems()) {
         if (!it->hasText() || !it->hasSnapshots)
             continue;
         const QString uuid = uuidFor(it->id);
@@ -1168,25 +1359,46 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
         }
     }
 
-    // the project file
-    const QByteArray scrivxBytes = text::xmlSafeBytes(buildScrivx(p, existing, state.identifier));
-    if (!writeFile(scrivx, scrivxBytes, error))
-        return false;
+    laps.lap("snapshots");
+    // the project file (a quick write: only when the binder or the settings changed)
+    const bool ownScriv = QFileInfo(p->scrivenerPath).absoluteFilePath() == scrivDir;
+    QString scrivxSha;
+    if (!quick || fresh || !ownScriv || p->binderChangedSinceSync) {
+        const QByteArray scrivxBytes = text::xmlSafeBytes(buildScrivx(p, existing, state.identifier));
+        if (!writeFile(scrivx, scrivxBytes, error))
+            return false;
+        scrivxSha = sha1(scrivxBytes);
+        if (ownScriv)
+            p->binderChangedSinceSync = false;
+    }
     // Scrivener's autosave copy of the binder would be older than this one
     QFile::remove(scrivDir + QLatin1String("/Files/binder.autosave"));
     if (!QFile::exists(scrivDir + QLatin1String("/Files/version.txt")))
         writeFile(scrivDir + QLatin1String("/Files/version.txt"), "23", nullptr);
     if (fresh && !QFile::exists(scrivDir + QLatin1String("/Settings/projectpreferences.xml")))
         writeFile(scrivDir + QLatin1String("/Settings/projectpreferences.xml"), projectPreferences(p), nullptr);
-    if (textChanged || !QFile::exists(scrivDir + QLatin1String("/Files/search.indexes")))
+    laps.lap("scrivx");
+    // the search index holds every text: a quick write leaves it for the next full one
+    if (quick) {
+        state.indexStale = state.indexStale || textChanged;
+    } else if (textChanged || state.indexStale || !QFile::exists(scrivDir + QLatin1String("/Files/search.indexes"))) {
         writeFile(scrivDir + QLatin1String("/Files/search.indexes"), searchIndexes(p), nullptr);
-    if (hadChecksums || fresh) {
+        state.indexStale = false;
+    }
+    laps.lap("search index");
+    if ((hadChecksums || fresh) && (!quick || textChanged)) {
         QByteArray cs;
         for (auto it = checksums.cbegin(); it != checksums.cend(); ++it)
             cs += it.key().toUtf8() + '=' + it.value().toUtf8() + '\n';
         writeFile(checksumFile, cs, nullptr);
     }
-    state.fingerprint = fingerprint(scrivDir);
+    laps.lap("checksums");
+    QString fp = quick ? updatedFingerprint(scrivDir, touched, scrivxSha) : QString();
+    if (fp.isEmpty())
+        fp = fingerprint(scrivDir);
+    state.fingerprint = fp;
+    laps.lap("fingerprint");
+    laps.print(quick ? "scrivener write (quick)" : "scrivener write");
     return true;
 }
 
@@ -1542,16 +1754,22 @@ OpenResult open(const QString &path, QString *error)
     return res;
 }
 
-bool sync(Project *p, QString *error)
+bool sync(Project *p, QString *error, bool quick)
 {
     if (p->scrivenerPath.isEmpty())
         return true;
+    timing::Laps laps;
     SyncState st;
     st.load(stateFile(p));
+    laps.lap("state read");
     WriteReport rep;
-    if (!write(p, p->scrivenerPath, st, &rep, error))
+    if (!write(p, p->scrivenerPath, st, &rep, error, quick))
         return false;
-    return st.save(stateFile(p));
+    laps.lap("write");
+    const bool ok = st.save(stateFile(p));
+    laps.lap("state written");
+    laps.print("scrivener sync");
+    return ok;
 }
 
 std::unique_ptr<Project> convertToScrivener(Project *p, const QString &scrivDirIn, QString *error)

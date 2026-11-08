@@ -1,6 +1,12 @@
 #pragma once
 // Start-up loader for installed program updates.
 //
+// Windows (port, W2): the program folder (installed or unzipped) takes the AppImage's place.
+// Windows has no exec: the built-in program starts the update as a child process, with the
+// program folder on PATH (Qt's DLLs) and a qt.conf beside the update pointing at the folder's
+// Qt plugins, waits for it and ends with its exit code. A child that could not even load its
+// DLLs switches the update off at once, and the built-in version runs.
+//
 // The AppImage is read-only. A program update ("core" package) is a newer
 // program binary stored in <data>/core/<version>/. At start the built-in
 // program checks whether such a version is active and compatible and, if
@@ -26,7 +32,11 @@ bool isOverlay();
 // Version of the AppImage (or plain build) that started us.
 QString builtInVersion();
 // Folder with the bundled libraries and plugins (AppDir), empty outside an AppImage.
+// Windows: the folder of the built-in program (quillbinder.exe and Qt's DLLs), never empty.
 QString appDir();
+// The program file that starts this program anew (a restart, a writing tool's command): the
+// AppImage, else the built-in program (Windows: also when an update runs), else this process's file.
+QString startProgram();
 
 // Called by the running program once it has started successfully.
 void confirmStart();

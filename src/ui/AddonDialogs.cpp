@@ -21,7 +21,9 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
+#ifdef Q_OS_LINUX
 #include <unistd.h>
+#endif
 
 namespace qb {
 
@@ -73,6 +75,16 @@ bool relaunchApplication()
     QString program = qEnvironmentVariable("APPIMAGE");
     if (program.isEmpty())
         program = QCoreApplication::applicationFilePath();
+#ifndef Q_OS_LINUX
+    // Windows: no AppImage to unmount; Qt starts the program detached. When a program update
+    // runs, the built-in program is started: it picks the active version (port, W2).
+    program = launcher::startProgram();
+    QStringList rest;
+    for (const QString &a : QCoreApplication::arguments().mid(1))
+        if (!a.endsWith(QLatin1String(".qbpkg"), Qt::CaseInsensitive) && a != QLatin1String("--install"))
+            rest << a;
+    return QProcess::startDetached(program, rest);
+#else
     QList<QByteArray> args = {QFile::encodeName(program)};
     for (const QString &a : QCoreApplication::arguments().mid(1))
         if (!a.endsWith(QLatin1String(".qbpkg"), Qt::CaseInsensitive) && a != QLatin1String("--install"))
@@ -94,6 +106,7 @@ bool relaunchApplication()
         ::_exit(127);
     }
     return pid > 0;
+#endif
 }
 
 bool runInstallPackage(QWidget *parent, const QString &file, bool *restart)
@@ -122,7 +135,9 @@ bool runInstallPackage(QWidget *parent, const QString &file, bool *restart)
     bool hasCode = false;
     auto scan = [&](const PackageInfo &pi) {
         for (const FileEntry &fe : pi.manifest.files)
-            hasCode = hasCode || fe.executable || fe.path.endsWith(QLatin1String(".so"));
+            hasCode = hasCode || fe.executable || fe.path.endsWith(QLatin1String(".so"))
+                      || fe.path.endsWith(QLatin1String(".dll"), Qt::CaseInsensitive)
+                      || fe.path.endsWith(QLatin1String(".exe"), Qt::CaseInsensitive);
     };
     scan(info);
     for (const PackageInfo &n : info.nested)

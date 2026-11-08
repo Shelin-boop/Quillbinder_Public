@@ -45,7 +45,16 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
+#ifdef Q_OS_LINUX
 #include <gnu/libc-version.h>
+#endif
+#ifdef Q_OS_WIN
+#include <QSettings>
+#include <QStyleHints>
+#include <windows.h>
+// after windows.h
+#include <psapi.h>
+#endif
 
 namespace qb {
 
@@ -122,6 +131,46 @@ QString fileValue(const QString &file, const QString &key)
 qint64 kbValue(const QString &file, const QString &key)
 {
     return fileValue(file, key).section(QLatin1Char(' '), 0, 0).toLongLong() * 1024;
+}
+
+// Memory in bytes (-1: unknown): Linux from /proc, Windows from the system (port, W2)
+struct Memory {
+    qint64 total = -1, available = -1, swap = -1, own = -1;
+};
+Memory memory()
+{
+    Memory m;
+#ifdef Q_OS_WIN
+    MEMORYSTATUSEX ms{};
+    ms.dwLength = sizeof ms;
+    if (::GlobalMemoryStatusEx(&ms)) {
+        m.total = qint64(ms.ullTotalPhys);
+        m.available = qint64(ms.ullAvailPhys);
+        // the commit limit is the memory plus the page file
+        m.swap = ms.ullTotalPageFile > ms.ullTotalPhys ? qint64(ms.ullTotalPageFile - ms.ullTotalPhys) : 0;
+    }
+    PROCESS_MEMORY_COUNTERS pmc{};
+    pmc.cb = DWORD(sizeof pmc);
+    if (::K32GetProcessMemoryInfo(::GetCurrentProcess(), &pmc, DWORD(sizeof pmc)))
+        m.own = qint64(pmc.WorkingSetSize);
+#else
+    m.total = kbValue(QStringLiteral("/proc/meminfo"), QStringLiteral("MemTotal"));
+    m.available = kbValue(QStringLiteral("/proc/meminfo"), QStringLiteral("MemAvailable"));
+    m.swap = kbValue(QStringLiteral("/proc/meminfo"), QStringLiteral("SwapTotal"));
+    m.own = kbValue(QStringLiteral("/proc/self/status"), QStringLiteral("VmRSS"));
+#endif
+    return m;
+}
+
+QString processorName()
+{
+#ifdef Q_OS_WIN
+    const QSettings cpu(QStringLiteral("HKEY_LOCAL_MACHINE\\HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0"),
+                        QSettings::NativeFormat);
+    return cpu.value(QStringLiteral("ProcessorNameString")).toString().simplified();
+#else
+    return fileValue(QStringLiteral("/proc/cpuinfo"), QStringLiteral("model name"));
+#endif
 }
 
 QString envList()
@@ -296,7 +345,7 @@ QStringList concerns(const Project *project)
                        .arg(gb(bytes), home(backups), gb(bsi.bytesAvailable()));
     }
     // ---- memory
-    const qint64 avail = kbValue(QStringLiteral("/proc/meminfo"), QStringLiteral("MemAvailable"));
+    const qint64 avail = memory().available;
     if (avail > 0 && avail < 500000000LL)
         out << QStringLiteral("Only %1 of memory is available: the program can become slow, or the system can end it.").arg(gb(avail));
     // ---- settings
@@ -337,12 +386,19 @@ QString text(const Project *project)
     t << QString();
     // ---- program
     QString version = QStringLiteral("%1 %2").arg(QLatin1String(QB_APP_NAME), QLatin1String(QB_APP_VERSION_SHOWN));
+#ifdef Q_OS_WIN
+    if (launcher::isOverlay())
+        version += QStringLiteral(" (program update, running on the installed version %1)").arg(launcher::builtInVersion());
+    else
+        version += QStringLiteral(" (the installed version)");
+#else
     if (launcher::isOverlay())
         version += QStringLiteral(" (program update, running on the AppImage %1)").arg(launcher::builtInVersion());
     else if (!launcher::appDir().isEmpty())
         version += QStringLiteral(" (built into the AppImage)");
     else
         version += QStringLiteral(" (not started from an AppImage)");
+#endif
     t << QStringLiteral("Program");
     t << QStringLiteral("  %1").arg(version);
     t << QStringLiteral("  Runtime: %1").arg(QLatin1String(QB_RUNTIME_ID));
@@ -374,28 +430,48 @@ QString text(const Project *project)
 
     // ---- system
     t << QString() << QStringLiteral("System");
+#ifdef Q_OS_LINUX
     t << QStringLiteral("  Operating system: %1 (kernel %2, %3), C library glibc %4")
              .arg(QSysInfo::prettyProductName(), QSysInfo::kernelVersion(), QSysInfo::currentCpuArchitecture(),
                   QLatin1String(gnu_get_libc_version()));
+#else
+    t << QStringLiteral("  Operating system: %1 (kernel %2, %3)")
+             .arg(QSysInfo::prettyProductName(), QSysInfo::kernelVersion(), QSysInfo::currentCpuArchitecture());
+#endif
+#ifdef Q_OS_WIN
+    if (launcher::isOverlay() || !launcher::appDir().isEmpty())
+        t << QStringLiteral("  Program folder: %1").arg(home(launcher::appDir()));
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+    t << QStringLiteral("  Desktop: Windows, colors %1")
+             .arg(QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark    ? QStringLiteral("dark")
+                  : QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Light ? QStringLiteral("light")
+                                                                                         : QStringLiteral("unknown"));
+#else
+    t << QStringLiteral("  Desktop: Windows");
+#endif
+#else
     t << QStringLiteral("  Desktop: %1, session %2%3")
              .arg(qEnvironmentVariable("XDG_CURRENT_DESKTOP", QStringLiteral("unknown")),
                   qEnvironmentVariable("XDG_SESSION_TYPE", QStringLiteral("unknown")),
                   qEnvironmentVariableIsSet("KDE_SESSION_VERSION")
                       ? QStringLiteral(", KDE Plasma %1").arg(qEnvironmentVariable("KDE_SESSION_VERSION"))
                       : QString());
+#endif
     QString style = QStringLiteral("?");
     if (auto *app = qobject_cast<QApplication *>(QCoreApplication::instance()))
         style = app->style() ? app->style()->name() : style;
     t << QStringLiteral("  Qt: %1 (the program was built with %2), platform %3, style %4, platform theme %5")
              .arg(QLatin1String(qVersion()), QLatin1String(QT_VERSION_STR), QGuiApplication::platformName(), style,
                   qEnvironmentVariable("QT_QPA_PLATFORMTHEME", QStringLiteral("(default)")));
-    const QString cpu = fileValue(QStringLiteral("/proc/cpuinfo"), QStringLiteral("model name"));
+    const QString cpu = processorName();
     t << QStringLiteral("  Processor: %1 (%2 threads)").arg(cpu.isEmpty() ? QStringLiteral("unknown") : cpu).arg(QThread::idealThreadCount());
+    const Memory mem = memory();
+#ifdef Q_OS_WIN
+    t << QStringLiteral("  Memory: %1, %2 available; page file %3; this program uses %4")
+#else
     t << QStringLiteral("  Memory: %1, %2 available; swap %3; this program uses %4")
-             .arg(gb(kbValue(QStringLiteral("/proc/meminfo"), QStringLiteral("MemTotal"))),
-                  gb(kbValue(QStringLiteral("/proc/meminfo"), QStringLiteral("MemAvailable"))),
-                  gb(kbValue(QStringLiteral("/proc/meminfo"), QStringLiteral("SwapTotal"))),
-                  gb(kbValue(QStringLiteral("/proc/self/status"), QStringLiteral("VmRSS"))));
+#endif
+             .arg(gb(mem.total), gb(mem.available), gb(mem.swap), gb(mem.own));
     const QList<QScreen *> screens = QGuiApplication::screens();
     if (screens.isEmpty())
         t << QStringLiteral("  Screens: none");

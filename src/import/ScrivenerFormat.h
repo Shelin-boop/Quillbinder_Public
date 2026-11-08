@@ -45,6 +45,7 @@ struct SyncState {
     QHash<QString, QString> ours;    // "<ID>/text", "<ID>/notes", "<ID>/synopsis", "<ID>/file" -> hash of this side
     QHash<QString, QString> theirs;  // "<ID>/content.rtf" ... -> SHA-1 of the file in the .scriv
     QStringList snapshots;           // "<ID>/<file>" written by this program
+    bool indexStale = false;         // texts changed since Files/search.indexes was written (0.60.5)
     bool load(const QString &file);
     bool save(const QString &file) const;
 };
@@ -54,6 +55,7 @@ struct WriteReport {
     int unchanged = 0;   // documents left as they were
     int removed = 0;     // documents removed from the .scriv
     int snapshots = 0;   // snapshots written
+    int snapshotsRemoved = 0; // snapshots deleted in this program, taken out of the .scriv (0.61.1)
     int keptTheirs = 0;  // files changed in Scrivener meanwhile, not overwritten
     QStringList warnings;
 };
@@ -72,7 +74,12 @@ bool lockedByScrivener(const QString &scrivDir, QString *who = nullptr);
 
 // Writes the project into scrivDir. With the state of an earlier write only
 // what changed is written. state is updated.
-bool write(Project *p, const QString &scrivDir, SyncState &state, WriteReport *report, QString *error);
+// quick (0.60.5, the autosave): the texts, notes and synopses that changed, docs.checksum
+// and the .scrivx; a file of this program whose size and time are as recorded is not read
+// again, and Scrivener's file only when ours changed. Snapshots, icons, documents removed
+// with the trash and the search index wait for the next full write (state.indexStale); the
+// fingerprint is brought up to date from what was written instead of reading every file.
+bool write(Project *p, const QString &scrivDir, SyncState &state, WriteReport *report, QString *error, bool quick = false);
 
 // Working copies
 QString workingCopiesDir();
@@ -87,8 +94,8 @@ struct OpenResult {
 };
 OpenResult open(const QString &scrivPath, QString *error);
 
-// Called by Project::save for a project in Scrivener format.
-bool sync(Project *p, QString *error);
+// Called by Project::save for a project in Scrivener format (quick: by Project::autosave).
+bool sync(Project *p, QString *error, bool quick = false);
 
 // Switch the open project to Scrivener format: a working copy of it is made and
 // written to scrivDir (which must not exist yet). The original project folder

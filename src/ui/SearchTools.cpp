@@ -273,6 +273,227 @@ ReplaceResult ProjectReplaceDialog::replaceAll(bool ask)
     return r;
 }
 
+// ------------------------------------------------------------ convert quotes
+
+ConvertQuotesDialog::ConvertQuotesDialog(Project *project, bool typographic, const QString &style, QWidget *parent)
+    : QDialog(parent), m_project(project)
+{
+    setObjectName(QStringLiteral("convertQuotesDialog"));
+    setWindowTitle(tr("Convert Quotes"));
+    auto *vl = new QVBoxLayout(this);
+
+    auto *how = new QGroupBox(tr("Convert"), this);
+    auto *hl = new QGridLayout(how);
+    m_toSmart = new QRadioButton(tr("Straight quotes to &typographic quotes:"), how);
+    m_toSmart->setObjectName(QStringLiteral("quotesToSmart"));
+    m_style = new QComboBox(how);
+    m_style->setObjectName(QStringLiteral("quotesStyle"));
+    m_style->addItem(QStringLiteral("“abc” ‘abc’"), QStringLiteral("en"));
+    m_style->addItem(QStringLiteral("„abc“ ‚abc‘"), QStringLiteral("de"));
+    m_style->addItem(QStringLiteral("»abc« ›abc‹"), QStringLiteral("de2"));
+    m_style->addItem(QStringLiteral("«abc» ‹abc›"), QStringLiteral("fr"));
+    m_style->addItem(QStringLiteral("”abc” ’abc’"), QStringLiteral("sv"));
+    m_toStraight = new QRadioButton(tr("Typographic quotes to &straight quotes (\" ')"), how);
+    m_toStraight->setObjectName(QStringLiteral("quotesToStraight"));
+    hl->addWidget(m_toSmart, 0, 0);
+    hl->addWidget(m_style, 0, 1);
+    hl->addWidget(m_toStraight, 1, 0, 1, 2);
+    hl->setColumnStretch(2, 1);
+    auto *note = new QLabel(tr("An apostrophe inside a word becomes ’. A straight mark with a space on both sides stays "
+                               "as it is; an apostrophe at the start of a word ('tis) becomes an opening mark."),
+                            how);
+    note->setWordWrap(true);
+    hl->addWidget(note, 2, 0, 1, 3);
+    vl->addWidget(how);
+
+    auto *where = new QGroupBox(tr("Convert in"), this);
+    auto *wg = new QGridLayout(where);
+    m_titles = new QCheckBox(tr("T&itles"), where);
+    m_text = new QCheckBox(tr("Te&xt"), where);
+    m_notes = new QCheckBox(tr("&Notes"), where);
+    m_synopses = new QCheckBox(tr("S&ynopses"), where);
+    m_custom = new QCheckBox(tr("Custom &metadata"), where);
+    m_comments = new QCheckBox(tr("Comments and &footnotes"), where);
+    const QList<QCheckBox *> boxes = {m_titles, m_text, m_notes, m_synopses, m_custom, m_comments};
+    for (int i = 0; i < boxes.size(); ++i) {
+        boxes[i]->setChecked(true);
+        wg->addWidget(boxes[i], i / 3, i % 3);
+    }
+    vl->addWidget(where);
+
+    auto *scope = new QGroupBox(tr("Scope"), this);
+    auto *sl = new QVBoxLayout(scope);
+    m_all = new QRadioButton(tr("&Entire project"), scope);
+    m_selected = new QRadioButton(tr("Selected &documents only"), scope);
+    m_all->setChecked(true);
+    m_selected->setEnabled(false);
+    m_trash = new QCheckBox(tr("Also in the Trash"), scope);
+    sl->addWidget(m_all);
+    sl->addWidget(m_selected);
+    sl->addWidget(m_trash);
+    vl->addWidget(scope);
+
+    m_snapshots = new QCheckBox(tr("Take a snapshot of every text before it is changed"), this);
+    m_snapshots->setChecked(true);
+    vl->addWidget(m_snapshots);
+
+    m_result = new QLabel(this);
+    m_result->setObjectName(QStringLiteral("quotesResult"));
+    m_result->setWordWrap(true);
+    m_result->setMinimumHeight(fontMetrics().height() * 2);
+    m_result->setText(tr("The conversion changes all documents at once and cannot be undone as a whole."));
+    vl->addWidget(m_result);
+
+    auto *buttons = new QDialogButtonBox(this);
+    m_countButton = buttons->addButton(tr("C&ount"), QDialogButtonBox::ActionRole);
+    m_convertButton = buttons->addButton(tr("Con&vert"), QDialogButtonBox::ActionRole);
+    m_countButton->setObjectName(QStringLiteral("quotesCount"));
+    m_convertButton->setObjectName(QStringLiteral("quotesConvert"));
+    buttons->addButton(QDialogButtonBox::Close);
+    vl->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(m_countButton, &QPushButton::clicked, this, [this] { count(); });
+    connect(m_convertButton, &QPushButton::clicked, this, [this] { convert(true); });
+    for (QCheckBox *b : boxes)
+        connect(b, &QCheckBox::toggled, this, &ConvertQuotesDialog::updateButtons);
+    connect(m_toSmart, &QRadioButton::toggled, this, &ConvertQuotesDialog::updateButtons);
+    setTypographic(typographic, style);
+}
+
+void ConvertQuotesDialog::setSelection(const QList<BinderItem *> &items)
+{
+    m_selection.clear();
+    for (BinderItem *it : items)
+        if (!it->isRootFolder() || it->type != ItemType::Trash)
+            m_selection << it->id;
+    m_selected->setEnabled(!m_selection.isEmpty());
+    m_selected->setText(m_selection.isEmpty() ? tr("Selected &documents only")
+                                              : tr("Selected &documents only (%1, with what is inside them)").arg(m_selection.size()));
+    if (m_selection.isEmpty())
+        m_all->setChecked(true);
+}
+
+void ConvertQuotesDialog::setTypographic(bool on, const QString &style)
+{
+    (on ? m_toSmart : m_toStraight)->setChecked(true);
+    m_style->setCurrentIndex(qMax(0, m_style->findData(style)));
+    setWindowTitle(on ? tr("Convert to Typographic Quotes") : tr("Convert to Straight Quotes"));
+    updateButtons();
+}
+
+bool ConvertQuotesDialog::typographic() const { return m_toSmart->isChecked(); }
+QString ConvertQuotesDialog::style() const { return m_style->currentData().toString(); }
+
+ReplaceOptions ConvertQuotesDialog::where() const
+{
+    ReplaceOptions o;
+    o.inTitles = m_titles->isChecked();
+    o.inText = m_text->isChecked();
+    o.inNotes = m_notes->isChecked();
+    o.inSynopses = m_synopses->isChecked();
+    o.inCustom = m_custom->isChecked();
+    o.inComments = m_comments->isChecked();
+    if (m_selected->isChecked())
+        o.scopeIds = m_selection;
+    o.includeTrash = m_trash->isChecked();
+    o.snapshotFirst = m_snapshots->isChecked();
+    o.snapshotTitle = typographic() ? tr("Before converting to typographic quotes") : tr("Before converting to straight quotes");
+    return o;
+}
+
+void ConvertQuotesDialog::updateButtons()
+{
+    const bool any = m_titles->isChecked() || m_text->isChecked() || m_notes->isChecked() || m_synopses->isChecked()
+                     || m_custom->isChecked() || m_comments->isChecked();
+    m_style->setEnabled(m_toSmart->isChecked());
+    m_countButton->setEnabled(m_project && any);
+    m_convertButton->setEnabled(m_project && any);
+}
+
+static QString describeQuotes(const ReplaceResult &r, bool done)
+{
+    if (!r.error.isEmpty() && r.total() == 0)
+        return r.error;
+    if (r.total() == 0)
+        return ConvertQuotesDialog::tr("No quote marks to convert.");
+    QStringList parts;
+    auto add = [&parts](int n, const QString &where) {
+        if (n > 0)
+            parts << ConvertQuotesDialog::tr("%1 in %2").arg(n).arg(where);
+    };
+    add(r.texts, ConvertQuotesDialog::tr("text"));
+    add(r.titles, ConvertQuotesDialog::tr("titles"));
+    add(r.synopses, ConvertQuotesDialog::tr("synopses"));
+    add(r.notes, ConvertQuotesDialog::tr("notes"));
+    add(r.comments, ConvertQuotesDialog::tr("comments and footnotes"));
+    add(r.custom, ConvertQuotesDialog::tr("custom metadata"));
+    const QString marks = text::plural(r.total(), ConvertQuotesDialog::tr("quote mark"), ConvertQuotesDialog::tr("quote marks"));
+    const QString docs = text::plural(r.documents, ConvertQuotesDialog::tr("document"), ConvertQuotesDialog::tr("documents"));
+    QString s = (done ? ConvertQuotesDialog::tr("%1 converted in %2: %3.") : ConvertQuotesDialog::tr("%1 to convert in %2: %3."))
+                    .arg(marks, docs, parts.join(QLatin1String(", ")));
+    if (done && r.snapshots > 0)
+        s += QLatin1Char(' ') + ConvertQuotesDialog::tr("Snapshots taken: %1.").arg(r.snapshots);
+    if (!r.error.isEmpty())
+        s += QLatin1Char('\n') + r.error;
+    return s;
+}
+
+QString ConvertQuotesDialog::resultText() const { return m_result->text(); }
+
+ReplaceResult ConvertQuotesDialog::count()
+{
+    ReplaceResult r;
+    if (!m_project)
+        return r;
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    r = replace::convertQuotes(m_project, where(), typographic(), style(), true);
+    QApplication::restoreOverrideCursor();
+    m_result->setText(describeQuotes(r, false));
+    return r;
+}
+
+ReplaceResult ConvertQuotesDialog::convert(bool ask)
+{
+    ReplaceResult r;
+    if (!m_project)
+        return r;
+    const ReplaceOptions o = where();
+    if (ask) {
+        const ReplaceResult found = count();
+        if (found.total() == 0)
+            return found;
+        const QString what = typographic() ? tr("Convert to typographic quotes (%1)?").arg(m_style->currentText())
+                                           : tr("Convert to straight quotes?");
+        if (QMessageBox::question(this, windowTitle(),
+                                  tr("%1\n\n%2\n\nThis cannot be undone as a whole.%3")
+                                      .arg(what, describeQuotes(found, false),
+                                           o.snapshotFirst ? tr(" Each changed text gets a snapshot to go back to.")
+                                                           : tr(" A backup (File > Back Up) beforehand is a good idea.")),
+                                  QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel)
+            != QMessageBox::Yes)
+            return r;
+    }
+    QProgressDialog *progress = nullptr;
+    if (ask) {
+        progress = new QProgressDialog(tr("Converting…"), tr("Stop"), 0, 100, this);
+        progress->setWindowModality(Qt::WindowModal);
+        progress->setMinimumDuration(600);
+    }
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    r = replace::convertQuotes(m_project, o, typographic(), style(), false, [progress](int done, int total) {
+        if (!progress)
+            return true;
+        progress->setMaximum(qMax(1, total));
+        progress->setValue(done);
+        return !progress->wasCanceled();
+    });
+    QApplication::restoreOverrideCursor();
+    delete progress;
+    m_result->setText(describeQuotes(r, true));
+    emit converted(r);
+    return r;
+}
+
 // --------------------------------------------------------- find by formatting
 
 static QIcon colorIcon(const QColor &c)
