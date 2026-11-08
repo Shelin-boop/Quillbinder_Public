@@ -1,6 +1,7 @@
 #pragma once
 #include "core/PageSetup.h"
 #include "core/ProjectTypes.h"
+#include "core/SyncSafety.h"
 
 #include <QHash>
 #include <QObject>
@@ -91,8 +92,14 @@ public:
     void recount(const QString &id);
     void recountAll();
 
-    // The text (or notes) of this document could not be read: it must not be edited.
+    // The text (or notes) of this document could not be read: it must not be edited. Also a text
+    // whose file has not arrived yet (0.64: the project file says the document has text, but its
+    // file is missing: most likely the sync program is not finished).
     bool isUnreadable(const QString &id, bool notes = false) const { return m_unreadable.contains(keyFor(id, notes)); }
+    bool isMissing(const QString &id) const { return m_missing.contains(id); }
+    // Documents the project file lists with text whose text file is not there (0.64; a project in
+    // Scrivener format: none, its working copy is on this computer).
+    QStringList textsNotArrived() const;
 
 signals:
     // Emitted right before a shared document is deleted (project closed,
@@ -107,6 +114,9 @@ signals:
     // A text file that is there but cannot be read (permissions, a drive that went
     // away): the document is shown empty and is never saved over the file (0.20).
     void unreadableFile(const QString &id, bool notes, const QString &path, const QString &error);
+    // 0.64: the project file lists text for this document, but its file is not there (yet): shown
+    // empty, cannot be edited, never written, until the project is opened again.
+    void missingFile(const QString &id, const QString &path);
 
 private:
     struct Entry {
@@ -114,7 +124,10 @@ private:
         bool dirty = false;
         bool isNotes = false;
         QHash<QString, QString> savedImages; // resource name -> relative path
+        syncsafe::Stamp stamp; // the file as read or last written here (0.64)
     };
+    // the file of this entry was written by someone else: keep that version (0.64)
+    void keepOtherVersion(const QString &id, bool notes, const QString &path);
     QTextDocument *load(const QString &id, bool notes);
     void readFile(const QString &id, bool notes, QTextDocument *doc);
     bool writeEntry(const QString &key, Entry &e, QString *error);
@@ -124,6 +137,7 @@ private:
     Project *m_project;
     QHash<QString, Entry> m_entries;
     QSet<QString> m_unreadable; // keys of files that are there but could not be read
+    QSet<QString> m_missing;    // ids of texts whose file has not arrived (0.64)
     QHash<QString, QString> m_plainCache;
     QSet<QString> m_countPending;
     QTimer m_countTimer;

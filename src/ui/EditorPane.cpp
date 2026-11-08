@@ -595,11 +595,25 @@ void EditorPane::buildFooter()
     connect(m_corkFree, &QToolButton::clicked, this, [this] { setCorkMode(int(Corkboard::Mode::Freeform)); });
     connect(m_corkLabels, &QToolButton::clicked, this, [this] { setCorkMode(int(Corkboard::Mode::LabelThreads)); });
     connect(m_corkCommit, &QToolButton::clicked, m_cork, &Corkboard::commitFreeformOrder);
+    m_cardSize->setObjectName(QStringLiteral("cardSizeSlider"));
     connect(m_cardSize, &QSlider::valueChanged, this, [this](int v) {
         AppSettings::instance().cardWidth = v;
         m_cork->rebuild();
+        // 0.64: every change is kept at once (before, only a drag with the mouse was saved: a
+        // change by the keys, the wheel or a click beside the handle was lost when settings were
+        // read again, for example when a project opened); while dragging, at the release
+        if (!m_cardSize->isSliderDown())
+            AppSettings::instance().save();
     });
     connect(m_cardSize, &QSlider::sliderReleased, this, [] { AppSettings::instance().save(); });
+    // settings read again (a project with settings of its own, File > Options): the slider follows
+    connect(&AppSettings::instance(), &AppSettings::changed, this, [this] {
+        if (m_cardSize->value() != AppSettings::instance().cardWidth) {
+            const QSignalBlocker block(m_cardSize);
+            m_cardSize->setValue(AppSettings::instance().cardWidth);
+            m_cork->rebuild();
+        }
+    });
 
     // outliner footer
     auto *of = new QWidget(m_footer);

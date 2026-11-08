@@ -47,6 +47,8 @@
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QProgressBar>
+#include <QCheckBox>
+#include <QRadioButton>
 #include <QClipboard>
 #include <QScrollBar>
 #include <QRegularExpression>
@@ -693,10 +695,22 @@ int main(int argc, char **argv)
             settle(100);
             dlg.grab().save(outDir + QStringLiteral("/05-options-lower.png"));
         }
+        // 0.64: record now, the text later
+        auto *live = dlg.findChild<QRadioButton *>(QStringLiteral("speechModeLive"));
+        auto *recOnly = dlg.findChild<QRadioButton *>(QStringLiteral("speechModeRecord"));
+        auto *delAfter = dlg.findChild<QCheckBox *>(QStringLiteral("speechDeleteAfter"));
+        check(live && recOnly && delAfter && live->isChecked() && !recOnly->isChecked() && !delAfter->isChecked(),
+              QStringLiteral("0.64: the options offer Transcribe live (the standard on Linux) or Record only, and deleting "
+                             "a recording once its text is written (off)"));
         auto *hint = dlg.findChild<QPlainTextEdit *>(QStringLiteral("speechHint"));
         if (hint)
             hint->setPlainText(QStringLiteral("Eleanor, Brackwater"));
+        if (recOnly)
+            recOnly->setChecked(true);
         dlg.apply();
+        check(speechSetting(QStringLiteral("mode")).toString() == QLatin1String("record"),
+              QStringLiteral("... Record only is kept by the options"));
+        setSpeechSetting(QStringLiteral("mode"), QStringLiteral("live"));
         check(speechSetting(QStringLiteral("hint")).toString() == QLatin1String("Eleanor, Brackwater")
                   && speechSetting(QStringLiteral("main")).toString() == QLatin1String("en")
                   && speechSetting(QStringLiteral("fallback")).toString() == QLatin1String("de"),
@@ -825,6 +839,136 @@ int main(int argc, char **argv)
             w.grab().save(outDir + QStringLiteral("/07-transcription.png"));
         }
     }
+    // ================================================================ 0.64: record only, the text later
+    if (tool && panel) {
+        auto *list = panel->findChild<QListWidget *>(QStringLiteral("speechList"));
+        auto *status = panel->findChild<QLabel *>(QStringLiteral("speechStatus"));
+        auto *all = panel->findChild<QToolButton *>(QStringLiteral("speechTranscribeAll"));
+        auto *edit = panel->findChild<QPlainTextEdit *>(QStringLiteral("speechText"));
+        // the Transcribe button in the line of a recording
+        auto nowButton = [&](const QString &title) -> QToolButton * {
+            if (!list)
+                return nullptr;
+            for (int i = 0; i < list->count(); ++i)
+                if (list->item(i)->text() == title)
+                    if (QWidget *iw = list->itemWidget(list->item(i)))
+                        return iw->findChild<QToolButton *>(QStringLiteral("speechTranscribeNow"));
+            return nullptr;
+        };
+        auto recordOnce = [&](QString *textFile) -> bool {
+            bool started = false;
+            QMetaObject::invokeMethod(tool, "startRecording", Qt::DirectConnection, Q_RETURN_ARG(bool, started), Q_ARG(QString, wav));
+            *textFile = callString(tool, "recordingFile");
+            settle(200);
+            waitFor([tool] { return !callBool(tool, "isBusy"); }, 30000);
+            settle(400);
+            return started;
+        };
+        check(!callBool(tool, "recordOnly"), QStringLiteral("0.64: transcribing live is the standard on Linux"));
+        setSpeechSetting(QStringLiteral("mode"), QStringLiteral("record"));
+        bool started = false;
+        QMetaObject::invokeMethod(tool, "startRecording", Qt::DirectConnection, Q_RETURN_ARG(bool, started), Q_ARG(QString, wav));
+        const QString future = callString(tool, "recordingFile");
+        const QString recWav = future.left(future.size() - 4) + QStringLiteral(".wav");
+        settle(300);
+        const QString during = status ? status->text() : QString();
+        w.grab().save(outDir + QStringLiteral("/10-record-only.png"));
+        waitFor([tool] { return !callBool(tool, "isBusy"); }, 30000);
+        settle(400);
+        QVector<float> back;
+        QFile rf(recWav);
+        QByteArray head;
+        if (rf.open(QIODevice::ReadOnly))
+            head = rf.read(44);
+        const qint64 wavBytes = QFileInfo(recWav).size();
+        const double seconds = (wavBytes - 44) / 32000.0;
+        check(started && during.startsWith(QLatin1String("Recording")) && QFileInfo::exists(recWav) && !QFileInfo::exists(future),
+              QStringLiteral("record only: the sound goes into a recording (.wav) named by date and time, no text is written"),
+              QStringLiteral("started %1 status [%2] %3").arg(started).arg(during, recWav));
+        check(head.startsWith("RIFF") && head.mid(8, 8) == "WAVEfmt " && qFromLittleEndian<quint32>(head.constData() + 24) == 16000
+                  && qFromLittleEndian<quint16>(head.constData() + 22) == 1 && qFromLittleEndian<quint16>(head.constData() + 34) == 16
+                  && qFromLittleEndian<quint32>(head.constData() + 40) == quint32(wavBytes - 44)
+                  && std::abs(seconds - audio.size() / 16000.0) < 0.3,
+              QStringLiteral("... a WAV file of 16 kHz, mono, 16 bit, as long as what was said (1.92 MB per minute)"),
+              QStringLiteral("%1 s of %2 s").arg(seconds).arg(audio.size() / 16000.0));
+        const QString title = QFileInfo(future).completeBaseName();
+        QToolButton *now = nowButton(title);
+        check(now && now->isEnabled() && now->text() == QLatin1String("Transcribe") && all && all->isVisible() && all->isEnabled(),
+              QStringLiteral("the list shows the recording with a Transcribe button in its line, and Transcribe All"));
+        if (list)
+            for (int i = 0; i < list->count(); ++i)
+                if (list->item(i)->text() == title)
+                    list->setCurrentRow(i);
+        check(edit && edit->isReadOnly() && edit->toPlainText().isEmpty() && edit->placeholderText().contains(QLatin1String("no text yet")),
+              QStringLiteral("... chosen, it says that it has no text yet and cannot be typed into"));
+        w.grab().save(outDir + QStringLiteral("/11-recording-in-list.png"));
+        if (now)
+            now->click();
+        waitFor([&] { return QFileInfo::exists(future) && !callBool(tool, "isBusy"); }, 60000);
+        settle(400);
+        const QString text = readFile(future);
+        check(text.contains(QRegularExpression(QStringLiteral("^Piece 1 \\(1\\.\\d s\\) Piece 2 \\(1\\.\\d s\\)\\n\\nPiece 3 \\(1\\.\\d s\\)$")))
+                  && !QFileInfo::exists(speech::partFileFor(future)) && QFileInfo::exists(recWav) && !nowButton(title),
+              QStringLiteral("Transcribe writes the text of the recording (the same pieces and paragraph as live); the recording "
+                             "stays, the button goes"),
+              text);
+        check(edit && edit->toPlainText() == text && !edit->isReadOnly(), QStringLiteral("... the tab shows the text, which can be edited now"));
+        // two more recordings, Transcribe All, and deleting the recordings afterwards
+        QString f2, f3;
+        const bool two = recordOnce(&f2) && recordOnce(&f3);
+        setSpeechSetting(QStringLiteral("deleteRecording"), true);
+        QMetaObject::invokeMethod(panel, "refresh", Qt::DirectConnection);
+        int waiting = 0;
+        QMetaObject::invokeMethod(panel, "pendingCount", Qt::DirectConnection, Q_RETURN_ARG(int, waiting));
+        QStringList inFolder = QDir(QFileInfo(f2).absolutePath()).entryList(QDir::Files);
+        if (all)
+            all->click();
+        waitFor([&] { return QFileInfo::exists(f2) && QFileInfo::exists(f3) && !callBool(tool, "isBusy"); }, 90000);
+        settle(500);
+        auto wavOf = [](const QString &txt) { return txt.left(txt.size() - 4) + QStringLiteral(".wav"); };
+        check(two && waiting == 2 && readFile(f2).count(QLatin1String("Piece")) == 3 && readFile(f3).count(QLatin1String("Piece")) == 3
+                  && !QFileInfo::exists(wavOf(f2)) && !QFileInfo::exists(wavOf(f3)),
+              QStringLiteral("Transcribe All writes the text of both waiting recordings one after the other; with the option "
+                             "on, a recording is deleted once its text is there"),
+              QStringLiteral("two %1 waiting %2, %3, %4; before: %5; after: %6")
+                  .arg(two)
+                  .arg(waiting)
+                  .arg(QFileInfo(f2).fileName(), QFileInfo(f3).fileName(), inFolder.join(QLatin1String(" | ")),
+                       QDir(QFileInfo(f2).absolutePath()).entryList(QDir::Files).join(QLatin1String(" | "))));
+        setSpeechSetting(QStringLiteral("deleteRecording"), false);
+        // a recording without text: renamed and deleted with its sound
+        QString f4;
+        recordOnce(&f4);
+        QMetaObject::invokeMethod(panel, "refresh", Qt::DirectConnection);
+        QMetaObject::invokeMethod(panel, "selectTranscript", Qt::DirectConnection, Q_ARG(QString, QFileInfo(f4).completeBaseName()));
+        bool renamed = false, removed = false;
+        QMetaObject::invokeMethod(panel, "rename", Qt::DirectConnection, Q_RETURN_ARG(bool, renamed), Q_ARG(QString, QStringLiteral("Harbor walk")));
+        const QString moved = QFileInfo(f4).absolutePath() + QStringLiteral("/Harbor walk.wav");
+        const bool renamedOk = renamed && QFileInfo::exists(moved) && !QFileInfo::exists(wavOf(f4));
+        QMetaObject::invokeMethod(panel, "remove", Qt::DirectConnection, Q_RETURN_ARG(bool, removed), Q_ARG(bool, false));
+        check(renamedOk && removed && !QFileInfo::exists(moved),
+              QStringLiteral("a recording without text can be renamed and deleted (its sound goes along)"));
+        // a recording that ends without being closed (program ended, power cut) is still a valid file
+        {
+            const QString crash = home.path() + QStringLiteral("/unclosed.wav");
+            auto *wr = new speech::WavWriter;
+            QString err;
+            wr->open(crash, &err);
+            const QVector<float> part = audio.mid(0, 24000); // 1.5 s
+            wr->write(part.constData(), int(part.size()));
+            QFile c(crash);
+            QByteArray h;
+            if (c.open(QIODevice::ReadOnly))
+                h = c.read(44);
+            const quint32 dataBytes = h.size() == 44 ? qFromLittleEndian<quint32>(h.constData() + 40) : 0;
+            check(dataBytes >= 32000 && dataBytes <= 48000,
+                  QStringLiteral("a recording not closed: its header already names about the first second (it is updated every second)"),
+                  QString::number(dataBytes));
+            delete wr;
+        }
+        setSpeechSetting(QStringLiteral("mode"), QStringLiteral("live"));
+    }
+
     // a microphone: a PulseAudio pipe source fed with the same sound in real time
     if (tool && pulseError.isEmpty()) {
         setSpeechSetting(QStringLiteral("audioInput"), QByteArray("qbspeechmic"));
@@ -866,6 +1010,49 @@ int main(int argc, char **argv)
         check(started && text.count(QLatin1String("Piece")) == 3 && text.contains(QLatin1String("\n\nPiece 3")) && maxLevel > 50,
               QStringLiteral("from a microphone (a PulseAudio source): three pieces, the paragraph, the level meter moves"),
               QStringLiteral("started %1 level %2 text [%3] %4").arg(started).arg(maxLevel).arg(text, callString(tool, "lastError")));
+        // 0.64: Record only from the same microphone
+        {
+            setSpeechSetting(QStringLiteral("mode"), QStringLiteral("record"));
+            std::atomic<bool> stop2(false);
+            QThread *feeder2 = QThread::create([&] {
+                QFile f(fifo);
+                if (!f.open(QIODevice::WriteOnly))
+                    return;
+                QByteArray pcm(int(audio.size()) * 2, Qt::Uninitialized);
+                for (int i = 0; i < audio.size(); ++i)
+                    qToLittleEndian(qint16(qBound(-32767, int(audio[i] * 32767), 32767)), pcm.data() + 2 * i);
+                for (int at = 0; at < pcm.size() && !stop2; at += 3200) {
+                    f.write(pcm.mid(at, 3200));
+                    f.flush();
+                    QThread::msleep(100);
+                }
+            });
+            bool rec = false;
+            QMetaObject::invokeMethod(tool, "startRecording", Qt::DirectConnection, Q_RETURN_ARG(bool, rec), Q_ARG(QString, QString()));
+            feeder2->start();
+            const QString txt = callString(tool, "recordingFile");
+            int maxLevel2 = 0;
+            QElapsedTimer t2;
+            t2.start();
+            while (!feeder2->isFinished() && t2.elapsed() < 40000) {
+                settle(100);
+                if (level)
+                    maxLevel2 = qMax(maxLevel2, level->value());
+            }
+            settle(300);
+            QMetaObject::invokeMethod(tool, "stopRecording", Qt::DirectConnection);
+            waitFor([tool] { return !callBool(tool, "isBusy"); }, 10000);
+            stop2 = true;
+            feeder2->wait(5000);
+            delete feeder2;
+            const QString recWav = txt.left(txt.size() - 4) + QStringLiteral(".wav");
+            const double secs = (QFileInfo(recWav).size() - 44) / 32000.0;
+            check(rec && secs > audio.size() / 16000.0 - 1.0 && !QFileInfo::exists(txt) && maxLevel2 > 50,
+                  QStringLiteral("0.64: Record only from a microphone: the whole recording is in the file, the level meter "
+                                 "moves, no text yet"),
+                  QStringLiteral("%1 s, level %2, %3").arg(secs).arg(maxLevel2).arg(callString(tool, "lastError")));
+            setSpeechSetting(QStringLiteral("mode"), QStringLiteral("live"));
+        }
         QProcess::execute(QStringLiteral("pactl"), {QStringLiteral("unload-module"), moduleId});
     } else {
         note(QStringLiteral("microphone checks not run: %1").arg(pulseError));

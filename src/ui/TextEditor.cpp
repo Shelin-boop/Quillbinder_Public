@@ -187,8 +187,13 @@ void TextEditor::setProjectDocument(Project *project, BinderItem *item, QTextDoc
     if (unreadable) {
         setReadOnly(true);
         setProperty("qbUnreadable", true);
-        setPlaceholderText(tr("The file of this document cannot be read, so it is shown empty and cannot be edited "
-                              "(the file is not overwritten). Check its permissions or the drive it is on, then reopen the project."));
+        setPlaceholderText(project->docs()->isMissing(item->id) && !isNotes
+                               // 0.64: the project file says it has text, but its file has not arrived (a sync program)
+                               ? tr("The text of this document has not arrived on this computer yet (is your sync program "
+                                    "finished?). It is shown empty and cannot be edited, so nothing is saved in its place. "
+                                    "Close the project and open it again once the sync program is done.")
+                               : tr("The file of this document cannot be read, so it is shown empty and cannot be edited "
+                                    "(the file is not overwritten). Check its permissions or the drive it is on, then reopen the project."));
     } else if (property("qbUnreadable").toBool()) {
         setReadOnly(false);
         setProperty("qbUnreadable", false);
@@ -947,11 +952,17 @@ void TextEditor::contextMenuEvent(QContextMenuEvent *e)
     }
     // spelling
     if (SpellChecker::isEnabled() && SpellChecker::instance().isAvailable() && !textCursor().hasSelection()) {
-        QTextCursor wc;
-        QString word = wordUnderCursor(&wc);
-        while (word.endsWith(QLatin1Char('\'')) || word.endsWith(QChar(0x2019)))
-            word.chop(1);
-        if (word.size() > 1 && word.at(0).isLetter() && !SpellChecker::instance().isCorrect(word)) {
+        // 0.64: the word the underline marks at the click (Qt's own word ends at a straight
+        // apostrophe: "Kayel's" clicked on its last letter, or "D'Nersun", found another word)
+        const QTextBlock blk = clickCursor.block();
+        int from = -1;
+        const QString word = SpellChecker::checkedWordAt(blk.text(), clickCursor.position() - blk.position(), &from);
+        QTextCursor wc(document());
+        if (!word.isEmpty()) {
+            wc.setPosition(blk.position() + from);
+            wc.setPosition(blk.position() + from + int(word.size()), QTextCursor::KeepAnchor);
+        }
+        if (!word.isEmpty() && !SpellChecker::instance().isCorrect(word)) {
             const QStringList sug = SpellChecker::instance().suggestions(word);
             for (const QString &s : sug) {
                 QAction *a = menu->addAction(s);

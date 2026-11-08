@@ -3,11 +3,14 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
+#include <QObject>
 #include <QLocale>
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QtEndian>
 #include <cmath>
+#include <cstring>
 
 namespace speech {
 
@@ -479,19 +482,50 @@ QString newTranscriptFile(const QString &folder, const QDateTime &when)
     return path;
 }
 
+QString newRecordingBase(const QString &folder, const QDateTime &when)
+{
+    QDir().mkpath(folder);
+    const QString base = when.toString(QStringLiteral("yyyy-MM-dd HH-mm"));
+    QString path = folder + QLatin1Char('/') + base;
+    for (int n = 2; QFileInfo::exists(path + QStringLiteral(".txt")) || QFileInfo::exists(path + QStringLiteral(".wav")); ++n)
+        path = folder + QLatin1Char('/') + base + QStringLiteral(" (%1)").arg(n);
+    return path;
+}
+
+bool Transcript::pending() const
+{
+    return !audio.isEmpty() && !QFileInfo::exists(file);
+}
+
+QString partFileFor(const QString &textFile)
+{
+    return textFile + QStringLiteral(".part");
+}
+
 QList<Transcript> transcriptsIn(const QString &folder)
 {
     QList<Transcript> out;
-    const QFileInfoList files = QDir(folder).entryInfoList({QStringLiteral("*.txt")}, QDir::Files);
+    QHash<QString, int> byTitle;
+    const QFileInfoList files =
+        QDir(folder).entryInfoList({QStringLiteral("*.txt"), QStringLiteral("*.wav")}, QDir::Files, QDir::Name);
     for (const QFileInfo &fi : files) {
-        Transcript t;
-        t.file = fi.absoluteFilePath();
-        t.title = fi.completeBaseName();
-        // the time in the name the file got when it was made ("2026-11-08 05-07"); a renamed file: its last change
-        t.created = QDateTime::fromString(t.title.left(16), QStringLiteral("yyyy-MM-dd HH-mm"));
-        if (!t.created.isValid())
-            t.created = fi.lastModified();
-        out << t;
+        const QString title = fi.completeBaseName();
+        const bool wav = fi.suffix().compare(QLatin1String("wav"), Qt::CaseInsensitive) == 0;
+        int i = byTitle.value(title, -1);
+        if (i < 0) {
+            Transcript t;
+            t.title = title;
+            t.file = fi.absolutePath() + QLatin1Char('/') + title + QStringLiteral(".txt");
+            // the time in the name the file got when it was made ("2026-11-08 05-07"); a renamed file: its last change
+            t.created = QDateTime::fromString(t.title.left(16), QStringLiteral("yyyy-MM-dd HH-mm"));
+            if (!t.created.isValid())
+                t.created = fi.lastModified();
+            out << t;
+            i = int(out.size()) - 1;
+            byTitle.insert(title, i);
+        }
+        if (wav)
+            out[i].audio = fi.absoluteFilePath();
     }
     std::sort(out.begin(), out.end(), [](const Transcript &a, const Transcript &b) {
         if (a.created != b.created)
@@ -499,6 +533,93 @@ QList<Transcript> transcriptsIn(const QString &folder)
         return a.title > b.title;
     });
     return out;
+}
+
+// ---- WavWriter
+
+struct WavWriter::Impl {
+    QFile f;
+};
+
+WavWriter::~WavWriter()
+{
+    close();
+}
+
+bool WavWriter::open(const QString &file, QString *error)
+{
+    close();
+    d = new Impl;
+    d->f.setFileName(file);
+    if (!d->f.open(QIODevice::ReadWrite | QIODevice::Truncate)) {
+        if (error)
+            *error = QObject::tr("The recording cannot be written: %1").arg(d->f.errorString());
+        delete d;
+        d = nullptr;
+        return false;
+    }
+    m_path = file;
+    m_samples = 0;
+    m_sinceHeader = 0;
+    d->f.write(QByteArray(44, '\0'));
+    updateHeader();
+    return true;
+}
+
+bool WavWriter::isOpen() const { return d && d->f.isOpen(); }
+
+void WavWriter::write(const float *samples, int n)
+{
+    if (!isOpen() || n <= 0)
+        return;
+    QByteArray b(n * 2, Qt::Uninitialized);
+    auto *p = reinterpret_cast<uchar *>(b.data());
+    for (int i = 0; i < n; ++i) {
+        const int v = qBound(-32768, int(std::lround(samples[i] * 32767.f)), 32767);
+        qToLittleEndian<qint16>(qint16(v), p + 2 * i);
+    }
+    d->f.write(b);
+    m_samples += n;
+    m_sinceHeader += n;
+    if (m_sinceHeader >= 16000) // about once a second
+        updateHeader();
+}
+
+void WavWriter::updateHeader()
+{
+    if (!isOpen())
+        return;
+    m_sinceHeader = 0;
+    const quint32 dataBytes = quint32(qMin<qint64>(m_samples * 2, 0xffffffffLL - 36));
+    QByteArray h(44, '\0');
+    auto *p = reinterpret_cast<uchar *>(h.data());
+    memcpy(p, "RIFF", 4);
+    qToLittleEndian<quint32>(36 + dataBytes, p + 4);
+    memcpy(p + 8, "WAVEfmt ", 8);
+    qToLittleEndian<quint32>(16, p + 16);
+    qToLittleEndian<quint16>(1, p + 20);        // PCM
+    qToLittleEndian<quint16>(1, p + 22);        // mono
+    qToLittleEndian<quint32>(16000, p + 24);
+    qToLittleEndian<quint32>(32000, p + 28);    // bytes per second
+    qToLittleEndian<quint16>(2, p + 32);
+    qToLittleEndian<quint16>(16, p + 34);
+    memcpy(p + 36, "data", 4);
+    qToLittleEndian<quint32>(dataBytes, p + 40);
+    const qint64 at = d->f.pos();
+    d->f.seek(0);
+    d->f.write(h);
+    d->f.seek(at);
+    d->f.flush();
+}
+
+void WavWriter::close()
+{
+    if (!d)
+        return;
+    updateHeader();
+    d->f.close();
+    delete d;
+    d = nullptr;
 }
 
 } // namespace speech

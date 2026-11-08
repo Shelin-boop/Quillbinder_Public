@@ -1,6 +1,7 @@
 #pragma once
 #include "core/BinderItem.h"
 #include "core/ProjectTypes.h"
+#include "core/SyncSafety.h"
 
 #include <QElapsedTimer>
 #include <QHash>
@@ -47,10 +48,21 @@ public:
     bool saveIndex(QString *error = nullptr);
     // Saves when no change came for the autosave delay, but at the latest
     // max(maxSaveWait, delay) after the first unsaved change (0.20: before, changes
-    // that kept coming were never saved).
+    // that kept coming were never saved). 0.64: after max(gapAfter, delay) of changes that
+    // keep coming, the first short gap (gapPause without a change, a breath between words)
+    // saves too, so typing that goes on is saved about every 5 s without waiting for a pause.
     void scheduleSave();
     void setAutosaveDelay(int ms) { m_saveTimer.setInterval(ms); }
     void setMaxSaveWait(int ms) { m_maxSaveWait = ms; }
+    void setGapSave(int afterMs, int pauseMs) { m_gapSaveAfter = afterMs; m_gapTimer.setInterval(pauseMs); }
+    int autosaveCount() const { return m_autosaves; }   // tests
+    // The editor layout, open documents, places ... (uiState) changed, nothing else (0.64): written
+    // with the next save into this computer's own file, without touching the project file, so
+    // opening and closing a project on two computers does not make two versions of it.
+    void markUiStateDirty() { m_uiDirty = true; }
+    // settings/ui-<computer>.json (before 0.64: settings/ui.json, still read when the computer
+    // has no file of its own yet)
+    QString uiStateFile() const;
     // A message for the writer after opening (the project file was repaired ...); "" = none.
     QString openNotice;
     // The copy of the project file kept when the project last opened (settings/spare-copy.qbx).
@@ -190,6 +202,12 @@ signals:
     void countsChanged();
     void saved();
     void saveFailed(const QString &error);
+    // A file of the project changed on disk after this program read it (another computer through
+    // a sync program, or another program), and this program was about to write its own version
+    // over it (0.64): the other version was kept first. itemId: the document ("" = the project
+    // file); what: readable ("text", "notes", "project file" ...); copy: the kept copy in
+    // settings/conflicts; snapshot: the text also became a snapshot of the document.
+    void conflictKept(const QString &itemId, const QString &what, const QString &copy, bool snapshot);
 
 private:
     explicit Project(QObject *parent = nullptr);
@@ -212,6 +230,12 @@ private:
     QElapsedTimer m_dirtySince; // the first change not saved yet
     bool m_forcedSave = false;
     int m_maxSaveWait = 30000;
+    QTimer m_gapTimer;          // a short gap in changes that keep coming (0.64)
+    int m_gapSaveAfter = 5000;
+    int m_autosaves = 0;
+    bool m_uiDirty = false;
+    syncsafe::Stamp m_indexMark; // the project file as read or last written here (0.64)
+    bool writeUiState();
     QByteArray m_loadedIndex;   // the project file as it was read (for the spare copy)
     bool m_indexDirty = false;
     bool m_countsDirty = false;     // counts and modification times only (0.60.5)

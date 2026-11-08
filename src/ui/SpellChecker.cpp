@@ -353,6 +353,48 @@ bool SpellHighlighter::eventFilter(QObject *o, QEvent *e)
     return QSyntaxHighlighter::eventFilter(o, e);
 }
 
+namespace {
+// words with digits are one word ("Route66"); numbers alone are never checked
+const QRegularExpression &spellWordRe()
+{
+    static const QRegularExpression re(QStringLiteral("[\\p{L}\\p{N}][\\p{L}\\p{M}\\p{N}'\\x{2019}]*"));
+    return re;
+}
+
+// the word as it is checked: apostrophes at its end taken off; "" when it is not checked
+QString checkable(QString w)
+{
+    while (w.endsWith(QLatin1Char('\'')) || w.endsWith(QChar(0x2019)))
+        w.chop(1);
+    if (w.size() < 2)
+        return QString();
+    bool digits = false, letters = false;
+    for (const QChar ch : w)
+        (ch.isDigit() ? digits : letters) = true;
+    if (!letters || (digits && SpellChecker::display().ignoreNumbers))
+        return QString();
+    return w;
+}
+} // namespace
+
+QString SpellChecker::checkedWordAt(const QString &paragraph, int pos, int *start)
+{
+    auto it = spellWordRe().globalMatch(paragraph);
+    while (it.hasNext()) {
+        const auto m = it.next();
+        const int from = int(m.capturedStart());
+        if (from > pos)
+            break;
+        const QString w = checkable(m.captured());
+        if (!w.isEmpty() && pos <= from + w.size()) {
+            if (start)
+                *start = from;
+            return w;
+        }
+    }
+    return QString();
+}
+
 void SpellHighlighter::highlightBlock(const QString &text)
 {
     const QTextBlock block = currentBlock();
@@ -387,25 +429,16 @@ void SpellHighlighter::highlightBlock(const QString &text)
     }
     if (!s_enabled || !SpellChecker::instance().isAvailable())
         return;
-    // words with digits are one word ("Route66"); numbers alone are never checked
-    static const QRegularExpression wordRe(QStringLiteral("[\\p{L}\\p{N}][\\p{L}\\p{M}\\p{N}'\\x{2019}]*"));
     QTextCharFormat err;
     err.setUnderlineStyle(s_display.underline == 1   ? QTextCharFormat::DotLine
                           : s_display.underline == 2 ? QTextCharFormat::SingleUnderline
                                                      : QTextCharFormat::SpellCheckUnderline);
     err.setUnderlineColor(theme::color(theme::Role::SpellingError));
-    auto it = wordRe.globalMatch(text);
+    auto it = spellWordRe().globalMatch(text);
     while (it.hasNext()) {
         const auto m = it.next();
-        QString w = m.captured();
-        while (w.endsWith(QLatin1Char('\'')) || w.endsWith(QChar(0x2019)))
-            w.chop(1);
-        if (w.size() < 2)
-            continue;
-        bool digits = false, letters = false;
-        for (const QChar ch : w)
-            (ch.isDigit() ? digits : letters) = true;
-        if (!letters || (digits && s_display.ignoreNumbers))
+        const QString w = checkable(m.captured());
+        if (w.isEmpty())
             continue;
         // skip words inside links
         bool skip = false;

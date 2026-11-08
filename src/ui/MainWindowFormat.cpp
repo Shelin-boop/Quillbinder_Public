@@ -51,22 +51,7 @@ QString chooseScrivPath(QWidget *parent, const QString &title, const QString &su
 
 bool MainWindow::confirmNotOpenElsewhere(const QString &projectFolder)
 {
-    QFile lf(projectFolder + QLatin1String("/settings/lock"));
-    if (!lf.open(QIODevice::ReadOnly))
-        return true;
-    const QStringList parts = QString::fromUtf8(lf.readAll()).split(QLatin1Char(' '));
-    if (parts.size() != 2)
-        return true;
-    const bool sameHost = parts[0] == QSysInfo::machineHostName();
-    const bool alive = sameHost && platform::processAlive(parts[1].toLongLong())
-                       && parts[1].toLongLong() != QCoreApplication::applicationPid();
-    if (!alive && sameHost)
-        return true;
-    return QMessageBox::question(this, tr("Open Project"),
-                                 tr("This project seems to be open in another window or on another computer (%1).\n\n"
-                                    "Opening it twice can lose changes. Open it anyway?")
-                                     .arg(parts[0]))
-           == QMessageBox::Yes;
+    return confirmLock(projectFolder + QLatin1String("/settings/lock"));
 }
 
 bool MainWindow::openScrivenerProject(const QString &path)
@@ -108,6 +93,9 @@ bool MainWindow::openScrivenerProject(const QString &path)
     } else if (!confirmNotOpenElsewhere(wc)) {
         return false;
     }
+    // 0.64: this program on another computer has the .scriv open (through a sync program)
+    if (!confirmLock(scrivDir + QLatin1String("/quillbinder.lock")))
+        return false;
     QString who;
     if (scrivener::lockedByScrivener(scrivDir, &who)
         && QMessageBox::question(this, tr("Open Scrivener Project"),

@@ -196,6 +196,11 @@ target_link_libraries(qb_v0611_tests PRIVATE qbui Qt6::Test)
 # Version 0.62: settings per project, the first start, tables and pictures (xvfb-run -a ./qb_v062_tests /tmp/shots).
 add_executable(qb_v062_tests v062_tests.cpp v062_settings.cpp v062_tables.cpp v062_common.h ${QB_RESOURCES_QRC})
 target_link_libraries(qb_v062_tests PRIVATE qbui Qt6::Test)
+# Version 0.64: the spelling menu on words with apostrophes, the autosave while typing on, the card
+# size, a project in a synced folder (lock, conflicts, nothing written without a change, texts that
+# have not arrived), also in Scrivener format (xvfb-run -a ./qb_v064_tests /tmp/shots).
+add_executable(qb_v064_tests v064_tests.cpp ${QB_RESOURCES_QRC})
+target_link_libraries(qb_v064_tests PRIVATE qbui Qt6::Test)
 # Windows port, step W2: what it changed in the code Linux runs too (packages' platform, the process
 # check, pruning reports with memory dumps). No window (xvfb-run -a ./qb_w2_tests /tmp/shots).
 add_executable(qb_w2_tests w2_tests.cpp)

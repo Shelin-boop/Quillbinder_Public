@@ -8,6 +8,7 @@
 #include "core/Paths.h"
 #include "core/Project.h"
 #include "core/Snapshots.h"
+#include "core/SyncSafety.h"
 #include "import/ScrivenerImporter.h"
 #include "text/RtfIO.h"
 #include "text/TextProps.h"
@@ -26,6 +27,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
+#include <QRegularExpression>
 #include <QSet>
 #include <QSysInfo>
 #include <QTextBlock>
@@ -150,6 +152,26 @@ bool writeFile(const QString &path, const QByteArray &data, QString *error)
         return false;
     }
     return true;
+}
+
+// size and time of the .scrivx (0.64: was it written elsewhere since this program read or wrote it?)
+QString scrivxStamp(const QString &path)
+{
+    const QFileInfo fi(path);
+    return fi.exists() ? QStringLiteral("%1:%2").arg(fi.size()).arg(fi.lastModified().toMSecsSinceEpoch()) : QString();
+}
+
+// two .scrivx files that differ only in the root's Modified and ModID attributes
+bool sameExceptStamps(const QByteArray &a, const QByteArray &b)
+{
+    static const QRegularExpression stamps(QStringLiteral(" (Modified|ModID)=\"[^\"]*\""));
+    auto norm = [](const QByteArray &x) {
+        const int end = x.indexOf('>', x.indexOf("<ScrivenerProject"));
+        QString head = QString::fromUtf8(x.left(end + 1));
+        head.remove(stamps);
+        return head.toUtf8() + x.mid(end + 1);
+    };
+    return !a.isEmpty() && norm(a) == norm(b);
 }
 
 bool copyDir(const QString &from, const QString &to, const QStringList &skipRelative = {})
@@ -1031,6 +1053,28 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
     };
     // Decides whether one file must be written: what this program has
     // changed since the last write. Files changed in Scrivener meanwhile stay.
+    // 0.64: a file changed both here and in the .scriv (Scrivener, or this program on another
+    // computer through a sync program): the other version is kept before this one is written
+    // (a copy in the working copy's settings/conflicts and, for a text, a snapshot)
+    auto keepTheirs = [&](const QString &ourKey, const QString &theirPath) {
+        const QString id = ourKey.section(QLatin1Char('/'), 0, 0);
+        const QString part = ourKey.section(QLatin1Char('/'), 1);
+        BinderItem *it = p->item(id);
+        const QString title = it ? it->title : id;
+        const QString copy = syncsafe::keepCopy(theirPath, p->settingsDir(), QStringLiteral("%1 %2").arg(title, part));
+        bool snap = false;
+        if (part == QLatin1String("text") && it && it->hasText()) {
+            QFile f(theirPath);
+            if (f.open(QIODevice::ReadOnly)) {
+                QTextDocument other;
+                p->docs()->deserialize(id, f.readAll(), &other, true);
+                const QString when = QFileInfo(theirPath).lastModified().toString(QStringLiteral("yyyy-MM-dd HH:mm"));
+                snap = snapshots::take(p, id, QObject::tr("Other version (changed elsewhere, %1)").arg(when), nullptr, &other);
+            }
+        }
+        rep.conflicts << title;
+        emit p->conflictKept(id, part, copy, snap);
+    };
     auto mustWrite = [&](const QString &ourKey, const QString &ourHash, const QString &theirKey,
                          const QString &theirPath) -> bool {
         const bool ourSame = state.ours.contains(ourKey) && state.ours.value(ourKey) == ourHash;
@@ -1044,6 +1088,8 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
             ++rep.keptTheirs;
             return false;
         }
+        if (!theirSame && !fresh && state.ours.contains(ourKey) && QFileInfo::exists(theirPath))
+            keepTheirs(ourKey, theirPath);
         return true;
     };
 
@@ -1365,9 +1411,22 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
     QString scrivxSha;
     if (!quick || fresh || !ownScriv || p->binderChangedSinceSync) {
         const QByteArray scrivxBytes = text::xmlSafeBytes(buildScrivx(p, existing, state.identifier));
-        if (!writeFile(scrivx, scrivxBytes, error))
-            return false;
-        scrivxSha = sha1(scrivxBytes);
+        // 0.64: the binder was written elsewhere since this program read or wrote it: kept first
+        const QString stampNow = scrivxStamp(scrivx);
+        if (!fresh && state.theirs.contains(QStringLiteral(".scrivx")) && state.theirs.value(QStringLiteral(".scrivx")) != stampNow
+            && QFileInfo::exists(scrivx)) {
+            const QString copy = syncsafe::keepCopy(scrivx, p->settingsDir(), QStringLiteral("binder (scrivx)"));
+            rep.conflicts << QFileInfo(scrivx).fileName();
+            emit p->conflictKept(QString(), QStringLiteral("scrivx"), copy, false);
+        }
+        // the same binder as in the file (only the time and the change id would differ): not written,
+        // so a full save without changes leaves the .scriv as it is (0.64)
+        if (fresh || !sameExceptStamps(existing, scrivxBytes)) {
+            if (!writeFile(scrivx, scrivxBytes, error))
+                return false;
+            scrivxSha = sha1(scrivxBytes);
+        }
+        state.theirs.insert(QStringLiteral(".scrivx"), scrivxStamp(scrivx));
         if (ownScriv)
             p->binderChangedSinceSync = false;
     }
@@ -1390,7 +1449,11 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
         QByteArray cs;
         for (auto it = checksums.cbegin(); it != checksums.cend(); ++it)
             cs += it.key().toUtf8() + '=' + it.value().toUtf8() + '\n';
-        writeFile(checksumFile, cs, nullptr);
+        QFile old(checksumFile);
+        const bool same = old.open(QIODevice::ReadOnly) && old.readAll() == cs;
+        old.close();
+        if (!same)
+            writeFile(checksumFile, cs, nullptr);
     }
     laps.lap("checksums");
     QString fp = quick ? updatedFingerprint(scrivDir, touched, scrivxSha) : QString();
@@ -1455,6 +1518,7 @@ static void recordAll(Project *p, const QString &scrivDir, SyncState &st)
         if (it->hasText() && it->hasSnapshots)
             for (const Snapshot &s : snapshots::list(p, it->id))
                 st.snapshots << uuidFor(it->id) + QLatin1Char('/') + snapshotFileName(s.date);
+    st.theirs.insert(QStringLiteral(".scrivx"), scrivxStamp(scrivxIn(scrivDir)));
     st.fingerprint = fingerprint(scrivDir);
 }
 

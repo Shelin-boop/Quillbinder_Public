@@ -34,7 +34,7 @@ changed and what was checked. Preferences:
   same version number. Audio and video for everyone: the add-on "Media Playback" (free formats), the add-on "Extra
   Video and Audio Formats" (formats licensed under patents), and the package `media-all-formats.qbpkg` that installs
   both in one step (built by `packaging/build-addons.sh`).
-- **Runtime**: the current AppImage is 0.63.0 alpha (before it 0.61.0 alpha, 0.60.0 alpha, 0.40.0 alpha / 0.50.0 alpha, 0.30.0 alpha, 0.20.0,
+- **Runtime**: the current AppImage is 0.64.0 alpha (before it 0.63.0 alpha, 0.61.0 alpha, 0.60.0 alpha, 0.40.0 alpha / 0.50.0 alpha, 0.30.0 alpha, 0.20.0,
   0.16.0 and 0.2.0, with the same libraries), runtime id `u2404-qt6.4-r1` (`APP_RUNTIME` in CMakeLists.txt; a new
   AppImage with other libraries needs a new id). Program updates (.qbpkg) run on its libraries:
   build on Ubuntu 24.04 with Ubuntu's Qt 6.4.2, use no Qt API newer than 6.4, and add
@@ -112,6 +112,11 @@ changed and what was checked. Preferences:
   adds checks with real recognition; `QB_SPEECH_OFFICIAL=small` downloads that model from Hugging Face through the add-on
   (allowed in the cloud session since 2026-11-08: `huggingface.co` and its download host `us.aws.cdn.hf.co`);
   `QB_SPEECH_EXTRA="<wav>=<word>|<word>;..."` (with `QB_SPEECH_HINT`) adds recordings that must hold one of the words.
+- `qb_v064_tests` (0.64: the spelling menu at every place of words with apostrophes, the autosave while typing on
+  (a gap after 5 s, at most 30 s; about 45 s of typing), the card size kept when settings are read again, the lock with
+  device and renewal, a lock taken over while open, conflicts kept as snapshot and copy (texts, the project file,
+  Scrivener format), opening and closing without a change writes nothing (also a .scriv), texts not arrived yet).
+  The speech add-on's Record only and Transcribe / Transcribe All are checked in `qb_v061_tests`.
 - `qb_v0611_tests` (0.61.1: the quote rules, Convert Quotes from File > Options > Corrections with every place and the
   scope, Project > Delete Old Snapshots with its question, Scrivener format: deleted snapshots leave the .scriv).
 - `qb_v062_tests` (0.62: settings per project: the first start window, File > Options with "Settings for", what goes
@@ -238,6 +243,43 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
 - The add-on brings Qt Multimedia (only `libQt6Multimedia.so.6`: the microphone needs no Qt Multimedia plugin) and Qt's TLS
   plugin; `addons/speech-transcription/stage.sh` exits with 3 when whisper is not built, and `packaging/build-addons.sh`
   then leaves the add-on out. Icons of the add-on are in the program's icon set (Breeze: microphone, record, list).
+
+## Synced folders, Record only, autosave in typing gaps (0.64)
+
+- **Sync safety** (`src/core/SyncSafety.*`, Qt Core; `src/ui/MainWindowSync.cpp`): works on files only, whatever the
+  sync program. The lock (`settings/lock`; for Scrivener format also `<x>.scriv/quillbinder.lock`): first line
+  "<host> <pid>" as before (older versions read it), then `device=`, `user=`, `instance=` (one per running program),
+  `program=`, `opened=`, `alive=` (UTC); `MainWindow::takeLocks` at adoption, renewed every 5 min (`QB_LOCK_RENEW_MS`),
+  checked after every save (`Project::saved` -> `renewLocks(false)`): another computer's fresh lock -> notice
+  `lockTakenNotice`, no more renewals; `releaseLocks` removes only our own lock. `confirmLock` before opening:
+  `judge()` -> other window / other device (renewed within 15 min, `QB_LOCK_STALE_S`) / left over (Open is the
+  default). `QB_DEVICE_NAME` fakes the computer's name (tests). No read-only mode for a whole project.
+- **Stamps** (size + time): `DocumentStore::Entry::stamp` (set in `load()`, after each `writeEntry`), `Project::m_indexMark`
+  (the project file), `SyncState::theirs[".scrivx"]` ("size:time"). A changed stamp before a write = someone else wrote
+  the file: `DocumentStore::keepOtherVersion` / `syncsafe::keepCopy` keep it (copy in `settings/conflicts`, for a text
+  also a snapshot "Other version (changed elsewhere, ...)") and `Project::conflictKept` -> `conflictNotice`. Scrivener
+  format: `mustWrite` keeps theirs when both sides changed (before: ours won silently).
+- **Nothing written without a change**: the UI state goes to `settings/ui-<computer>.json` (`Project::uiStateFile`,
+  `markUiStateDirty`; `ui.json` of older versions is still read), `saveUiState` no longer marks the project file dirty;
+  the spare copy only when it differs; the .scrivx only when more than its `Modified`/`ModID` differs
+  (`sameExceptStamps`), docs.checksum only when it differs.
+- **Texts not arrived**: a text with `charCount > 0` in the project file and no file -> `DocumentStore::m_missing` (+
+  `m_unreadable`: read-only, never written, not recounted), `missingFile` signal; `textsNotArrived()` -> notice
+  `notArrivedNotice` after opening. Not for Scrivener format (the working copy is local).
+- **Autosave** (`Project::scheduleSave`): the 2 s pause timer as before; once the changes are 5 s old
+  (`m_gapSaveAfter`, or the delay when longer) every change restarts `m_gapTimer` (300 ms): the first gap saves;
+  `m_maxSaveWait` 30 s stays the latest. `autosaveCount()` for the tests. Replaces PR #35 (flat 5 s).
+- **Speech, Record only** (setting `mode` = `record` / `live`; standard `record` only on Android): `EngineSettings::recordOnly`
+  + `recordFile` -> `Engine::startRecordOnly` (no model, no Segmenter; `speech::WavWriter` 16 kHz mono 16 bit, header
+  updated every second). `speech::transcriptsIn` lists `.wav` without `.txt` as pending (`Transcript::audio`,
+  `pending()`). `SpeechTool::transcribeRecording` runs the WAV with `fileAsFast` (fed as fast as the worker takes it:
+  at most 2 pieces waiting, the feed timer stops meanwhile) into `<name>.txt.part`, renamed at the end
+  (`finishRecordingText`; stopped: the part file goes, the recording stays pending); a queue for Transcribe All;
+  `deleteRecording` moves the WAV to the trash afterwards. Panel: item widget with `speechTranscribeNow`,
+  `speechTranscribeAll`; rename and delete take the WAV along. States "recording", "reading <percent>".
+- **Spelling menu**: `SpellChecker::checkedWordAt` (the highlighter's regex and rules) gives the menu its word at the
+  click (Qt's WordUnderCursor ends at a straight apostrophe).
+- **Card size slider**: saved on every change unless the handle is held, follows `AppSettings::changed`.
 
 ## Settings per project, first start, tables and pictures (0.62)
 

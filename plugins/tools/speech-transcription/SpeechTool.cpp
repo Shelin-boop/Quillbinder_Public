@@ -126,6 +126,10 @@ void SpeechTool::shutdown()
 {
     // the program ends while a recording runs: stop it and let the pieces still waiting be written
     // (at most a minute), so nothing that was said gets lost
+    if (!m_transcribingWav.isEmpty()) {
+        m_transcribeStopped = true; // the recording keeps its Transcribe button
+        m_queue.clear();
+    }
     if (m_engine && m_engine->isRecording())
         m_engine->stop();
     QElapsedTimer t;
@@ -328,7 +332,8 @@ speech::EngineInterface *SpeechTool::engine(QString *error)
 // ------------------------------------------------------------------ recording
 
 bool SpeechTool::isBusy() const { return m_engine && m_engine->isBusy(); }
-bool SpeechTool::isRecording() const { return m_engine && m_engine->isRecording(); }
+// a recording read for its text (0.64) is not "recording" for the button and the menu
+bool SpeechTool::isRecording() const { return m_engine && m_engine->isRecording() && m_transcribingWav.isEmpty(); }
 
 void SpeechTool::toggleRecording()
 {
@@ -338,10 +343,22 @@ void SpeechTool::toggleRecording()
         startRecording();
 }
 
+bool SpeechTool::recordOnly() const
+{
+#ifdef Q_OS_ANDROID
+    const QString standard = QStringLiteral("record"); // a phone: record now, the text later (0.64)
+#else
+    const QString standard = QStringLiteral("live");
+#endif
+    return setting(QStringLiteral("mode"), standard).toString() == QLatin1String("record");
+}
+
 bool SpeechTool::startRecording(const QString &wavFile)
 {
     m_lastError.clear();
     QWidget *parent = m_host ? m_host->window() : nullptr;
+    if (recordOnly())
+        return startRecordOnly(wavFile);
     if (installedModelFile().isEmpty()) {
         m_lastError = tr("No speech model is installed yet.");
         if (!quiet()) {
@@ -391,11 +408,157 @@ bool SpeechTool::startRecording(const QString &wavFile)
     return true;
 }
 
+// Record only (0.64): the microphone into "<date time>.wav" in the transcription folder; no model
+// is needed or loaded. The list shows the recording with a Transcribe button.
+bool SpeechTool::startRecordOnly(const QString &wavFile)
+{
+    QWidget *parent = m_host ? m_host->window() : nullptr;
+    QString error;
+    speech::EngineInterface *e = engine(&error);
+    if (!e) {
+        m_lastError = error;
+        if (!quiet())
+            QMessageBox::warning(parent, tr("Speech Transcription"), error);
+        return false;
+    }
+    const QString base = speech::newRecordingBase(folder(), QDateTime::currentDateTime());
+    speech::EngineSettings s = engineSettings();
+    s.recordOnly = true;
+    s.recordFile = base + QStringLiteral(".wav");
+    m_recFile = base + QStringLiteral(".txt"); // where its text goes later (the list selects it by name)
+    m_tail.clear();
+    if (!e->start(s, &error, wavFile)) {
+        m_recFile.clear();
+        m_lastError = error;
+        if (!quiet())
+            QMessageBox::warning(parent, tr("Speech Transcription"), error);
+        return false;
+    }
+    if (m_host && m_host->apiVersion() >= 110)
+        m_host->showInspectorTab(kTab);
+    if (m_panel)
+        m_panel->recordingStarted(m_recFile);
+    updateCommand();
+    emit recordingChanged(true);
+    return true;
+}
+
+// "Transcribe" in a recording's line (0.64): the recording is read as fast as the model takes
+// it; the text goes into "<name>.txt.part" and becomes "<name>.txt" when the whole recording is
+// done (stopped before: the recording stays without text and can run again).
+bool SpeechTool::transcribeRecording(const QString &wav)
+{
+    m_lastError.clear();
+    QWidget *parent = m_host ? m_host->window() : nullptr;
+    if (isBusy()) {
+        if (!m_queue.contains(wav) && wav != m_transcribingWav)
+            m_queue << wav; // after the one that runs
+        return true;
+    }
+    if (installedModelFile().isEmpty()) {
+        m_queue.clear();
+        m_lastError = tr("No speech model is installed yet.");
+        if (!quiet()) {
+            QMessageBox box(QMessageBox::Information, tr("Speech Transcription"),
+                            tr("No speech model is installed yet. Choose one under File > Options > Speech; it is "
+                               "downloaded once, after that everything runs on this computer."),
+                            QMessageBox::Cancel, parent);
+            QPushButton *open = box.addButton(tr("Open the Options"), QMessageBox::AcceptRole);
+            box.exec();
+            if (box.clickedButton() == open && m_host && m_host->apiVersion() >= 110)
+                m_host->showOptions(id());
+        }
+        return false;
+    }
+    QString error;
+    speech::EngineInterface *e = engine(&error);
+    if (!e || !QFileInfo::exists(wav)) {
+        m_lastError = e ? tr("The recording is no longer there.") : error;
+        return false;
+    }
+    const QString text = QFileInfo(wav).absolutePath() + QLatin1Char('/') + QFileInfo(wav).completeBaseName() + QStringLiteral(".txt");
+    m_recFile = speech::partFileFor(text);
+    QFile::remove(m_recFile);
+    QFile f(m_recFile);
+    if (!f.open(QIODevice::WriteOnly)) {
+        m_lastError = tr("The transcription file cannot be written: %1").arg(f.errorString());
+        m_recFile.clear();
+        return false;
+    }
+    f.close();
+    m_tail.clear();
+    speech::EngineSettings s = engineSettings();
+    s.fileAsFast = true;
+    m_transcribingWav = wav;
+    m_transcribeStopped = false;
+    if (!e->start(s, &error, wav)) {
+        QFile::remove(m_recFile);
+        m_recFile.clear();
+        m_transcribingWav.clear();
+        m_lastError = error;
+        if (!quiet())
+            QMessageBox::warning(parent, tr("Speech Transcription"), error);
+        return false;
+    }
+    if (m_panel)
+        m_panel->transcriptionStarted(text);
+    updateCommand();
+    return true;
+}
+
+int SpeechTool::transcribeAll()
+{
+    QStringList waiting;
+    const QList<speech::Transcript> all = speech::transcriptsIn(folder());
+    for (auto it = all.crbegin(); it != all.crend(); ++it) // the oldest first
+        if (it->pending() && it->audio != m_transcribingWav)
+            waiting << it->audio;
+    if (waiting.isEmpty())
+        return 0;
+    for (const QString &w : waiting.mid(1))
+        if (!m_queue.contains(w))
+            m_queue << w;
+    transcribeRecording(waiting.first());
+    return int(waiting.size());
+}
+
+bool SpeechTool::isTranscribingRecording() const { return !m_transcribingWav.isEmpty(); }
+
 void SpeechTool::stopRecording()
 {
+    if (!m_transcribingWav.isEmpty()) {
+        m_transcribeStopped = true; // the rest of the recording is not read: it stays without text
+        m_queue.clear();
+    }
     if (m_engine)
         m_engine->stop();
     updateCommand();
+}
+
+// the recording was read to its end: its text is complete
+void SpeechTool::finishRecordingText()
+{
+    const QString wav = m_transcribingWav;
+    const QString part = m_recFile;
+    m_transcribingWav.clear();
+    m_recFile.clear();
+    const QString text = part.left(part.size() - 5); // without ".part"
+    if (m_transcribeStopped) {
+        QFile::remove(part);
+    } else {
+        QFile::remove(text);
+        QFile::rename(part, text);
+        if (setting(QStringLiteral("deleteRecording"), false).toBool() && QFileInfo::exists(text) && !QFile::moveToTrash(wav))
+            QFile::remove(wav);
+    }
+    m_transcribeStopped = false;
+    if (m_panel)
+        m_panel->transcriptionFinished(text);
+    if (!m_queue.isEmpty())
+        QTimer::singleShot(0, this, [this] {
+            if (!m_queue.isEmpty())
+                transcribeRecording(m_queue.takeFirst());
+        });
 }
 
 void SpeechTool::onText(const QString &text, bool newParagraph)
@@ -419,6 +582,13 @@ void SpeechTool::onState(const QString &state)
     if (m_panel)
         m_panel->setState(state);
     if (state == QLatin1String("finished")) {
+        if (!m_transcribingWav.isEmpty())
+            finishRecordingText();
+        else if (!m_queue.isEmpty()) // recordings that waited for a live recording to end
+            QTimer::singleShot(0, this, [this] {
+                if (!m_queue.isEmpty() && !isBusy())
+                    transcribeRecording(m_queue.takeFirst());
+            });
         updateCommand();
         emit recordingChanged(false);
     }
@@ -708,6 +878,10 @@ TranscriptPanel::TranscriptPanel(SpeechTool *tool, QWidget *parent) : QWidget(pa
     m_rename = button(QStringLiteral("edit-rename"), tr("Rename the transcription"), "speechRename");
     m_copy = button(QStringLiteral("edit-copy"), tr("Copy the whole text"), "speechCopy");
     m_delete = button(QStringLiteral("edit-delete"), tr("Move the transcription to the trash"), "speechDelete");
+    m_transcribeAll = button(QStringLiteral("document-edit"), tr("Write the text of every recording that has none yet"),
+                             "speechTranscribeAll");
+    m_transcribeAll->setText(tr("Transcribe All"));
+    m_transcribeAll->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     bar->addStretch(1);
     m_folderButton = button(QStringLiteral("folder-open"), tr("Show the folder of the transcriptions"), "speechFolder");
     lay->addLayout(bar);
@@ -747,6 +921,7 @@ TranscriptPanel::TranscriptPanel(SpeechTool *tool, QWidget *parent) : QWidget(pa
             rename(t.trimmed());
     });
     connect(m_copy, &QToolButton::clicked, this, &TranscriptPanel::copyAll);
+    connect(m_transcribeAll, &QToolButton::clicked, m_tool, [this] { m_tool->transcribeAll(); updateButtons(); });
     connect(m_delete, &QToolButton::clicked, this, [this] { remove(true); });
     connect(m_folderButton, &QToolButton::clicked, this, [this] {
         QDir().mkpath(m_tool->folder());
@@ -785,9 +960,39 @@ void TranscriptPanel::refresh()
     m_loading = true;
     m_list->clear();
     int row = -1;
+    m_pending = 0;
     for (const speech::Transcript &t : speech::transcriptsIn(folder)) {
         auto *it = new QListWidgetItem(t.title, m_list);
         it->setData(Qt::UserRole, t.file);
+        it->setData(Qt::UserRole + 1, t.audio);
+        if (!t.audio.isEmpty())
+            it->setIcon(QIcon::fromTheme(QStringLiteral("audio-x-generic")));
+        if (t.pending() && t.file != m_recordingFile) {
+            // 0.64: a recording without text yet: its Transcribe button in the line
+            ++m_pending;
+            it->setToolTip(tr("A recording without text yet (%1). Transcribe writes its text now.")
+                               .arg(sizeText(QFileInfo(t.audio).size())));
+            auto *w = new QWidget(m_list);
+            auto *h = new QHBoxLayout(w);
+            h->setContentsMargins(0, 0, 4, 0);
+            h->addStretch(1);
+            auto *b = new QToolButton(w);
+            b->setText(m_tool->isTranscribingRecording() && m_tool->queuedRecordings().contains(t.audio) ? tr("Waiting")
+                                                                                                        : tr("Transcribe"));
+            b->setObjectName(QStringLiteral("speechTranscribeNow"));
+            b->setToolTip(tr("Write the text of this recording now"));
+            b->setAutoRaise(true);
+            b->setEnabled(!m_tool->queuedRecordings().contains(t.audio));
+            const QString wav = t.audio;
+            connect(b, &QToolButton::clicked, m_tool, [this, wav, b] {
+                b->setText(tr("Waiting"));
+                b->setEnabled(false);
+                m_tool->transcribeRecording(wav);
+            });
+            h->addWidget(b);
+            it->setSizeHint(QSize(it->sizeHint().width(), qMax(w->sizeHint().height(), m_list->fontMetrics().height() + 8)));
+            m_list->setItemWidget(it, w);
+        }
         if (t.file == m_file)
             row = m_list->count() - 1;
     }
@@ -807,8 +1012,13 @@ void TranscriptPanel::load(const QString &file)
     m_loading = true;
     m_file = file;
     QFile f(file);
-    m_edit->setPlainText(f.open(QIODevice::ReadOnly) ? QString::fromUtf8(f.readAll()) : QString());
-    m_edit->setReadOnly(file == m_recordingFile && m_tool->isBusy());
+    const bool exists = f.open(QIODevice::ReadOnly);
+    m_edit->setPlainText(exists ? QString::fromUtf8(f.readAll()) : QString());
+    // a recording without text yet (0.64): nothing to edit until Transcribe has written it
+    m_edit->setReadOnly((file == m_recordingFile && m_tool->isBusy()) || !exists);
+    m_edit->setPlaceholderText(exists || file.isEmpty() ? tr("Choose a transcription, or press the microphone to start one.")
+                                                        : tr("This recording has no text yet. Press Transcribe in its line "
+                                                             "(or Transcribe All) to write it."));
     m_loading = false;
     updateButtons();
 }
@@ -843,6 +1053,9 @@ void TranscriptPanel::save()
     m_saveTimer->stop();
     if (m_file.isEmpty() || m_loading || (m_file == m_recordingFile && m_tool->isBusy()))
         return;
+    // a recording without text yet (0.64): no empty text in its place (it would lose its Transcribe button)
+    if (!QFileInfo::exists(m_file))
+        return;
     QFile cur(m_file);
     const QByteArray now = m_edit->toPlainText().toUtf8();
     if (cur.open(QIODevice::ReadOnly) && cur.readAll() == now)
@@ -863,8 +1076,16 @@ bool TranscriptPanel::rename(const QString &title)
     QString safe = title;
     safe.replace(QLatin1Char('/'), QLatin1Char('-'));
     const QString target = QFileInfo(m_file).absolutePath() + QLatin1Char('/') + safe + QStringLiteral(".txt");
-    if (QFileInfo::exists(target) || !QFile::rename(m_file, target))
+    // the recording with the same name goes along (0.64)
+    const QString wav = QFileInfo(m_file).absolutePath() + QLatin1Char('/') + QFileInfo(m_file).completeBaseName() + QStringLiteral(".wav");
+    const QString wavTarget = QFileInfo(target).absolutePath() + QLatin1Char('/') + safe + QStringLiteral(".wav");
+    const bool hasText = QFileInfo::exists(m_file), hasWav = QFileInfo::exists(wav);
+    if (QFileInfo::exists(target) || (hasWav && QFileInfo::exists(wavTarget)) || (!hasText && !hasWav))
         return false;
+    if (hasText && !QFile::rename(m_file, target))
+        return false;
+    if (hasWav)
+        QFile::rename(wav, wavTarget);
     m_file = target;
     refresh();
     return true;
@@ -882,8 +1103,11 @@ bool TranscriptPanel::remove(bool ask)
     m_saveTimer->stop();
     const QString f = m_file;
     m_file.clear();
-    if (!QFile::moveToTrash(f))
-        QFile::remove(f);
+    // the text and its recording (0.64)
+    const QString wav = QFileInfo(f).absolutePath() + QLatin1Char('/') + QFileInfo(f).completeBaseName() + QStringLiteral(".wav");
+    for (const QString &x : {f, wav})
+        if (QFileInfo::exists(x) && !QFile::moveToTrash(x))
+            QFile::remove(x);
     m_loading = true;
     m_edit->clear();
     m_loading = false;
@@ -913,6 +1137,29 @@ void TranscriptPanel::recordingStarted(const QString &file)
     setRecording(true);
 }
 
+void TranscriptPanel::transcriptionStarted(const QString &file)
+{
+    save();
+    m_recordingFile = file;
+    refresh();
+    selectTranscript(QFileInfo(file).completeBaseName());
+    if (m_file != file)
+        load(file);
+    m_edit->setReadOnly(true);
+    updateButtons();
+}
+
+void TranscriptPanel::transcriptionFinished(const QString &file)
+{
+    m_recordingFile.clear();
+    refresh();
+    if (m_file == file)
+        load(file);
+    updateButtons();
+}
+
+int TranscriptPanel::pendingCount() const { return m_pending; }
+
 void TranscriptPanel::appendPiece(const QString &added)
 {
     if (m_file != m_recordingFile)
@@ -941,6 +1188,11 @@ void TranscriptPanel::setState(const QString &state)
         text = tr("Loading the model ...");
     } else if (state == QLatin1String("listening")) {
         text = tr("Listening: speak now. A pause ends a piece; its text follows a few seconds later.");
+    } else if (state == QLatin1String("recording")) {
+        text = tr("Recording (record only): the text is written later, with Transcribe in the list. Press the "
+                  "microphone again to stop.");
+    } else if (state.startsWith(QLatin1String("reading"))) {
+        text = tr("Writing the text of the recording: %1 % read ...").arg(state.section(QLatin1Char(' '), 1));
     } else if (state.startsWith(QLatin1String("transcribing"))) {
         text = tr("Writing the last pieces (%1 waiting) ...").arg(state.section(QLatin1Char(' '), 1));
     } else if (state == QLatin1String("finished")) {
@@ -959,9 +1211,13 @@ void TranscriptPanel::setRecording(bool on)
     if (!on) {
         m_level->hide();
         if (!m_tool->isBusy()) {
-            if (m_file == m_recordingFile)
-                m_edit->setReadOnly(false);
+            const bool shown = m_file == m_recordingFile && !m_file.isEmpty();
             m_recordingFile.clear();
+            if (shown) {
+                // a recording made with Record only has no text yet: its line gets the Transcribe button
+                refresh();
+                load(m_file);
+            }
         }
     }
     updateButtons();
@@ -973,7 +1229,9 @@ void TranscriptPanel::updateButtons()
     const bool locked = has && m_file == m_recordingFile && m_tool->isBusy();
     m_rename->setEnabled(has && !locked);
     m_delete->setEnabled(has && !locked);
-    m_copy->setEnabled(has);
+    m_copy->setEnabled(has && QFileInfo::exists(m_file));
+    m_transcribeAll->setVisible(m_pending > 0);
+    m_transcribeAll->setEnabled(m_pending > 0 && !m_tool->isBusy());
 }
 
 // ==================================================================== File > Options > Speech
@@ -1004,7 +1262,8 @@ private:
     QWidget *m_progressRow;
     QSpinBox *m_threads;
     QDoubleSpinBox *m_pause, *m_paragraph;
-    QCheckBox *m_keepOriginal, *m_guard, *m_context;
+    QCheckBox *m_keepOriginal, *m_guard, *m_context, *m_deleteAfter;
+    QRadioButton *m_live, *m_recordOnly;
     QPlainTextEdit *m_hint;
 };
 
@@ -1166,13 +1425,31 @@ SpeechOptions::SpeechOptions(SpeechTool *tool, QWidget *parent) : QObject(nullpt
 
     // ---- files and advanced
     auto *fileBox = new QGroupBox(tr("Transcriptions"), m_w);
-    auto *ff = new QHBoxLayout(fileBox);
+    auto *fv = new QVBoxLayout(fileBox);
+    auto *ff = new QHBoxLayout;
     m_folder = new QLineEdit(fileBox);
     m_folder->setObjectName(QStringLiteral("speechFolder"));
     auto *choose = new QPushButton(tr("Choose…"), fileBox);
     ff->addWidget(new QLabel(tr("Folder:"), fileBox));
     ff->addWidget(m_folder, 1);
     ff->addWidget(choose);
+    fv->addLayout(ff);
+    // 0.64: record now, write the text later (little power: nothing but the microphone runs)
+    fv->addWidget(new QLabel(tr("When the microphone starts:"), fileBox));
+    m_live = new QRadioButton(tr("Transcribe live (the text follows a few seconds after each pause)"), fileBox);
+    m_live->setObjectName(QStringLiteral("speechModeLive"));
+    m_recordOnly = new QRadioButton(tr("Record only: the text is written later, when you press Transcribe in the list "
+                                       "(uses little power: for a laptop on battery or a phone)"),
+                                    fileBox);
+    m_recordOnly->setObjectName(QStringLiteral("speechModeRecord"));
+    fv->addWidget(m_live);
+    fv->addWidget(m_recordOnly);
+    m_deleteAfter = new QCheckBox(tr("Delete a recording once its text is written"), fileBox);
+    m_deleteAfter->setObjectName(QStringLiteral("speechDeleteAfter"));
+    fv->addWidget(m_deleteAfter);
+    fv->addWidget(note(tr("Recordings are kept in the folder above, beside the texts (about 1.9 MB per minute). To "
+                          "transcribe a recording on another computer, choose a folder your sync program keeps the "
+                          "same on both.")));
     lay->addWidget(fileBox);
     auto *advBox = new QGroupBox(tr("Advanced"), m_w);
     auto *af = new QVBoxLayout(advBox);
@@ -1206,6 +1483,9 @@ SpeechOptions::SpeechOptions(SpeechTool *tool, QWidget *parent) : QObject(nullpt
     m_folder->setText(m_tool->folder());
     m_guard->setChecked(s.silenceGuard);
     m_context->setChecked(s.useContext);
+    m_recordOnly->setChecked(m_tool->recordOnly());
+    m_live->setChecked(!m_tool->recordOnly());
+    m_deleteAfter->setChecked(m_tool->setting(QStringLiteral("deleteRecording"), false).toBool());
     m_progressRow->hide();
 
     // microphones and graphics cards need the engine; without it the lists say why
@@ -1412,6 +1692,8 @@ void SpeechOptions::apply()
     m_tool->setSetting(QStringLiteral("folder"), folder == speech::defaultFolder() ? QString() : folder);
     m_tool->setSetting(QStringLiteral("silenceGuard"), m_guard->isChecked());
     m_tool->setSetting(QStringLiteral("useContext"), m_context->isChecked());
+    m_tool->setSetting(QStringLiteral("mode"), m_recordOnly->isChecked() ? QStringLiteral("record") : QStringLiteral("live"));
+    m_tool->setSetting(QStringLiteral("deleteRecording"), m_deleteAfter->isChecked());
     if (m_tool->panel())
         m_tool->panel()->refresh();
 }

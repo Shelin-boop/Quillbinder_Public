@@ -103,6 +103,16 @@ Project::Project(QObject *parent) : QObject(parent)
         if (!autosave(&err))
             emit saveFailed(err);
     });
+    // 0.64: changes that keep coming are saved at their first short gap after 5 s
+    m_gapTimer.setSingleShot(true);
+    m_gapTimer.setInterval(300);
+    connect(&m_gapTimer, &QTimer::timeout, this, [this] {
+        if (!hasUnsavedChanges())
+            return;
+        QString err;
+        if (!autosave(&err))
+            emit saveFailed(err);
+    });
 }
 
 Project::~Project()
@@ -178,17 +188,22 @@ std::unique_ptr<Project> Project::open(const QString &path, QString *error)
     QDir().mkpath(p->m_folder + QLatin1String("/content"));
     QDir().mkpath(p->m_folder + QLatin1String("/snapshots"));
     QDir().mkpath(p->m_folder + QLatin1String("/settings"));
-    // the project file that just opened: the spare copy if it is ever damaged (0.20)
+    // the project file that just opened: the spare copy if it is ever damaged (0.20); written only
+    // when it differs, so opening alone changes no file a sync program would carry (0.64)
     if (!p->m_loadedIndex.isEmpty()) {
+        QFile old(spareCopyOf(file));
+        const bool same = old.open(QIODevice::ReadOnly) && old.readAll() == p->m_loadedIndex;
+        old.close();
         QSaveFile spare(spareCopyOf(file));
-        if (spare.open(QIODevice::WriteOnly) && spare.write(p->m_loadedIndex) == p->m_loadedIndex.size())
+        if (!same && spare.open(QIODevice::WriteOnly) && spare.write(p->m_loadedIndex) == p->m_loadedIndex.size())
             spare.commit();
         p->m_loadedIndex.clear();
     }
     p->ensureSpecialFolders();
     p->m_model = new BinderModel(p.get());
-    // ui state (before the document store, which takes zoom and page view from it)
-    QFile ui(QDir(p->settingsDir()).filePath(QStringLiteral("ui.json")));
+    // ui state (before the document store, which takes zoom and page view from it): this
+    // computer's own file, else the one of versions before 0.64
+    QFile ui(QFileInfo::exists(p->uiStateFile()) ? p->uiStateFile() : QDir(p->settingsDir()).filePath(QStringLiteral("ui.json")));
     if (ui.open(QIODevice::ReadOnly))
         p->uiState = QJsonDocument::fromJson(ui.readAll()).toVariant().toMap();
     p->m_docs = new DocumentStore(p.get());
@@ -631,7 +646,8 @@ void Project::scheduleSave()
 {
     if (!m_dirtySince.isValid())
         m_dirtySince.start();
-    if (m_dirtySince.elapsed() >= qMax<qint64>(m_maxSaveWait, m_saveTimer.interval())) {
+    const qint64 age = m_dirtySince.elapsed();
+    if (age >= qMax<qint64>(m_maxSaveWait, m_saveTimer.interval())) {
         // the changes go on without a pause: save now (from the event loop) instead of waiting
         if (!m_forcedSave) {
             m_forcedSave = true;
@@ -647,6 +663,30 @@ void Project::scheduleSave()
         return;
     }
     m_saveTimer.start();
+    // 0.64: unsaved for about 5 s (or the autosave delay when that is longer): the next short gap saves
+    if (m_gapTimer.interval() > 0 && age + m_gapTimer.interval() >= qMax<qint64>(m_gapSaveAfter, m_saveTimer.interval()))
+        m_gapTimer.start();
+}
+
+QString Project::uiStateFile() const
+{
+    QString dev = syncsafe::deviceName();
+    for (QChar &c : dev)
+        if (!c.isLetterOrNumber() && c != QLatin1Char('-') && c != QLatin1Char('_') && c != QLatin1Char('.'))
+            c = QLatin1Char('_');
+    return QDir(settingsDir()).filePath(QStringLiteral("ui-%1.json").arg(dev));
+}
+
+bool Project::writeUiState()
+{
+    const QByteArray data = QJsonDocument::fromVariant(uiState).toJson();
+    m_uiDirty = false;
+    QFile old(uiStateFile());
+    if (old.open(QIODevice::ReadOnly) && old.readAll() == data)
+        return true; // the same as before: nothing for a sync program to carry
+    old.close();
+    QSaveFile ui(uiStateFile());
+    return ui.open(QIODevice::WriteOnly) && ui.write(data) == data.size() && ui.commit();
 }
 
 QString Project::spareCopyOf(const QString &projectFile)
@@ -735,7 +775,10 @@ bool Project::saveImpl(QString *error, bool quick)
 {
     timing::Laps laps;
     m_saveTimer.stop();
+    m_gapTimer.stop();
     m_dirtySince.invalidate();
+    if (quick)
+        ++m_autosaves;
     bool ok = true;
     if (m_docs && !m_docs->saveDirty(error))
         ok = false;
@@ -756,6 +799,8 @@ bool Project::saveImpl(QString *error, bool quick)
                 scheduleSave();
         });
     }
+    if (m_uiDirty)
+        writeUiState();
     laps.lap("project file");
     // a project in Scrivener format: the .scriv gets what changed (the autosave: quickly)
     if (ok && !scrivenerPath.isEmpty() && !scrivener::sync(this, error, quick))
@@ -1235,6 +1280,12 @@ bool Project::saveIndex(QString *error)
     }
     rootEl.appendChild(hist);
 
+    // 0.64: the project file was written by someone else since it was read here (another computer
+    // through a sync program): that version is kept before this one replaces it
+    if (syncsafe::changedSince(m_indexMark, m_indexFile) && QFileInfo::exists(m_indexFile)) {
+        const QString copy = syncsafe::keepCopy(m_indexFile, settingsDir(), tr("project file"));
+        emit conflictKept(QString(), tr("project file"), copy, false);
+    }
     QSaveFile f(m_indexFile);
     if (!f.open(QIODevice::WriteOnly)) {
         if (error)
@@ -1248,12 +1299,9 @@ bool Project::saveIndex(QString *error)
             *error = tr("Cannot write %1: %2").arg(m_indexFile, f.errorString());
         return false;
     }
-    // ui state
-    QSaveFile ui(QDir(settingsDir()).filePath(QStringLiteral("ui.json")));
-    if (ui.open(QIODevice::WriteOnly)) {
-        ui.write(QJsonDocument::fromVariant(uiState).toJson());
-        ui.commit();
-    }
+    m_indexMark = syncsafe::stampOf(m_indexFile);
+    // ui state: this computer's own file (0.64)
+    writeUiState();
     m_indexDirty = false;
     m_countsDirty = false;
     m_lastIndexWrite.start();
@@ -1272,6 +1320,7 @@ bool Project::loadIndex(QString *error)
     QString msg;
     int line = 0, col = 0;
     m_loadedIndex = f.readAll();
+    m_indexMark = syncsafe::stampOf(m_indexFile);
     if (!dom.setContent(m_loadedIndex, &msg, &line, &col)) {
         // characters XML does not allow (written by versions before 0.20): removed, then read again
         int removed = 0;

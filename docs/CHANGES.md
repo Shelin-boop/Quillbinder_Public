@@ -3,6 +3,31 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.64.0 alpha (2026-11-08)
+
+A new AppImage (also as the full version with all add-ons) and a program update for the AppImages of the same runtime
+(0.60.0 alpha and later).
+
+- **Safer with a project in a synced folder on several computers**. It works on the level of files, whatever the sync
+  program is (OneDrive, Dropbox, Nextcloud, Syncthing ...). The lock in the project names the computer and is renewed
+  every five minutes, so another computer shows who has the project open, since when, and its last sign of life (a lock
+  not renewed for 15 minutes counts as left over). A notice comes when another computer opens the project while it is
+  open here. A file changed elsewhere and here is no longer overwritten silently: the other version is kept as a
+  snapshot and as a copy in settings/conflicts (also the project file, and in Scrivener format). Opening and closing
+  without a change changes no file (the window layout is kept per computer in settings/ui-<computer>.json; a .scriv is
+  no longer rewritten at every close). Texts whose files have not arrived yet are shown read-only and never written.
+- **Speech Transcription can record now and write the text later**. With Record only (the add-on Speech Transcription 1.1; File > Options > Speech;
+  the standard on Android later) the microphone only records into a sound file beside the transcriptions, which uses little
+  power; a Transcribe button in the recording's line (and Transcribe All) writes its text later, on this computer or
+  another one. Optionally the recording is deleted once its text is there.
+- **Saved more often while you type on**. The first short break once 5 seconds have passed saves (before: only a pause
+  of the autosave delay, else every 30 seconds), and 30 seconds stay the latest.
+- **Fixed: the spelling menu on words with an apostrophe**. A right-click on "Kayel's" (straight apostrophe) near its
+  end gave the long menu without suggestions, and on "D'Nersun" the menu offered to add "Nersun". The menu now takes
+  the word the underline marks, at any place of it.
+- **Fixed: the corkboard's card size could get lost**. Only a drag with the mouse was saved; a change with the keys,
+  the wheel or a click beside the handle went when the settings were read again (for example when a project opened).
+
 ## 0.63.0 alpha (2026-11-08)
 
 A new AppImage (also as the full version with all add-ons) and a program update for the AppImages of the same runtime

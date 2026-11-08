@@ -4,6 +4,7 @@
 #include "core/BinderItem.h"
 #include "core/ItemIcons.h"
 #include "core/Project.h"
+#include "core/Snapshots.h"
 #include "text/DirectFormat.h"
 #include "text/DisplayFormat.h"
 #include "text/MarkdownIO.h"
@@ -157,6 +158,21 @@ QTextDocument *DocumentStore::load(const QString &id, bool notes)
     Entry e;
     e.doc = doc;
     e.isNotes = notes;
+    // 0.64: what the file was when it was read; a different file at the next write means someone
+    // else (another computer through a sync program) wrote it meanwhile
+    const QString path = notes ? notesPath(id) : textPath(id);
+    e.stamp = syncsafe::stampOf(path);
+    if (!notes && !e.stamp.exists && id != QLatin1String("PROJECT")) {
+        // the project file says the document has text, but its file is not there: most likely it
+        // has not arrived yet; shown empty, read-only and never written, so it cannot be lost
+        const QString other = m_project->contentDir(id) + (m_project->storage == StorageFormat::Rtf ? QStringLiteral("/text.md") : QStringLiteral("/text.rtf"));
+        BinderItem *it = m_project->item(id);
+        if (it && it->charCount > 0 && !QFileInfo::exists(other) && m_project->scrivenerPath.isEmpty()) {
+            m_missing.insert(id);
+            m_unreadable.insert(key);
+            emit missingFile(id, path);
+        }
+    }
     m_entries.insert(key, e);
     connect(doc, &QTextDocument::contentsChanged, this, [this, key, id, notes] {
         auto it = m_entries.find(key);
@@ -251,6 +267,21 @@ bool DocumentStore::writeEntry(const QString &key, Entry &e, QString *error)
     }
     QDir().mkpath(dir);
     const QByteArray data = serialize(id, e.doc);
+    const QString other = (notes ? dir + QLatin1String("/notes.") : dir + QLatin1String("/text."))
+                          + (m_project->storage == StorageFormat::Rtf ? QStringLiteral("md") : QStringLiteral("rtf"));
+    // 0.64: the file holds exactly this already (a document marked as changed by showing it, or
+    // the same text written elsewhere): not written again, so a sync program has nothing to carry
+    if (!QFile::exists(other)) {
+        QFile cur(path);
+        if (cur.open(QIODevice::ReadOnly) && cur.size() == data.size() && cur.readAll() == data) {
+            e.dirty = false;
+            if (e.stamp.known)
+                e.stamp = syncsafe::stampOf(path);
+            return true;
+        }
+    }
+    if (syncsafe::changedSince(e.stamp, path) && QFileInfo::exists(path))
+        keepOtherVersion(id, notes, path);
     QSaveFile f(path);
     if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size() || !f.commit()) {
         if (error)
@@ -258,11 +289,11 @@ bool DocumentStore::writeEntry(const QString &key, Entry &e, QString *error)
         return false;
     }
     // remove a file of the other storage format if one is still there
-    const QString other = (notes ? dir + QLatin1String("/notes.") : dir + QLatin1String("/text."))
-                          + (m_project->storage == StorageFormat::Rtf ? QStringLiteral("md") : QStringLiteral("rtf"));
     if (QFile::exists(other))
         QFile::remove(other);
     e.dirty = false;
+    if (e.stamp.known)
+        e.stamp = syncsafe::stampOf(path);
     // tables and pictures beside the text (0.62): older versions would turn them into text when they
     // save, so the project names 0.62.0 as the version it needs (they ask before opening it)
     if (!e.doc->rootFrame()->childFrames().isEmpty()
@@ -271,6 +302,26 @@ bool DocumentStore::writeEntry(const QString &key, Entry &e, QString *error)
         m_project->markIndexDirty();
     }
     return true;
+}
+
+void DocumentStore::keepOtherVersion(const QString &id, bool notes, const QString &path)
+{
+    BinderItem *it = m_project->item(id);
+    const QString title = it ? it->title : id;
+    const QString what = notes ? tr("%1 notes").arg(title) : tr("%1 text").arg(title);
+    const QString copy = syncsafe::keepCopy(path, m_project->settingsDir(), what);
+    bool snap = false;
+    if (!notes && it && it->hasText()) {
+        // the other version also as a snapshot of the document: it can be compared and taken back
+        QFile f(path);
+        if (f.open(QIODevice::ReadOnly)) {
+            QTextDocument other;
+            deserialize(id, f.readAll(), &other, path.endsWith(QLatin1String(".rtf")));
+            const QString when = QFileInfo(path).lastModified().toString(QStringLiteral("yyyy-MM-dd HH:mm"));
+            snap = snapshots::take(m_project, id, tr("Other version (changed elsewhere, %1)").arg(when), nullptr, &other);
+        }
+    }
+    emit m_project->conflictKept(id, notes ? tr("notes") : tr("text"), copy, snap);
 }
 
 bool DocumentStore::saveDirty(QString *error)
@@ -658,10 +709,25 @@ int DocumentStore::editStored(const QString &id, bool notes, const std::function
     return n;
 }
 
+QStringList DocumentStore::textsNotArrived() const
+{
+    QStringList out;
+    if (!m_project->scrivenerPath.isEmpty())
+        return out; // the working copy of a .scriv is on this computer
+    for (BinderItem *it : m_project->allItems()) {
+        if (!it->hasText() || it->charCount <= 0)
+            continue;
+        const QString base = m_project->contentDir(it->id) + QLatin1String("/text.");
+        if (!QFileInfo::exists(base + QLatin1String("md")) && !QFileInfo::exists(base + QLatin1String("rtf")))
+            out << it->id;
+    }
+    return out;
+}
+
 void DocumentStore::recount(const QString &id)
 {
     BinderItem *it = m_project->item(id);
-    if (!it)
+    if (!it || m_missing.contains(id))
         return;
     const text::Counts c = text::count(plainText(id));
     const bool changed = c.words != it->wordCount || c.chars != it->charCount;

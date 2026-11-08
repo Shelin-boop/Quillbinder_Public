@@ -53,6 +53,10 @@ public slots:
 
     // from the tool while it records
     void recordingStarted(const QString &file);
+    // 0.64: a recording's text is being written / is done (file: the .txt it becomes)
+    void transcriptionStarted(const QString &file);
+    void transcriptionFinished(const QString &file);
+    int pendingCount() const;    // recordings without text in the list
     void appendPiece(const QString &added);
     void setLevel(float level);
     void setState(const QString &state);
@@ -67,9 +71,10 @@ private:
     QString m_file;
     QString m_recordingFile;
     bool m_loading = false;
+    int m_pending = 0;          // recordings without text (0.64)
     QListWidget *m_list;
     QPlainTextEdit *m_edit;
-    QToolButton *m_record, *m_rename, *m_delete, *m_copy, *m_folderButton;
+    QToolButton *m_record, *m_rename, *m_delete, *m_copy, *m_folderButton, *m_transcribeAll;
     QLabel *m_status;
     QProgressBar *m_level;
     QTimer *m_saveTimer;
@@ -85,7 +90,7 @@ public:
     static constexpr const char *kId = "speech-transcription";
     QString id() const override { return QString::fromLatin1(kId); }
     QString name() const override { return tr("Speech Transcription"); }
-    QString version() const override { return QStringLiteral("1.0"); }
+    QString version() const override { return QStringLiteral("1.1"); } // 1.1 (0.64): Record only
     QList<qb::tools::Command> commands() const override;
     void setHost(qb::tools::ToolHost *host) override;
     void run(const QString &key) override;
@@ -121,6 +126,13 @@ public slots:
     void toggleRecording();
     bool startRecording(const QString &wavFile = QString());   // a WAV file instead of the microphone (tests)
     void stopRecording();
+    // 0.64: Record only (File > Options > Speech; the standard on Android): the microphone goes into
+    // a WAV file, and its text is written later with Transcribe (one recording or all of them)
+    bool recordOnly() const;
+    bool transcribeRecording(const QString &wavFile);
+    int transcribeAll();
+    bool isTranscribingRecording() const;
+    QStringList queuedRecordings() const { return m_queue; }
     bool isBusy() const;
     bool isRecording() const;
     QString lastError() const { return m_lastError; }
@@ -149,6 +161,8 @@ private:
     void checkAndInstall(const QString &file, const QString &expectedId, bool fromDownload);
     void finishJob(bool ok, const QString &message);
     void updateCommand();
+    bool startRecordOnly(const QString &wavFile);
+    void finishRecordingText();
 
     qb::tools::ToolHost *m_host = nullptr;
     QPointer<TranscriptPanel> m_panel;
@@ -157,6 +171,9 @@ private:
     QString m_engineError;
     QString m_recFile;
     QString m_tail;            // the end of the file being written (to join the next piece)
+    QString m_transcribingWav; // the recording whose text is being written (0.64)
+    bool m_transcribeStopped = false;
+    QStringList m_queue;       // recordings waiting for Transcribe
     QString m_lastError;
     // models
     Job m_job = Job::None;

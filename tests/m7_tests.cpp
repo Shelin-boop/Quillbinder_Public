@@ -1503,12 +1503,14 @@ int main(int argc, char **argv)
         byKey(&w, QStringLiteral("quickRef"))->trigger();
         settle(300);
         as.reopenQuickRefs = false;
+        as.save();
         w.closeProject();
         settle(300);
         w.openProject(projectFile);
         settle(800);
         check(quickRefs().isEmpty() && w.project(), QStringLiteral("with the option off, panels are not reopened"));
         as.reopenQuickRefs = true;
+        as.save();
         shot(&w, QStringLiteral("m7-09-reopened"));
     }
 

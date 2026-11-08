@@ -2404,8 +2404,6 @@ void MainWindow::refreshInspector()
 
 // ------------------------------------------------------------------ project lifecycle
 
-static QString lockPath(const Project *p) { return p->settingsDir() + QLatin1String("/lock"); }
-
 QString MainWindow::projectFileFilter()
 {
     return tr("All projects (*%1 *.scrivx);;%2 projects (*%1);;Scrivener projects (*.scrivx)")
@@ -2424,26 +2422,9 @@ bool MainWindow::openProject(const QString &path)
     }
     if (m_project && QFileInfo(m_project->indexPath()) == QFileInfo(file))
         return true;
-    // lock check
-    const QString lock = QFileInfo(file).absolutePath() + QLatin1String("/settings/lock");
-    QFile lf(lock);
-    if (lf.open(QIODevice::ReadOnly)) {
-        const QStringList parts = QString::fromUtf8(lf.readAll()).split(QLatin1Char(' '));
-        lf.close();
-        if (parts.size() == 2) {
-            const bool sameHost = parts[0] == QSysInfo::machineHostName();
-            const bool alive = sameHost && platform::processAlive(parts[1].toLongLong())
-                               && parts[1].toLongLong() != QCoreApplication::applicationPid();
-            if (alive || !sameHost) {
-                if (QMessageBox::question(this, tr("Open Project"),
-                                          tr("This project seems to be open in another window or on another computer (%1).\n\n"
-                                             "Opening it twice can lose changes. Open it anyway?")
-                                              .arg(parts[0]))
-                    != QMessageBox::Yes)
-                    return false;
-            }
-        }
-    }
+    // lock check: another window, or another computer through a sync program (0.64: who, since when)
+    if (!confirmLock(QFileInfo(file).absolutePath() + QLatin1String("/settings/lock")))
+        return false;
     // saved by a newer version with something this version would lose
     const QString needs = Project::neededVersion(file);
     if (!needs.isEmpty() && Project::compareVersionText(needs, QStringLiteral(QB_APP_VERSION)) > 0) {
@@ -2527,11 +2508,8 @@ bool MainWindow::adoptProject(std::unique_ptr<Project> p, bool isNew)
     look::activate(proj, look::settle(proj, isNew));
     // 0.62: the project's own settings (File > Options, "This project") over the program's
     settingslayer::activate(settingslayer::fileFor(proj->settingsDir()));
-    {
-        QFile lf(lockPath(proj));
-        if (lf.open(QIODevice::WriteOnly))
-            lf.write(QStringLiteral("%1 %2").arg(QSysInfo::machineHostName()).arg(QCoreApplication::applicationPid()).toUtf8());
-    }
+    takeLocks();             // 0.64: names this computer, renewed every few minutes
+    connectSyncSafety(proj); // versions kept on conflicts, texts not arrived yet
     proj->setAutosaveDelay(qMax(1, AppSettings::instance().autosaveSeconds) * 1000);
     // a project imported from Scrivener by a version before 0.14.0 still has Scrivener's style
     // marks ("<$Scr_H::1>Title<!$Scr_H::1>") as text: taken out before anything shows it (0.21.2)
@@ -2684,7 +2662,7 @@ bool MainWindow::closeProject()
                                    &out, &err))
             QMessageBox::warning(this, tr("Backup"), tr("The automatic backup failed:\n%1").arg(err));
     }
-    QFile::remove(lockPath(m_project.get()));
+    releaseLocks();
     for (QWidget *w : QApplication::topLevelWidgets())
         if (auto *qr = qobject_cast<QuickRefWindow *>(w))
             qr->close();
@@ -2747,7 +2725,8 @@ void MainWindow::saveUiState()
         else if (auto *bv = qobject_cast<MindMapView *>(w))
             bv->saveView();
     viewmem::setInspectorState(m_project.get(), m_inspector->saveState());
-    m_project->markIndexDirty();
+    // 0.64: only this computer's file of the layout; the project file is not touched by it
+    m_project->markUiStateDirty();
 }
 
 void MainWindow::restoreUiState()
@@ -2906,7 +2885,7 @@ void MainWindow::saveForTermination()
         QString err;
         if (!m_project->save(&err))
             std::fprintf(stderr, "%s: saving before the end failed: %s\n", QB_APP_NAME, qPrintable(err));
-        QFile::remove(lockPath(m_project.get()));
+        releaseLocks();
     }
     toolhost::host().shutdownTools(); // the writing tools save their work (scratch pad notes)
     QLocalServer::removeServer(toolhost::host().linkPath());

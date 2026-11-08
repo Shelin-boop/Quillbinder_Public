@@ -40,6 +40,12 @@ public:
     static void setDisplay(const Display &d);
     static Display display();
     static void rehighlightAll();
+    // The word the spell check looks at in this paragraph's text at pos (pos may also be just
+    // after its last letter), without apostrophes at its end; "" when there is none or it is not
+    // checked (numbers ...). start: where it begins in the paragraph. The highlighter and the
+    // right-click menu both use it (0.64: before, the menu took Qt's word, which ends at a
+    // straight apostrophe, so a click on "Kayel's" or "D'Nersun" could find another word).
+    static QString checkedWordAt(const QString &paragraph, int pos, int *start);
 
 private:
     SpellChecker();

@@ -128,11 +128,42 @@ QString joinPiece(const QString &tail, const QString &piece, bool newParagraph);
 
 QString defaultFolder();                                   // ~/Documents/Quillbinder Transcriptions
 QString newTranscriptFile(const QString &folder, const QDateTime &when);   // "2026-11-08 05-07.txt", " (2)" ...
+// 0.64, "Record only": a name free for both the recording (.wav) and its text (.txt) later
+QString newRecordingBase(const QString &folder, const QDateTime &when);    // ".../2026-11-08 05-07" (no extension)
 struct Transcript {
-    QString file;
-    QString title;          // file name without .txt
+    QString file;           // the text (.txt); for a recording without text yet: where it will go
+    QString title;          // file name without extension
     QDateTime created;
+    QString audio;          // the recording (.wav) with the same name, "" = none (0.64)
+    bool pending() const;   // a recording whose text is not there yet
 };
-QList<Transcript> transcriptsIn(const QString &folder);   // newest first
+// The texts, and the recordings that have no text yet (0.64); newest first.
+QList<Transcript> transcriptsIn(const QString &folder);
+// While a recording is transcribed later, its text goes into "<name>.txt.part" and becomes
+// "<name>.txt" at the end (an interrupted run leaves the recording without text: it can run again).
+QString partFileFor(const QString &textFile);
+
+// A WAV file (PCM 16 bit, 16 kHz, mono) written while the microphone runs (0.64, "Record only").
+// The sizes in the header are brought up to date every second or so, so a recording that ends
+// without close() (program ended, power cut) is still a valid file up to that point.
+class WavWriter
+{
+public:
+    ~WavWriter();
+    bool open(const QString &file, QString *error);
+    void write(const float *samples, int n);   // 16 kHz mono, -1..1
+    void close();
+    bool isOpen() const;
+    qint64 samples() const { return m_samples; }
+    QString file() const { return m_path; }
+
+private:
+    void updateHeader();
+    struct Impl;
+    Impl *d = nullptr;
+    QString m_path;
+    qint64 m_samples = 0;
+    qint64 m_sinceHeader = 0;
+};
 
 } // namespace speech

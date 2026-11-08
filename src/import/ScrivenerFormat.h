@@ -57,6 +57,7 @@ struct WriteReport {
     int snapshots = 0;   // snapshots written
     int snapshotsRemoved = 0; // snapshots deleted in this program, taken out of the .scriv (0.61.1)
     int keptTheirs = 0;  // files changed in Scrivener meanwhile, not overwritten
+    QStringList conflicts; // changed here and there: the other version was kept first (0.64)
     QStringList warnings;
 };
 

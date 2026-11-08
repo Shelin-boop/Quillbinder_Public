@@ -20,6 +20,7 @@
 #include <QtEndian>
 
 #include <atomic>
+#include <cmath>
 #include <dlfcn.h>
 
 #include "ggml-backend.h"
@@ -310,6 +311,9 @@ public:
                 onError(m);
             if (!m_modelReady) { // the model never came: nothing more to do
                 stopAudio();
+                m_feedTimer.stop();
+                m_recording = false;
+                m_fileFast = false;
                 m_waiting = 0;
                 m_busy = false;
                 report(QStringLiteral("finished"));
@@ -317,7 +321,7 @@ public:
         });
         connect(m_worker, &Worker::ready, this, [this] {
             m_modelReady = true;
-            report(m_recording ? QStringLiteral("listening") : QStringLiteral("transcribing %1").arg(m_waiting));
+            report(m_recording ? activeState() : QStringLiteral("transcribing %1").arg(m_waiting));
         });
         connect(m_worker, &Worker::done, this, &Engine::pieceDone);
         m_thread.setObjectName(QStringLiteral("speech-transcription"));
@@ -393,6 +397,8 @@ public:
                 *error = tr("A transcription is still running.");
             return false;
         }
+        if (s.recordOnly)
+            return startRecordOnly(s, error, wavFile);
         if (!QFileInfo::exists(s.modelFile)) {
             if (error)
                 *error = tr("No model is installed.");
@@ -416,8 +422,10 @@ public:
                 return false;
             }
             m_filePos = 0;
-            if (qEnvironmentVariableIsSet("QB_SPEECH_FAST"))
-                m_feedTimer.setInterval(5); // tests: faster than real time
+            // a recording transcribed later: as fast as the model takes the pieces (feedFromFile
+            // waits while pieces are queued); tests: faster than real time
+            m_fileFast = s.fileAsFast;
+            m_feedTimer.setInterval(s.fileAsFast ? 0 : qEnvironmentVariableIsSet("QB_SPEECH_FAST") ? 5 : 100);
             m_feedTimer.start();
         } else if (!startAudio(s.audioInput, error)) {
             return false;
@@ -432,6 +440,17 @@ public:
     {
         if (!m_recording)
             return;
+        if (m_writer) {
+            // record only: the file is complete; nothing else to wait for
+            stopAudio();
+            m_feedTimer.stop();
+            m_recording = false;
+            m_writer->close();
+            m_writer.reset();
+            m_busy = false;
+            report(QStringLiteral("finished"));
+            return;
+        }
         stopAudio();
         m_feedTimer.stop();
         m_recording = false;
@@ -526,13 +545,79 @@ private:
             stop();
             return;
         }
-        const int n = int(qMin<qsizetype>(step, m_fileAudio.size() - m_filePos));
-        feed(QVector<float>(m_fileAudio.constData() + m_filePos, m_fileAudio.constData() + m_filePos + n));
-        m_filePos += n;
+        // a recording read as fast as possible: at most two pieces wait for the model, so the
+        // memory stays small however long the recording is
+        if (m_fileFast && m_waiting >= 2) {
+            m_feedTimer.stop(); // pieceDone starts it again: no busy waiting
+            return;
+        }
+        for (int round = 0; round < (m_fileFast ? 50 : 1) && m_filePos < m_fileAudio.size(); ++round) {
+            const int n = int(qMin<qsizetype>(step, m_fileAudio.size() - m_filePos));
+            feed(QVector<float>(m_fileAudio.constData() + m_filePos, m_fileAudio.constData() + m_filePos + n));
+            m_filePos += n;
+            if (m_fileFast && m_waiting >= 2)
+                break;
+        }
+        if (m_fileFast && m_modelReady) {
+            const int pct = int(100 * m_filePos / qMax<qsizetype>(1, m_fileAudio.size()));
+            if (pct != m_lastPct) {
+                m_lastPct = pct;
+                report(QStringLiteral("reading %1").arg(pct));
+            }
+        }
+    }
+
+    // Record only (0.64): the microphone (or, for the tests, a WAV file in real time) into a WAV file
+    bool startRecordOnly(const EngineSettings &s, QString *error, const QString &wavFile)
+    {
+        m_s = s;
+        m_idle.stop();
+        m_levelClock.start();
+        m_writer.reset(new speech::WavWriter);
+        if (!m_writer->open(s.recordFile, error)) {
+            m_writer.reset();
+            return false;
+        }
+        if (!wavFile.isEmpty()) {
+            QString e;
+            if (!readWav(wavFile, &m_fileAudio, &e)) {
+                if (error)
+                    *error = e;
+                m_writer->close();
+                m_writer.reset();
+                QFile::remove(s.recordFile);
+                return false;
+            }
+            m_filePos = 0;
+            m_fileFast = false;
+            m_feedTimer.setInterval(qEnvironmentVariableIsSet("QB_SPEECH_FAST") ? 5 : 100);
+            m_feedTimer.start();
+        } else if (!startAudio(s.audioInput, error)) {
+            m_writer->close();
+            m_writer.reset();
+            QFile::remove(s.recordFile);
+            return false;
+        }
+        m_recording = true;
+        m_busy = true;
+        report(QStringLiteral("recording"));
+        return true;
     }
 
     void feed(const QVector<float> &mono)
     {
+        if (m_writer) {
+            m_writer->write(mono.constData(), int(mono.size()));
+            if (onLevel && m_levelClock.isValid() && m_levelClock.elapsed() >= 50 && !mono.isEmpty()) {
+                m_levelClock.restart();
+                double sum = 0;
+                for (float v : mono)
+                    sum += double(v) * v;
+                const float db = 20.f * std::log10(float(std::sqrt(sum / mono.size())) + 1e-9f);
+                onLevel(qBound(0.f, (db + 60.f) / 60.f, 1.f));
+            }
+            return;
+        }
         if (!m_seg)
             return;
         m_seg->feed(mono.constData(), int(mono.size()));
@@ -551,12 +636,14 @@ private:
                                       Q_ARG(bool, piece.newParagraph));
         }
         if (m_waiting > 0 && m_modelReady)
-            report(m_recording ? QStringLiteral("listening") : QStringLiteral("transcribing %1").arg(m_waiting));
+            report(m_recording ? activeState() : QStringLiteral("transcribing %1").arg(m_waiting));
     }
 
     void pieceDone(const QString &text, bool newParagraph)
     {
         m_waiting = qMax(0, m_waiting - 1);
+        if (m_fileFast && m_recording && !m_feedTimer.isActive() && m_waiting < 2)
+            m_feedTimer.start();
         if (!text.isEmpty() && onText)
             onText(text, newParagraph);
         if (!m_recording && m_waiting == 0)
@@ -567,9 +654,16 @@ private:
 
     void finish()
     {
+        m_fileFast = false;
+        m_lastPct = -1;
         m_busy = false;
         m_idle.start();
         report(QStringLiteral("finished"));
+    }
+
+    QString activeState() const
+    {
+        return m_fileFast ? QStringLiteral("reading %1").arg(qMax(0, m_lastPct)) : QStringLiteral("listening");
     }
 
     void report(const QString &s)
@@ -588,6 +682,9 @@ private:
     QVector<float> m_fileAudio;
     qsizetype m_filePos = 0;
     QTimer m_feedTimer;
+    bool m_fileFast = false;
+    int m_lastPct = -1;
+    QScopedPointer<speech::WavWriter> m_writer;   // record only (0.64)
     QTimer m_idle;
     QElapsedTimer m_levelClock;
     int m_waiting = 0;

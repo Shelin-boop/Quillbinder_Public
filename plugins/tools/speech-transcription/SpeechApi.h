@@ -45,6 +45,13 @@ struct EngineSettings {
     int pauseMs = 700;            // a pause this long ends a piece
     int paragraphMs = 3000;       // a pause this long starts a new paragraph (0: never)
     QByteArray audioInput;        // empty: the system's default input
+    // 0.64, "Record only": the microphone goes into recordFile (WAV, 16 kHz mono 16 bit) and
+    // nothing else runs (no model, no recognition): little power, the text comes later
+    bool recordOnly = false;
+    QString recordFile;
+    // 0.64, "Transcribe now" for a recording: the WAV file is read as fast as the model takes
+    // its pieces (not in real time)
+    bool fileAsFast = false;
 };
 
 struct TestResult {
@@ -71,7 +78,8 @@ public:
     // (wavFile, used by the tests). The callbacks come in the thread that called start().
     std::function<void(const QString &text, bool newParagraph)> onText;
     std::function<void(float level)> onLevel;          // 0..1, about 20 times a second while recording
-    std::function<void(const QString &state)> onState; // "loading", "listening", "transcribing <n>", "finished"
+    std::function<void(const QString &state)> onState; // "loading", "listening", "recording" (record only),
+                                                       // "transcribing <n>", "reading <percent>", "finished"
     std::function<void(const QString &message)> onError;
     virtual bool start(const EngineSettings &settings, QString *error, const QString &wavFile = QString()) = 0;
     // Stops the microphone; the pieces waiting are still written, then onState("finished").

@@ -163,6 +163,19 @@ private:
     void saveCopyAsScrivener();
     void saveCopyAsQuillbinder();
     bool confirmNotOpenElsewhere(const QString &projectFolder);
+    // A project in a synced folder (0.64, MainWindowSync.cpp): the lock names this computer and
+    // is renewed; another computer's lock is shown before opening; versions kept on conflicts.
+    QStringList lockFilesFor(const Project *p) const;
+    bool confirmLock(const QString &lockFile);   // false: the writer chose not to open
+    void takeLocks();
+    void renewLocks(bool write);
+    void releaseLocks();
+    void connectSyncSafety(Project *p);
+    void showConflictNotice();
+    QTimer *m_lockTimer = nullptr;
+    QDateTime m_lockOpened;
+    bool m_lockLost = false;
+    QStringList m_conflictNotes;
 
     // construction
     void createActions();
