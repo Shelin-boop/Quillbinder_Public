@@ -25,7 +25,12 @@ export APPIMAGE_EXTRACT_AND_RUN=1   # the tools also run without FUSE (container
 # ---------------------------------------------------------------- tools
 mkdir -p "$TOOLS"
 fetch() {
-    [ -s "$TOOLS/$1" ] || curl -fsSL -o "$TOOLS/$1" "$2"
+    if ! [ -s "$TOOLS/$1" ]; then
+        # GitHub's release downloads answer 504 at times (2026-11-08: in the cloud session and on the
+        # release runner): retry, and keep a file only when it arrived whole
+        curl -fsSL --retry 20 --retry-delay 15 --retry-max-time 600 --retry-all-errors -o "$TOOLS/$1.part" "$2"
+        mv "$TOOLS/$1.part" "$TOOLS/$1"
+    fi
     chmod +x "$TOOLS/$1"
 }
 fetch linuxdeploy-x86_64.AppImage \
