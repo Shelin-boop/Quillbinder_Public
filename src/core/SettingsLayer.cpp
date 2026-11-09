@@ -154,7 +154,53 @@ bool programOnly(const QString &key)
         QStringLiteral("appearance/recentIcons"),
         // markers of one-time changes
         QStringLiteral("toolbars/paraButtons0604"), QStringLiteral("toolbars/toolButtonsPlaced")};
-    return keys.contains(key);
+    if (keys.contains(key))
+        return true;
+    // 0.64.1 (the external audit of 2026-11-09, X-2, D-2, D-4): an allow list. A project (its
+    // settings/options.ini) and a settings file may only hold settings for how the text and the program
+    // look and behave; never a command or program the program starts, a folder, a file, an address, or
+    // the writer's contact data. Before, a project from someone else could set the citations program
+    // (started by Format > Bibliography/Citations), the folder of voice recordings, or the backup folder.
+    static const QSet<QString> appKeys = {
+        QStringLiteral("app/autosave"), QStringLiteral("app/snapshotOnSave"), QStringLiteral("app/forename"),
+        QStringLiteral("app/surname"), QStringLiteral("app/sepMerge"), QStringLiteral("app/sepMergeCustom"),
+        QStringLiteral("app/sepScratch"), QStringLiteral("app/sepScratchCustom"), QStringLiteral("app/autoQuit"),
+        QStringLiteral("app/autoQuitMinutes")};
+    if (appKeys.contains(key))
+        return false;
+    static const QStringList groups = {
+        QStringLiteral("appearance/"), QStringLiteral("colors/"), QStringLiteral("fonts/"), QStringLiteral("editing/"),
+        QStringLiteral("behaviour/"), QStringLiteral("toolbars/"), QStringLiteral("playback/"), QStringLiteral("sharing/"),
+        QStringLiteral("mindmap/"), QStringLiteral("zoom/"), QStringLiteral("zoomDefault/"), QStringLiteral("export/"),
+        QStringLiteral("importers/"), QStringLiteral("tools/"), QStringLiteral("keyboard/"), QStringLiteral("backup/")};
+    bool inGroup = false;
+    for (const QString &g : groups)
+        inGroup = inGroup || key.startsWith(g);
+    if (!inGroup)
+        return true;
+    // within these groups, nothing that names a program, a folder, a file or an address
+    return namesProgramOrPlace(key);
+}
+
+bool namesProgramOrPlace(const QString &key)
+{
+    static const QSet<QString> named = {QStringLiteral("app/citationsApp"), QStringLiteral("app/sharedTemplates"),
+                                        QStringLiteral("backup/dir")};
+    if (named.contains(key))
+        return true;
+    const QString last = key.section(QLatin1Char('/'), -1).toLower();
+    static const QStringList ends = {QStringLiteral("app"), QStringLiteral("dir"), QStringLiteral("file"), QStringLiteral("exe")};
+    static const QStringList parts = {QStringLiteral("folder"), QStringLiteral("path"), QStringLiteral("command"),
+                                      QStringLiteral("program"), QStringLiteral("url"), QStringLiteral("address"),
+                                      QStringLiteral("converter"), QStringLiteral("server"), QStringLiteral("host"),
+                                      QStringLiteral("location")};
+    for (const QString &e : ends)
+        if (last.endsWith(e))
+            return true;
+    for (const QString &w : parts)
+        if (last.contains(w))
+            return true;
+    return false;
 }
 
 bool projectFirst()

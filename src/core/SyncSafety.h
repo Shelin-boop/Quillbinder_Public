@@ -20,6 +20,12 @@ namespace syncsafe {
 
 // The name of this computer in lock files and in the names of kept copies.
 QString deviceName();
+// A name of the writer's own for this computer (File > Options > Saving, 0.64.1, audit D-3); "" = the
+// computer's host name. With a name of their own the system's user name is not written either.
+void setDeviceName(const QString &name);
+// This computer in a lock without its name (0.64.1): a hash of the system's machine id, so that two
+// computers the writer gave the same name are still told apart; it says nothing about the computer.
+QString machineKey();
 QString userName();
 // One per running program (a new one at every start).
 QString instanceId();
@@ -52,6 +58,7 @@ struct LockInfo {
     QString user;
     QString instance;
     QString program;
+    QString key;        // which computer, as a hash (0.64.1; "" in older locks): machineKey()
     qint64 pid = 0;
     QDateTime opened;   // UTC
     QDateTime alive;    // UTC: the last renewal (old lock files: the file's time)

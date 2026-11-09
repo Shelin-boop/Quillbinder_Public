@@ -1,4 +1,5 @@
 #include "core/Objects.h"
+#include "core/SafeSave.h"
 #include "core/Paths.h"
 
 #include <QDir>
@@ -407,7 +408,7 @@ bool saveSchemaForNewProjects(const Schema &s, QString *error)
 {
     QDir().mkpath(dataDir());
     QSaveFile f(newProjectsFile());
-    if (!f.open(QIODevice::WriteOnly) || f.write(QJsonDocument(s.toJson(false)).toJson()) < 0 || !f.commit()) {
+    if (!f.open(QIODevice::WriteOnly) || safesave::write(f, QJsonDocument(s.toJson(false)).toJson()) < 0 || !safesave::commit(f)) {
         if (error)
             *error = f.errorString();
         return false;
@@ -512,7 +513,7 @@ static bool writeJson(const QString &path, const QJsonObject &o, QString *error)
     QDir().mkpath(QFileInfo(path).absolutePath());
     QSaveFile f(path);
     const QByteArray data = QJsonDocument(o).toJson();
-    if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size() || !f.commit()) {
+    if (!f.open(QIODevice::WriteOnly) || safesave::write(f, data) != data.size() || !safesave::commit(f)) {
         if (error)
             *error = QObject::tr("Cannot write %1: %2").arg(path, f.errorString());
         return false;

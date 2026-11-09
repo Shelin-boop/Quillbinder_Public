@@ -1,4 +1,5 @@
 #include "ui/MediaView.h"
+#include "ui/LinkOpen.h"
 #include "ui/ViewMemory.h"
 #include <QTimer>
 #include "core/BinderItem.h"
@@ -93,7 +94,14 @@ MediaView::MediaView(QWidget *parent) : QWidget(parent)
     });
 
     m_html = new QTextBrowser(m_stack);
-    m_html->setOpenExternalLinks(true);
+    // 0.64.1: links of an imported web page go through links::open (web and mail at once, others asked)
+    m_html->setOpenLinks(false);
+    connect(m_html, &QTextBrowser::anchorClicked, this, [this](const QUrl &url) {
+        if (url.scheme().isEmpty() && url.path().isEmpty() && !url.fragment().isEmpty())
+            m_html->scrollToAnchor(url.fragment());
+        else
+            links::open(this, url.toString());
+    });
     m_stack->addWidget(m_html);
 
     m_other = new QWidget(m_stack);
@@ -117,7 +125,7 @@ MediaView::MediaView(QWidget *parent) : QWidget(parent)
     m_stack->addWidget(m_other);
     auto openExternally = [this] {
         if (m_project && m_item)
-            QDesktopServices::openUrl(QUrl::fromLocalFile(m_project->mediaFilePath(m_item)));
+            links::openFile(this, m_project->mediaFilePath(m_item)); // 0.64.1: never a program file
     };
     connect(m_openButton, &QPushButton::clicked, this, openExternally);
 

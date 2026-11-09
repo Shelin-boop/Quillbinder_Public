@@ -201,6 +201,26 @@ target_link_libraries(qb_v062_tests PRIVATE qbui Qt6::Test)
 # have not arrived), also in Scrivener format (xvfb-run -a ./qb_v064_tests /tmp/shots).
 add_executable(qb_v064_tests v064_tests.cpp ${QB_RESOURCES_QRC})
 target_link_libraries(qb_v064_tests PRIVATE qbui Qt6::Test)
+# Version 0.64.1: the fixes of the system test's first run: table cells in Markdown storage, Split at
+# Selection and tables, texts changed elsewhere (not written over; kept before ours replaces them),
+# figures cut and pasted, compiling with the event loop running, cells not justified, Merge with notes,
+# Merge Cells / Undo / Redo / Delete Rows (xvfb-run -a ./qb_v0641_tests /tmp/shots).
+add_executable(qb_v0641_tests v0641_tests.cpp ${QB_RESOURCES_QRC})
+target_link_libraries(qb_v0641_tests PRIVATE qbui Qt6::Test)
+# The fixes of the external audit of 2026-11-09 (0.64.1): ids and archive names that are no plain
+# names, damaged archives and Word files, settings a project may hold, packages with code, links that
+# lead out, the socket folder, Scrivener's lock before every write, the name of this computer
+# (xvfb-run -a ./qb_audit1_tests /tmp/shots; QB_RELEASE_BINARY=<files> searches a release build for
+# test switches).
+add_executable(qb_audit1_tests audit1_tests.cpp ${CMAKE_SOURCE_DIR}/plugins/importers/word97/Cfb.cpp ${QB_RESOURCES_QRC})
+target_link_libraries(qb_audit1_tests PRIVATE qbui Qt6::Test)
+target_include_directories(qb_audit1_tests PRIVATE ${CMAKE_SOURCE_DIR}/plugins/importers/word97)
+target_compile_definitions(qb_audit1_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+                           QB_FAULT_SHIM="$<TARGET_FILE:qbfaultshim>")
+# write() / fsync() failing below one folder (LD_PRELOAD, for qb_audit1_tests' child runs)
+add_library(qbfaultshim SHARED faultshim.cpp)
+target_link_libraries(qbfaultshim PRIVATE dl)
+add_dependencies(qb_audit1_tests qbfaultshim)
 # Windows port, step W2: what it changed in the code Linux runs too (packages' platform, the process
 # check, pruning reports with memory dumps). No window (xvfb-run -a ./qb_w2_tests /tmp/shots).
 add_executable(qb_w2_tests w2_tests.cpp)

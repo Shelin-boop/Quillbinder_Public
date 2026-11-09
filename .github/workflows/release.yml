@@ -11,6 +11,11 @@
 # checked end to end, the source code of every third-party library is collected, and
 # tools/publish-release.sh puts it all on the Releases page (the library sources into the release
 # "Third-party source code") and creates the tag v<version>-<label> if it is not there yet.
+#
+# 0.64.1 (the external audit's X-5): only the job "publish" may write (releases, tags); it runs no
+# code that was downloaded or built, it takes the files of the job "release" as an artifact. No
+# checkout keeps the token (persist-credentials: false), and the actions are pinned to commits
+# (the tag each one had on 2026-11-09 in the comment).
 name: Release
 
 on:
@@ -21,7 +26,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release
@@ -37,7 +42,9 @@ jobs:
       tag: ${{ steps.v.outputs.tag }}
       build: ${{ steps.v.outputs.build }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - id: v
         env:
           GH_TOKEN: ${{ github.token }}
@@ -80,7 +87,9 @@ jobs:
           { apt-get update -qq && apt-get install -y -qq --no-install-recommends git ca-certificates curl gh xz-utils \
             && apt-get -y -qq upgrade; } 2>&1 | tee /tmp/ci-log/tools.log
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Build tools and the libraries of Ubuntu 24.04
         run: |
@@ -124,11 +133,15 @@ jobs:
       - name: Third-party source code
         run: tools/ci-step.sh sources python3 -I tools/collect-sources.py sources
 
-      - name: Publish
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: tools/ci-step.sh publish tools/publish-release.sh "$TAG" dist sources
+      - name: Hand the files to the job "publish"
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-files
+          path: |
+            dist
+            sources
+          retention-days: 3
+          if-no-files-found: error
 
       - name: The end of the failed step's log (as an annotation)
         if: failure()
@@ -141,8 +154,48 @@ jobs:
 
       - name: Logs of the check
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: e2e-logs
           path: /tmp/e2e
           if-no-files-found: ignore
+
+  publish:
+    # the only job with write permission: it publishes what the job "release" built
+    needs: [version, release]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.version.outputs.tag }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-files
+          path: release-files
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir -p /tmp/ci-log
+          ls -la release-files/dist
+          tools/ci-step.sh publish tools/publish-release.sh "$TAG" release-files/dist release-files/sources
+
+      - name: The end of the failed step's log (as an annotation)
+        if: failure()
+        run: |
+          s=$(cat /tmp/ci-log/last-step 2>/dev/null || echo unknown)
+          f=/tmp/ci-log/$s.log
+          [ -f "$f" ] || { echo "::error title=Step $s failed::no log"; exit 0; }
+          msg=$(tail -n 80 "$f" | cut -c1-300 | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | sed ':a;N;$!ba;s/\n/%0A/g')
+          echo "::error title=Step $s failed::$msg"

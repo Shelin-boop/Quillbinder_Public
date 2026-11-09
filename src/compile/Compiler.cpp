@@ -1,4 +1,5 @@
 #include "compile/Compiler.h"
+#include "compile/Progress.h"
 
 #include "text/Script.h"
 
@@ -442,6 +443,7 @@ void Compiler::appendDocument(Manuscript &m, QTextDocument *doc, const QString &
     QHash<QTextTable *, QHash<QPair<int, int>, int>> cellIndex;
 
     for (QTextBlock b = doc->begin(); b.isValid(); b = b.next()) {
+        progress::tick(); // a long document (0.64.1)
         Paragraph p;
         p.sourceId = sourceId;
         {
@@ -991,6 +993,7 @@ Manuscript Compiler::build()
             QTextDocument *doc = m_project->docs()->text(item->id);
             const int beforeText = m.paragraphs.size();
             m_docBaseLevel = layout->includeTitle ? e.level : qMax(0, e.level - 1);
+            progress::tick();
             appendDocument(m, doc, item->id, layout->noIndentFirstParagraph || layout->includeTitle, false);
             hadText = m.paragraphs.size() > beforeText;
         }

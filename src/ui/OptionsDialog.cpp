@@ -52,6 +52,7 @@
 #include <QScreen>
 #include <QScrollArea>
 #include <QSettings>
+#include <QSysInfo>
 #include <QStandardItemModel>
 #include <QSignalBlocker>
 #include <QSpinBox>
@@ -565,6 +566,17 @@ QWidget *OptionsDialog::generalSection()
     m_snapOnSave->setObjectName(QStringLiteral("optSnapshotOnSave"));
     m_snapOnSave->setChecked(s.snapshotOnManualSave);
     f->addRow(m_snapOnSave);
+    // 0.64.1 (audit D-3): what other computers see of this one in a shared folder
+    m_deviceName = new QLineEdit(s.deviceName, saving);
+    m_deviceName->setObjectName(QStringLiteral("optDeviceName"));
+    m_deviceName->setMaxLength(64);
+    m_deviceName->setPlaceholderText(QSysInfo::machineHostName());
+    f->addRow(tr("Name of this computer in shared folders:"), m_deviceName);
+    f->addRow(hint(tr("A project in a synced folder (Dropbox, Nextcloud, Syncthing ...) holds a lock while it is open "
+                      "here, and the copies of versions changed elsewhere are named after the computer. Empty: the "
+                      "computer's own name and your user name on it. A name of your own (\"Laptop\") is written "
+                      "instead, and the user name is left out."),
+                   saving));
     pages.append({tr("Saving"), saving});
 
     // Author Information
@@ -2366,9 +2378,26 @@ bool OptionsDialog::loadOptionsFromFile(const QString &file, QString *error)
             *error = tr("This is not a file of options saved by Quillbinder.");
         return false;
     }
+    // 0.64.1 (audit X-2): programs the program starts, folders, files and addresses in the file are
+    // taken only when the writer has seen them and agreed (an options file may come from someone else)
+    QStringList shown;
+    for (const QString &k : from.allKeys())
+        if (settingslayer::namesProgramOrPlace(k) && !from.value(k).toString().trimmed().isEmpty())
+            shown << QStringLiteral("%1 = %2").arg(k, from.value(k).toString().left(200));
+    bool takePlaces = shown.isEmpty();
+    if (!shown.isEmpty()) {
+        QMessageBox ask(QMessageBox::Question, tr("Load Options"),
+                        tr("The file also sets programs the program starts, folders, files or addresses:\n\n%1\n\nTake these "
+                           "too? Take them only if you made the file yourself or trust where it comes from.")
+                            .arg(shown.join(QLatin1Char('\n'))),
+                        QMessageBox::Yes | QMessageBox::No, this);
+        ask.setObjectName(QStringLiteral("loadOptionsPlaces"));
+        ask.setDefaultButton(QMessageBox::No);
+        takePlaces = ask.exec() == QMessageBox::Yes;
+    }
     QSettings to;
     for (const QString &k : from.allKeys())
-        if (!k.startsWith(QLatin1String("quillbinderOptions/")))
+        if (!k.startsWith(QLatin1String("quillbinderOptions/")) && (takePlaces || !settingslayer::namesProgramOrPlace(k)))
             to.setValue(k, from.value(k));
     to.sync();
     AppSettings::instance().load();
@@ -2429,6 +2458,7 @@ void OptionsDialog::apply()
     s.country = m_country->text().trimmed();
     s.phone = m_phone->text().trimmed();
     s.email = m_email->text().trimmed();
+    s.deviceName = m_deviceName->text().simplified();
     s.sharedTemplatesDir = m_sharedTemplates->text().trimmed();
     s.citationsApp = m_citations->text().trimmed();
     s.sepMerge = m_sepMerge->currentData().toString();

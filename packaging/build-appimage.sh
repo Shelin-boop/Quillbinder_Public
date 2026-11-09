@@ -24,24 +24,39 @@ export APPIMAGE_EXTRACT_AND_RUN=1   # the tools also run without FUSE (container
 
 # ---------------------------------------------------------------- tools
 mkdir -p "$TOOLS"
-fetch() {
+# The tools are pinned to tagged releases and their SHA-256 (0.64.1, the external audit's X-5: the
+# "continuous" releases change without notice, and the runtime becomes the first part of every
+# AppImage). A new version: download it, look at its release notes, put its tag and sum here.
+fetch() {   # <file> <url> <sha256>
+    if [ -s "$TOOLS/$1" ] && ! echo "$3  $TOOLS/$1" | sha256sum -c --status; then
+        rm -f "$TOOLS/$1"   # another version from before the pinning
+    fi
     if ! [ -s "$TOOLS/$1" ]; then
         # GitHub's release downloads answer 504 at times (2026-11-08: in the cloud session and on the
         # release runner): retry, and keep a file only when it arrived whole
         curl -fsSL --retry 20 --retry-delay 15 --retry-max-time 600 --retry-all-errors -o "$TOOLS/$1.part" "$2"
+        if ! echo "$3  $TOOLS/$1.part" | sha256sum -c --status; then
+            echo "error: $1 from $2 does not have the SHA-256 $3" >&2
+            rm -f "$TOOLS/$1.part"
+            exit 1
+        fi
         mv "$TOOLS/$1.part" "$TOOLS/$1"
     fi
     chmod +x "$TOOLS/$1"
 }
 fetch linuxdeploy-x86_64.AppImage \
-    https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+    https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-x86_64.AppImage \
+    c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d
 fetch linuxdeploy-plugin-qt-x86_64.AppImage \
-    https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+    https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/1-alpha-20250213-1/linuxdeploy-plugin-qt-x86_64.AppImage \
+    15106be885c1c48a021198e7e1e9a48ce9d02a86dd0a1848f00bdbf3c1c92724
 fetch appimagetool-x86_64.AppImage \
-    https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+    https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage \
+    ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
 # static runtime: the AppImage does not need libfuse2 (not installed on 24.04 by default)
 fetch runtime-x86_64 \
-    https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64
+    https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64 \
+    2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
 
 # ---------------------------------------------------------------- licenses (0.50)
 # The license list (Help > Third-Party Licenses) names the source of exactly the libraries
@@ -121,6 +136,14 @@ done
 rm -f "$APPDIR"/usr/plugins/imageformats/{libqtiff.so,libqmng.so,libqtga.so,libqwbmp.so,libqicns.so}
 rm -rf "$APPDIR"/usr/plugins/tls "$APPDIR"/usr/plugins/networkinformation
 rm -f "$APPDIR"/usr/lib/{libtiff.so*,libjbig.so*,libLerc.so*,libdeflate.so*,libmng.so*,liblcms2.so*}
+# The pinned linuxdeploy-plugin-qt (0.64.1) also adds Qt's own translations, which the program never
+# loads, and a start hook that sets the GTK 2 look on GNOME and Xfce (no such plugin is bundled): both
+# left out, so the AppImage starts as before (AppRun = the program, as the "continuous" tools made it)
+rm -rf "$APPDIR/usr/translations" "$APPDIR/apprun-hooks"
+if [ -L "$APPDIR/AppRun.wrapped" ]; then
+    rm -f "$APPDIR/AppRun" "$APPDIR/AppRun.wrapped"
+    ln -s "usr/bin/$APP_ID" "$APPDIR/AppRun"
+fi
 # every remaining file must still find its libraries (bundled or system)
 missing=$(find "$APPDIR/usr" -type f \( -name '*.so*' -o -path '*/bin/*' \) | while read -r f; do
     LD_LIBRARY_PATH="$APPDIR/usr/lib" ldd "$f" 2>/dev/null | grep 'not found' | sed "s|^|$f: |" || true; done)

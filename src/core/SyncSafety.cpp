@@ -1,4 +1,5 @@
 #include "core/SyncSafety.h"
+#include "core/SafeSave.h"
 
 #include "AppInfo.h"
 
@@ -7,6 +8,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
+#include <QCryptographicHash>
 #include <QSysInfo>
 #include <QUrl>
 #include <QUuid>
@@ -14,17 +16,52 @@
 namespace qb {
 namespace syncsafe {
 
+static QString &ownDeviceName()
+{
+    static QString name;
+    return name;
+}
+
+void setDeviceName(const QString &name)
+{
+    QString n = name.simplified();
+    // one line of the lock file; at most 64 characters
+    n.remove(QLatin1Char('\n'));
+    ownDeviceName() = n.left(64);
+}
+
 QString deviceName()
 {
     const QString env = qEnvironmentVariable("QB_DEVICE_NAME"); // tests: two "computers" on one machine
     if (!env.isEmpty())
         return env;
+    if (!ownDeviceName().isEmpty())
+        return ownDeviceName();
     const QString h = QSysInfo::machineHostName();
     return h.isEmpty() ? QStringLiteral("this-computer") : h;
 }
 
+QString machineKey()
+{
+    auto keyOf = [](const QByteArray &id) {
+        return QString::fromLatin1(QCryptographicHash::hash("quillbinder-lock:" + id, QCryptographicHash::Sha256).toHex().left(16));
+    };
+    const QString env = qEnvironmentVariable("QB_DEVICE_NAME"); // tests: two "computers" on one machine
+    if (!env.isEmpty())
+        return keyOf(env.toUtf8());
+    static const QString key = [keyOf] {
+        QByteArray id = QSysInfo::machineUniqueId();
+        if (id.isEmpty())
+            id = QSysInfo::machineHostName().toUtf8();
+        return keyOf(id);
+    }();
+    return key;
+}
+
 QString userName()
 {
+    if (!ownDeviceName().isEmpty())
+        return QString(); // the writer chose a name of their own: the system's user name stays out
     QString u = qEnvironmentVariable("USER");
     if (u.isEmpty())
         u = qEnvironmentVariable("USERNAME");
@@ -60,7 +97,8 @@ QString keepCopy(const QString &file, const QString &settingsDir, const QString 
     if (!QFileInfo::exists(file))
         return QString();
     const QString dir = settingsDir + QStringLiteral("/conflicts");
-    QDir().mkpath(dir);
+    if (!QDir().mkpath(dir))
+        return QString(); // nothing kept (0.64.1: the caller then does not write over the file)
     QString name = what;
     for (const QChar c : {QLatin1Char('/'), QLatin1Char('\\'), QLatin1Char(':'), QLatin1Char('*'), QLatin1Char('?'),
                           QLatin1Char('"'), QLatin1Char('<'), QLatin1Char('>'), QLatin1Char('|')})
@@ -112,6 +150,8 @@ LockInfo readLock(const QString &file)
             l.instance = v;
         else if (k == QLatin1String("program"))
             l.program = dec(v);
+        else if (k == QLatin1String("key"))
+            l.key = v;
         else if (k == QLatin1String("opened"))
             l.opened = QDateTime::fromString(v, Qt::ISODate);
         else if (k == QLatin1String("alive"))
@@ -130,14 +170,15 @@ bool writeLock(const QString &file, const QDateTime &opened)
                          + QStringLiteral("device=") + enc(deviceName()) + QLatin1Char('\n')
                          + QStringLiteral("user=") + enc(userName()) + QLatin1Char('\n')
                          + QStringLiteral("instance=") + instanceId() + QLatin1Char('\n')
+                         + QStringLiteral("key=") + machineKey() + QLatin1Char('\n')
                          + QStringLiteral("program=") + enc(QStringLiteral(QB_APP_NAME " " QB_APP_VERSION)) + QLatin1Char('\n')
                          + QStringLiteral("opened=") + opened.toUTC().toString(Qt::ISODate) + QLatin1Char('\n')
                          + QStringLiteral("alive=") + QDateTime::currentDateTimeUtc().toString(Qt::ISODate) + QLatin1Char('\n');
     QSaveFile f(file);
     if (!f.open(QIODevice::WriteOnly))
         return false;
-    f.write(text.toUtf8());
-    return f.commit();
+    safesave::write(f, text.toUtf8());
+    return safesave::commit(f);
 }
 
 void removeOwnLock(const QString &file)
@@ -158,7 +199,8 @@ LockState judge(const LockInfo &l, qint64 staleAfterSecs, const std::function<bo
         return LockState::None;
     if (!l.instance.isEmpty() && l.instance == instanceId())
         return LockState::Ours;
-    if (l.device == deviceName()) {
+    // the same computer: by its key where the lock has one (two computers may carry the same name)
+    if (l.key.isEmpty() ? l.device == deviceName() : l.key == machineKey()) {
         if (l.pid == QCoreApplication::applicationPid())
             return LockState::Ours;
         return processAlive && processAlive(l.pid) ? LockState::OtherWindow : LockState::LeftOverHere;

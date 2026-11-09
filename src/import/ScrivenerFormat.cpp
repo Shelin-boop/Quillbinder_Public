@@ -1,4 +1,5 @@
 #include "import/ScrivenerFormat.h"
+#include "core/SafeSave.h"
 #include "core/Timing.h"
 #include "core/IconCatalog.h"
 #include "core/MindMap.h"
@@ -146,7 +147,7 @@ bool writeFile(const QString &path, const QByteArray &data, QString *error)
 {
     QDir().mkpath(QFileInfo(path).absolutePath());
     QSaveFile f(path);
-    if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size() || !f.commit()) {
+    if (!f.open(QIODevice::WriteOnly) || safesave::write(f, data) != data.size() || !safesave::commit(f)) {
         if (error)
             *error = QObject::tr("Cannot write %1").arg(path);
         return false;
@@ -931,6 +932,21 @@ bool lockedByScrivener(const QString &scrivDir, QString *who)
     return false;
 }
 
+QString scrivenerLockStamp(const QString &scrivDir)
+{
+    for (const QString &rel : {QStringLiteral("Files/user.lock"), QStringLiteral("user.lock")}) {
+        const QString file = QDir(scrivDir).filePath(rel);
+        QFile f(file);
+        if (!f.open(QIODevice::ReadOnly))
+            continue;
+        const QFileInfo fi(file);
+        const QByteArray hash = QCryptographicHash::hash(f.read(64 * 1024), QCryptographicHash::Sha1).toHex();
+        return QStringLiteral("%1|%2|%3|%4")
+            .arg(rel, QString::number(fi.size()), QString::number(fi.lastModified().toMSecsSinceEpoch()), QString::fromLatin1(hash));
+    }
+    return QString();
+}
+
 QString workingCopiesDir() { return dataDir() + QLatin1String("/ScrivenerProjects"); }
 
 bool SyncState::load(const QString &file)
@@ -977,8 +993,8 @@ bool SyncState::save(const QString &file) const
     QSaveFile f(file);
     if (!f.open(QIODevice::WriteOnly))
         return false;
-    f.write(QJsonDocument(o).toJson());
-    return f.commit();
+    safesave::write(f, QJsonDocument(o).toJson());
+    return safesave::commit(f);
 }
 
 // ---------------------------------------------------------------- write
@@ -1056,7 +1072,7 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
     // 0.64: a file changed both here and in the .scriv (Scrivener, or this program on another
     // computer through a sync program): the other version is kept before this one is written
     // (a copy in the working copy's settings/conflicts and, for a text, a snapshot)
-    auto keepTheirs = [&](const QString &ourKey, const QString &theirPath) {
+    auto keepTheirs = [&](const QString &ourKey, const QString &theirPath) -> bool {
         const QString id = ourKey.section(QLatin1Char('/'), 0, 0);
         const QString part = ourKey.section(QLatin1Char('/'), 1);
         BinderItem *it = p->item(id);
@@ -1072,8 +1088,14 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
                 snap = snapshots::take(p, id, QObject::tr("Other version (changed elsewhere, %1)").arg(when), nullptr, &other);
             }
         }
+        // 0.64.1: nothing kept: this version must not replace that one
+        if (copy.isEmpty() && !snap) {
+            rep.keepFailed << QStringLiteral("%1 (%2)").arg(title, part);
+            return false;
+        }
         rep.conflicts << title;
         emit p->conflictKept(id, part, copy, snap);
+        return true;
     };
     auto mustWrite = [&](const QString &ourKey, const QString &ourHash, const QString &theirKey,
                          const QString &theirPath) -> bool {
@@ -1088,8 +1110,8 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
             ++rep.keptTheirs;
             return false;
         }
-        if (!theirSame && !fresh && state.ours.contains(ourKey) && QFileInfo::exists(theirPath))
-            keepTheirs(ourKey, theirPath);
+        if (!theirSame && !fresh && state.ours.contains(ourKey) && QFileInfo::exists(theirPath) && !keepTheirs(ourKey, theirPath))
+            return false; // kept for the next write; the sync reports it
         return true;
     };
 
@@ -1416,19 +1438,28 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
         if (!fresh && state.theirs.contains(QStringLiteral(".scrivx")) && state.theirs.value(QStringLiteral(".scrivx")) != stampNow
             && QFileInfo::exists(scrivx)) {
             const QString copy = syncsafe::keepCopy(scrivx, p->settingsDir(), QStringLiteral("binder (scrivx)"));
-            rep.conflicts << QFileInfo(scrivx).fileName();
-            emit p->conflictKept(QString(), QStringLiteral("scrivx"), copy, false);
+            if (copy.isEmpty()) {
+                // 0.64.1: not kept, so not replaced; the binder waits for the next write
+                rep.keepFailed << QFileInfo(scrivx).fileName();
+            } else {
+                rep.conflicts << QFileInfo(scrivx).fileName();
+                emit p->conflictKept(QString(), QStringLiteral("scrivx"), copy, false);
+            }
         }
         // the same binder as in the file (only the time and the change id would differ): not written,
         // so a full save without changes leaves the .scriv as it is (0.64)
-        if (fresh || !sameExceptStamps(existing, scrivxBytes)) {
+        if (rep.keepFailed.contains(QFileInfo(scrivx).fileName())) {
+            ; // not written (above)
+        } else if (fresh || !sameExceptStamps(existing, scrivxBytes)) {
             if (!writeFile(scrivx, scrivxBytes, error))
                 return false;
             scrivxSha = sha1(scrivxBytes);
         }
-        state.theirs.insert(QStringLiteral(".scrivx"), scrivxStamp(scrivx));
-        if (ownScriv)
-            p->binderChangedSinceSync = false;
+        if (!rep.keepFailed.contains(QFileInfo(scrivx).fileName())) {
+            state.theirs.insert(QStringLiteral(".scrivx"), scrivxStamp(scrivx));
+            if (ownScriv)
+                p->binderChangedSinceSync = false;
+        }
     }
     // Scrivener's autosave copy of the binder would be older than this one
     QFile::remove(scrivDir + QLatin1String("/Files/binder.autosave"));
@@ -1452,8 +1483,9 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
         QFile old(checksumFile);
         const bool same = old.open(QIODevice::ReadOnly) && old.readAll() == cs;
         old.close();
-        if (!same)
-            writeFile(checksumFile, cs, nullptr);
+        // 0.64.1: a failed write is reported (the system test's C-34: a disk error here was passed over)
+        if (!same && !writeFile(checksumFile, cs, error))
+            return false;
     }
     laps.lap("checksums");
     QString fp = quick ? updatedFingerprint(scrivDir, touched, scrivxSha) : QString();
@@ -1748,6 +1780,7 @@ OpenResult open(const QString &path, QString *error)
         res.project = Project::open(wcProject, error);
         if (res.project) {
             res.project->scrivenerPath = scrivDir;
+            res.project->scrivenerLockAtOpen = scrivenerLockStamp(scrivDir);
             // the state was written with the working copy; nothing to read
         }
         return res;
@@ -1808,6 +1841,7 @@ OpenResult open(const QString &path, QString *error)
     if (!res.project)
         return res;
     res.project->scrivenerPath = scrivDir;
+    res.project->scrivenerLockAtOpen = scrivenerLockStamp(scrivDir);
     SyncState fresh;
     fresh.scrivPath = scrivDir;
     fresh.identifier = identifier;
@@ -1822,6 +1856,26 @@ bool sync(Project *p, QString *error, bool quick)
 {
     if (p->scrivenerPath.isEmpty())
         return true;
+    // 0.64.1 (audit C-4): Scrivener opened the project while it is open here: nothing more is
+    // written into the .scriv (the working copy keeps every change) until Scrivener has closed it
+    const QString lock = scrivenerLockStamp(p->scrivenerPath);
+    if (lock.isEmpty()) {
+        p->scrivenerLockAtOpen.clear();
+    } else if (lock != p->scrivenerLockAtOpen) {
+        QString who;
+        lockedByScrivener(p->scrivenerPath, &who);
+        p->scrivenerLockRefused = lock;
+        p->scrivenerLockWho = who;
+        if (error)
+            *error = QObject::tr("Scrivener has opened this project (%1) while it is open here. So that the two programs do "
+                                 "not write over each other's changes, nothing more is written into the Scrivener project "
+                                 "%2. Your changes are kept in this program's working copy: close the project in Scrivener, "
+                                 "then save here again (File > Save).")
+                         .arg(who, QDir::toNativeSeparators(p->scrivenerPath));
+        return false;
+    }
+    p->scrivenerLockRefused.clear();
+    p->scrivenerLockWho.clear();
     timing::Laps laps;
     SyncState st;
     st.load(stateFile(p));
@@ -1831,6 +1885,15 @@ bool sync(Project *p, QString *error, bool quick)
         return false;
     laps.lap("write");
     const bool ok = st.save(stateFile(p));
+    // 0.64.1: files changed in the .scriv elsewhere whose version could not be kept were not written
+    if (!rep.keepFailed.isEmpty()) {
+        if (error)
+            *error = QObject::tr("Some files of the Scrivener project were changed elsewhere (another computer or program), and "
+                                 "those versions could not be kept in %1, so they were not replaced: %2. Check that the "
+                                 "project folder is writable and the disk is not full.")
+                         .arg(QDir::toNativeSeparators(p->settingsDir() + QStringLiteral("/conflicts")), rep.keepFailed.join(QStringLiteral(", ")));
+        return false;
+    }
     laps.lap("state written");
     laps.print("scrivener sync");
     return ok;

@@ -5,6 +5,7 @@
 #include <QDateTime>
 #include <QList>
 #include <QString>
+#include <QUrl>
 #include <QStringList>
 #include <QVector>
 
@@ -17,6 +18,7 @@ struct CatalogEntry {
     QString title;         // "Medium (recommended)"
     QString file;          // file name at the source: "ggml-medium-q5_0.bin"
     QString sha1;          // of the file at the source (whisper.cpp's model list)
+    QString sha256;        // of the same file (0.64.1: what decides; Hugging Face's Git LFS id)
     qint64 approxBytes = 0;
     int audioLayers = 0, textLayers = 0, mels = 0;   // what the header must say
     bool translates = true;
@@ -26,12 +28,19 @@ struct CatalogEntry {
 QList<CatalogEntry> catalog();
 const CatalogEntry *catalogEntry(const QString &id);
 const CatalogEntry *catalogEntryBySha1(const QString &sha1);
+// The known model with these sums (sumsMatch), or nullptr (0.64.1).
+const CatalogEntry *catalogEntryBySums(const QString &sha1, const QString &sha256);
 QString recommendedModel();               // "medium"
 // The usable original source: whisper.cpp's model files on Hugging Face.
 QString officialBase();                   // https://huggingface.co/ggerganov/whisper.cpp/resolve/main
 // Where to fetch a model: the official source, or another address (a folder: the file name is
 // added; an address that ends in ".bin": taken as it is).
 QString downloadUrl(const CatalogEntry &e, const QString &otherAddress = QString());
+// An address a model may come from (0.64.1, the external audit's X-8): https, or http only on this
+// computer (127.0.0.1, ::1, localhost: nothing goes over the network).
+bool addressAllowed(const QUrl &url);
+// The file's sums match the known ones of e (SHA-256 where known, else SHA-1).
+bool sumsMatch(const CatalogEntry &e, const QString &sha1, const QString &sha256);
 
 struct ModelHeader {
     bool ok = false;

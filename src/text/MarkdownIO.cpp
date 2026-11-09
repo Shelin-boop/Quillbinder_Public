@@ -1407,6 +1407,15 @@ QJsonObject sectionHeader(const QString &line, const QString &kind)
 
 bool isSectionStart(const QString &line) { return line.startsWith(QLatin1String(":::table")) || line.startsWith(QLatin1String(":::figure")); }
 
+// The paragraphs of one cell: joined by " <p/> " when written. The cell text comes trimmed from
+// rowCells(), so a cell that starts or ends with an empty paragraph holds "<p/>" without its space
+// (0.62 to 0.64 read that back as the text "<p/>"; 0.64.1). A "<" typed by the writer is written as "\<".
+QStringList cellParagraphs(const QString &cell)
+{
+    static const QRegularExpression sep(QStringLiteral("(?:^| )<p/>(?: |$)"));
+    return cell.split(sep);
+}
+
 // the cells of a row line "| a | b <p/> c |"
 QStringList rowCells(const QString &line)
 {
@@ -1477,7 +1486,7 @@ void read(const QString &markdown, QTextDocument *doc, const Formatting &f)
                     for (int c = 0; c < cols; ++c) {
                         QTextCursor cc = t->cellAt(r, c).firstCursorPosition();
                         LineReader cellReader{cc, f};
-                        const QStringList paras = cs.value(c).split(QStringLiteral(" <p/> "));
+                        const QStringList paras = cellParagraphs(cs.value(c));
                         for (int k = 0; k < paras.size(); ++k)
                             cellReader.line(paras[k], k == 0);
                         const QJsonObject co = cells.value(QStringLiteral("%1,%2").arg(r).arg(c)).toObject();
@@ -1626,10 +1635,12 @@ QStringList tableLines(Writer &w, QTextTable *t, const Formatting &f)
                 co[QStringLiteral("bg")] = bg.name();
             if (!co.isEmpty())
                 cells[QStringLiteral("%1,%2").arg(r).arg(c)] = co;
+            // every paragraph of the cell in text order, also those of a table or figure inside it (0.64.1:
+            // they were left out, so their text was lost; they come back as paragraphs of the cell)
             QStringList paras;
-            for (QTextFrame::iterator it = cell.begin(); !it.atEnd(); ++it)
-                if (it.currentBlock().isValid())
-                    paras << paragraphLine(w, it.currentBlock(), f).replace(QLatin1Char('|'), QLatin1String("\\|"));
+            QTextDocument *doc = t->document();
+            for (QTextBlock b = doc->findBlock(cell.firstPosition()); b.isValid() && b.position() <= cell.lastPosition(); b = b.next())
+                paras << paragraphLine(w, b, f).replace(QLatin1Char('|'), QLatin1String("\\|"));
             cs << paras.join(QStringLiteral(" <p/> "));
         }
         rows << QStringLiteral("| ") + cs.join(QStringLiteral(" | ")) + QStringLiteral(" |");

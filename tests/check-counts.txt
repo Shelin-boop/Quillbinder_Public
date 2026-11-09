@@ -1,5 +1,5 @@
 # Checks per suite on X11, written by tools/run-all-tests.sh after a full X11 run.
-# 2026-11-08, APP_VERSION 0.63.0
+# 2026-11-08, APP_VERSION 0.64.0; 2026-11-09 (0.64.1, by hand from the default run): v061 74, v0641 and audit1 added
 qb_tests 395
 ui 181
 m6 53
@@ -30,9 +30,11 @@ v0602 15
 v0603 36
 v0604 20
 v0605 34
-v061 69
+v061 74
 v0611 49
 v062 81
 v064 40
+v0641 27
+audit1 61
 w2 17
 w3 10

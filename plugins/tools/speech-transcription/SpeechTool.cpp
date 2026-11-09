@@ -626,6 +626,14 @@ void SpeechTool::downloadModel(const QString &id)
                               ? setting(QStringLiteral("otherAddress")).toString()
                               : QString();
     const QUrl url(speech::downloadUrl(*e, other));
+    // 0.64.1 (audit X-8): models come over https only (http only from this computer)
+    if (!speech::addressAllowed(url)) {
+        m_job = Job::Download;
+        finishJob(false, tr("The address %1 is not used: models are downloaded only from https:// addresses. Change the "
+                            "address in the options.")
+                             .arg(url.toString()));
+        return;
+    }
     m_job = Job::Download;
     m_jobId = id;
     m_cancelled = false;
@@ -722,10 +730,70 @@ void SpeechTool::useLocalModel(const QString &file)
 
 void SpeechTool::checkAndInstall(const QString &file, const QString &expectedId, bool fromDownload)
 {
-    Q_UNUSED(fromDownload)
+    // 0.64.1 (the external audit's X-8): the sums are judged first, before the file is read as a
+    // model; a file from the official source must be the known one; any other file that is not a
+    // known model is read only when the writer says so
     m_job = Job::Check;
     m_modelMessage = tr("Checking the model (checksum, description, test transcription) ...");
     emit modelProgress(0, 0);
+    struct Sums {
+        QString sha1, sha256;
+    };
+    auto sums = std::make_shared<Sums>();
+    QThread *t = QThread::create([file, sums] {
+        QFile f(file);
+        if (!f.open(QIODevice::ReadOnly))
+            return;
+        QCryptographicHash h1(QCryptographicHash::Sha1), h256(QCryptographicHash::Sha256);
+        QByteArray buf;
+        while (!(buf = f.read(4 << 20)).isEmpty()) {
+            h1.addData(buf);
+            h256.addData(buf);
+        }
+        sums->sha1 = QString::fromLatin1(h1.result().toHex());
+        sums->sha256 = QString::fromLatin1(h256.result().toHex());
+    });
+    connect(t, &QThread::finished, this, [=] {
+        t->deleteLater();
+        const speech::CatalogEntry *entry = expectedId.isEmpty() ? speech::catalogEntryBySums(sums->sha1, sums->sha256)
+                                                                 : speech::catalogEntry(expectedId);
+        const bool sumOk = entry && speech::sumsMatch(*entry, sums->sha1, sums->sha256);
+        const bool official = fromDownload && setting(QStringLiteral("source")).toString() != QLatin1String("other");
+        if (!sumOk && official) {
+            QFile::remove(file);
+            finishJob(false, tr("Not installed: the downloaded file does not have the known checksum of \"%1\" (it may be "
+                                "damaged, or not the file of the official source). The model in use stays. Try again later.")
+                                 .arg(entry ? entry->title : expectedId));
+            return;
+        }
+        if (!sumOk) {
+            bool yes = m_acceptChanged;
+#ifdef QB_TEST_SWITCHES
+            yes = yes || qEnvironmentVariableIsSet("QB_SPEECH_ACCEPT_CHANGED");
+#endif
+            if (!yes && !quiet())
+                yes = QMessageBox::question(m_host ? m_host->window() : nullptr, tr("Speech Transcription"),
+                                            entry ? tr("The file differs from the one Quillbinder knows for \"%1\" (its "
+                                                       "checksum is another). Use it only if you trust where it comes from: "
+                                                       "it is read by the speech engine. Check and use it?")
+                                                        .arg(entry->title)
+                                                  : tr("The file is not one of the models Quillbinder knows (its checksum is "
+                                                       "another). Use it only if you trust where it comes from: it is read by "
+                                                       "the speech engine. Check and use it?"))
+                      == QMessageBox::Yes;
+            if (!yes) {
+                QFile::remove(file);
+                finishJob(false, tr("Not installed: the file differs from the known one. The model in use stays."));
+                return;
+            }
+        }
+        checkModelFile(file, sumOk ? entry : nullptr, expectedId);
+    });
+    t->start();
+}
+
+void SpeechTool::checkModelFile(const QString &file, const speech::CatalogEntry *known, const QString &expectedId)
+{
     QString engineError;
     speech::EngineInterface *e = engine(&engineError);
     const speech::EngineSettings settings = [this, file] {
@@ -735,29 +803,21 @@ void SpeechTool::checkAndInstall(const QString &file, const QString &expectedId,
     }();
     const QString sample = samplePath();
     struct Result {
-        QString sha1;
         speech::ModelHeader header;
         speech::TestResult test;
     };
     auto result = std::make_shared<Result>();
     QThread *t = QThread::create([file, e, settings, sample, result] {
-        QFile f(file);
-        if (f.open(QIODevice::ReadOnly)) {
-            QCryptographicHash h(QCryptographicHash::Sha1);
-            h.addData(&f);
-            result->sha1 = QString::fromLatin1(h.result().toHex());
-        }
         result->header = speech::readModelHeader(file);
         if (result->header.ok && e)
             result->test = e->transcribeFile(sample, settings, false);
     });
     connect(t, &QThread::finished, this, [=] {
         t->deleteLater();
-        const speech::CatalogEntry *entry = expectedId.isEmpty() ? speech::catalogEntryBySha1(result->sha1)
-                                                                 : speech::catalogEntry(expectedId);
-        if (!entry && expectedId.isEmpty() && result->header.ok)
+        const speech::CatalogEntry *entry = known ? known : (!expectedId.isEmpty() ? speech::catalogEntry(expectedId) : nullptr);
+        if (!entry && result->header.ok)
             entry = speech::catalogEntry(result->header.kind()); // a file of a known kind, another version
-        const bool sumOk = entry && entry->sha1.compare(result->sha1, Qt::CaseInsensitive) == 0;
+        const bool sumOk = known != nullptr;
         QString why;
         const bool headOk = entry ? speech::headerMatches(result->header, *entry, &why)
                                   : (result->header.ok && result->header.multilingual());
@@ -775,28 +835,17 @@ void SpeechTool::checkAndInstall(const QString &file, const QString &expectedId,
         }
         // the sample says "... ask not what your country can do for you ..." (J. F. Kennedy, 1961)
         const bool testOk = result->test.ok && result->test.text.contains(QStringLiteral("country"), Qt::CaseInsensitive);
-        if (!testOk && !qEnvironmentVariableIsSet("QB_SPEECH_SKIP_TEST")) {
+        bool skipTest = false;
+#ifdef QB_TEST_SWITCHES
+        skipTest = qEnvironmentVariableIsSet("QB_SPEECH_SKIP_TEST");
+#endif
+        if (!testOk && !skipTest) {
             QFile::remove(file);
             const QString got = result->test.error.isEmpty()
                                     ? tr("it wrote \"%1\"").arg(result->test.text.left(80))
                                     : result->test.error;
             finishJob(false, tr("The model did not pass the test transcription (%1). The model in use stays.").arg(got));
             return;
-        }
-        if (entry && !sumOk) {
-            bool yes = m_acceptChanged || qEnvironmentVariableIsSet("QB_SPEECH_ACCEPT_CHANGED");
-            if (!yes && !quiet())
-                yes = QMessageBox::question(m_host ? m_host->window() : nullptr, tr("Speech Transcription"),
-                                            tr("The file differs from the one Quillbinder knows for \"%1\" (the source may "
-                                               "have updated it). It passed the check of its description and the test "
-                                               "transcription. Use it anyway?")
-                                                .arg(entry->title))
-                      == QMessageBox::Yes;
-            if (!yes) {
-                QFile::remove(file);
-                finishJob(false, tr("Not installed: the file differs from the known one. The model in use stays."));
-                return;
-            }
         }
         // in place of the old model, which goes only now
         QString target = file;

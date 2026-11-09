@@ -6,6 +6,7 @@
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTextDocumentFragment>
 #include <QTextFrame>
 #include <QTextTable>
 
@@ -63,6 +64,50 @@ void splitMergedIn(QTextTable *t, int r0, int rn, int c0, int cn)
             const bool colsMeet = c < c0 + cn && c + cell.columnSpan() > c0;
             if (rowsMeet && colsMeet)
                 t->splitCell(r, c, 1, 1);
+        }
+}
+// Qt's own test before a merge: no cell may reach over the edge of the rectangle
+bool mergeable(QTextTable *t, int r0, int rn, int c0, int cn)
+{
+    if (r0 < 0 || c0 < 0 || rn < 1 || cn < 1 || r0 + rn > t->rows() || c0 + cn > t->columns() || rn * cn < 2)
+        return false;
+    for (int r = r0; r < r0 + rn; ++r) {
+        if (c0 > 0 && t->cellAt(r, c0) == t->cellAt(r, c0 - 1))
+            return false;
+        if (c0 + cn < t->columns() && t->cellAt(r, c0 + cn) == t->cellAt(r, c0 + cn - 1))
+            return false;
+    }
+    for (int c = c0; c < c0 + cn; ++c) {
+        if (r0 > 0 && t->cellAt(r0, c) == t->cellAt(r0 - 1, c))
+            return false;
+        if (r0 + rn < t->rows() && t->cellAt(r0 + rn, c) == t->cellAt(r0 + rn - 1, c))
+            return false;
+    }
+    return true;
+}
+
+// 0.64.1: the text of the cells a merge covers goes into the first cell first, with ordinary cursor
+// steps. Qt 6.4's QTextTable::mergeCells moves it in a way its redo gets wrong (Edit > Redo after a
+// merge lost text, and the damaged table crashed later commands; the system test's S-T01); a merge of
+// empty cells only removes their marks and sets the span, which undo and redo handle well.
+void moveTextIntoFirstCell(QTextTable *t, int r0, int rn, int c0, int cn)
+{
+    for (int r = r0; r < r0 + rn; ++r)
+        for (int c = c0; c < c0 + cn; ++c) {
+            const QTextTableCell cell = t->cellAt(r, c);
+            if ((r == r0 && c == c0) || cell.row() != r || cell.column() != c)
+                continue; // the first cell itself, or a place a merged cell covers
+            QTextCursor sel = cell.firstCursorPosition();
+            sel.setPosition(cell.lastCursorPosition().position(), QTextCursor::KeepAnchor);
+            if (!sel.hasSelection())
+                continue;
+            const QTextDocumentFragment text = sel.selection();
+            sel.removeSelectedText();
+            const QTextTableCell first = t->cellAt(r0, c0);
+            QTextCursor to = first.lastCursorPosition();
+            if (first.firstCursorPosition().position() != first.lastCursorPosition().position())
+                to.insertBlock(); // after the text already there, in a paragraph of its own
+            to.insertFragment(text);
         }
 }
 } // namespace
@@ -174,7 +219,7 @@ bool TextEditor::canMergeCells() const
         return false;
     int r0, rn, c0, cn;
     selectedRange(c, c.currentTable(), &r0, &rn, &c0, &cn);
-    return rn * cn > 1;
+    return mergeable(c.currentTable(), r0, rn, c0, cn);
 }
 
 bool TextEditor::canSplitCell() const
@@ -192,9 +237,12 @@ void TextEditor::tableMergeCells()
     if (!t || !canMergeCells())
         return;
     QTextCursor c = textCursor();
-    c.beginEditBlock();
     int r0, rn, c0, cn;
     selectedRange(c, t, &r0, &rn, &c0, &cn);
+    if (!mergeable(t, r0, rn, c0, cn))
+        return;
+    c.beginEditBlock();
+    moveTextIntoFirstCell(t, r0, rn, c0, cn);
     t->mergeCells(r0, c0, rn, cn);
     tables::apply(t, tables::specOf(t));
     c.endEditBlock();

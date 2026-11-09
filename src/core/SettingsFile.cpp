@@ -1,4 +1,5 @@
 #include "core/SettingsFile.h"
+#include "core/SafeSave.h"
 #include "core/SettingsLayer.h"
 
 #include "AppInfo.h"
@@ -279,7 +280,7 @@ QJsonObject document(Project *p)
 bool save(const QString &file, Project *p, QString *error)
 {
     QSaveFile f(file);
-    if (!f.open(QIODevice::WriteOnly) || f.write(QJsonDocument(document(p)).toJson()) < 0 || !f.commit()) {
+    if (!f.open(QIODevice::WriteOnly) || safesave::write(f, QJsonDocument(document(p)).toJson()) < 0 || !safesave::commit(f)) {
         if (error)
             *error = QObject::tr("Cannot write %1: %2").arg(file, f.errorString());
         return false;

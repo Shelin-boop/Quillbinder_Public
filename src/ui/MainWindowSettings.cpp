@@ -2,6 +2,7 @@
 // core/SettingsFile.* writes and compares the sections, ui/SettingsTransfer.* asks per
 // section what to do, this file carries the choices out.
 #include "ui/MainWindow.h"
+#include "core/SafeSave.h"
 
 #include "core/DocumentStore.h"
 #include "core/Project.h"
@@ -55,7 +56,7 @@ bool MainWindow::exportProjectSettings(const QString &fileIn)
     QJsonObject doc = sf::document(m_project.get());
     doc.insert(QStringLiteral("sections"), currentProjectSettings());
     QSaveFile f(file);
-    if (!f.open(QIODevice::WriteOnly) || f.write(QJsonDocument(doc).toJson()) < 0 || !f.commit()) {
+    if (!f.open(QIODevice::WriteOnly) || safesave::write(f, QJsonDocument(doc).toJson()) < 0 || !safesave::commit(f)) {
         QMessageBox::warning(this, tr("Save Project Settings"), tr("Cannot write %1: %2").arg(file, f.errorString()));
         return false;
     }
@@ -123,8 +124,8 @@ bool MainWindow::importProjectSettings(const QString &fileIn)
         before.insert(QStringLiteral("sections"), now);
         QSaveFile f(backup);
         if (f.open(QIODevice::WriteOnly))
-            f.write(QJsonDocument(before).toJson());
-        f.commit();
+            safesave::write(f, QJsonDocument(before).toJson());
+        safesave::commit(f);
     }
     QStringList notes;
     applyProjectSettings(take, &notes);

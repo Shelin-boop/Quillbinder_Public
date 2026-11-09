@@ -1,4 +1,5 @@
 #include "ui/Inspector.h"
+#include "ui/LinkOpen.h"
 #include "ui/LookMenu.h"
 #include "ui/DocMirror.h"
 #include "ui/MindMapView.h"
@@ -637,7 +638,7 @@ QWidget *Inspector::buildBookmarksTab()
                 if (BinderItem *it = m_project->item(b.internalId()))
                     emit openItemRequested(it);
             } else {
-                QDesktopServices::openUrl(QUrl(b.target));
+                links::open(this, b.target);
             }
         });
         split->addWidget(box);

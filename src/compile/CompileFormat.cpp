@@ -1,4 +1,5 @@
 #include "compile/CompileFormat.h"
+#include "core/SafeSave.h"
 #include "core/Addons.h"
 #include "core/Paths.h"
 #include "text/TextUtil.h"
@@ -344,8 +345,8 @@ bool saveUserFormat(const Format &f, QString *error)
     }
     Format copy = f;
     copy.builtin = false;
-    file.write(QJsonDocument(copy.toJson()).toJson());
-    return file.commit();
+    safesave::write(file, QJsonDocument(copy.toJson()).toJson());
+    return safesave::commit(file);
 }
 
 bool exportFormat(const Format &f, const QString &path, QString *error)
@@ -358,8 +359,8 @@ bool exportFormat(const Format &f, const QString &path, QString *error)
     }
     QJsonObject o = f.toJson();
     o[QStringLiteral("kind")] = QStringLiteral("quillbinder-compile-format");
-    file.write(QJsonDocument(o).toJson());
-    return file.commit();
+    safesave::write(file, QJsonDocument(o).toJson());
+    return safesave::commit(file);
 }
 
 bool importFormat(const QString &path, Format *f, QString *error)

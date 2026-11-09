@@ -132,6 +132,11 @@ public:
     // Scrivener format: the .scriv folder this project is the working copy of
     // ("" = an ordinary project). Every save writes it (import/ScrivenerFormat.h).
     QString scrivenerPath;
+    // Scrivener's lock (scrivener::scrivenerLockStamp) found when the .scriv was opened here, and
+    // the one that stopped the last write into it ("" = written), with "user on host" (0.64.1).
+    QString scrivenerLockAtOpen;
+    QString scrivenerLockRefused;
+    QString scrivenerLockWho;
     // The file the writer knows the project by: the .scrivx of a project in
     // Scrivener format, the project file otherwise.
     QString displayFile() const;

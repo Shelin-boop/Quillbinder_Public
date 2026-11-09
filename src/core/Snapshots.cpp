@@ -1,3 +1,5 @@
+#include "core/PathSafety.h"
+#include "core/SafeSave.h"
 #include "core/Snapshots.h"
 #include "core/BinderItem.h"
 #include "core/DocumentStore.h"
@@ -28,8 +30,8 @@ static void writeIndex(const QString &dir, const QJsonObject &o)
 {
     QSaveFile f(QDir(dir).filePath(QStringLiteral("index.json")));
     if (f.open(QIODevice::WriteOnly)) {
-        f.write(QJsonDocument(o).toJson());
-        f.commit();
+        safesave::write(f, QJsonDocument(o).toJson());
+        safesave::commit(f);
     }
 }
 
@@ -69,7 +71,7 @@ bool take(Project *p, const QString &docId, const QString &title, QString *error
         now = now.addSecs(1);
     } while (QFile::exists(QDir(dir).filePath(name)));
     QSaveFile f(QDir(dir).filePath(name));
-    if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size() || !f.commit()) {
+    if (!f.open(QIODevice::WriteOnly) || safesave::write(f, data) != data.size() || !safesave::commit(f)) {
         if (error)
             *error = f.errorString();
         return false;
@@ -129,7 +131,7 @@ int removeAll(Project *p, QString *error)
     QDir root(p->snapshotsDir(QString()));
     QStringList failed;
     for (const QFileInfo &d : root.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot))
-        if (!QDir(d.absoluteFilePath()).removeRecursively())
+        if (!pathsafety::removeTreeInside(d.absoluteFilePath(), p->folderPath())) // (0.64.1, audit S-1)
             failed << d.fileName();
     for (BinderItem *it : p->allItems()) {
         if (!it->hasSnapshots)

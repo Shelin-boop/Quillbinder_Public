@@ -89,6 +89,13 @@ QTextBlockFormat blockFormatFor(const Formatting &f, const QString &style, const
             bf.clearProperty(props::ParaDirect); // the style's formatting is not set by hand
         }
     }
+    // a paragraph of a table cell is not justified with the body text (0.64.1)
+    if (base.boolProperty(props::InTableCell)) {
+        bf.setProperty(props::InTableCell, true);
+        const Style *st = styles::find(f, style);
+        if ((bf.alignment() & Qt::AlignJustify) && !(st && (st->para.bits & direct::Align)))
+            bf.setAlignment(Qt::AlignLeft);
+    }
     // formatting the writer set by hand wins over project and style
     const direct::ParaSpec own = direct::paraSpec(base);
     if (own.bits) {

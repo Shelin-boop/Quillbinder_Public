@@ -1,3 +1,5 @@
+#include "core/PathSafety.h"
+#include "core/SafeSave.h"
 #include "core/Addons.h"
 #include "core/Launcher.h"
 #include "core/Platform.h"
@@ -5,6 +7,7 @@
 #include "core/Zip.h"
 #include "text/TextUtil.h"
 
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -46,12 +49,8 @@ QString tr(const char *s) { return QObject::tr(s); }
 
 bool safeRelativePath(const QString &p)
 {
-    if (p.isEmpty() || p.startsWith(QLatin1Char('/')) || p.contains(QLatin1Char('\\')) || p.endsWith(QLatin1Char('/')))
-        return false;
-    for (const QString &part : p.split(QLatin1Char('/')))
-        if (part.isEmpty() || part == QLatin1String(".") || part == QLatin1String(".."))
-            return false;
-    return true;
+    // 0.64.1: the shared check (it also refuses drive letters and control characters)
+    return !p.endsWith(QLatin1Char('/')) && pathsafety::isSafeRelative(p);
 }
 
 QStringList summarize(const QList<FileEntry> &files)
@@ -122,8 +121,8 @@ void writeAddonState(const QJsonObject &o)
     QDir().mkpath(addonsRoot());
     QSaveFile f(addonsRoot() + QLatin1String("/state.json"));
     if (f.open(QIODevice::WriteOnly)) {
-        f.write(QJsonDocument(o).toJson());
-        f.commit();
+        safesave::write(f, QJsonDocument(o).toJson());
+        safesave::commit(f);
     }
 }
 
@@ -361,13 +360,27 @@ bool installData(const QByteArray &data, const PackageInfo &info, QStringList *l
         QDir(tmp).removeRecursively();
         return false;
     }
-    QDir(target).removeRecursively();
+    // 0.64.1 (audit S-4): the installed version moves aside first and goes only once the new one is in
+    // place; when the move fails, the old one comes back (before, it was deleted first)
+    const QString aside = target + QStringLiteral(".old-") + QString::number(QCoreApplication::applicationPid());
+    QDir(aside).removeRecursively();
+    const bool hadOld = QFileInfo::exists(target);
+    if (hadOld && !QDir().rename(target, aside)) {
+        if (error)
+            *error = tr("Cannot replace %1").arg(target);
+        QDir(tmp).removeRecursively();
+        return false;
+    }
     if (!QDir().rename(tmp, target)) {
         if (error)
             *error = tr("Cannot create %1").arg(target);
         QDir(tmp).removeRecursively();
+        if (hadOld)
+            QDir().rename(aside, target);
         return false;
     }
+    if (hadOld)
+        QDir(aside).removeRecursively();
     if (core) {
         QJsonObject st = launcher::readState();
         // remember the version in use, to return to it if the new one fails

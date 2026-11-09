@@ -161,9 +161,12 @@ QStringList PluginManager::searchDirs() const
              << QDir::cleanPath(image + QLatin1String("/usr/share/" QB_APP_ID "/plugins"));
 #endif
     dirs << addons::contentDirs(QStringLiteral("plugins")) << userPluginDir();
-    // extra folders for developers and packagers (colon separated; Windows: semicolon)
+#ifdef QB_TEST_SWITCHES
+    // extra folders for the tests and developers (colon separated; Windows: semicolon); only in
+    // builds with the tests (0.64.1, audit X-10)
     for (const QString &d : qEnvironmentVariable("QB_PLUGIN_PATH").split(QDir::listSeparator(), Qt::SkipEmptyParts))
         dirs.prepend(QDir::cleanPath(d));
+#endif
     dirs.removeDuplicates();
     return dirs;
 }

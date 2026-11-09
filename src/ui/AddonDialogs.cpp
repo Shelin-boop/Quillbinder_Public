@@ -133,17 +133,29 @@ bool runInstallPackage(QWidget *parent, const QString &file, bool *restart)
     text->setHtml(describePackage(info));
     lay->addWidget(text, 1);
     bool hasCode = false;
+    // 0.64.1 (audit X-3): also versioned libraries ("libavcodec.so.60"), everything under plugins/
+    // (command plugins start programs during compile), templates (archives unpacked into new projects),
+    // and every program update
     auto scan = [&](const PackageInfo &pi) {
-        for (const FileEntry &fe : pi.manifest.files)
-            hasCode = hasCode || fe.executable || fe.path.endsWith(QLatin1String(".so"))
-                      || fe.path.endsWith(QLatin1String(".dll"), Qt::CaseInsensitive)
-                      || fe.path.endsWith(QLatin1String(".exe"), Qt::CaseInsensitive);
+        if (pi.manifest.kind == QLatin1String("core"))
+            hasCode = true;
+        for (const FileEntry &fe : pi.manifest.files) {
+            const QString path = fe.path.toLower();
+            const QString name = path.section(QLatin1Char('/'), -1);
+            hasCode = hasCode || fe.executable || path.startsWith(QLatin1String("plugins/")) || path.contains(QLatin1String("/plugins/"))
+                      || path.startsWith(QLatin1String("templates/")) || name.endsWith(QLatin1String(".so"))
+                      || name.contains(QLatin1String(".so.")) || name.endsWith(QLatin1String(".dll")) || name.endsWith(QLatin1String(".exe"))
+                      || name.endsWith(QLatin1String(".dylib"));
+        }
     };
     scan(info);
     for (const PackageInfo &n : info.nested)
         scan(n);
     if (hasCode) {
-        auto *warn = new QLabel(QObject::tr("This package contains program code. Install it only if you trust where it comes from."), &dlg);
+        auto *warn = new QLabel(QObject::tr("This package contains program code (a program update, libraries, plugins that can start "
+                                            "programs, or templates). Packages are not signed yet: install it only if you trust where "
+                                            "it comes from, such as the project's release page."), &dlg);
+        warn->setObjectName(QStringLiteral("addonCodeWarning"));
         warn->setWordWrap(true);
         lay->addWidget(warn);
     }

@@ -18,6 +18,8 @@
 #include "ui/AppSettings.h"
 #include "ui/SpellChecker.h"
 
+#include <QTextDocumentWriter>
+#include <QBuffer>
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QClipboard>
@@ -1049,11 +1051,33 @@ bool TextEditor::canInsertFromMimeData(const QMimeData *source) const
 
 QMimeData *TextEditor::createMimeDataFromSelection() const
 {
-    QMimeData *md = QTextEdit::createMimeDataFromSelection();
+    // 0.64.1: a plain QMimeData. Qt's own one for a text selection lists only its own formats (plain text,
+    // HTML, Markdown, ODF), so the RTF below and the program's marker were never offered: not to the
+    // program's own paste (which then went through HTML and lost figures) and not to other programs.
     const QTextDocumentFragment frag = textCursor().selection();
+    auto *md = new QMimeData;
+    md->setHtml(frag.toHtml());
+    md->setData(QStringLiteral("text/markdown"), frag.toMarkdown().toUtf8());
+    {
+        QBuffer odf;
+        odf.open(QIODevice::WriteOnly);
+        QTextDocumentWriter writer(&odf, "ODF");
+        if (writer.write(frag))
+            md->setData(QStringLiteral("application/vnd.oasis.opendocument.text"), odf.data());
+    }
     QTextDocument tmp;
     QTextCursor c(&tmp);
     c.insertFragment(frag);
+    // 0.64.1: the pictures come along (a fragment carries their names, not the pictures, so the RTF
+    // had none and a cut-and-pasted figure came back without its picture)
+    for (QTextBlock b = tmp.begin(); b.isValid(); b = b.next())
+        for (auto it = b.begin(); !it.atEnd(); ++it)
+            if (it.fragment().charFormat().isImageFormat()) {
+                const QUrl url(it.fragment().charFormat().toImageFormat().name());
+                const QVariant pic = document()->resource(QTextDocument::ImageResource, url);
+                if (pic.isValid())
+                    tmp.addResource(QTextDocument::ImageResource, url, pic);
+            }
     md->setData(QStringLiteral("text/rtf"), rtf::write(&tmp, m_project ? m_project->formatting : Formatting()));
     // text copied inside the program keeps its fonts when pasted
     md->setData(QStringLiteral("application/x-quillbinder-text"), QByteArray("1"));

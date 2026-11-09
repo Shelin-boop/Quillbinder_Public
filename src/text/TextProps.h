@@ -29,7 +29,10 @@ enum : int {
     TableSpec,                             // table frame: QString, JSON of tables::Spec (the table's design)
     CellBackground,                        // table cell: QColor chosen for this cell (over the design's)
     Figure,                                // frame: int figures::Position (a picture with its caption)
-    ImageDescription                       // char (image): QString, what the picture shows (alt text)
+    ImageDescription,                      // char (image): QString, what the picture shows (alt text)
+    // 0.64.1: block: bool, a paragraph of a table cell (never saved; set by tables::apply): it does not
+    // take a justified body alignment (narrow cells spread their words), unless aligned by hand
+    InTableCell
 };
 } // namespace props
 

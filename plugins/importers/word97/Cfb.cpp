@@ -100,21 +100,32 @@ bool CompoundFile::open(const QByteArray &data)
             fatList << s;
     }
     const int perDifat = m_sectorSize / 4 - 1;
+    // 0.64.1 (audit ST-3): a sector of the chain that comes again ends it (a loop made the importer
+    // collect about 6.5 GB of table entries), and there are never more FAT sectors than the file holds
+    const qint64 sectorsInFile = data.size() / m_sectorSize;
+    QSet<quint32> seenDifat;
     for (quint32 n = 0; n < difatSectors && difat != kEndOfChain && difat != kFree && n < 100000; ++n) {
+        if (seenDifat.contains(difat))
+            break;
+        seenDifat.insert(difat);
         const qint64 at = qint64(difat + 1) * m_sectorSize;
         if (at + m_sectorSize > data.size())
             break;
         for (int i = 0; i < perDifat; ++i) {
             const quint32 s = u32(data, at + i * 4);
-            if (s != kFree)
+            if (s != kFree && qint64(s) + 1 < sectorsInFile)
                 fatList << s;
         }
         difat = u32(data, at + perDifat * 4);
+        if (fatList.size() > sectorsInFile)
+            break;
     }
     if (quint32(fatList.size()) > fatSectors && fatSectors > 0)
         fatList.resize(int(fatSectors));
     for (quint32 s : fatList) {
         const qint64 at = qint64(s + 1) * m_sectorSize;
+        if (at + m_sectorSize > data.size())
+            continue; // a sector outside the file adds nothing (0.64.1)
         for (int i = 0; i < m_sectorSize / 4; ++i)
             m_fat << u32(data, at + i * 4);
     }

@@ -12,11 +12,11 @@ between the programs. Scrivener and Scapple are names of products of Literature 
 
 ## Download
 
-**Quillbinder 0.64.0 alpha for Linux (x86_64):**
+**Quillbinder 0.64.1 alpha for Linux (x86_64):**
 
-- **[Quillbinder-0.64.0-alpha-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.64.0-alpha/Quillbinder-0.64.0-alpha-x86_64.AppImage)**: the program
-- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.64.0-alpha/media-all-formats.qbpkg)**: audio and video in every format (an add-on; optional)
-- **[Quillbinder-0.64.0-full-alpha-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.64.0-alpha/Quillbinder-0.64.0-full-alpha-x86_64.AppImage)**:
+- **[Quillbinder-0.64.1-alpha-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.64.1-alpha/Quillbinder-0.64.1-alpha-x86_64.AppImage)**: the program
+- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.64.1-alpha/media-all-formats.qbpkg)**: audio and video in every format (an add-on; optional)
+- **[Quillbinder-0.64.1-full-alpha-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.64.1-alpha/Quillbinder-0.64.1-full-alpha-x86_64.AppImage)**:
   **the full version**: the program with all add-ons and all the libraries they need included (audio and
   video in every format, extra themes, project templates, the scriptwriting pack, the writing tools with offline speech recognition, the
   importers of web pages and old Word files). They are installed at the first start: one download, nothing

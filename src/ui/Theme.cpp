@@ -1,4 +1,5 @@
 #include "ui/Theme.h"
+#include "core/SafeSave.h"
 
 #include "core/Addons.h"
 #include "core/ItemIcons.h"
@@ -955,8 +956,8 @@ static bool writeTheme(const QString &file, const Theme &t, QString *error)
 {
     QDir().mkpath(QFileInfo(file).absolutePath());
     QSaveFile f(file);
-    if (!f.open(QIODevice::WriteOnly) || f.write(QJsonDocument(t.toJson()).toJson(QJsonDocument::Indented)) < 0
-        || !f.commit()) {
+    if (!f.open(QIODevice::WriteOnly) || safesave::write(f, QJsonDocument(t.toJson()).toJson(QJsonDocument::Indented)) < 0
+        || !safesave::commit(f)) {
         if (error)
             *error = QObject::tr("The theme could not be written to %1: %2").arg(file, f.errorString());
         return false;

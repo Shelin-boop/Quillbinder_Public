@@ -751,7 +751,8 @@ int main(int argc, char **argv)
         settle(200);
         check(!v->isPlaying() && !playback::hub().target(), QStringLiteral("a file that plays stops when its editor shows another document"));
         proj->save();
-        QFile ui(QDir(proj->settingsDir()).filePath(QStringLiteral("ui.json")));
+        // 0.64: the view state is kept per computer (settings/ui-<computer>.json)
+        QFile ui(proj->uiStateFile());
         const bool written = ui.open(QIODevice::ReadOnly) && ui.readAll().contains("mediaPositions");
         check(written, QStringLiteral("the positions are saved with the project"), ui.fileName());
     }

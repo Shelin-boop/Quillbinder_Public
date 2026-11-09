@@ -1,5 +1,6 @@
 #include "ui/AppSettings.h"
 #include "core/SettingsLayer.h"
+#include "core/SyncSafety.h"
 #include "core/Backup.h"
 #include "core/Addons.h"
 #include "core/ItemIcons.h"
@@ -51,6 +52,7 @@ void AppSettings::pushToModules()
                                {QStringLiteral("zip"), zip}, {QStringLiteral("country"), country}, {QStringLiteral("phone"), phone},
                                {QStringLiteral("email"), email}});
     templates::setSharedTemplatesDir(sharedTemplatesDir);
+    syncsafe::setDeviceName(deviceName);
     importer::ImportOptions io;
     io.commentsInline = importCommentsInline;
     io.footnotesInline = importFootnotesInline;
@@ -246,6 +248,7 @@ void AppSettings::load()
     country = s.value(QStringLiteral("country"), country).toString();
     phone = s.value(QStringLiteral("phone"), phone).toString();
     email = s.value(QStringLiteral("email"), email).toString();
+    deviceName = s.value(QStringLiteral("deviceName"), deviceName).toString().trimmed();
     sharedTemplatesDir = s.value(QStringLiteral("sharedTemplates"), sharedTemplatesDir).toString();
     citationsApp = s.value(QStringLiteral("citationsApp"), citationsApp).toString();
     sepMerge = s.value(QStringLiteral("sepMerge"), sepMerge).toString();
@@ -481,6 +484,7 @@ void AppSettings::save()
     s.setValue(QStringLiteral("country"), country);
     s.setValue(QStringLiteral("phone"), phone);
     s.setValue(QStringLiteral("email"), email);
+    s.setValue(QStringLiteral("deviceName"), deviceName);
     s.setValue(QStringLiteral("sharedTemplates"), sharedTemplatesDir);
     s.setValue(QStringLiteral("citationsApp"), citationsApp);
     s.setValue(QStringLiteral("sepMerge"), sepMerge);

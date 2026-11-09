@@ -1,6 +1,7 @@
 #include "compile/EpubExporter.h"
 
 #include "compile/Look.h"
+#include "compile/Progress.h"
 #include "core/Zip.h"
 
 #include "AppInfo.h"
@@ -375,6 +376,7 @@ struct Writer {
             return o;
         };
         for (int i = 0; i < m.paragraphs.size(); ++i) {
+            progress::tick(i, int(m.paragraphs.size()));
             const Paragraph &p = m.paragraphs[i];
             if (p.pageBreakBefore && m.options.splitAtPageBreaks && !cur.body.trimmed().isEmpty()) {
                 closeLists(0);
@@ -544,7 +546,7 @@ struct Writer {
         // tables and figures (0.62)
         c += QStringLiteral("table.qbtable { margin-top: 0.6em; margin-bottom: 0.6em; }\n"
                             "table.qbtable th, table.qbtable td { vertical-align: top; text-align: left; font-weight: inherit; }\n"
-                            "table.qbtable p { margin: 0; text-indent: 0; }\n"
+                            "table.qbtable p { margin: 0; text-indent: 0; text-align: left; }\n" // 0.64.1: not justified with the body
                             "figure.qbfigure { margin: 0.6em auto; text-align: center; }\n"
                             "figure.qbfigure.left { float: left; margin: 0.2em 1em 0.5em 0; }\n"
                             "figure.qbfigure.right { float: right; margin: 0.2em 0 0.5em 1em; }\n"

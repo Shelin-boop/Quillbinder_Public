@@ -321,12 +321,23 @@ private:
                     continue;
                 }
                 QList<QByteArray> paras;
-                for (QTextFrame::iterator it = cell.begin(); !it.atEnd(); ++it)
+                auto add = [&](const QTextBlock &b) {
+                    QByteArray p = paragraph(b);
+                    p.replace(0, int(qstrlen("\\pard\\plain")), "\\pard\\plain\\intbl");
+                    paras << p;
+                };
+                for (QTextFrame::iterator it = cell.begin(); !it.atEnd(); ++it) {
                     if (it.currentBlock().isValid()) {
-                        QByteArray p = paragraph(it.currentBlock());
-                        p.replace(0, int(qstrlen("\\pard\\plain")), "\\pard\\plain\\intbl");
-                        paras << p;
+                        add(it.currentBlock());
+                    } else if (QTextFrame *inner = it.currentFrame()) {
+                        // 0.64.1 (system test C-28): a table or a figure inside a cell (pasted from a word
+                        // processor) was left out, with its text; its paragraphs go into the cell, one after
+                        // the other (as in Markdown storage)
+                        for (QTextBlock b = m_doc->findBlock(inner->firstPosition()); b.isValid() && b.position() <= inner->lastPosition();
+                             b = b.next())
+                            add(b);
                     }
+                }
                 o += paras.join("\\par\n") + "\\cell\n";
             }
             o += "\\row\n";

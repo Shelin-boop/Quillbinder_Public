@@ -1,4 +1,5 @@
 #include "core/MindMap.h"
+#include "core/SafeSave.h"
 #include "text/TextUtil.h"
 
 #include <QAbstractTextDocumentLayout>
@@ -1467,8 +1468,8 @@ bool Board::save(const QString &path, QString *error) const
             *error = QObject::tr("Cannot write %1").arg(path);
         return false;
     }
-    f.write(text::xmlSafeBytes(toXml()));
-    if (!f.commit()) {
+    safesave::write(f, text::xmlSafeBytes(toXml()));
+    if (!safesave::commit(f)) {
         if (error)
             *error = QObject::tr("Cannot write %1").arg(path);
         return false;

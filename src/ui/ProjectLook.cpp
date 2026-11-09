@@ -1,4 +1,5 @@
 #include "ui/ProjectLook.h"
+#include "core/SafeSave.h"
 
 #include "core/Project.h"
 #include "ui/AppSettings.h"
@@ -139,7 +140,7 @@ bool write(const Project *p, const Values &v, QString *error)
     }
     QDir().mkpath(p->settingsDir());
     QSaveFile f(fileOf(p));
-    if (!f.open(QIODevice::WriteOnly) || f.write(QJsonDocument(v.toJson()).toJson()) < 0 || !f.commit()) {
+    if (!f.open(QIODevice::WriteOnly) || safesave::write(f, QJsonDocument(v.toJson()).toJson()) < 0 || !safesave::commit(f)) {
         if (error)
             *error = QObject::tr("Cannot write %1: %2").arg(fileOf(p), f.errorString());
         return false;

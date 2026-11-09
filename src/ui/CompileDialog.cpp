@@ -2,10 +2,12 @@
 #include "compile/Compiler.h"
 #include "compile/PluginManager.h"
 #include "compile/PdfExporter.h"
+#include "compile/Progress.h"
 #include "core/BinderModel.h"
 #include "core/ItemIcons.h"
 #include "text/TextUtil.h"
 #include "ui/AppSettings.h"
+#include <QProgressDialog>
 #include <QToolButton>
 #include <QTextDocument>
 #include <QTextBrowser>
@@ -49,6 +51,38 @@
 #include <QVBoxLayout>
 
 namespace qb {
+
+namespace {
+// 0.64.1: a modal progress window while compiling; compile::progress::tick() lands here
+class CompileProgress
+{
+public:
+    CompileProgress(QWidget *parent, const QString &label)
+        : m_dlg(label, QString(), 0, 1000, parent)
+        , m_scope([this](double share) {
+            if (share >= 0)
+                m_dlg.setValue(qBound(0, int(share * 1000), 999));
+            QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        })
+    {
+        m_dlg.setObjectName(QStringLiteral("compileProgress"));
+        m_dlg.setWindowTitle(QObject::tr("Compile"));
+        m_dlg.setWindowModality(Qt::WindowModal);
+        m_dlg.setCancelButton(nullptr);
+        m_dlg.setMinimumDuration(0);
+        m_dlg.setAutoClose(false);
+        m_dlg.setAutoReset(false);
+        m_dlg.setValue(0);
+        m_dlg.show();
+        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    }
+
+private:
+    QProgressDialog m_dlg;
+    compile::progress::Scope m_scope;
+};
+} // namespace
+
 
 using namespace compile;
 
@@ -948,11 +982,17 @@ void CompileDialog::compileNow()
     }
     m_project->save();
     QApplication::setOverrideCursor(Qt::WaitCursor);
-    AuthorInfo author{AppSettings::instance().forename, AppSettings::instance().surname};
-    Compiler c(m_project, currentFormat(), m_project->compile, author);
-    const Manuscript m = c.build();
+    bool ok = false;
     QString err;
-    const bool ok = exp->exportManuscript(m, path, &err);
+    {
+        // 0.64.1: a progress window; the event loop runs in between (no input), so the program's
+        // watchdog does not take a long compile for a freeze
+        CompileProgress busy(this, tr("Compiling..."));
+        AuthorInfo author{AppSettings::instance().forename, AppSettings::instance().surname};
+        Compiler c(m_project, currentFormat(), m_project->compile, author);
+        const Manuscript m = c.build();
+        ok = exp->exportManuscript(m, path, &err);
+    }
     QApplication::restoreOverrideCursor();
     if (!ok) {
         QMessageBox::warning(this, tr("Compile"), tr("Compiling failed:\n%1").arg(err));
@@ -982,12 +1022,16 @@ Manuscript CompileDialog::manuscript()
 void CompileDialog::preview()
 {
     QApplication::setOverrideCursor(Qt::WaitCursor);
-    const Manuscript m = manuscript();
     auto *tmp = new QTemporaryDir;
     const QString path = tmp->filePath(QStringLiteral("preview.pdf"));
     QString err;
     PdfReport rep;
-    const bool ok = writePdf(m, path, &err, &rep);
+    bool ok = false;
+    {
+        CompileProgress busy(this, tr("Preparing the preview..."));
+        const Manuscript m = manuscript();
+        ok = writePdf(m, path, &err, &rep);
+    }
     QApplication::restoreOverrideCursor();
     if (!ok) {
         delete tmp;

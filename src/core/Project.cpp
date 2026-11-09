@@ -1,4 +1,6 @@
 #include "core/Project.h"
+#include "core/SafeSave.h"
+#include "core/PathSafety.h"
 #include "core/Timing.h"
 #include "core/Objects.h"
 #include "core/BinderModel.h"
@@ -12,6 +14,7 @@
 
 #include "AppInfo.h"
 
+#include <QCryptographicHash>
 #include <QDir>
 #include <QDomDocument>
 #include <QFile>
@@ -195,8 +198,8 @@ std::unique_ptr<Project> Project::open(const QString &path, QString *error)
         const bool same = old.open(QIODevice::ReadOnly) && old.readAll() == p->m_loadedIndex;
         old.close();
         QSaveFile spare(spareCopyOf(file));
-        if (!same && spare.open(QIODevice::WriteOnly) && spare.write(p->m_loadedIndex) == p->m_loadedIndex.size())
-            spare.commit();
+        if (!same && spare.open(QIODevice::WriteOnly) && safesave::write(spare, p->m_loadedIndex) == p->m_loadedIndex.size())
+            safesave::commit(spare);
         p->m_loadedIndex.clear();
     }
     p->ensureSpecialFolders();
@@ -291,14 +294,23 @@ void Project::setTitle(const QString &t)
     emit titleChanged();
 }
 
+// 0.64.1 (audit S-1), the second line of defense: an id that is no safe folder name never leaves the
+// project's folder (ids are checked when read; this catches any other way in)
+static QString folderNameFor(const QString &id)
+{
+    if (pathsafety::isSafeId(id))
+        return id;
+    return QStringLiteral("_invalid-") + QString::fromLatin1(QCryptographicHash::hash(id.toUtf8(), QCryptographicHash::Sha1).toHex().left(16));
+}
+
 QString Project::contentDir(const QString &id) const
 {
-    return m_folder + QLatin1String("/content/") + id;
+    return m_folder + QLatin1String("/content/") + folderNameFor(id);
 }
 
 QString Project::snapshotsDir(const QString &id) const
 {
-    return m_folder + QLatin1String("/snapshots/") + id;
+    return id.isEmpty() ? m_folder + QLatin1String("/snapshots/") : m_folder + QLatin1String("/snapshots/") + folderNameFor(id);
 }
 
 QString Project::settingsDir() const { return m_folder + QLatin1String("/settings"); }
@@ -307,7 +319,8 @@ QString Project::mediaFilePath(const BinderItem *item) const
 {
     if (!item)
         return QString();
-    return contentDir(item->id) + QLatin1String("/file.") + (item->fileExt.isEmpty() ? QStringLiteral("bin") : item->fileExt);
+    // the extension comes from the project file too (0.64.1, audit S-1)
+    return contentDir(item->id) + QLatin1String("/file.") + (pathsafety::isSafeExtension(item->fileExt) ? item->fileExt : QStringLiteral("bin"));
 }
 
 const Label *Project::labelById(int id) const
@@ -686,7 +699,7 @@ bool Project::writeUiState()
         return true; // the same as before: nothing for a sync program to carry
     old.close();
     QSaveFile ui(uiStateFile());
-    return ui.open(QIODevice::WriteOnly) && ui.write(data) == data.size() && ui.commit();
+    return ui.open(QIODevice::WriteOnly) && safesave::write(ui, data) == data.size() && safesave::commit(ui);
 }
 
 QString Project::spareCopyOf(const QString &projectFile)
@@ -725,7 +738,7 @@ int Project::recoverUnlistedDocuments(QString *folderTitle)
     BinderItem *folder = nullptr;
     int n = 0;
     for (const QString &id : content.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-        if (item(id))
+        if (item(id) || !pathsafety::isSafeId(id))
             continue;
         const QStringList texts = QDir(content.filePath(id)).entryList({QStringLiteral("text.*")}, QDir::Files);
         if (texts.isEmpty())
@@ -981,7 +994,9 @@ static BinderItem *readItem(const QDomElement &e, BinderItem *parent)
     auto *it = new BinderItem;
     it->parent = parent;
     it->id = e.attribute(QStringLiteral("id"));
-    if (it->id.isEmpty())
+    // 0.64.1 (audit S-1): an id becomes a folder name (content/<id>, snapshots/<id>); one that could
+    // point out of the project ("../x") is replaced
+    if (it->id.isEmpty() || !pathsafety::isSafeId(it->id))
         it->id = newId();
     it->type = itemTypeFromString(e.attribute(QStringLiteral("type")));
     it->created = QDateTime::fromString(e.attribute(QStringLiteral("created")), Qt::ISODate);
@@ -1284,6 +1299,15 @@ bool Project::saveIndex(QString *error)
     // through a sync program): that version is kept before this one replaces it
     if (syncsafe::changedSince(m_indexMark, m_indexFile) && QFileInfo::exists(m_indexFile)) {
         const QString copy = syncsafe::keepCopy(m_indexFile, settingsDir(), tr("project file"));
+        // 0.64.1: replaced only when that version was kept
+        if (copy.isEmpty()) {
+            if (error)
+                *error = tr("The project file %1 was changed elsewhere (another computer or program), and that version could "
+                            "not be kept in %2, so it was not replaced. Check that the project folder is writable and the "
+                            "disk is not full.")
+                             .arg(QDir::toNativeSeparators(m_indexFile), QDir::toNativeSeparators(settingsDir() + QStringLiteral("/conflicts")));
+            return false;
+        }
         emit conflictKept(QString(), tr("project file"), copy, false);
     }
     QSaveFile f(m_indexFile);
@@ -1293,8 +1317,8 @@ bool Project::saveIndex(QString *error)
         return false;
     }
     // characters XML does not allow (pasted control characters) would make the file unreadable
-    f.write(text::xmlSafeBytes(dom.toByteArray(1)));
-    if (!f.commit()) {
+    safesave::write(f, text::xmlSafeBytes(dom.toByteArray(1)));
+    if (!safesave::commit(f)) {
         if (error)
             *error = tr("Cannot write %1: %2").arg(m_indexFile, f.errorString());
         return false;

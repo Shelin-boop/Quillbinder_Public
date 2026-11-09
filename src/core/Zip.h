@@ -54,13 +54,16 @@ public:
     explicit ZipReader(const QByteArray &data);
     bool isValid() const { return m_valid; }
     QStringList fileNames() const;
-    QByteArray fileData(const QString &name) const;
+    // The contents of an entry; empty when it is not there, cut off, too large or damaged (its
+    // checksum differs). ok tells an empty entry from one that could not be read (0.64.1).
+    QByteArray fileData(const QString &name, bool *ok = nullptr) const;
     bool extractAll(const QString &targetDir) const;
 
 private:
     struct Entry {
         QString name;
         quint16 method;
+        quint32 crc = 0;
         quint32 compSize, size;
         quint32 localOffset;
     };

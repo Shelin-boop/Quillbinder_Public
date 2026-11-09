@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.16)
 # ---------------------------------------------------------------------------
 set(APP_NAME "Quillbinder")
 set(APP_ID   "quillbinder")
-set(APP_VERSION "0.64.0")
+set(APP_VERSION "0.64.1")
 # A word shown after the version number in Help > About, System Information and the
 # AppImage's file name ("alpha", "beta"; empty for a normal release). It is never part
 # of version comparisons: the program, the loader and the packages compare APP_VERSION only.
@@ -31,6 +31,19 @@ endif()
 set(APP_HOMEPAGE "https://github.com/Shelin-boop/Quillbinder_Public")
 
 project(${APP_ID} VERSION ${APP_VERSION} LANGUAGES CXX)
+
+# Switches of the tests that load plugins from other folders or leave checks out (QB_PLUGIN_PATH,
+# QB_SPEECH_SOURCE, QB_SPEECH_ACCEPT_CHANGED, QB_SPEECH_SKIP_TEST): only in builds with the tests
+# (0.64.1, the external audit's X-10). The packages are built with -DQB_BUILD_TESTS=OFF.
+if(DEFINED QB_BUILD_TESTS)
+  set(QB_TEST_SWITCHES_DEFAULT ${QB_BUILD_TESTS})
+else()
+  set(QB_TEST_SWITCHES_DEFAULT ON)
+endif()
+option(QB_TEST_SWITCHES "Honor the test switches that load plugins from other folders or skip checks" ${QB_TEST_SWITCHES_DEFAULT})
+if(QB_TEST_SWITCHES)
+  add_compile_definitions(QB_TEST_SWITCHES=1)
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

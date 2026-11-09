@@ -1,5 +1,6 @@
 // Tables and figures in the text (0.62); see Tables.h.
 #include "text/Tables.h"
+#include "text/DirectFormat.h"
 #include "text/DisplayFormat.h"
 #include "text/Styles.h"
 #include "text/TextProps.h"
@@ -154,6 +155,22 @@ void apply(QTextTable *t, const Spec &s)
     tf.setColumnWidthConstraints(cols);
     tf.setProperty(props::TableSpec, QString::fromUtf8(QJsonDocument(s.toJson()).toJson(QJsonDocument::Compact)));
     t->setFormat(tf);
+    // 0.64.1: the paragraphs of the cells are marked and not justified with the body text (a narrow
+    // cell spread its words over the width); an alignment set by hand stays. Done before the cell formats:
+    // Qt puts the cursor after a redo at the last change, and after a paragraph-format change that is the
+    // end of the whole range (after the table), so Format > Table could no longer act on it.
+    QTextDocument *doc = t->document();
+    for (QTextBlock b = doc->findBlock(t->firstPosition()); b.isValid() && b.position() <= t->lastPosition(); b = b.next()) {
+        QTextBlockFormat bf = b.blockFormat();
+        const bool own = direct::paraSpec(bf).bits & direct::Align;
+        const bool spread = (bf.alignment() & Qt::AlignJustify) && !own;
+        if (bf.boolProperty(props::InTableCell) && !spread)
+            continue;
+        bf.setProperty(props::InTableCell, true);
+        if (spread)
+            bf.setAlignment(Qt::AlignLeft);
+        QTextCursor(b).setBlockFormat(bf);
+    }
     for (int r = 0; r < t->rows(); ++r) {
         for (int c = 0; c < t->columns(); ++c) {
             QTextTableCell cell = t->cellAt(r, c);

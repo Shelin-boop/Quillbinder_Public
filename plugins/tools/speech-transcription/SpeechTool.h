@@ -144,8 +144,8 @@ public slots:
     bool removeModel();
     bool modelJobRunning() const { return m_job != Job::None; }
     QString modelMessage() const { return m_modelMessage; }
-    // A model that passed the format check and the test but differs from the known file:
-    // the answer to the question (tests: QB_SPEECH_ACCEPT_CHANGED=1 answers yes).
+    // A model whose checksum is not the known one (another address, a file of the writer's): the
+    // answer to the question asked before it is read (tests: QB_SPEECH_ACCEPT_CHANGED=1 answers yes).
     void setAcceptChanged(bool yes) { m_acceptChanged = yes; }
 
 signals:
@@ -159,6 +159,9 @@ private:
     void onText(const QString &text, bool newParagraph);
     void onState(const QString &state);
     void checkAndInstall(const QString &file, const QString &expectedId, bool fromDownload);
+    // after the sums: the description and the test transcription; known = the catalog entry whose
+    // sums the file has (nullptr: none)
+    void checkModelFile(const QString &file, const speech::CatalogEntry *known, const QString &expectedId);
     void finishJob(bool ok, const QString &message);
     void updateCommand();
     bool startRecordOnly(const QString &wavFile);

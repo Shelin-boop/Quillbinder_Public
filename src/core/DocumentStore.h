@@ -125,11 +125,18 @@ private:
         bool isNotes = false;
         QHash<QString, QString> savedImages; // resource name -> relative path
         syncsafe::Stamp stamp; // the file as read or last written here (0.64)
+        // 0.64.1: the bytes as read or last written here, and whether they are RTF: tells a text
+        // only shown here (marked as changed by showing it) from one the writer edited
+        QByteArray read;
+        bool readRtf = false;
     };
-    // the file of this entry was written by someone else: keep that version (0.64)
-    void keepOtherVersion(const QString &id, bool notes, const QString &path);
+    // the file of this entry was written by someone else: keep that version (0.64); false when
+    // neither a copy nor a snapshot could be kept (0.64.1: then this one must not replace it)
+    bool keepOtherVersion(const QString &id, bool notes, const QString &path);
+    // what would be written is what was read (or last written) here: nothing was edited (0.64.1)
+    bool unchangedSinceRead(const QString &id, const Entry &e, const QByteArray &data);
     QTextDocument *load(const QString &id, bool notes);
-    void readFile(const QString &id, bool notes, QTextDocument *doc);
+    void readFile(const QString &id, bool notes, QTextDocument *doc, QByteArray *bytes = nullptr, bool *rtf = nullptr);
     bool writeEntry(const QString &key, Entry &e, QString *error);
     QString keyFor(const QString &id, bool notes) const { return notes ? QStringLiteral("n:") + id : id; }
     void preloadImages(QTextDocument *doc, const QString &dir);

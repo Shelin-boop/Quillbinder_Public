@@ -154,6 +154,7 @@ private:
     QSpinBox *m_recentCount, *m_autosave;
     QCheckBox *m_snapOnSave;
     QLineEdit *m_forename, *m_surname, *m_street, *m_city, *m_state, *m_zip, *m_country, *m_phone, *m_email;
+    QLineEdit *m_deviceName = nullptr;
     QLineEdit *m_sharedTemplates, *m_citations;
     QComboBox *m_sepMerge, *m_sepScratch;
     QLineEdit *m_sepMergeCustom, *m_sepScratchCustom;

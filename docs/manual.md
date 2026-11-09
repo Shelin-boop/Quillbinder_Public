@@ -39,6 +39,8 @@ The welcome project is saved as "Welcome to {{APP}}" in your *Documents* folder.
 
 You never need to save by hand. {{APP}} saves automatically a few seconds after you stop typing, when you switch to another program, and when you close the project. If you type on, it saves in the first short break (a breath between words) once 5 seconds have passed, and after 30 seconds at the latest even without any break. **Ctrl+S** saves immediately if you want to be sure.
 
+Every file is written under a temporary name first and replaces the old one only when it was written whole and the computer has put it on the disk. If the disk is full or the drive fails while saving, the old file stays as it was and a message says that saving failed; your changes stay in the window until saving works again.
+
 If you log out or shut the computer down while {{APP}} is open, it saves everything before it ends (no backup is made then). If it ends unexpectedly, the next start tells you so (section 21, *Crash reports*).
 
 ### Where your work lives
@@ -49,13 +51,27 @@ A project should be open in only one window at a time. If it is already open in 
 
 **A project in a synced folder** (OneDrive, Dropbox, Nextcloud, Syncthing, or any other sync program) can be used on several computers, one at a time. Close it on one computer and let the sync program finish before you open it on the other. {{APP}} helps with that on the level of files, whatever the sync program is:
 
-- While a project is open, a small lock file in it names the computer and is renewed every few minutes. On another computer, opening the project then shows that computer's name, since when it has the project open, and its last sign of life; **Open Anyway** or **Cancel**. A lock that has not been renewed for more than 15 minutes (the project was not closed there, or that computer is off) is shown as left over, and **Open** is the default.
+- While a project is open, a small lock file in it names the computer and is renewed every few minutes. It holds the computer's name, your user name on it, the program's version and process number, when the project was opened and when the lock was last renewed, and a code that tells computers apart (a hash, not readable as a name). Everyone with access to the shared folder can see these. In **File > Options > General > Saving**, **Name of this computer in shared folders** sets a name of your own ("Laptop"); it is used instead of the computer's name in lock files, in the names of kept versions and in *settings/ui-<computer>.json*, and your user name is then left out. On another computer, opening the project then shows that computer's name, since when it has the project open, and its last sign of life; **Open Anyway** or **Cancel**. A lock that has not been renewed for more than 15 minutes (the project was not closed there, or that computer is off) is shown as left over, and **Open** is the default.
 - If the project is opened on another computer while it is open here, a notice says so and offers to close it here.
-- If a file of the project was changed elsewhere (on another computer through the sync program, or by another program) after {{APP}} read it, and it was changed here too, the other version is kept before yours is saved: as a **snapshot** of the document (compare it in the inspector's Snapshots tab) and as a copy in the project's folder *settings/conflicts*. A notice says which documents.
-- Opening and closing a project without changing anything changes none of its files; the window layout and the places you were in each document are kept per computer (*settings/ui-<computer>.json*). In Scrivener format the *.scriv* is not touched either, and it gets a lock file of {{APP}} (*quillbinder.lock*) while it is open; Scrivener does not read it.
+- If a file of the project was changed elsewhere (on another computer through the sync program, or by another program) after {{APP}} read it, and it was changed here too, the other version is kept before yours is saved: as a **snapshot** of the document (compare it in the inspector's Snapshots tab) and as a copy in the project's folder *settings/conflicts*. A notice says which documents. If the other version cannot be kept (for example because the disk is full or *settings/conflicts* cannot be written), yours is not saved over it: saving fails with a message that names the file, and your changes stay unsaved until the other version can be kept. A document you only looked at here is never saved over a newer version from elsewhere.
+- Opening and closing a project without changing anything changes none of its files; the window layout and the places you were in each document are kept per computer (*settings/ui-<computer>.json*). In Scrivener format the *.scriv* is not touched either, and it gets a lock file of {{APP}} (*quillbinder.lock*) while it is open; Scrivener does not read it. Before every save into the *.scriv*, {{APP}} looks for Scrivener's own lock: if Scrivener opened the project after {{APP}} did, nothing more is written into the *.scriv* (a notice says so once, then the status bar); your changes stay in {{APP}}'s working copy. Close the project in Scrivener and save again (**File > Save**). If you close the project here first, the changes go into the *.scriv* the next time you open it here; where Scrivener changed something in the meantime, its version is read.
 - If the project lists text for a document whose file has not arrived on this computer yet (the sync program is not finished), a notice names it after opening; that document is shown empty, cannot be edited, and nothing is saved in its place. Close the project, wait until the sync program is done, and open it again.
 
 A project in **Scrivener format** is a *YourTitle.scriv* folder instead; open it with its *.scrivx* file. {{APP}} saves your changes into it, so the project stays a Scrivener project. **File > Project Format** switches a project between the two formats and saves copies in either format (section 14).
+
+### Privacy: what leaves your computer
+
+{{APP}} sends nothing on its own: no usage statistics, no update checks, no crash reports. Only two things go on the internet, and only when you start them:
+
+- **File > Import > Web Page…** fetches the page you name and its pictures from that site. Like a browser, it sends the name of a common browser (Firefox on Linux), the languages of your system (for the page's language) and, like every connection, your computer's internet address.
+- **Downloading a speech model** (the add-on Speech Transcription, section 10) fetches the model from Hugging Face (huggingface.co, a company in the USA) or from the address you set in its options. It sends "{{APP}}/<version>" as the program's name and, like every connection, your internet address. A model is installed only when its checksum is the known one; a file from another address or one you downloaded yourself is used only after you agree.
+
+What others can see of your work:
+
+- **Projects in shared folders** carry a lock file while they are open (see above): computer name, user name and times. Set a name of your own in **File > Options > General > Saving** to leave those out.
+- **Author Information** (name, address, phone, e-mail in **File > Options**) stays in the program's settings on this computer; it never goes into a project's own settings. It reaches a manuscript only where the compile format uses the placeholders (<$author>, <$address> ...).
+- **Deleted text is not gone everywhere**: snapshots keep earlier versions of a document (**Project > Delete Old Snapshots** removes them), and backups keep the whole project as it was (section 15). Backups are ordinary ZIP files without a password; a backup folder inside a synced folder is uploaded by the sync program.
+- **Crash reports** stay on this computer until you copy or send one yourself (section 21). They describe the program's state and name the open project and its folder. On Windows a memory dump is kept beside each report; it can hold text you were writing, and the report says so.
 
 ### Adding {{APP}} to the application menu
 
@@ -158,6 +174,7 @@ Every project has three special folders:
 - **Open or close a whole branch**: hold **Alt** and click the arrow of a folder or group.
 - **Delete**: press **Delete**. The item goes to the Trash.
 - **Duplicate**: **Ctrl+D**.
+- **Split and merge**: **Documents > Split > at Selection** (**Ctrl+K**) cuts the document at the cursor into two; it does not work inside a table or a picture's caption (put the cursor before or after it). **Documents > Merge** (**Ctrl+Shift+M**) joins the selected documents into the first one, with their synopses, keywords, and notes; the others go to the Trash.
 - **Change the icon**: right-click > **Change Icon** (or **Documents > Change Icon**), or the icon bar (section 2). See "Icons" below.
 
 A document can have subdocuments, just like a folder. Folders and documents behave the same way; folders simply look different and open as a corkboard by default.
@@ -364,6 +381,7 @@ A click on commented text opens the inspector with that comment. **Alt+click** o
 - **Insert > Image From File…** puts a picture into the text; you can also drag a picture into the text or paste one. Right-click the picture and choose **Image Size…** to change how large it appears.
 - **Edit > Link to Document…** (**Ctrl+L**) links the selected text to another document in the project. Clicking the link opens that document (in the other editor, the same editor, its copyholder, or a Quick Reference panel; see **File > Options > Behaviors**).
 - **Edit > Insert Web Link…** links to a web page.
+- Web and mail links (*http*, *https*, *mailto*) open at once. Any other target of a link, in a text, a mind map, a bookmark or an imported web page (a file, a folder, a network address, another program's kind of link), is shown in full first and opened only when you click **Open**; such links can come with a project, a web page or a Word file of someone else. Links to programs, scripts, shortcuts and installers are never opened; open those yourself from your file manager if you trust them.
 
 ### Tables
 
@@ -382,7 +400,7 @@ A click on commented text opens the inspector with that comment. **Alt+click** o
 - **Header rows**: how many rows at the top are headings, with their color. Printing and compiling repeat them at the top of every page a long table goes on to. **Every other row** gets a color of its own if you choose one.
 - **Place in the text**: the width (a share of the text width, or as wide as its contents), the column widths (all the same, or shares such as "30, 70"), the alignment, and where it stands: **On its own lines**, or **Left** or **Right** with the text flowing beside it.
 
-Rows and columns you add later keep the design (the stripes go on). Tables are kept in both storage formats and in Scrivener format; tables in RTF files from other programs (for example a Word file saved as RTF) become tables as well.
+Rows and columns you add later keep the design (the stripes go on). The text in table cells is not justified, also when the body text is (a narrow cell would spread its words); an alignment you give a paragraph in a cell stays. Tables are kept in both storage formats and in Scrivener format; tables in RTF files from other programs (for example a Word file saved as RTF) become tables as well.
 
 ### Pictures beside the text, captions, and descriptions
 
@@ -926,7 +944,7 @@ Speak instead of typing: the add-on **Speech Transcription** (version 0.61 or la
 - **Large v3**: about 1.1 GB; the best, but on a processor often slower than speech, so in long stretches the text falls behind. A graphics card helps.
 - **Large v3 Turbo**: 574 MB; close to Large v3 and faster, but it cannot translate.
 
-The models come from whisper.cpp's model files on Hugging Face. Under **Source** you can give another address instead, or use **Use a File I Downloaded…** for a model file you fetched yourself. Before a model is used it is checked: its checksum, the description of the model inside the file, and a short test transcription. Only when all is well does it replace the model in use, which is then deleted. If the file differs from the one {{APP}} knows (the source may have updated it) but passes the other checks, you are asked. An interrupted download goes on where it stopped the next time. **Speed Test** shows how long this computer takes for a short recording with the chosen model and device.
+The models come from whisper.cpp's model files on Hugging Face. Under **Source** you can give another address instead, or use **Use a File I Downloaded…** for a model file you fetched yourself. Before a model is used it is checked: first its checksum (SHA-256), then the description of the model inside the file, and a short test transcription. Only when all is well does it replace the model in use, which is then deleted. A model from the official source must have the known checksum; otherwise it is not installed (the download may be damaged). A file from another address, or one you downloaded yourself, whose checksum is not the known one is read only after you agree, because the speech engine has to read it. Other addresses must start with *https://*. An interrupted download goes on where it stopped the next time. **Speed Test** shows how long this computer takes for a short recording with the chosen model and device.
 
 **Recording.** Press the microphone button on the main toolbar (or **Edit > Writing Tools > Speech Transcription**). The inspector opens on its tab **Transcriptions** (the microphone, first in the inspector's row of buttons), and a new transcription starts, named by date and time. Speak; a short pause ends a piece, and its text appears a few seconds later. A longer pause (3 s unless you change it) starts a new paragraph. Press the button again to stop: the pieces still waiting are written, then the text can be edited. The arrow beside the button chooses the microphone.
 
@@ -1225,7 +1243,7 @@ Print Current Document prints a document as you work on it. For a finished manus
 - **Back Up To…** saves a backup wherever you choose, for example on a USB stick.
 - **Show Backup Folder** opens the folder.
 
-A backup is written under a temporary name (*… .zip.part*), checked, and only then gets its real name, so a backup that was cut off never looks like a finished one. Large projects (more than 4 GB, for example with audio and video) are backed up correctly as well (since version 0.20). A file that cannot be read (for example because of its permissions) is left out; the backup is still made, and **Back Up Now** names the files that are missing. The backup of a project in Scrivener format holds the *.scriv* and, beside it, the working copy of {{APP}} (*… - working copy of {{APP}}*), with the keywords, styles, objects, and other things that only {{APP}} knows.
+A backup is written under a temporary name (*… .zip.part*), checked, and only then gets its real name, so a backup that was cut off never looks like a finished one. Large projects (more than 4 GB, for example with audio and video) are backed up correctly as well (since version 0.20). A file that cannot be read (for example because of its permissions) is left out; the backup is still made, and **Back Up Now** names the files that are missing. The project is saved before every backup; if that save fails (a full disk, a folder that cannot be written), no backup is made and a message says why, so a backup never lacks your latest changes without your knowing. The backup of a project in Scrivener format holds the *.scriv* and, beside it, the working copy of {{APP}} (*… - working copy of {{APP}}*), with the keywords, styles, objects, and other things that only {{APP}} knows.
 
 **To restore a backup**: open the backup folder, unpack the ZIP file (right-click > Extract), and open the project in it with **File > Open Project**.
 

@@ -26,6 +26,10 @@ namespace settingslayer {
 QString fileFor(const QString &projectSettingsDir);
 
 bool programOnly(const QString &key);
+// 0.64.1: a setting that names a program the program starts, a folder, a file or an address (the
+// citations program, the backup folder, the folder of voice recordings ...): never taken from a
+// project, and taken from an options file only after the writer has seen it and agreed
+bool namesProgramOrPlace(const QString &key);
 
 // Project settings first (default) or the program's settings always.
 bool projectFirst();

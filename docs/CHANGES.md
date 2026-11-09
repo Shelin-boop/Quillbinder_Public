@@ -3,6 +3,65 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.64.1 alpha (2026-11-09)
+
+A new AppImage (also as the full version with all add-ons) and a program update for the AppImages of the same runtime
+(0.60.0 alpha and later). It fixes what the first run of the system test (crash safety and usability) found, and the
+points of an external review of the program's safety (2026-11-09) that are changes of the program.
+
+- **Fixed: a text only looked at could be saved over a newer version from another computer**. Showing a document
+  marked it as changed, so a version a sync program had brought in was replaced by this computer's older text (kept
+  only as a copy and a snapshot). A document that was not edited here is no longer written over.
+- **Fixed: the other version of a changed file could be lost when it could not be kept**. When a file was changed
+  elsewhere and here, and its other version could not be kept (a full disk, a folder that cannot be written), this
+  computer's version replaced it anyway, and the notice still said it was kept. Now nothing is replaced until the
+  other version is kept: saving fails with a message naming the file, and your changes stay unsaved. This holds for
+  texts, notes, the project file, and Scrivener projects.
+- **Fixed: empty paragraphs in table cells came back as "<p/>" (Markdown storage)**. A cell that began or ended with an
+  empty paragraph was read back with the text "<p/>", and the text of a table inside a cell was not saved (in RTF
+  storage neither: such a table comes only by pasting from a word processor; its text now stays in the cell). Projects
+  saved by 0.62 to 0.64 are read right.
+- **Fixed: Split at Selection could lose a table**. Inside a table cell, or at the paragraph right after a table, the
+  split took the whole table out of both documents. Inside a table or a picture's caption the split is refused with a
+  note now; next to a table it keeps the table.
+- **Fixed: a figure cut and pasted lost its picture**. The picture now comes along on the clipboard.
+- **Compiling shows its progress**. A long manuscript (with long tables) held the program for half a minute without
+  drawing the window, and the program's own watchdog wrote a freeze report. Compile and its preview now show a progress
+  window and keep the program responsive while they work.
+- **Table cells are no longer justified with the body text**. In the editor, PDF, Word and e-book a narrow cell spread
+  its words over its width. An alignment you give a paragraph in a cell stays.
+- **Merge also merges the notes**. Before, the notes of the documents after the first one stayed behind in the Trash.
+- **Fixed: a crash after Merge Cells, Undo, Redo and Delete Rows**. It happened in a table whose merged cells were empty.
+- **Fixed: a save on a full disk could report success and leave a cut-off file**. The last part of a file (and its
+  sync to the disk) was written without looking at the result. Now a file replaces the old one only when it was
+  written whole; otherwise saving fails with a message and the old file stays. A backup is made only after a
+  successful save (before, it went on without the latest changes and reported success).
+
+From the safety review:
+
+- **A project, archive or package from someone else can no longer reach outside its folder**. Names of documents in a
+  project file, of files in ZIP archives (templates, backups, add-ons) and of files in Scrivener projects are checked;
+  before, a made-up name could make Empty Trash delete a folder beside the project, or an archive write a file
+  anywhere. Damaged archive entries (a wrong checksum, cut off) are no longer read as text or written as empty files.
+- **Links that lead out of the program are checked**. Web and mail links open at once; a link to a file, a folder, a
+  network share or another program is shown in full and opened only when you agree; links to programs, scripts and
+  shortcuts are never opened. This holds for texts, mind maps, bookmarks and imported web pages.
+- **Scrivener's lock is looked at before every save into a Scrivener project**. When Scrivener opens the project while
+  it is open here, nothing more is written into it (both programs used to write); a notice says so, and the changes
+  stay in the working copy until Scrivener has closed it.
+- **Settings a project may bring are limited**. Programs to start, folders, converters and your contact data are never
+  taken from a project, and from an options file only after you have seen them and agreed.
+- **A name of your own for this computer in shared folders**. Set it in File > Options > General > Saving; your user
+  name is then left out of lock files. Locks tell two computers of the same name apart.
+- **Speech models are checked before they are read**. The checksum (now SHA-256) comes first; a model from the
+  official source must be the known one, and other addresses must be https.
+- **A warning before packages with program code**. Also versioned libraries, plugins and templates count. Damaged Word 97 files and very deeply nested Word or XML files are refused instead of filling the memory or
+  crashing. The folder for the links between running programs in /tmp is checked.
+- **Safer builds**. The switches of the tests (plugins from other folders, skipped checks) are only in test builds;
+  the AppImage tools are pinned to tagged releases with checksums; the release workflow keeps its write permission in
+  a publishing job of its own.
+- **A privacy section in the manual**. "Privacy: what leaves your computer" (chapter 1).
+
 ## 0.64.0 alpha (2026-11-08)
 
 A new AppImage (also as the full version with all add-ons) and a program update for the AppImages of the same runtime

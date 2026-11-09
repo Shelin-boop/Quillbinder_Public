@@ -39,7 +39,16 @@ bool backupProject(Project *p, const QString &dirIn, int keep, QString *outPath,
             *error = QObject::tr("Cannot create the backup folder %1").arg(dir);
         return false;
     }
-    p->save(error);
+    // 0.64.1: a backup is made only of a project whose latest changes were saved (before, a failed save
+    // was passed over and the backup reported success without them)
+    {
+        QString why;
+        if (!p->save(&why)) {
+            if (error)
+                *error = QObject::tr("The project could not be saved first, so no backup was made: %1").arg(why);
+            return false;
+        }
+    }
     const QString stem = text::safeFileName(p->title()) + QLatin1String(" bak ")
                          + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH-mm-ss"));
     // two backups in the same second (File > Save twice with "back up with each manual save",

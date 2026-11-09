@@ -315,7 +315,7 @@ int main(int argc, char **argv)
         const QList<CatalogEntry> cat = catalog();
         bool sums = cat.size() == 4;
         for (const CatalogEntry &e : cat)
-            sums = sums && e.sha1.size() == 40 && e.file.startsWith(QLatin1String("ggml-")) && !e.impact.isEmpty();
+            sums = sums && e.sha1.size() == 40 && e.sha256.size() == 64 && e.file.startsWith(QLatin1String("ggml-")) && !e.impact.isEmpty();
         check(sums && recommendedModel() == QLatin1String("medium") && catalogEntry(QStringLiteral("medium"))
                   && !catalogEntry(QStringLiteral("large-v3-turbo"))->translates && catalogEntry(QStringLiteral("large-v3"))->translates,
               QStringLiteral("models: Small, Medium (recommended), Large v3, Large v3 Turbo (cannot translate), each with "
@@ -325,6 +325,17 @@ int main(int argc, char **argv)
                   && downloadUrl(*m, QStringLiteral("https://mirror.example/models/")) == QLatin1String("https://mirror.example/models/ggml-medium-q5_0.bin")
                   && downloadUrl(*m, QStringLiteral("https://x.example/a/model.bin")) == QLatin1String("https://x.example/a/model.bin"),
               QStringLiteral("download address: whisper.cpp's files on Hugging Face; another folder; another file"));
+        // 0.64.1 (audit X-8): https only (http only on this computer); SHA-256 decides
+        check(addressAllowed(QUrl(QStringLiteral("https://mirror.example/m.bin"))) && !addressAllowed(QUrl(QStringLiteral("http://mirror.example/m.bin")))
+                  && addressAllowed(QUrl(QStringLiteral("http://127.0.0.1:8080/m.bin"))) && addressAllowed(QUrl(QStringLiteral("http://localhost/m")))
+                  && !addressAllowed(QUrl(QStringLiteral("ftp://mirror.example/m.bin"))) && !addressAllowed(QUrl(QStringLiteral("file:///tmp/m.bin")))
+                  && !addressAllowed(QUrl(QStringLiteral("https:///nohost"))),
+              QStringLiteral("0.64.1: models come from https:// addresses only (http only from this computer)"));
+        const CatalogEntry *sm = catalogEntry(QStringLiteral("small"));
+        check(sumsMatch(*sm, sm->sha1, sm->sha256) && !sumsMatch(*sm, sm->sha1, QString(64, QLatin1Char('0')))
+                  && catalogEntryBySums(QString(), sm->sha256) && catalogEntryBySums(QString(), sm->sha256)->id == sm->id
+                  && !catalogEntryBySums(sm->sha1, QString(64, QLatin1Char('1'))),
+              QStringLiteral("0.64.1: a model is known by its SHA-256 (the SHA-1 alone no longer counts)"));
     }
     const QString wsrc = buildDir + QStringLiteral("/../build/whisper-src/whisper.cpp/models/");
     const QString testModelDir = QFileInfo::exists(wsrc) ? wsrc : buildDir + QStringLiteral("/whisper-src/whisper.cpp/models/");
@@ -731,13 +742,16 @@ int main(int argc, char **argv)
         // no model yet: recording asks for one
         check(!callBool(tool, "startRecording") && callString(tool, "lastError").contains(QLatin1String("No speech model")),
               QStringLiteral("without a model, the button says to choose one in the options"));
+        // the official source (here the test server): a file without the known checksum is refused
+        // before it is read (0.64.1, audit X-8)
         done = runModelJob(tool, "downloadModel", QStringLiteral("medium"));
-        check(done && callString(tool, "modelMessage").contains(QLatin1String("not \"medium\""))
+        check(done && callString(tool, "modelMessage").contains(QLatin1String("known checksum"))
                   && speechSetting(QStringLiteral("modelFile")).toString().isEmpty()
                   && QDir(modelsDir).entryList(QDir::Files).isEmpty(),
-              QStringLiteral("a tiny model behind the name of Medium: refused by the check of its description, nothing kept"),
+              QStringLiteral("0.64.1: from the official source, a file without the known checksum (a tiny model behind the name "
+                             "of Medium) is refused before it is read; nothing kept"),
               callString(tool, "modelMessage"));
-        // Small: interrupted after 100 kB, then continued; the empty test model fails the test transcription
+        // Small: interrupted after 100 kB, then continued
         server.cutAfter = 100000;
         done = runModelJob(tool, "downloadModel", QStringLiteral("small"));
         check(done && callString(tool, "modelMessage").contains(QLatin1String("download failed"))
@@ -747,18 +761,38 @@ int main(int argc, char **argv)
               callString(tool, "modelMessage") + QStringLiteral(" part %1").arg(QFileInfo(modelsDir + QStringLiteral("/ggml-small-q5_1.bin.part")).size()));
         done = runModelJob(tool, "downloadModel", QStringLiteral("small"));
         check(done && !server.ranges.isEmpty() && server.ranges.last().startsWith(QLatin1String("Range: bytes="))
-                  && callString(tool, "modelMessage").contains(QLatin1String("test transcription"))
+                  && callString(tool, "modelMessage").contains(QLatin1String("known checksum"))
                   && speechSetting(QStringLiteral("modelFile")).toString().isEmpty(),
-              QStringLiteral("the next download goes on at 100 kB; a model that does not pass the test transcription is not used"),
+              QStringLiteral("the next download goes on at 100 kB (the test model then fails the checksum)"),
               callString(tool, "modelMessage") + server.ranges.join(QLatin1Char(',')));
-        // with the test transcription passed (QB_SPEECH_SKIP_TEST): the checksum differs from whisper.cpp's list
-        qputenv("QB_SPEECH_SKIP_TEST", "1");
+        // another address (the test server as a mirror): a file that differs is read only after a yes
+        setSpeechSetting(QStringLiteral("source"), QStringLiteral("other"));
+        setSpeechSetting(QStringLiteral("otherAddress"), QStringLiteral("http://mirror.example/models/"));
+        int before = server.requests;
         done = runModelJob(tool, "downloadModel", QStringLiteral("small"));
-        check(done && callString(tool, "modelMessage").contains(QLatin1String("differs"))
+        check(done && server.requests == before && callString(tool, "modelMessage").contains(QLatin1String("https://"))
                   && speechSetting(QStringLiteral("modelFile")).toString().isEmpty(),
-              QStringLiteral("a file that differs from the known one (checksum) is used only when the writer says yes"),
+              QStringLiteral("0.64.1: another address with http:// is not used (nothing is fetched)"), callString(tool, "modelMessage"));
+        setSpeechSetting(QStringLiteral("otherAddress"), server.base());
+        done = runModelJob(tool, "downloadModel", QStringLiteral("medium"));
+        check(done && callString(tool, "modelMessage").contains(QLatin1String("differs"))
+                  && speechSetting(QStringLiteral("modelFile")).toString().isEmpty() && QDir(modelsDir).entryList(QDir::Files).isEmpty(),
+              QStringLiteral("0.64.1: from another address, a file that differs from the known one is not read without a yes"),
               callString(tool, "modelMessage"));
         qputenv("QB_SPEECH_ACCEPT_CHANGED", "1");
+        done = runModelJob(tool, "downloadModel", QStringLiteral("medium"));
+        check(done && callString(tool, "modelMessage").contains(QLatin1String("not \"medium\""))
+                  && speechSetting(QStringLiteral("modelFile")).toString().isEmpty()
+                  && QDir(modelsDir).entryList(QDir::Files).isEmpty(),
+              QStringLiteral("... with a yes it is read: a tiny model behind the name of Medium is refused by the check of its "
+                             "description, nothing kept"),
+              callString(tool, "modelMessage"));
+        done = runModelJob(tool, "downloadModel", QStringLiteral("small"));
+        check(done && callString(tool, "modelMessage").contains(QLatin1String("test transcription"))
+                  && speechSetting(QStringLiteral("modelFile")).toString().isEmpty(),
+              QStringLiteral("a model that does not pass the test transcription is not used"), callString(tool, "modelMessage"));
+        // with the test transcription passed (QB_SPEECH_SKIP_TEST)
+        qputenv("QB_SPEECH_SKIP_TEST", "1");
         done = runModelJob(tool, "downloadModel", QStringLiteral("small"));
         const QString smallInstalled = speechSetting(QStringLiteral("modelFile")).toString();
         check(done && callString(tool, "modelMessage").startsWith(QLatin1String("Installed: Small"))
@@ -767,10 +801,9 @@ int main(int argc, char **argv)
               QStringLiteral("... then it is installed: Small, under its own name in the models folder"),
               callString(tool, "modelMessage"));
         // another address: a file address
-        setSpeechSetting(QStringLiteral("source"), QStringLiteral("other"));
         setSpeechSetting(QStringLiteral("otherAddress"), server.base() + QStringLiteral("/mirror/medium.bin"));
         server.files.insert(QStringLiteral("/mirror/medium.bin"), mediumFile);
-        const int before = server.requests;
+        before = server.requests;
         done = runModelJob(tool, "downloadModel", QStringLiteral("medium"));
         const QString mediumInstalled = speechSetting(QStringLiteral("modelFile")).toString();
         check(done && server.requests == before + 1 && mediumInstalled == modelsDir + QStringLiteral("/ggml-medium-q5_0.bin")

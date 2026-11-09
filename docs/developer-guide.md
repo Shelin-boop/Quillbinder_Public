@@ -91,7 +91,7 @@ An add-on folder in the source tree (`addons/<id>/`) holds `manifest.json` and `
 
 ## 6. Plugins
 
-Plugins are Qt plugins (`QPluginLoader`) found in `plugins/` folders: of the AppImage, of every enabled add-on, of `<data>/plugins` (**Help > Open Plugin Folder**) and of `QB_PLUGIN_PATH` (colon-separated, for developers). They talk to the program only through **interface headers of pure virtual classes**; nothing is linked against the program. A plugin built for another interface version is not loaded.
+Plugins are Qt plugins (`QPluginLoader`) found in `plugins/` folders: of the AppImage, of every enabled add-on, of `<data>/plugins` (**Help > Open Plugin Folder**) and of `QB_PLUGIN_PATH` (colon-separated, for developers; since 0.64.1 only in builds with the tests, `-DQB_TEST_SWITCHES=ON`). They talk to the program only through **interface headers of pure virtual classes**; nothing is linked against the program. A plugin built for another interface version is not loaded.
 
 | Interface | Header | IID | Examples |
 |-----------|--------|-----|----------|

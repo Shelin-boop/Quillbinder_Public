@@ -1,4 +1,7 @@
 #include "ui/BookmarkList.h"
+#include "ui/LinkOpen.h"
+
+#include <QApplication>
 #include "core/BinderModel.h"
 #include "core/ItemIcons.h"
 #include "ui/DragDrop.h"
@@ -146,7 +149,7 @@ void BookmarkListWidget::moveBookmark(int from, int to)
 void BookmarkListWidget::openExternally(const Bookmark &b)
 {
     if (!b.isInternal() && !b.target.isEmpty())
-        QDesktopServices::openUrl(QUrl::fromUserInput(b.target));
+        links::open(QApplication::activeWindow(), b.target);
 }
 
 // ------------------------------------------------------------------ drag and drop

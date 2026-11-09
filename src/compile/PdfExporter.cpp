@@ -1,6 +1,7 @@
 #include "compile/PdfExporter.h"
 
 #include "compile/Look.h"
+#include "compile/Progress.h"
 
 #include "AppInfo.h"
 
@@ -321,6 +322,11 @@ struct Builder {
     QTextTable *makeTable(QTextCursor &c, const Table &tab)
     {
         placeholderBlock(c);
+        // 0.64.1: made and formatted inside the edit block that Builder::build opens for each table (and
+        // closes after its last cell), so the table is laid out once and not after every cell (8 s for 120
+        // rows before). Not one edit block over the whole build: that left the last rows of a long table
+        // out of the pages (v062; cause not found).
+        c.beginEditBlock();
         QTextTableFormat tf;
         tf.setBorder(ptScreen(tab.borderPt));
         tf.setBorderBrush(tab.borderColor);
@@ -365,6 +371,7 @@ struct Builder {
             }
             cell.setFormat(cf);
         }
+        c.endEditBlock();
         reuseNext = true;
         return t;
     }
@@ -383,6 +390,9 @@ struct Builder {
         pl.firstMm = 0;
         pl.beforePt = 0;
         pl.afterPt = qMin(pl.afterPt, 3.0);
+        // 0.64.1: a cell's paragraph is not justified with the body text (a narrow cell spread its words)
+        if ((pl.align & Qt::AlignJustify) && !(p.direct & Paragraph::DAlign))
+            pl.align = Qt::AlignLeft;
         const int key = p.table * 100000 + p.cell;
         if (filledCells.contains(key)) {
             cc.insertBlock(blockFormat(pl));
@@ -460,8 +470,15 @@ struct Builder {
                 chapterStarts.insert(start);
         }
         bool tocPlaced = false;
+        // 0.64.1: a table is made and filled inside one edit block (laid out once, not after every cell)
+        int tableOpen = -1;
         for (int i = 0; i < m.paragraphs.size(); ++i) {
+            progress::tick();
             const Paragraph &p = m.paragraphs[i];
+            if (tableOpen >= 0 && p.table != tableOpen) {
+                c.endEditBlock();
+                tableOpen = -1;
+            }
             const look::Para pl = look::paragraph(m, p);
             BlockMeta bm;
             bm.para = i;
@@ -478,8 +495,11 @@ struct Builder {
             // tables and figures (0.62)
             if (p.table >= 0 && p.table < m.tables.size()) {
                 closeFigure(c);
-                if (!madeTables.contains(p.table))
+                if (!madeTables.contains(p.table)) {
+                    c.beginEditBlock();
+                    tableOpen = p.table;
                     madeTables.insert(p.table, makeTable(c, m.tables[p.table]));
+                }
                 cellParagraph(i, p, pl);
                 continue;
             }
@@ -554,8 +574,11 @@ struct Builder {
                 break;
             }
         }
+        if (tableOpen >= 0)
+            c.endEditBlock();
         if (!pendingEndnotes.isEmpty())
             flushEndnotes(c, m.options.footnotePlacement == 2 || m.options.footnotePlacement == 1);
+        progress::tick();
         doc.documentLayout()->documentSize(); // lays out every block
         notes.documentLayout()->documentSize();
     }
@@ -966,7 +989,9 @@ bool makePages(const Manuscript &m, QPaintDevice *layoutDev, QPagedPaintDevice *
 
     const QTextBlock lastBlock = b.doc.lastBlock();
     int bi = 0;
+    const int blockTotal = b.doc.blockCount();
     for (QTextBlock blk = b.doc.begin(); blk.isValid(); blk = blk.next(), ++bi) {
+        progress::tick(bi, 2 * blockTotal); // laying out: the first half (0.64.1)
         const BlockMeta &bm = b.meta.value(bi);
         if (bm.tocSlot && tocPages > 0) {
             if (!pageEmpty())
@@ -1100,6 +1125,7 @@ bool makePages(const Manuscript &m, QPaintDevice *layoutDev, QPagedPaintDevice *
     tocDrawn = 0;
     tocPageCount = 0;
     for (int i = 0; i < pages.size(); ++i) {
+        progress::tick(pages.size() + i, 2 * int(pages.size())); // painting: the second half (0.64.1)
         const bool inRange = (range.fromPage <= 0 || i + 1 >= range.fromPage) && (range.toPage <= 0 || i + 1 <= range.toPage);
         const PageOut &p = pages[i];
         if (!inRange) {

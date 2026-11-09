@@ -118,6 +118,9 @@ signals:
     void textDropped(qb::BinderItem *parent, int row, const QString &text, const QByteArray &rtf);
     void itemsMoved(const QList<qb::BinderItem *> &items);
     void itemCreated(qb::BinderItem *item);
+    // an item and everything below it are about to be deleted for good (0.64.1: views let go of them;
+    // the system test's S-T06 emptied the Trash past the window and a pane kept a deleted document)
+    void itemsAboutToBeDeleted(const QList<qb::BinderItem *> &items);
 
 private:
     Project *m_project;

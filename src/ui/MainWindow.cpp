@@ -1,4 +1,5 @@
 #include "ui/LicensesDialog.h"
+#include "ui/LinkOpen.h"
 #include "ui/MainWindow.h"
 #include "core/SettingsLayer.h"
 #include "ui/LookMenu.h"
@@ -423,8 +424,9 @@ MainWindow::MainWindow()
     });
     m_autoQuitTimer->start();
     // "Use Current" buttons in the options and the project settings
-    currentFormatting::setProvider([this](Formatting *f) {
-        return formattingAtCursor(m_active ? m_active->currentEditor() : nullptr, f);
+    // (0.64.1: guarded, a window deleted before the options were opened again left it dangling; tests)
+    currentFormatting::setProvider([self = QPointer<MainWindow>(this)](Formatting *f) {
+        return self && self->formattingAtCursor(self->m_active ? self->m_active->currentEditor() : nullptr, f);
     });
     connect(qApp, &QApplication::focusChanged, this, [this](QWidget *, QWidget *now) {
         if (!now)
@@ -2568,6 +2570,21 @@ bool MainWindow::adoptProject(std::unique_ptr<Project> p, bool isNew)
                 });
             });
     connect(proj, &Project::saveFailed, this, [this](const QString &err) {
+        // 0.64.1 (audit C-4): Scrivener opened the .scriv: told once per lock, then in the status bar
+        if (m_project && !m_project->scrivenerLockRefused.isEmpty()) {
+            statusBar()->showMessage(tr("Not written into the Scrivener project while Scrivener has it open (%1).")
+                                         .arg(m_project->scrivenerLockWho),
+                                     15000);
+            static QString told;
+            if (told == m_project->scrivenerLockRefused)
+                return;
+            told = m_project->scrivenerLockRefused;
+            QMessageBox *box = new QMessageBox(QMessageBox::Warning, tr("Scrivener Has the Project Open"), err, QMessageBox::Ok, this);
+            box->setObjectName(QStringLiteral("scrivenerLockNotice"));
+            box->setAttribute(Qt::WA_DeleteOnClose);
+            box->open();
+            return;
+        }
         static QDateTime last;
         if (last.isValid() && last.secsTo(QDateTime::currentDateTime()) < 60)
             return;
@@ -2576,6 +2593,19 @@ bool MainWindow::adoptProject(std::unique_ptr<Project> p, bool isNew)
                              tr("Your latest changes could not be saved:\n%1\n\nCheck that the disk is not full and the "
                                 "project folder is writable.")
                                  .arg(err));
+    });
+    // 0.64.1: a document deleted for good leaves every pane that shows it (Empty Trash does this
+    // itself; any other way of deleting now does it too)
+    connect(proj->model(), &BinderModel::itemsAboutToBeDeleted, this, [this](const QList<BinderItem *> &gone) {
+        for (EditorPane *pane : std::as_const(m_panes)) {
+            if (BinderItem *held = pane->copyholderItem(); held && gone.contains(held))
+                pane->closeCopyholder();
+            bool shows = false;
+            for (BinderItem *it : pane->items())
+                shows = shows || gone.contains(it);
+            if (shows)
+                pane->showItems({}, false);
+        }
     });
     connect(proj->model(), &BinderModel::filesDropped, this, [this](BinderItem *parent, int row, const QList<QUrl> &urls) {
         importDropped(parent, row, urls);
@@ -2650,8 +2680,16 @@ bool MainWindow::closeProject()
     ObjectsWindow::closeFor(m_project.get());
     QString err;
     if (!m_project->save(&err)) {
+        // 0.64.1: Scrivener has the .scriv open: the working copy holds the changes, the .scriv gets
+        // them when it is opened here again after Scrivener closed it
+        const bool scrivLock = !m_project->scrivenerLockRefused.isEmpty();
         if (QMessageBox::warning(this, tr("Close Project"),
-                                 tr("The project could not be saved:\n%1\n\nClose anyway and lose unsaved changes?").arg(err),
+                                 scrivLock ? tr("%1\n\nClose the project here anyway? The changes stay in this program's working "
+                                                "copy. When you open the project here again after Scrivener has closed it, "
+                                                "they go into the Scrivener project; where Scrivener changed something "
+                                                "meanwhile, its version is read.")
+                                                 .arg(err)
+                                           : tr("The project could not be saved:\n%1\n\nClose anyway and lose unsaved changes?").arg(err),
                                  QMessageBox::Yes | QMessageBox::No)
             != QMessageBox::Yes)
             return false;
@@ -3104,6 +3142,27 @@ void MainWindow::splitDocument(bool selectionAsTitle)
         pos = c.selectionStart();
     }
     QTextDocument *doc = e->document();
+    // 0.64.1: not inside a table or a figure. Qt widens a selection that leaves a frame to the whole
+    // frame, so the split lost the table (or the figure) from both documents.
+    {
+        QTextCursor at(doc);
+        at.setPosition(pos);
+        if (at.currentFrame() != doc->rootFrame()) {
+            const QString why = tr("A document cannot be split inside a table or a picture's caption. Put the cursor "
+                                   "before or after the table or the picture, then split again.");
+            if (qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+                statusBar()->showMessage(why, 10000);
+            else
+                QMessageBox::information(this, tr("Split"), why);
+            return;
+        }
+    }
+    // the frame (table, figure) a position is in; the root frame for the main text
+    auto frameAt = [](QTextDocument *d, int p) {
+        QTextCursor fc(d);
+        fc.setPosition(qBound(0, p, d->characterCount() - 1));
+        return fc.currentFrame();
+    };
     QTextCursor rest(doc);
     rest.setPosition(pos);
     rest.movePosition(QTextCursor::End, QTextCursor::KeepAnchor);
@@ -3119,8 +3178,9 @@ void MainWindow::splitDocument(bool selectionAsTitle)
         fc.setBlockFormat(from.blockFormat());
         fc.setBlockCharFormat(from.charFormat());
     }
-    // drop a leading empty paragraph
-    if (part.blockCount() > 1 && part.begin().text().isEmpty()) {
+    // drop a leading empty paragraph, unless a table or a figure follows it (Qt keeps an empty
+    // paragraph before every frame, and the selection would take the whole frame along)
+    if (part.blockCount() > 1 && part.begin().text().isEmpty() && frameAt(&part, part.begin().next().position()) == part.rootFrame()) {
         QTextCursor del(&part);
         del.movePosition(QTextCursor::NextBlock, QTextCursor::KeepAnchor);
         del.removeSelectedText();
@@ -3128,7 +3188,8 @@ void MainWindow::splitDocument(bool selectionAsTitle)
     rest.beginEditBlock();
     // split at the start of a paragraph: the paragraph break before it goes as well,
     // so that no empty paragraph stays behind
-    if (pos > 0 && doc->findBlock(pos).position() == pos) {
+    // (not when a table or a figure ends right before it: the selection would take it along)
+    if (pos > 0 && doc->findBlock(pos).position() == pos && frameAt(doc, pos - 1) == doc->rootFrame()) {
         rest.setPosition(pos - 1);
         rest.movePosition(QTextCursor::End, QTextCursor::KeepAnchor);
     }
@@ -3186,6 +3247,20 @@ void MainWindow::mergeDocuments()
         for (const QString &k : items[i]->keywords)
             if (!target->keywords.contains(k))
                 target->keywords << k;
+        // 0.64.1 (the writer's choice, 2026-11-09): the notes are merged as well, with the same separator
+        if (!m_project->docs()->notesPlainText(items[i]->id).trimmed().isEmpty()) {
+            QTextDocument *targetNotes = m_project->docs()->notes(target->id);
+            QTextCursor nc(targetNotes);
+            nc.beginEditBlock();
+            nc.movePosition(QTextCursor::End);
+            if (!targetNotes->toPlainText().trimmed().isEmpty()) {
+                display::insertSeparator(nc, as.sepMerge, as.sepMergeCustom, m_project->formatting);
+                if (as.sepMerge == QLatin1String("none"))
+                    nc.insertBlock(display::normalBlockFormat(m_project->formatting)); // notes always start a paragraph
+            }
+            nc.insertFragment(QTextDocumentFragment(m_project->docs()->notes(items[i]->id)));
+            nc.endEditBlock();
+        }
     }
     c.endEditBlock();
     m_project->notifyItemChanged(target, true);
@@ -3239,7 +3314,7 @@ void MainWindow::openLink(EditorPane *from, const QString &href)
         }
         return;
     }
-    QDesktopServices::openUrl(QUrl::fromUserInput(href));
+    links::open(this, href); // 0.64.1: web and mail at once, other targets asked, programs never
 }
 
 void MainWindow::showObject(const QString &objectId)

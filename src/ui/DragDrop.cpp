@@ -1,4 +1,5 @@
 #include "ui/DragDrop.h"
+#include "core/SafeSave.h"
 
 #include "core/Snapshots.h"
 
@@ -209,8 +210,8 @@ static bool writeFile(const QString &path, const QByteArray &data)
     QSaveFile out(path);
     if (!out.open(QIODevice::WriteOnly))
         return false;
-    out.write(data);
-    return out.commit();
+    safesave::write(out, data);
+    return safesave::commit(out);
 }
 
 static void copyTreeTo(const QString &from, const QString &to)

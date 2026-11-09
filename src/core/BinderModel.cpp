@@ -1,3 +1,4 @@
+#include "core/PathSafety.h"
 #include "core/BinderModel.h"
 #include "core/DocumentStore.h"
 #include "core/ItemIcons.h"
@@ -624,10 +625,15 @@ void BinderModel::deletePermanently(BinderItem *item)
         return;
     BinderItem *parent = item->parent;
     const int row = item->row();
+    {
+        QList<BinderItem *> gone;
+        item->forEach([&gone](BinderItem *b) { gone << b; });
+        emit itemsAboutToBeDeleted(gone);
+    }
     // remove content of the whole subtree
     item->forEach([this](BinderItem *b) {
         m_project->docs()->removeDocument(b->id);
-        QDir(m_project->snapshotsDir(b->id)).removeRecursively();
+        pathsafety::removeTreeInside(m_project->snapshotsDir(b->id), m_project->folderPath()); // (0.64.1, audit S-1)
     });
     beginRemoveRows(indexFor(parent), row, row);
     parent->children.removeAt(row);

@@ -1,3 +1,5 @@
+#include "core/PathSafety.h"
+#include "core/SafeSave.h"
 #include "core/DocumentStore.h"
 
 #include "text/Script.h"
@@ -100,7 +102,7 @@ void DocumentStore::preloadImages(QTextDocument *doc, const QString &dir)
     }
 }
 
-void DocumentStore::readFile(const QString &id, bool notes, QTextDocument *doc)
+void DocumentStore::readFile(const QString &id, bool notes, QTextDocument *doc, QByteArray *bytes, bool *rtf)
 {
     const QString dir = m_project->contentDir(id);
     const QString base = dir + (notes ? QLatin1String("/notes.") : QLatin1String("/text."));
@@ -125,6 +127,10 @@ void DocumentStore::readFile(const QString &id, bool notes, QTextDocument *doc)
     }
     if (f.isOpen()) {
         const QByteArray data = f.readAll();
+        if (bytes)
+            *bytes = data;
+        if (rtf)
+            *rtf = rtfFile || rtf::looksLikeRtf(data);
         if (rtfFile || rtf::looksLikeRtf(data)) {
             rtf::ReadOptions o;
             o.keepFormatting = m_project->storage == StorageFormat::Rtf;
@@ -153,9 +159,9 @@ QTextDocument *DocumentStore::load(const QString &id, bool notes)
     doc->setProperty("qbZoom", zoomFor(notes)); // explicit font sizes are zoomed by the editor's highlighter
     doc->setBaseUrl(QUrl::fromLocalFile(m_project->contentDir(id) + QLatin1Char('/')));
     doc->setUndoRedoEnabled(false);
-    readFile(id, notes, doc);
-    doc->setUndoRedoEnabled(true);
     Entry e;
+    readFile(id, notes, doc, &e.read, &e.readRtf);
+    doc->setUndoRedoEnabled(true);
     e.doc = doc;
     e.isNotes = notes;
     // 0.64: what the file was when it was read; a different file at the next write means someone
@@ -280,10 +286,25 @@ bool DocumentStore::writeEntry(const QString &key, Entry &e, QString *error)
             return true;
         }
     }
-    if (syncsafe::changedSince(e.stamp, path) && QFileInfo::exists(path))
-        keepOtherVersion(id, notes, path);
+    if (syncsafe::changedSince(e.stamp, path) && QFileInfo::exists(path)) {
+        // 0.64.1: written elsewhere, and not edited here (only shown, which marks it as changed):
+        // the other version stays as it is, nothing is kept and nothing is written
+        if (unchangedSinceRead(id, e, data)) {
+            e.dirty = false;
+            return true;
+        }
+        // 0.64.1: this version replaces the other one only when that one was kept
+        if (!keepOtherVersion(id, notes, path)) {
+            if (error)
+                *error = tr("%1 was changed elsewhere (another computer or program), and that version could not be kept "
+                            "(no copy in %2, no snapshot), so it was not replaced with this computer's version. Check that "
+                            "the project folder is writable and the disk is not full.")
+                             .arg(QDir::toNativeSeparators(path), QDir::toNativeSeparators(m_project->settingsDir() + QStringLiteral("/conflicts")));
+            return false;
+        }
+    }
     QSaveFile f(path);
-    if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size() || !f.commit()) {
+    if (!f.open(QIODevice::WriteOnly) || safesave::write(f, data) != data.size() || !safesave::commit(f)) {
         if (error)
             *error = tr("Could not save %1: %2").arg(path, f.errorString());
         return false;
@@ -294,6 +315,8 @@ bool DocumentStore::writeEntry(const QString &key, Entry &e, QString *error)
     e.dirty = false;
     if (e.stamp.known)
         e.stamp = syncsafe::stampOf(path);
+    e.read = data;
+    e.readRtf = m_project->storage == StorageFormat::Rtf;
     // tables and pictures beside the text (0.62): older versions would turn them into text when they
     // save, so the project names 0.62.0 as the version it needs (they ask before opening it)
     if (!e.doc->rootFrame()->childFrames().isEmpty()
@@ -304,7 +327,22 @@ bool DocumentStore::writeEntry(const QString &key, Entry &e, QString *error)
     return true;
 }
 
-void DocumentStore::keepOtherVersion(const QString &id, bool notes, const QString &path)
+bool DocumentStore::unchangedSinceRead(const QString &id, const Entry &e, const QByteArray &data)
+{
+    if (e.read.isNull())
+        return false; // not read from a file here: unknown
+    if (e.read == data)
+        return true;
+    // the same text read again and written the way this program writes it
+    QTextDocument tmp;
+    tmp.setProperty("qbZoom", e.doc->property("qbZoom"));
+    deserialize(id, e.read, &tmp, e.readRtf);
+    if (e.readRtf && m_project->storage == StorageFormat::Markdown)
+        display::normalizeDocument(&tmp, m_project->formatting);
+    return serialize(id, &tmp) == data;
+}
+
+bool DocumentStore::keepOtherVersion(const QString &id, bool notes, const QString &path)
 {
     BinderItem *it = m_project->item(id);
     const QString title = it ? it->title : id;
@@ -321,7 +359,10 @@ void DocumentStore::keepOtherVersion(const QString &id, bool notes, const QStrin
             snap = snapshots::take(m_project, id, tr("Other version (changed elsewhere, %1)").arg(when), nullptr, &other);
         }
     }
+    if (copy.isEmpty() && !snap)
+        return false; // nothing kept: no notice that says so (0.64.1)
     emit m_project->conflictKept(id, notes ? tr("notes") : tr("text"), copy, snap);
+    return true;
 }
 
 bool DocumentStore::saveDirty(QString *error)
@@ -393,7 +434,7 @@ void DocumentStore::removeDocument(const QString &id)
         }
         m_plainCache.remove(key);
     }
-    QDir(m_project->contentDir(id)).removeRecursively();
+    pathsafety::removeTreeInside(m_project->contentDir(id), m_project->folderPath()); // (0.64.1, audit S-1)
 }
 
 static void copyDir(const QString &from, const QString &to)
@@ -800,7 +841,7 @@ bool convertFile(const QString &inPath, const QString &outPath, const Formatting
         out = text.toUtf8();
     }
     QSaveFile o(outPath);
-    if (!o.open(QIODevice::WriteOnly) || o.write(out) != out.size() || !o.commit()) {
+    if (!o.open(QIODevice::WriteOnly) || safesave::write(o, out) != out.size() || !safesave::commit(o)) {
         if (error)
             *error = QObject::tr("Cannot write %1").arg(outPath);
         return false;

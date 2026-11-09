@@ -58,6 +58,7 @@ struct WriteReport {
     int snapshotsRemoved = 0; // snapshots deleted in this program, taken out of the .scriv (0.61.1)
     int keptTheirs = 0;  // files changed in Scrivener meanwhile, not overwritten
     QStringList conflicts; // changed here and there: the other version was kept first (0.64)
+    QStringList keepFailed; // changed here and there, the other version could not be kept: not written (0.64.1)
     QStringList warnings;
 };
 
@@ -72,6 +73,11 @@ bool isScrivenerPath(const QString &path);
 QString fingerprint(const QString &scrivDir);
 // Scrivener has the project open (Files/user.lock); who: "user on host".
 bool lockedByScrivener(const QString &scrivDir, QString *who = nullptr);
+// Scrivener's lock as a stamp ("" = none): which file, its size, time and a hash of what it holds.
+// open() records the one it found (the writer chose to open anyway); sync() writes nothing while
+// another one is there (0.64.1, the external audit's C-4: before, the lock was looked at only when
+// opening, so both programs could write the .scriv).
+QString scrivenerLockStamp(const QString &scrivDir);
 
 // Writes the project into scrivDir. With the state of an earlier write only
 // what changed is written. state is updated.

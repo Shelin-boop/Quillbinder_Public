@@ -1,6 +1,7 @@
 // Menus, toolbars, window layouts and the lists of commands that change
 // with the project (styles) or the data folder (layouts).
 #include "ui/MainWindow.h"
+#include "ui/LinkOpen.h"
 #include "ui/ProjectLook.h"
 #include <QMimeData>
 #include "ui/QuickRef.h"
@@ -719,7 +720,7 @@ void MainWindow::createToolBars()
                 });
             } else {
                 const QString target = b.target;
-                m_bookmarkMenu->addAction(b.title, this, [target] { QDesktopServices::openUrl(QUrl(target)); });
+                m_bookmarkMenu->addAction(b.title, this, [this, target] { links::open(this, target); });
             }
         }
         if (m_project->projectBookmarks.isEmpty())

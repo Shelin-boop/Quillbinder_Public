@@ -1,3 +1,5 @@
+#include "core/PathSafety.h"
+#include "core/SafeSave.h"
 #include "import/ScrivenerImporter.h"
 #include "core/IconCatalog.h"
 #include "core/MindMap.h"
@@ -288,7 +290,11 @@ int countItems(const QDomElement &parent)
 
 void importItem(Ctx &c, const QDomElement &e, BinderItem *parent)
 {
-    const QString scrivId = e.attribute(QStringLiteral("UUID"), e.attribute(QStringLiteral("ID")));
+    // 0.64.1 (audit S-1): the id names the item's folder in the .scriv; one that could act as a path
+    // ("../x") reads nothing there and is not taken over
+    QString scrivId = e.attribute(QStringLiteral("UUID"), e.attribute(QStringLiteral("ID")));
+    if (!pathsafety::isSafeId(scrivId))
+        scrivId.clear();
     const QDomElement meta = e.firstChildElement(QStringLiteral("MetaData"));
     const QString ext = childText(meta, QStringLiteral("FileExtension"));
     const ItemType type = mapType(e.attribute(QStringLiteral("Type")), ext);
@@ -303,14 +309,15 @@ void importItem(Ctx &c, const QDomElement &e, BinderItem *parent)
         it = type == ItemType::Draft ? p->draft() : type == ItemType::Research ? p->research() : p->trash();
         // the special folders keep Scrivener's ids as well (written back unchanged)
         const QString uid = scrivId.toUpper();
-        if (c.v3 && !uid.isEmpty() && it->id != uid && !p->item(uid)) {
+        // 0.64.1 (audit S-1): an id that could act as a path is not taken over
+        if (c.v3 && !uid.isEmpty() && pathsafety::isSafeId(uid) && it->id != uid && !p->item(uid)) {
             p->unregisterItem(it);
             it->id = uid;
             p->registerItem(it);
         }
     } else {
         it = new BinderItem;
-        it->id = (c.v3 && !scrivId.isEmpty() && !p->item(scrivId.toUpper())) ? scrivId.toUpper() : newId();
+        it->id = (c.v3 && !scrivId.isEmpty() && pathsafety::isSafeId(scrivId) && !p->item(scrivId.toUpper())) ? scrivId.toUpper() : newId();
         it->type = type;
         p->model()->insertExisting(parent, -1, it);
     }
@@ -525,8 +532,8 @@ void importItem(Ctx &c, const QDomElement &e, BinderItem *parent)
                     } while (QFile::exists(QDir(dir).filePath(name)));
                     QSaveFile out(QDir(dir).filePath(name));
                     if (out.open(QIODevice::WriteOnly)) {
-                        out.write(p->docs()->serialize(it->id, &sdoc));
-                        out.commit();
+                        safesave::write(out, p->docs()->serialize(it->id, &sdoc));
+                        safesave::commit(out);
                         Snapshot snap;
                         snap.id = it->id;
                         snap.file = QDir(dir).filePath(name);

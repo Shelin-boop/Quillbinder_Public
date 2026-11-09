@@ -1,5 +1,6 @@
 #include "MiniXml.h"
 
+#include <QObject>
 #include <QXmlStreamReader>
 
 namespace qb {
@@ -131,6 +132,10 @@ bool Document::parse(const QByteArray &data, QString *error)
     QXmlStreamReader r(data);
     r.setNamespaceProcessing(false);
     Node *cur = m_top.get();
+    // 0.64.1 (audit ST-2): the tree is written, copied and freed by functions that call themselves, so
+    // a document nested very deeply (50,000 levels) ran out of stack; real documents stay far below this
+    constexpr int kMaxDepth = 1000;
+    int depth = 0;
     while (!r.atEnd()) {
         r.readNext();
         switch (r.tokenType()) {
@@ -143,6 +148,12 @@ bool Document::parse(const QByteArray &data, QString *error)
             m_hasStandalone = data.left(200).contains("standalone");
             break;
         case QXmlStreamReader::StartElement: {
+            if (++depth > kMaxDepth) {
+                if (error)
+                    *error = QObject::tr("The document is nested more than %1 levels deep.").arg(kMaxDepth);
+                m_top = std::make_unique<Node>(); // an empty tree (what was read so far is at most 1,000 deep)
+                return false;
+            }
             auto n = element(r.qualifiedName().toString());
             for (const QXmlStreamNamespaceDeclaration &d : r.namespaceDeclarations())
                 n->attrs.append({d.prefix().isEmpty() ? QStringLiteral("xmlns") : QStringLiteral("xmlns:") + d.prefix().toString(),
@@ -156,6 +167,7 @@ bool Document::parse(const QByteArray &data, QString *error)
             break;
         }
         case QXmlStreamReader::EndElement:
+            --depth;
             if (cur->parent)
                 cur = cur->parent;
             break;

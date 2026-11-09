@@ -1,4 +1,6 @@
 #include "ui/MindMapController.h"
+#include "core/SafeSave.h"
+#include "ui/LinkOpen.h"
 #include "core/IconCatalog.h"
 #include "ui/IconDialogs.h"
 #include "ui/ColorPalette.h"
@@ -1656,7 +1658,7 @@ void MindMapController::openLink(const QString &href)
         });
         return;
     }
-    QDesktopServices::openUrl(QUrl::fromUserInput(href));
+    links::open(m_view, href); // 0.64.1: other targets than web and mail asked
 }
 
 // ------------------------------------------------------------------ format
@@ -2600,7 +2602,7 @@ bool MindMapController::exportText(const QString &path, int kind, bool selectedO
     case 3: bytes = board().toOpml(only, notesField, title); break;
     }
     QSaveFile out(path);
-    if (!out.open(QIODevice::WriteOnly) || out.write(bytes) != bytes.size() || !out.commit()) {
+    if (!out.open(QIODevice::WriteOnly) || safesave::write(out, bytes) != bytes.size() || !safesave::commit(out)) {
         if (error)
             *error = tr("Cannot write %1").arg(path);
         return false;

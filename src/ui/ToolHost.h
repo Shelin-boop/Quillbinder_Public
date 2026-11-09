@@ -55,6 +55,9 @@ public:
     bool startLink();                         // listen; false if that failed (tools still work in this window)
     QString linkPath() const;                 // own socket
     static QString linkDir();
+    // A folder for the link's sockets is safe: a folder (not a link) of this user, closed to others
+    // (made so when it is ours and open). 0.64.1.
+    static bool linkDirSafe(const QString &dir);
     // Other running instances (sockets that answer); stale sockets are removed.
     QStringList peers() const;
     static QJsonObject query(const QString &socket, const QJsonObject &request, int timeoutMs = 3000);

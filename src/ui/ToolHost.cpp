@@ -25,6 +25,7 @@
 #include <csignal>
 #include <cstdio>
 #ifdef Q_OS_UNIX
+#include <sys/stat.h>
 #include <unistd.h>
 #endif
 
@@ -273,12 +274,44 @@ QString Host::linkDir()
         QDir().mkpath(dir);
         QFile::setPermissions(dir, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
     }
+#ifdef Q_OS_UNIX
+    // 0.64.1 (the external audit's X-9): a folder in /tmp may have been made by someone else
+    // before: it must be a real folder of this user that only this user can enter, else the
+    // link goes to a folder in the user's cache (or is not offered when that path is too long)
+    if (!linkDirSafe(dir)) {
+        const QString own = QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation)
+                            + QStringLiteral("/" QB_APP_ID "/link");
+        QDir().mkpath(own);
+        QFile::setPermissions(own, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+        // a socket's path has at most 107 bytes: "<dir>/<pid>.sock"
+        dir = (linkDirSafe(own) && own.toLocal8Bit().size() <= 90) ? own : QString();
+    }
+#endif
     return dir;
+}
+
+bool Host::linkDirSafe(const QString &dir)
+{
+#ifdef Q_OS_UNIX
+    struct stat st;
+    const QByteArray path = QFile::encodeName(dir);
+    if (::lstat(path.constData(), &st) != 0 || !S_ISDIR(st.st_mode) || st.st_uid != getuid())
+        return false;
+    if ((st.st_mode & 077) != 0) {
+        // ours, but open to others: closed (it is made 0700 when it is made)
+        if (::chmod(path.constData(), 0700) != 0 || ::lstat(path.constData(), &st) != 0 || (st.st_mode & 077) != 0)
+            return false;
+    }
+    return true;
+#else
+    return !dir.isEmpty();
+#endif
 }
 
 QString Host::linkPath() const
 {
-    return linkDir() + QStringLiteral("/%1.sock").arg(QCoreApplication::applicationPid());
+    const QString dir = linkDir();
+    return dir.isEmpty() ? QString() : dir + QStringLiteral("/%1.sock").arg(QCoreApplication::applicationPid());
 }
 
 bool Host::startLink()
@@ -288,6 +321,8 @@ bool Host::startLink()
     m_server = new QLocalServer(this);
     m_server->setSocketOptions(QLocalServer::UserAccessOption);
     const QString path = linkPath();
+    if (path.isEmpty())
+        return false;
     QLocalServer::removeServer(path);
     if (!m_server->listen(path))
         return false;
@@ -330,6 +365,8 @@ QStringList Host::peers() const
 {
     QStringList out;
     const QString own = linkPath();
+    if (own.isEmpty())
+        return out;
     QDir d(linkDir());
     for (const QFileInfo &fi : d.entryInfoList({QStringLiteral("*.sock")}, QDir::System | QDir::Files)) {
         const QString path = fi.absoluteFilePath();

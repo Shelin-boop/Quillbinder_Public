@@ -34,7 +34,7 @@ changed and what was checked. Preferences:
   same version number. Audio and video for everyone: the add-on "Media Playback" (free formats), the add-on "Extra
   Video and Audio Formats" (formats licensed under patents), and the package `media-all-formats.qbpkg` that installs
   both in one step (built by `packaging/build-addons.sh`).
-- **Runtime**: the current AppImage is 0.64.0 alpha (before it 0.63.0 alpha, 0.61.0 alpha, 0.60.0 alpha, 0.40.0 alpha / 0.50.0 alpha, 0.30.0 alpha, 0.20.0,
+- **Runtime**: the current AppImage is 0.64.1 alpha (before it 0.64.0 alpha, 0.63.0 alpha, 0.61.0 alpha, 0.60.0 alpha, 0.40.0 alpha / 0.50.0 alpha, 0.30.0 alpha, 0.20.0,
   0.16.0 and 0.2.0, with the same libraries), runtime id `u2404-qt6.4-r1` (`APP_RUNTIME` in CMakeLists.txt; a new
   AppImage with other libraries needs a new id). Program updates (.qbpkg) run on its libraries:
   build on Ubuntu 24.04 with Ubuntu's Qt 6.4.2, use no Qt API newer than 6.4, and add
@@ -117,6 +117,17 @@ changed and what was checked. Preferences:
   device and renewal, a lock taken over while open, conflicts kept as snapshot and copy (texts, the project file,
   Scrivener format), opening and closing without a change writes nothing (also a .scriv), texts not arrived yet).
   The speech add-on's Record only and Transcribe / Transcribe All are checked in `qb_v061_tests`.
+- `qb_v0641_tests` (0.64.1, the fixes of the system test's first run: Markdown table cells with empty paragraphs and
+  tables inside cells, Split at Selection next to and inside tables, a text only shown not written over a newer one,
+  nothing replaced when the other version cannot be kept (text, notes, project file), a figure cut and pasted, compile
+  progress with the event loop running, cells not justified, Merge with notes, Merge Cells / Undo / Redo / Delete Rows,
+  typing in a 1,000-row table against a plain `QTextEdit`; `QB_V0641_ONLY_TYPING=1` runs only that, `QB_V0641_KEYS=<n>`).
+- `qb_audit1_tests` (0.64.1, the fixes of the external audit of 2026-11-09: ids of a project file and names in archives
+  (`core/PathSafety.*`), damaged ZIP entries, a Word 97 file with a looping sector chain (compiles the plugin's `Cfb.cpp`),
+  XML nested 20,000 deep, the keys a project may hold and the question of Load Options, the code warning of packages,
+  links (`ui/LinkOpen.*`, also in imported web pages), the socket folder, Scrivener's lock before every write and a .scriv
+  file whose other version cannot be kept, the computer's name; `QB_RELEASE_BINARY=<files>` (':'-separated) searches a
+  release build for the test switches' names).
 - `qb_v0611_tests` (0.61.1: the quote rules, Convert Quotes from File > Options > Corrections with every place and the
   scope, Project > Delete Old Snapshots with its question, Scrivener format: deleted snapshots leave the .scriv).
 - `qb_v062_tests` (0.62: settings per project: the first start window, File > Options with "Settings for", what goes
@@ -134,7 +145,8 @@ changed and what was checked. Preferences:
   then the test runner builds the add-ons.
 - Scrivener format: `tests/scrivener_checks.cpp` reads a real Scrivener 3 project when
   `QB_SCRIV_SAMPLE=<folder.scriv>` is set (a public sample: GitHub
-  writerslogic/scrivener-mcp, tests/sample-project.scriv).
+  writerslogic/scrivener-mcp, tests/sample-project.scriv, pinned to commit d4d42c3 of 2026-11-08 by a hash over its
+  files, `kTreeSha256`; since 2026-10-31 it has no docs.checksum, which the program writes only when a .scriv has one).
 - Offscreen runs have no window manager: a widget has focus only after
   `activateWindow()`; modal dialogs are answered with `QTimer` + `activeModalWidget()`.
 - Never run `pkill -f` / `pgrep -f` with a pattern that also appears in your own
@@ -243,6 +255,78 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
 - The add-on brings Qt Multimedia (only `libQt6Multimedia.so.6`: the microphone needs no Qt Multimedia plugin) and Qt's TLS
   plugin; `addons/speech-transcription/stage.sh` exits with 3 when whisper is not built, and `packaging/build-addons.sh`
   then leaves the add-on out. Icons of the add-on are in the program's icon set (Breeze: microphone, record, list).
+
+## The external audit's fixes (0.64.1, report of 2026-11-09)
+
+- **Names from outside** (`src/core/PathSafety.*`): `isSafeId` for every id that becomes a folder name (`Project::readItem`
+  gives an unsafe id a new one; `contentDir` / `snapshotsDir` map one anyway to `_invalid-<hash>`), `isSafeExtension`
+  (`mediaFilePath`: else `file.bin`), `isSafeRelative` + `isInside` for archive and package paths (`ZipReader::extractAll`,
+  `Addons`), `removeTreeInside` for every recursive delete of a project's folder (a link is removed, not followed).
+  `ZipReader::fileData(name, &ok)`: CRC, exact size, bounds; a damaged entry is never written. `Cfb.cpp`: DIFAT loop and
+  sectors outside the file. `MiniXml`: depth limit 1000.
+- **Settings a project may hold**: `settingslayer::programOnly` is an allow list (see `SettingsLayer.cpp`);
+  `namesProgramOrPlace` keys are never a project's and Load Options asks (`loadOptionsPlaces`).
+- **Links** (`src/ui/LinkOpen.*`): `links::open` (http/https/mailto at once, `linkQuestion` for other targets,
+  `linkRefused` for program files: `isProgramFile`, last ending or an executable with "#!", ELF, "MZ"), `links::openFile`
+  for a project's file in another program; `setOpenerForTests`. Used by `MainWindow::openLink`, mind maps, bookmarks
+  (both lists and the menu), `MediaView` (the web page's `QTextBrowser` has `openLinks` off and goes through it).
+- **Scrivener's lock** (`scrivener::scrivenerLockStamp`): recorded in `Project::scrivenerLockAtOpen` by `scrivener::open`;
+  `sync` refuses to write while another one is there (`scrivenerLockRefused`, `scrivenerLockWho`; the window's
+  `saveFailed` handler shows `scrivenerLockNotice` once per lock, `closeProject` asks with its own text).
+- **The computer's name** (`AppSettings::deviceName`, `app/deviceName`, `optDeviceName` on General > Saving,
+  `syncsafe::setDeviceName`): replaces the host name and leaves `user=` empty; locks carry `key=` (`syncsafe::machineKey`,
+  a hash of the machine id; `judge` compares it when both have one). `QB_DEVICE_NAME` (tests) still wins.
+- **Test switches** (`QB_TEST_SWITCHES`, CMake option, default = `QB_BUILD_TESTS`): `QB_PLUGIN_PATH`, `QB_SPEECH_SOURCE`,
+  `QB_SPEECH_ACCEPT_CHANGED`, `QB_SPEECH_SKIP_TEST` work only in builds with the tests; packages are built with
+  `-DQB_BUILD_TESTS=OFF` (build-appimage, build-update). The Windows runner builds with the tests (switches on there).
+- **Speech models**: `CatalogEntry::sha256` (Hugging Face's Git LFS ids, 2026-11-09), `sumsMatch`, `catalogEntryBySums`,
+  `addressAllowed` (https, http only on loopback); `SpeechTool::checkAndInstall` hashes first (official source: must
+  match; otherwise the question before reading), then `checkModelFile` (description, test transcription).
+- **Socket folder**: `toolhost::Host::linkDirSafe` (lstat: a folder of this user, closed to others), else
+  `~/.cache/quillbinder/link`.
+- **Pipeline**: `packaging/build-appimage.sh` pins linuxdeploy 1-alpha-20251107-1, linuxdeploy-plugin-qt 1-alpha-20250213-1,
+  appimagetool 1.9.1 and type2-runtime 20251108 with SHA-256 (the 0.64.0 AppImage had the "continuous" runtime). The
+  release workflow: `contents: read` for all, `publish` alone writes; actions pinned to commits (tags in comments).
+- Not changed (and why): the comments that name Scrivener's windows (L-3) describe where a layout came from; they stay
+  until the layouts were compared and reviewed by a lawyer (a comment changed alone would hide it, not change it).
+
+## Fixes of the system test's first run (0.64.1)
+
+- **Saving** (`src/core/SafeSave.h`, `safesave::commit(QSaveFile&)`): every QSaveFile of project data, settings files,
+  compile output and the like is written with `safesave::write` (a short write, which Qt reports as no error, cancels
+  the file) and committed through it (flush and `error()` checked, `fsync` checked, a `dup` of the descriptor closed
+  and checked, then `commit()`): Qt 6.4's `commit()` ignores a failed last write and a failed sync (its own sync runs
+  after the close), and its temporary file engine closes the file only after the rename, unchecked.
+  `backup::backupProject` stops when its save fails. A failed docs.checksum write fails the Scrivener sync.
+  Checked with `tests/faultshim.cpp` (LD_PRELOAD library `qbfaultshim`: `QB_SHIM_DIR`, `QB_SHIM_MODE=write|fsync|close`) in
+  `qb_audit1_tests`' child runs (`--child <folder> save|backup:<dir>`).
+
+- **Shown, not edited** (`DocumentStore::Entry::read` / `readRtf`: the bytes as read or last written): when the file
+  changed elsewhere, `writeEntry` asks `unchangedSinceRead` (the read bytes read again and serialized the same way equal
+  what would be written) and then writes nothing (showing a text emits `contentsChanged`, which marks it dirty).
+- **Keep or do not write**: `DocumentStore::keepOtherVersion` returns false when neither a copy nor a snapshot was kept;
+  `writeEntry` then fails with an error and leaves the entry dirty. The same for the project file (`Project::saveIndex`),
+  and in Scrivener format (`keepTheirs` -> `mustWrite` false, `.scrivx` not written, `WriteReport::keepFailed`, `sync`
+  returns false with the error after saving the state). `syncsafe::keepCopy` returns "" when `mkpath` fails too. Tests
+  block `settings/conflicts` and `snapshots/<id>` with a plain file (the session's root ignores permissions).
+- **Table cells**: `props::InTableCell` (block, never saved) is set on every cell paragraph by `tables::apply`;
+  `display::blockFormatFor` keeps it and gives a cell paragraph left instead of the justified body alignment (unless set
+  by hand or by its style). Compile: `PdfExporter`'s `cellParagraph`, `DocxWriter` (`w:jc left` in cells), the e-book CSS.
+  Markdown: `cellParagraphs()` splits at " <p/> " also at a trimmed edge; the writer takes every block of a cell (also of
+  a table or figure inside it). RTF (`RtfIO.cpp`, `table()`): a frame inside a cell is written as its paragraphs too.
+- **Deleted for good**: `BinderModel::itemsAboutToBeDeleted` (from `deletePermanently`); the window clears every pane
+  and copyholder showing one (S-T06 emptied the Trash past the window; a pane kept a deleted document and crashed at
+  close).
+- **Split at Selection** (`MainWindow::splitDocument`) refuses inside a frame (table, figure) and never lets its two
+  clean-up steps select into one (Qt widens such a selection to the whole frame).
+- **Compile progress**: `compile/Progress.*` (`progress::tick`, `progress::Scope`); `Compiler::build` and the built-in
+  exporters tick in their loops; `CompileDialog`'s `CompileProgress` shows a modal `QProgressDialog` and runs
+  `processEvents(ExcludeUserInputEvents)` at most every 100 ms, so `CrashGuard`'s heartbeat timer keeps beating.
+  `PdfExporter`'s `Builder::build` makes and fills each table inside one edit block (`tableOpen`; laid out once, not per
+  cell: 27 s to 0.4 s for the v0641 table); one edit block over the whole build left the last rows of v062's long table
+  out of the pages (cause not found).
+- **Copy**: `TextEditor::createMimeDataFromSelection` copies the pictures' resources into the temporary document, so the
+  RTF on the clipboard carries them. **Merge** joins the notes too (same separator as the text).
 
 ## Synced folders, Record only, autosave in typing gaps (0.64)
 

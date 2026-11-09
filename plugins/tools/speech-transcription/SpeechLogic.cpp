@@ -21,23 +21,29 @@ QList<CatalogEntry> catalog()
     // Files and SHA-1 sums of whisper.cpp's model list (huggingface.co/ggerganov/whisper.cpp,
     // models/README.md of whisper.cpp v1.9.5 and the source's README). Sizes as the source gives
     // them; the memory and speed notes are estimates (0.61, not measured on the writer's computer).
+    // SHA-256 (0.64.1): the Git LFS ids of the files on Hugging Face (its API's file list, read on
+    // 2026-11-09); Small's file was downloaded that day and has both sums.
     QList<CatalogEntry> list;
     list << CatalogEntry{QStringLiteral("small"), QObject::tr("Small"), QStringLiteral("ggml-small-q5_1.bin"),
-                         QStringLiteral("6fe57ddcfdd1c6b07cdcc73aaf620810ce5fc771"), 190000000LL, 12, 12, 80, true,
+                         QStringLiteral("6fe57ddcfdd1c6b07cdcc73aaf620810ce5fc771"),
+                         QStringLiteral("ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb"), 190000000LL, 12, 12, 80, true,
                          QObject::tr("Download 190 MB, memory about 0.5 GB. Fast, also on older processors. "
                                      "Recognition is good for clear speech; translation into English only rough. "
                                      "For quick notes.")};
     list << CatalogEntry{QStringLiteral("medium"), QObject::tr("Medium"), QStringLiteral("ggml-medium-q5_0.bin"),
-                         QStringLiteral("7718d4c1ec62ca96998f058114db98236937490e"), 539000000LL, 24, 24, 80, true,
+                         QStringLiteral("7718d4c1ec62ca96998f058114db98236937490e"),
+                         QStringLiteral("19fea4b380c3a618ec4723c3eef2eb785ffba0d0538cf43f8f235e7b3b34220f"), 539000000LL, 24, 24, 80, true,
                          QObject::tr("Download 539 MB, memory about 1.2 GB. Keeps up with speech on most processors of "
                                      "recent years (estimate). Good recognition and translation.")};
     list << CatalogEntry{QStringLiteral("large-v3"), QObject::tr("Large v3"), QStringLiteral("ggml-large-v3-q5_0.bin"),
-                         QStringLiteral("e6e2ed78495d403bef4b7cff42ef4aaadcfea8de"), 1080000000LL, 32, 32, 128, true,
+                         QStringLiteral("e6e2ed78495d403bef4b7cff42ef4aaadcfea8de"),
+                         QStringLiteral("d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1"), 1080000000LL, 32, 32, 128, true,
                          QObject::tr("Download about 1.1 GB, memory about 2 GB. The best recognition and translation. On "
                                      "a processor often slower than speech: in long stretches the text falls behind "
                                      "(estimate). A graphics card helps.")};
     list << CatalogEntry{QStringLiteral("large-v3-turbo"), QObject::tr("Large v3 Turbo"),
                          QStringLiteral("ggml-large-v3-turbo-q5_0.bin"), QStringLiteral("e050f7970618a659205450ad97eb95a18d69c9ee"),
+                         QStringLiteral("394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2"),
                          574000000LL, 32, 4, 128, false,
                          QObject::tr("Download 574 MB, memory about 0.9 GB. Recognition close to Large v3 and faster, but "
                                      "it cannot translate: what is said in the fallback language stays in that language.")};
@@ -62,13 +68,45 @@ const CatalogEntry *catalogEntryBySha1(const QString &sha1)
     return nullptr;
 }
 
+const CatalogEntry *catalogEntryBySums(const QString &sha1, const QString &sha256)
+{
+    static const QList<CatalogEntry> list = catalog();
+    for (const CatalogEntry &e : list)
+        if (sumsMatch(e, sha1, sha256))
+            return &e;
+    return nullptr;
+}
+
 QString recommendedModel() { return QStringLiteral("medium"); }
 
 QString officialBase()
 {
-    // the tests point this at a local server
+#ifdef QB_TEST_SWITCHES
+    // the tests point this at a local server (only in builds with the tests, 0.64.1)
     const QString test = qEnvironmentVariable("QB_SPEECH_SOURCE");
-    return test.isEmpty() ? QStringLiteral("https://huggingface.co/ggerganov/whisper.cpp/resolve/main") : test;
+    if (!test.isEmpty())
+        return test;
+#endif
+    return QStringLiteral("https://huggingface.co/ggerganov/whisper.cpp/resolve/main");
+}
+
+bool addressAllowed(const QUrl &url)
+{
+    if (!url.isValid() || url.host().isEmpty())
+        return false;
+    const QString scheme = url.scheme().toLower();
+    if (scheme == QLatin1String("https"))
+        return true;
+    const QString host = url.host().toLower();
+    return scheme == QLatin1String("http")
+           && (host == QLatin1String("127.0.0.1") || host == QLatin1String("::1") || host == QLatin1String("localhost"));
+}
+
+bool sumsMatch(const CatalogEntry &e, const QString &sha1, const QString &sha256)
+{
+    if (!e.sha256.isEmpty())
+        return e.sha256.compare(sha256, Qt::CaseInsensitive) == 0;
+    return !e.sha1.isEmpty() && e.sha1.compare(sha1, Qt::CaseInsensitive) == 0;
 }
 
 QString downloadUrl(const CatalogEntry &e, const QString &otherAddress)

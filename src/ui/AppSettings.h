@@ -130,6 +130,9 @@ public:
     int recentCount = 12;                         // Saving: number of recent projects (File > Open Recent)
     bool snapshotOnManualSave = false;            // Saving: File > Save takes snapshots of the texts changed since
     QString street, city, state, zip, country, phone, email; // Author Information (placeholders <$street> ...)
+    // 0.64.1 (audit D-3): the name of this computer in lock files, conflict copies and the per-computer
+    // view state of projects in shared folders ("" = the computer's own name and the user name)
+    QString deviceName;
     QString sharedTemplatesDir;                   // Shared Templates: more project templates (File > New Project)
     QString citationsApp;                         // Citations: the program Format > Bibliography/Citations opens
     QString sepMerge = QStringLiteral("return");  // Separators: return | empty | page | none | custom (display::insertSeparator)

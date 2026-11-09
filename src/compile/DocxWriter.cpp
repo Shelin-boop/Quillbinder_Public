@@ -1,4 +1,6 @@
 #include "compile/DocxWriter.h"
+#include "core/SafeSave.h"
+#include "compile/Progress.h"
 #include "core/Zip.h"
 #include "text/MarkdownIO.h"
 
@@ -381,6 +383,8 @@ QString Builder::paragraph(const Paragraph &p, bool inFootnote)
         ppr += QLatin1String("<w:jc w:val=\"right\"/>");
     else if (p.align & Qt::AlignJustify)
         ppr += QLatin1String("<w:jc w:val=\"both\"/>");
+    else if (p.cell >= 0 && !(p.direct & Paragraph::DAlign))
+        ppr += QLatin1String("<w:jc w:val=\"left\"/>"); // 0.64.1: a cell is not justified with the body text
     else if ((p.align & Qt::AlignLeft) && (p.style != Paragraph::Normal || (p.direct & Paragraph::DAlign)))
         ppr += QLatin1String("<w:jc w:val=\"left\"/>");
     QString out = QLatin1String("<w:p>");
@@ -573,6 +577,7 @@ QByteArray Builder::document()
     body.reserve(m.paragraphs.size() * 200);
     bool tocDone = !m.options.toc;
     for (int i = 0; i < m.paragraphs.size(); ++i) {
+        progress::tick(i, int(m.paragraphs.size()));
         const Paragraph &p = m.paragraphs.at(i);
         if (p.table >= 0 && p.table < m.tables.size()) {
             // the paragraphs of one table follow each other (0.62)
@@ -1117,6 +1122,7 @@ bool writeMarkdown(const Manuscript &m, const QString &path, QString *error)
         out += QStringLiteral("---\ntitle: \"%1\"\nauthor: \"%2\"\n---\n\n").arg(m.title, m.author);
     int prevListId = -1;
     for (int i = 0; i < m.paragraphs.size(); ++i) {
+        progress::tick(i, int(m.paragraphs.size()));
         const Paragraph &p = m.paragraphs.at(i);
         if (p.table >= 0 && p.table < m.tables.size()) {
             // a table (0.62): a pipe table, merged cells keep their text in the first place
@@ -1187,7 +1193,7 @@ bool writeMarkdown(const Manuscript &m, const QString &path, QString *error)
         out += QLatin1Char('\n') + notes.join(QLatin1Char('\n')) + QLatin1Char('\n');
     QSaveFile f(path);
     const QByteArray data = out.toUtf8();
-    if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size() || !f.commit()) {
+    if (!f.open(QIODevice::WriteOnly) || safesave::write(f, data) != data.size() || !safesave::commit(f)) {
         if (error)
             *error = f.errorString();
         return false;

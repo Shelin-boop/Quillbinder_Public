@@ -8,6 +8,10 @@
 // github.com/writerslogic/scrivener-mcp, Scrivener Mac 3.4, not part of this
 // source because of its licence). Without it, the same checks run on a project
 // built here after its structure.
+// The sample is pinned (0.64.1, the external audit's C-2): commit d4d42c3 of 2026-11-08 (its files are
+// those of 93a0bd7, 2026-10-31); kTreeSha256 is a hash over its files. Since 5065f91 (2026-10-31) the sample
+// has no Files/Data/docs.checksum: the program writes that file only when the .scriv has one (Scrivener
+// makes it itself), so the checks of docs.checksum follow what the copy holds.
 #include "core/BinderModel.h"
 #include "core/DocumentStore.h"
 #include "core/Project.h"
@@ -262,6 +266,23 @@ void buildSample(const QString &scriv)
     writeAll(scriv + QLatin1String("/Settings/ui-common.xml"), "<UIStates/>");
 }
 
+// SHA-256 over "<path relative to the .scriv>\t<SHA-256 of the file>" lines, sorted, each ending in '\n'
+QString treeSha256(const QString &scriv)
+{
+    QStringList lines;
+    QDirIterator it(scriv, QDir::Files | QDir::Hidden, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        const QString f = it.next();
+        lines << QDir(scriv).relativeFilePath(f) + QLatin1Char('\t')
+                     + QString::fromLatin1(QCryptographicHash::hash(readAll(f), QCryptographicHash::Sha256).toHex());
+    }
+    lines.sort();
+    return QString::fromLatin1(QCryptographicHash::hash((lines.join(QLatin1Char('\n')) + QLatin1Char('\n')).toUtf8(),
+                                                        QCryptographicHash::Sha256)
+                                   .toHex());
+}
+const char *const kTreeSha256 = "3934481f5001e708da4744dad56e12357ab82c0249d36b6802b3a6f91e2cb074";
+
 void runOn(const QString &origin, const QString &label)
 {
     QTemporaryDir tmp;
@@ -269,6 +290,7 @@ void runOn(const QString &origin, const QString &label)
     copyTree(origin, scriv);
     QFile::remove(scriv + QLatin1String("/Files/user.lock"));
     auto L = [&](const QString &s) { return QStringLiteral("[%1] ").arg(label) + s; };
+    const bool hasChecksums = QFile::exists(scriv + QLatin1String("/Files/Data/docs.checksum"));
 
     const QDomDocument original = scrivxDom(scriv);
     QSet<QString> sampleVocab;
@@ -405,8 +427,12 @@ void runOn(const QString &origin, const QString &label)
         const QByteArray rtf = readAll(scriv + QLatin1String("/Files/Data/") + ch1 + QLatin1String("/content.rtf"));
         check(rtf.startsWith("{\\rtf1") && rtf.contains("counted the ships"), L(QStringLiteral("edit: the new text is RTF")));
         const QByteArray cs = readAll(scriv + QLatin1String("/Files/Data/docs.checksum"));
-        check(cs.contains((ch1.toLower() + QStringLiteral("/content.rtf=") + sha1(rtf)).toUtf8()),
-              L(QStringLiteral("edit: docs.checksum has the SHA-1 of the new file (lower-case id)")));
+        if (hasChecksums)
+            check(cs.contains((ch1.toLower() + QStringLiteral("/content.rtf=") + sha1(rtf)).toUtf8()),
+                  L(QStringLiteral("edit: docs.checksum has the SHA-1 of the new file (lower-case id)")));
+        else
+            check(!QFile::exists(scriv + QLatin1String("/Files/Data/docs.checksum")),
+                  L(QStringLiteral("edit: a .scriv without docs.checksum gets none (Scrivener makes it itself)")));
         check(readAll(scriv + QLatin1String("/Files/search.indexes")).contains("counted the ships"),
               L(QStringLiteral("edit: Files/search.indexes has the new text")));
         // the binder keeps Scrivener's order (also the top level, where documents may stand before
@@ -566,8 +592,9 @@ void runOn(const QString &origin, const QString &label)
                   L(QStringLiteral("empty trash: the document's folder and binder entry are gone")),
                   QStringLiteral("folder %1, in binder %2").arg(QDir(scriv + QLatin1String("/Files/Data/") + nightId).exists())
                       .arg(!itemEl(scrivxDom(scriv), nightId).isNull()));
-            check(!readAll(scriv + QLatin1String("/Files/Data/docs.checksum")).contains(nightId.toLower().toUtf8()),
-                  L(QStringLiteral("empty trash: docs.checksum forgets it")));
+            if (hasChecksums)
+                check(!readAll(scriv + QLatin1String("/Files/Data/docs.checksum")).contains(nightId.toLower().toUtf8()),
+                      L(QStringLiteral("empty trash: docs.checksum forgets it")));
             // a copy in this program's own format
             auto copy = scrivener::copyAsQuillbinder(q, tmp.path(), QStringLiteral("Own Copy"), &err);
             check(copy && copy->scrivenerPath.isEmpty() && QFileInfo(copy->folderPath()).fileName() == QLatin1String("Own Copy.quillbinder")
@@ -591,8 +618,16 @@ int scrivenerChecks()
     buildSample(built.filePath(QStringLiteral("sample-project.scriv")));
     runOn(built.filePath(QStringLiteral("sample-project.scriv")), QStringLiteral("built"));
     const QString real = qEnvironmentVariable("QB_SCRIV_SAMPLE");
-    if (!real.isEmpty() && QDir(real).exists())
+    if (!real.isEmpty() && QDir(real).exists()) {
+        const QString tree = treeSha256(real);
+        if (tree != QLatin1String(kTreeSha256))
+            std::printf("      (QB_SCRIV_SAMPLE is not the pinned sample, commit d4d42c3 of writerslogic/scrivener-mcp: "
+                        "its files hash to %s; checks that depend on the sample may differ)\n",
+                        qPrintable(tree));
+        else
+            std::printf("      (QB_SCRIV_SAMPLE: the pinned sample, commit d4d42c3)\n");
         runOn(real, QStringLiteral("real Scrivener 3.4 project"));
+    }
     else
         std::printf("      (QB_SCRIV_SAMPLE not set: the real Scrivener project was not used)\n");
 

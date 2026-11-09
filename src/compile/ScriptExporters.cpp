@@ -1,4 +1,5 @@
 #include "compile/ScriptExporters.h"
+#include "core/SafeSave.h"
 
 #include "text/ScriptIO.h"
 
@@ -10,7 +11,7 @@ namespace compile {
 static bool save(const QString &path, const QByteArray &data, QString *error)
 {
     QSaveFile f(path);
-    if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size() || !f.commit()) {
+    if (!f.open(QIODevice::WriteOnly) || safesave::write(f, data) != data.size() || !safesave::commit(f)) {
         if (error)
             *error = QObject::tr("The file could not be written: %1").arg(path);
         return false;

@@ -484,6 +484,7 @@ int main(int argc, char **argv)
         syncsafe::LockInfo other = mine;
         other.device = QStringLiteral("laptop");
         other.instance = QStringLiteral("x");
+        other.key = QStringLiteral("0123456789abcdef"); // 0.64.1: another computer writes its own key
         other.alive = QDateTime::currentDateTimeUtc().addSecs(-60);
         const auto fresh = syncsafe::judge(other, 900, nullptr);
         other.alive = QDateTime::currentDateTimeUtc().addSecs(-3600);
