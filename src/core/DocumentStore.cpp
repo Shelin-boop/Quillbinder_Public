@@ -458,11 +458,9 @@ void DocumentStore::copyDocument(const QString &fromId, const QString &toId)
     copyDir(m_project->contentDir(fromId), m_project->contentDir(toId));
 }
 
-void DocumentStore::setContent(const QString &id, const QTextDocument *source)
+// copy the source's image resources (a picture read from RTF is held by its document only)
+static void copyImageResources(const QTextDocument *source, QTextDocument *doc)
 {
-    QTextDocument *doc = text(id);
-    doc->setUndoRedoEnabled(false);
-    // copy the source's image resources
     for (QTextBlock b = source->begin(); b.isValid(); b = b.next())
         for (auto it = b.begin(); !it.atEnd(); ++it) {
             const QTextCharFormat cf = it.fragment().charFormat();
@@ -473,6 +471,13 @@ void DocumentStore::setContent(const QString &id, const QTextDocument *source)
                     doc->addResource(QTextDocument::ImageResource, url, v);
             }
         }
+}
+
+void DocumentStore::setContent(const QString &id, const QTextDocument *source)
+{
+    QTextDocument *doc = text(id);
+    doc->setUndoRedoEnabled(false);
+    copyImageResources(source, doc);
     QTextCursor c(doc);
     c.select(QTextCursor::Document);
     c.insertFragment(QTextDocumentFragment(source));
@@ -492,6 +497,8 @@ void DocumentStore::setNotesContent(const QString &id, const QTextDocument *sour
 {
     QTextDocument *doc = notes(id);
     doc->setUndoRedoEnabled(false);
+    // 0.64.2: pictures in notes read from a .scriv were saved without their picture and lost
+    copyImageResources(source, doc);
     QTextCursor c(doc);
     c.select(QTextCursor::Document);
     c.insertFragment(QTextDocumentFragment(source));

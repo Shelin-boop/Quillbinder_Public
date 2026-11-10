@@ -1168,11 +1168,27 @@ void MainWindow::createActions()
     connect(act(QStringLiteral("snapshot"), tr("Take &Snapshot"), QStringLiteral("camera-photo"), QKeySequence(Qt::CTRL | Qt::Key_5)),
             &QAction::triggered, this, withProject([this] {
                 int n = 0;
-                for (BinderItem *it : actionItems())
-                    if (it->hasText() && snapshots::take(m_project.get(), it->id, tr("Snapshot")))
+                QStringList failed;
+                QString firstError;
+                for (BinderItem *it : actionItems()) {
+                    if (!it->hasText())
+                        continue;
+                    QString err;
+                    if (snapshots::take(m_project.get(), it->id, tr("Snapshot"), &err)) {
                         ++n;
+                    } else {
+                        failed << it->title;
+                        if (firstError.isEmpty())
+                            firstError = err;
+                    }
+                }
                 m_inspector->refreshAll();
                 notifySnapshots(n);
+                // 0.64.2: a snapshot that could not be written is reported (it failed silently)
+                if (!failed.isEmpty())
+                    QMessageBox::warning(this, tr("Snapshot"),
+                                         tr("The snapshot of %n document(s) could not be saved: %1\n%2", nullptr, int(failed.size()))
+                                             .arg(failed.mid(0, 5).join(QLatin1String(", ")), firstError));
                 statusBar();
                 QApplication::beep();
                 if (n)
@@ -2936,10 +2952,14 @@ void MainWindow::changeEvent(QEvent *e)
         // rest); a window of this program taking over (a dialog, a panel, the composition
         // window): the quick save of the autosave (0.60.5; the full one took a moment with a
         // large project in Scrivener format)
-        if (QApplication::activeWindow())
-            m_project->autosave();
-        else
-            m_project->save();
+        // 0.64.2: a failure on the way to another program is told as for the autosave (it was passed over: on a
+        // full disk the writer learned nothing, S-D06); not when a window of this program takes over (a question
+        // of Close Project, a dialog): a second box on top of it; File > Save and closing try again and tell it
+        QString err;
+        const bool toOtherProgram = !QApplication::activeWindow();
+        const bool ok = toOtherProgram ? m_project->save(&err) : m_project->autosave(&err);
+        if (!ok && toOtherProgram)
+            emit m_project->saveFailed(err);
     }
     QMainWindow::changeEvent(e);
 }
@@ -3918,6 +3938,12 @@ bool MainWindow::manualSave()
         return false;
     QString err;
     if (!m_project->save(&err)) {
+        // 0.64.2: Scrivener has the .scriv open: told once per lock, then in the status bar, as for the
+        // autosave (File > Save showed a warning box every time)
+        if (!m_project->scrivenerLockRefused.isEmpty()) {
+            emit m_project->saveFailed(err);
+            return false;
+        }
         QMessageBox::warning(this, tr("Save"), err);
         return false;
     }

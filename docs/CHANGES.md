@@ -3,6 +3,57 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.64.2 alpha (2026-11-10)
+
+A new AppImage and a program update for the AppImages of the same runtime (0.60.0 alpha and later). It fixes what the
+full run of the system test of 0.64.1 found.
+
+- **Fixed: crashes**. Adding a comment or a footnote over text of several formats (seen after a long run of edits and
+  undos); choosing an entry of Navigate > Go To, a Quick Reference or a bookmark menu whose document had been deleted
+  meanwhile; a speech model download that was cut off and resumed (Speech Transcription 1.3). The same mistake (changing text while walking
+  through it) was also taken out of the Scrivener writer, the import options, the objects' texts and the inspector's
+  snapshot view.
+- **Fixed: a picture cut and pasted was lost when the text was saved**, and letters typed right after a picture
+  could take the picture's format and were then saved as pictures, one per letter.
+- **Scrivener projects**: a picture in the notes is kept; a synopsis that starts with a space keeps it; a text
+  changed in Scrivener (or on another computer) while the project was open here is shown at the next opening (before,
+  the old text stayed until the project changed again); a project opened and closed without a change stays as it was
+  (the .scrivx was written anew in this program's layout, the label colors, the top folders, the name of the computer
+  that wrote it last, and the search index were changed); the leftover of a save that Scrivener did not finish (`content.rtf.XXXXXX`) is no longer imported as a
+  document; Scrivener's lock names who has the project open in either form of the file.
+- **A project folder or a Scrivener project renamed or moved while open is no longer made anew**. Saving made a new
+  folder under the old name that held only the documents changed since; the real project could then not be put back
+  under its name. Now saving fails with a message, your changes stay in the program, and the next save after the
+  folder is back writes them.
+- **The spare copy of a project file opens the project**. Opening `settings/spare-copy.qbx` showed every text empty,
+  and a backup made then held only the settings folder.
+- **Word counts**: an accent written as a character of its own, letters outside the common Unicode range and numbers
+  such as 3,500 or 1.000.000 now count as one word each.
+- **Superscript and subscript at the end of a word** act on what you type next (H₂O); before, they changed the word.
+- **German quotes while typing**: an apostrophe typed after a word closes an open ‚ with ‘; an apostrophe inside a
+  word (geht’s) stays one.
+- **Markdown storage**: a paragraph of the style Centered keeps its style (it came back as a paragraph centered by
+  hand); a bold or italic run that ends with a space of a format of its own no longer comes back with its asterisks as
+  text; a centered paragraph keeps no-break spaces at its ends.
+- **Notices that come while you type no longer take the keys**: "Project Opened Elsewhere" and "Other Versions Kept"
+  appear beside the window without taking the keyboard, so what you type still goes into the text. Before, the keys
+  went into the notice, and a Space could press "Close the Project Here"; the typing after it was lost.
+- **A save that fails when you switch to another program is told** (the window saves when it loses the focus); on a
+  full disk it failed silently. A Scrivener project's search index that cannot be written fails the save as well.
+- **Backspace at the start of a list item** takes the paragraph out of the list with the spacing and indent of its
+  style; it kept the list's until the project was opened again.
+- **RTF files whose font is named after its italic or bold face** ("SitkaTextItalic") give italic or bold text also
+  in projects that take the project's own fonts for imported text.
+- **A second start with a project that is open** brings its window to the front (before: the question whether to open
+  it anyway, and then a second window on the same project). Another project still opens in a window of its own.
+- **The Documents menu** names the label and status lists as the project calls them (Project > Project Settings).
+- **File > Options in "This project"**: settings that belong to the program alone (the computer's name and the like)
+  changed there are kept (they were dropped).
+- **File > Save while Scrivener has the project open** shows the notice once, as the automatic save does, instead of a
+  second message.
+- **Documents > Snapshots > Take Snapshot** says so when the snapshot cannot be written.
+- **Compile through Pandoc (EPUB) without an author** no longer writes an empty author (e-book checkers refuse it).
+
 ## 0.64.1 alpha (2026-11-09)
 
 A new AppImage (also as the full version with all add-ons) and a program update for the AppImages of the same runtime

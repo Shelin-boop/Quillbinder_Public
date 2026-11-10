@@ -87,9 +87,22 @@ bool CommandExporter::exportManuscript(const Manuscript &m, const QString &path,
         s.replace(QLatin1String("{author}"), m.author);
         return s;
     };
+    // 0.64.2: an argument whose only value is an empty title or author ("author={author}" without an author)
+    // is left out with the option before it ("--metadata"): Pandoc wrote an empty dc:creator, which EPUB
+    // checkers refuse
     QStringList args;
-    for (const QString &a : m_arguments)
+    for (const QString &a : m_arguments) {
+        const bool emptyValue = (a.contains(QLatin1String("{author}")) && m.author.trimmed().isEmpty()
+                                 && QString(a).remove(QLatin1String("{author}")).endsWith(QLatin1Char('=')))
+                                || (a.contains(QLatin1String("{title}")) && m.title.trimmed().isEmpty()
+                                    && QString(a).remove(QLatin1String("{title}")).endsWith(QLatin1Char('=')));
+        if (emptyValue) {
+            if (!args.isEmpty() && args.last().startsWith(QLatin1Char('-')))
+                args.removeLast();
+            continue;
+        }
         args << subst(a);
+    }
     QProcess proc;
     proc.setWorkingDirectory(tmp.path());
     // Inside the AppImage some variables point into the image (Qt plugin

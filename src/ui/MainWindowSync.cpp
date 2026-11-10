@@ -133,12 +133,14 @@ void MainWindow::renewLocks(bool write)
             box->setObjectName(QStringLiteral("lockTakenNotice"));
             QPushButton *close = box->addButton(tr("Close the Project Here"), QMessageBox::AcceptRole);
             close->setObjectName(QStringLiteral("lockTakenClose"));
-            box->setDefaultButton(box->addButton(tr("Keep Working"), QMessageBox::RejectRole));
+            QPushButton *keep = box->addButton(tr("Keep Working"), QMessageBox::RejectRole);
+            box->setDefaultButton(keep);
+            box->setEscapeButton(keep);
             connect(box, &QMessageBox::buttonClicked, this, [this, close](QAbstractButton *b) {
                 if (b == close)
                     QTimer::singleShot(0, this, [this] { closeProject(); });
             });
-            box->open();
+            showWithoutTakingKeys(box, keep);
             return;
         }
         if (write || !l.exists)
@@ -212,7 +214,20 @@ void MainWindow::showConflictNotice()
                                 QMessageBox::Ok, this);
     box->setAttribute(Qt::WA_DeleteOnClose);
     box->setObjectName(QStringLiteral("conflictNotice"));
-    box->open();
+    showWithoutTakingKeys(box, box->button(QMessageBox::Ok));
+}
+
+// 0.64.2: a notice that comes after a save, while the writer may be typing, does not take the keys: it is shown
+// beside the window (not modal, not made the active window), so the next keys still go into the text, and a Space
+// meant for the text cannot press a button (before, the keys went into the notice, and a Space pressed the
+// focused button: "Close the Project Here" closed the project, and the typing after it went nowhere: X-10).
+void MainWindow::showWithoutTakingKeys(QMessageBox *box, QAbstractButton *safe)
+{
+    box->setWindowModality(Qt::NonModal);
+    box->setAttribute(Qt::WA_ShowWithoutActivating);
+    box->show();
+    if (safe)
+        safe->setFocus(Qt::OtherFocusReason);   // when the writer does go to the notice
 }
 
 } // namespace qb

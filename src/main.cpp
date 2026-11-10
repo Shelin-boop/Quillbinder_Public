@@ -225,6 +225,22 @@ int main(int argc, char **argv)
         return app.exec();
     }
 
+    // 0.64.2: started again with a project that a running window of this program shows: that window
+    // comes to the front and this start ends (before, it asked the lock question "open in another window")
+    if (!selftest && !parser.positionalArguments().isEmpty()) {
+        const QString arg = QFileInfo(parser.positionalArguments().constFirst()).absoluteFilePath();
+        if (!arg.endsWith(QLatin1String(".qbpkg"), Qt::CaseInsensitive))
+            for (const QString &peer : qb::toolhost::host().peers()) {
+                const QJsonObject r = qb::toolhost::Host::query(
+                    peer, QJsonObject{{QStringLiteral("cmd"), QStringLiteral("showProject")}, {QStringLiteral("path"), arg}}, 3000);
+                if (r.value(QStringLiteral("ok")).toBool()) {
+                    std::fprintf(stderr, "%s is open in a running window of %s; that window was brought to the front.\n",
+                                 qPrintable(arg), QB_APP_NAME);
+                    qb::launcher::confirmStart();
+                    return 0;
+                }
+            }
+    }
     qb::MainWindow w;
     if (selftest) {
         // Used before a program update is installed: everything loaded, window built.

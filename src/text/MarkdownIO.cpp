@@ -760,6 +760,18 @@ struct BlockInfo {
     bool pageBreak = false; // "{: page=before}": the paragraph starts a new page
 };
 
+// 0.64.2: spaces and tabs off both ends, but not other white space: a centered paragraph ("->text<-") kept
+// no-break spaces at its ends only until it was saved (QString::trimmed takes every kind of space)
+QString trimmedAscii(const QString &s)
+{
+    int a = 0, b = s.size();
+    while (a < b && (s.at(a) == QLatin1Char(' ') || s.at(a) == QLatin1Char('\t')))
+        ++a;
+    while (b > a && (s.at(b - 1) == QLatin1Char(' ') || s.at(b - 1) == QLatin1Char('\t')))
+        --b;
+    return s.mid(a, b - a);
+}
+
 bool isSeparatorLine(const QString &line)
 {
     const QString t = line.trimmed();
@@ -836,7 +848,7 @@ BlockInfo parseBlock(const QString &line, const Formatting &f)
     }
     if ((m = centerRe.match(line)).hasMatch()) {
         bi.centered = true;
-        bi.content = m.captured(1).trimmed();
+        bi.content = trimmedAscii(m.captured(1));
         return bi;
     }
     bi.content = line;
@@ -925,21 +937,27 @@ private:
     QList<Seg> segments(const QTextBlock &b, const ParagraphStyle *ps)
     {
         QList<Seg> segs;
+        // 0.64.2: a fragment is split where pictures are; only U+FFFC is a picture (text with a picture's
+        // format, left by a paste, was written as one picture per letter)
+        QList<QPair<QString, QTextCharFormat>> pieces;
         for (auto it = b.begin(); !it.atEnd(); ++it) {
             const QTextFragment f = it.fragment();
-            if (!f.isValid())
-                continue;
+            if (f.isValid())
+                pieces << text::pictureSafePieces(f.text(), f.charFormat());
+        }
+        for (const auto &piece : pieces) {
+            const QTextCharFormat pieceFormat = piece.second;
             // what the styles give is not written: the style names say it
-            const QTextCharFormat cf = styles::withoutStyles(f.charFormat(), ps, m_f);
+            const QTextCharFormat cf = styles::withoutStyles(pieceFormat, ps, m_f);
             Seg base;
-            const Style *cs = styles::findChar(m_f, f.charFormat().stringProperty(props::CharStyle));
+            const Style *cs = styles::findChar(m_f, pieceFormat.stringProperty(props::CharStyle));
             if (cs)
                 base.cls = cs->name;
             // text that is not bold (not italic) although its style is: a span says so (0.40.3)
             const bool styleBold = (ps && ps->bold) || (cs && cs->bold);
             const bool styleItalic = (ps && ps->italic) || (cs && cs->italic);
-            const bool notBold = styleBold && f.charFormat().fontWeight() < QFont::DemiBold;
-            const bool notItalic = styleItalic && !f.charFormat().fontItalic();
+            const bool notBold = styleBold && pieceFormat.fontWeight() < QFont::DemiBold;
+            const bool notItalic = styleItalic && !pieceFormat.fontItalic();
             if (cf.fontWeight() >= QFont::DemiBold)
                 base.attrs |= A_B;
             if (cf.fontItalic())
@@ -979,7 +997,7 @@ private:
                 base.css = css.join(QLatin1String("; "));
             }
 
-            const QString txt = f.text();
+            const QString txt = piece.first;
             if (cf.isImageFormat()) {
                 for (int i = 0; i < txt.size(); ++i) {
                     Seg s = base;
@@ -1170,7 +1188,9 @@ private:
                 const QString &str = items[i].s;
                 while (n < str.size() && str.at(str.size() - 1 - n).isSpace())
                     ++n;
-                if (n > 0 && n < str.size()) {
+                // 0.64.2: also when the text is only white space (a space of its own format at the end of a bold
+                // run): "**ca **" is no emphasis to the reader and came back with its asterisks as text
+                if (n > 0) {
                     const QString ws = str.right(n);
                     items[i].s.chop(n);
                     items.insert(q, {Item::Text, 0, ws});
@@ -1555,10 +1575,9 @@ QString paragraphLine(Writer &w, const QTextBlock &b, const Formatting &f)
         prefix = QString(ps->headingLevel, QLatin1Char('#')) + QLatin1Char(' ');
     } else if (ps && ps->name == QLatin1String("Block Quote")) {
         prefix = QStringLiteral("> ");
-    } else if (ps && ps->name == QLatin1String("Centered")) {
-        prefix = QStringLiteral("->");
-        suffix = QStringLiteral("<-");
     } else if (ps) {
+        // 0.64.2: the style "Centered" as every other style ("::Centered:: "); written as "->text<-" it came back
+        // as a paragraph centered by hand, without its style. "->text<-" stays for centering by hand.
         prefix = QLatin1String("::") + ps->name + QLatin1String(":: ");
     } else if (b.blockFormat().alignment() & Qt::AlignHCenter) {
         prefix = QStringLiteral("->");
@@ -1597,7 +1616,7 @@ QString paragraphLine(Writer &w, const QTextBlock &b, const Formatting &f)
         if (unstyled)
             body = escapeBlockStart(body, raw);
         else if (!suffix.isEmpty())
-            body = body.trimmed();
+            body = trimmedAscii(body);
         else if (prefix.endsWith(QLatin1Char(' ')))
             ; // prefix already separates
     }
@@ -1762,8 +1781,12 @@ QString toStandardMarkdown(const QString &dialect)
     static const QRegularExpression styleRe(QStringLiteral("^::[^:]{1,60}::\\s?"));
     QString out;
     bool prevList = false;
+    static const QRegularExpression centeredRe(QStringLiteral("^::Centered::\\s?(.*)$"));
     for (int i = 0; i < lines.size(); ++i) {
         QString line = lines[i];
+        // the style Centered as MultiMarkdown centers (0.64.2: it is written as a style now)
+        if (const auto cm = centeredRe.match(line); cm.hasMatch() && !cm.captured(1).trimmed().isEmpty())
+            line = QStringLiteral("->") + cm.captured(1).trimmed() + QStringLiteral("<-");
         line.remove(styleRe);
         const bool isList = listRe.match(line).hasMatch();
         if (i > 0)

@@ -654,32 +654,41 @@ void SpeechTool::downloadModel(const QString &id)
         return;
     }
     file->seek(file->size());
-    m_reply = m_net->get(req);
+    QNetworkReply *reply = m_net->get(req);
+    m_reply = reply;
+    // 0.64.2: every handler works on its own reply (not on m_reply, which a later download
+    // replaces and the end of this one clears); a crash in the system test came from a late
+    // signal of an earlier reply.
     auto first = std::make_shared<bool>(true);
-    connect(m_reply, &QNetworkReply::readyRead, this, [this, file, first, have] {
+    connect(reply, &QNetworkReply::readyRead, this, [reply, file, first, have] {
+        if (!reply->isOpen())
+            return;
         if (*first) {
             *first = false;
             // the server sent the whole file instead of the rest
-            if (have > 0 && m_reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200) {
+            if (have > 0 && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200) {
                 file->resize(0);
                 file->seek(0);
             }
         }
-        file->write(m_reply->readAll());
+        file->write(reply->readAll());
     });
-    connect(m_reply, &QNetworkReply::downloadProgress, this, [this, have](qint64 done, qint64 total) {
-        const bool rest = m_reply && m_reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 206;
+    connect(reply, &QNetworkReply::downloadProgress, this, [this, reply, have](qint64 done, qint64 total) {
+        const bool rest = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 206;
         emit modelProgress((rest ? have : 0) + done, total > 0 ? (rest ? have : 0) + total : -1);
     });
-    connect(m_reply, &QNetworkReply::finished, this, [this, file, e] {
-        file->write(m_reply->readAll());
+    connect(reply, &QNetworkReply::finished, this, [this, reply, file, e] {
+        if (reply->isOpen())
+            file->write(reply->readAll());
         file->close();
         file->deleteLater();
-        const int status = m_reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const QNetworkReply::NetworkError err = m_reply->error();
-        const QString errText = m_reply->errorString();
-        m_reply->deleteLater();
-        m_reply = nullptr;
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QNetworkReply::NetworkError err = reply->error();
+        const QString errText = reply->errorString();
+        disconnect(reply, nullptr, this, nullptr);
+        reply->deleteLater();
+        if (m_reply == reply)
+            m_reply = nullptr;
         if (m_cancelled) {
             finishJob(false, tr("Download stopped. A new download continues where this one stopped."));
             return;

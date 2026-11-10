@@ -31,6 +31,11 @@ void applyNoteDisplay(QTextCharFormat &cf);
 int convertNotes(QTextDocument *doc, bool commentsInline, bool footnotesInline, bool annotationsAreComments);
 QTextCharFormat highlightFormat(const QColor &color = QColor());
 QTextCharFormat linkFormat(const QString &href);
+// 0.64.2: a picture's format on characters other than the object character (U+FFFC) is not a picture;
+// such text (left with a picture's format after a paste) is written as text, with this format
+QTextCharFormat withoutPicture(const QTextCharFormat &cf);
+// a fragment's text split where pictures are: (text, format) pieces, a picture as one U+FFFC each
+QList<QPair<QString, QTextCharFormat>> pictureSafePieces(const QString &text, const QTextCharFormat &cf);
 QTextCharFormat revisionFormat(int level);
 QColor revisionColor(int level);
 // the five colors of the revisions: the standard ones, and those of File > Options > Editing (0.21)

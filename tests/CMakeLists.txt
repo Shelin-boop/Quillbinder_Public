@@ -207,6 +207,12 @@ target_link_libraries(qb_v064_tests PRIVATE qbui Qt6::Test)
 # Merge Cells / Undo / Redo / Delete Rows (xvfb-run -a ./qb_v0641_tests /tmp/shots).
 add_executable(qb_v0641_tests v0641_tests.cpp ${QB_RESOURCES_QRC})
 target_link_libraries(qb_v0641_tests PRIVATE qbui Qt6::Test)
+
+# Version 0.64.2: the fixes of the system test's full run of 0.64.1 (2026-11-10): linked notes over several formats,
+# stale menu entries, word counts, pictures' formats, German quotes, Markdown paragraphs, project and .scriv folders
+# that are gone, a .scriv opened and closed unchanged, outside changes while open (xvfb-run -a ./qb_v0642_tests /tmp/shots).
+add_executable(qb_v0642_tests v0642_tests.cpp ${QB_RESOURCES_QRC})
+target_link_libraries(qb_v0642_tests PRIVATE qbui Qt6::Test)
 # The fixes of the external audit of 2026-11-09 (0.64.1): ids and archive names that are no plain
 # names, damaged archives and Word files, settings a project may hold, packages with code, links that
 # lead out, the socket folder, Scrivener's lock before every write, the name of this computer

@@ -429,6 +429,10 @@ QJsonObject Host::handle(const QJsonObject &req)
             ok = m_window->receiveFromTool(sendRequestFromJson(req.value(QStringLiteral("request")).toObject()), &error);
         return QJsonObject{{QStringLiteral("ok"), ok}, {QStringLiteral("error"), error}};
     }
+    if (cmd == QLatin1String("showProject")) {   // 0.64.2: a second start with a project open here
+        const bool ok = m_window && m_window->showIfOpen(req.value(QStringLiteral("path")).toString());
+        return QJsonObject{{QStringLiteral("ok"), ok}};
+    }
     if (cmd == QLatin1String("run")) {
         const QString key = req.value(QStringLiteral("key")).toString();
         return QJsonObject{{QStringLiteral("ok"), runCommand(key)}};

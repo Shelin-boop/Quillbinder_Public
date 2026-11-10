@@ -320,6 +320,33 @@ void MainWindow::toolSearch(const QString &text)
     activateWindow();
 }
 
+bool MainWindow::showIfOpen(const QString &path)
+{
+    if (!m_project || path.isEmpty())
+        return false;
+    auto canon = [](const QString &p) {
+        const QFileInfo fi(p);
+        const QString c = fi.canonicalFilePath();
+        return c.isEmpty() ? fi.absoluteFilePath() : c;
+    };
+    const QString want = canon(path);
+    QStringList mine = {canon(m_project->indexPath()), canon(m_project->folderPath())};
+    if (!m_project->scrivenerPath.isEmpty()) {
+        mine << canon(m_project->scrivenerPath);
+        // the .scrivx inside the .scriv folder names the same project
+        if (want.endsWith(QLatin1String(".scrivx"), Qt::CaseInsensitive))
+            mine << canon(QFileInfo(path).absolutePath());
+    }
+    if (!mine.contains(want) && !(want.endsWith(QLatin1String(".scrivx"), Qt::CaseInsensitive) && mine.contains(canon(QFileInfo(path).absolutePath()))))
+        return false;
+    if (isMinimized())
+        showNormal();
+    show();
+    raise();
+    activateWindow();
+    return true;
+}
+
 QJsonObject MainWindow::toolProjectInfo() const
 {
     QJsonObject o;

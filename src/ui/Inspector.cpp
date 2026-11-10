@@ -1183,17 +1183,22 @@ void Inspector::showSnapshot()
         QTextDocument *d = snapDoc.clone(m_snapView);
         if (!qFuzzyCompare(z, 1.0)) {
             QTextCursor c(d);
+            struct Sized { int s, e; qreal pt; };
+            QList<Sized> sized;   // collected first: a format change invalidates the fragment walk (0.64.2)
             for (QTextBlock b = d->begin(); b.isValid(); b = b.next())
                 for (auto it = b.begin(); !it.atEnd(); ++it) {
                     const QTextFragment f = it.fragment();
                     if (!f.charFormat().hasProperty(QTextFormat::FontPointSize) || f.charFormat().fontPointSize() <= 0)
                         continue;
-                    QTextCharFormat cf;
-                    cf.setFontPointSize(f.charFormat().fontPointSize() * z);
-                    c.setPosition(f.position());
-                    c.setPosition(f.position() + f.length(), QTextCursor::KeepAnchor);
-                    c.mergeCharFormat(cf);
+                    sized.append({f.position(), f.position() + f.length(), f.charFormat().fontPointSize() * z});
                 }
+            for (const Sized &p : sized) {
+                QTextCharFormat cf;
+                cf.setFontPointSize(p.pt);
+                c.setPosition(p.s);
+                c.setPosition(p.e, QTextCursor::KeepAnchor);
+                c.mergeCharFormat(cf);
+            }
         }
         showDoc(d);
         return;

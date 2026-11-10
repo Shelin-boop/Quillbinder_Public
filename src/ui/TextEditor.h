@@ -98,6 +98,8 @@ public:
     void toggleUnderline();
     void toggleStrike();
     void toggleSuperscript();
+    // the block at c leaves its list and takes its style's spacing and indent again (0.64.2)
+    void leaveList(QTextCursor &c);
     void toggleSubscript();
     void toggleHighlight(const QColor &color = QColor());
     // The color buttons of the format bar (0.17): the selected text gets the

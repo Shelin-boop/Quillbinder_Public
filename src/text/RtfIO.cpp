@@ -514,8 +514,9 @@ private:
         QList<Frag> frags;
         for (auto it = b.begin(); !it.atEnd(); ++it) {
             const QTextFragment f = it.fragment();
-            if (f.isValid())
-                frags.append({f.text(), f.charFormat()});
+            if (f.isValid())   // 0.64.2: only U+FFFC is a picture (text with a picture's format stays text)
+                for (const auto &piece : text::pictureSafePieces(f.text(), f.charFormat()))
+                    frags.append({piece.first, piece.second});
         }
         QByteArray out;
         int i = 0;
@@ -1545,16 +1546,19 @@ private:
             f.setVerticalAlignment(QTextCharFormat::AlignSuperScript);
         else if (c.sub)
             f.setVerticalAlignment(QTextCharFormat::AlignSubScript);
-        if (m_opt.keepFormatting) {
-            const QString fam = c.f >= 0 ? m_fonts.value(c.f) : QString();
-            if (!fam.isEmpty() && fam.compare(m_bodyFamily, Qt::CaseInsensitive) != 0)
-                f.setFontFamilies(QStringList{fam});
-            // a face name that says italic or bold ("Georgia-BoldItalic") without \i or \b (0.60.3)
+        {
+            // a face name that says italic or bold ("Georgia-BoldItalic") without \i or \b (0.60.3); 0.64.2: also
+            // when the formatting is not kept (a Markdown project keeps italic and bold, as it does for \i and \b)
             const fontfaces::Resolved face = c.f >= 0 ? m_fontFaces.value(c.f) : fontfaces::Resolved();
             if (face.italic)
                 f.setFontItalic(true);
             if (face.bold && !c.b)
                 f.setFontWeight(QFont::Bold);
+        }
+        if (m_opt.keepFormatting) {
+            const QString fam = c.f >= 0 ? m_fonts.value(c.f) : QString();
+            if (!fam.isEmpty() && fam.compare(m_bodyFamily, Qt::CaseInsensitive) != 0)
+                f.setFontFamilies(QStringList{fam});
             if (c.fs > 0 && qAbs(c.fs / 2.0 - m_f.fontSize) > 0.01)
                 f.setFontPointSize(c.fs / 2.0);
             if (c.cf > 0 && c.cf < m_colors.size()) {
@@ -1875,6 +1879,31 @@ private:
             styleName = known->name;
         else
             styleName.clear();
+        // 0.64.2: the writer turns a style's relative size (Caption: one step smaller) into points; a size equal to
+        // the style's is the style's again, not a size set by hand (Markdown -> RTF -> Markdown added
+        // "font-size:10.5pt" to every caption)
+        if (m_opt.keepFormatting)
+            if (const Style *st = styles::find(m_f, styleName); st && st->sizeAdjust != 0) {
+                static const double factors[] = {0.7, 0.8, 1.0, 1.2, 1.5, 2.0, 2.4};
+                const double styleSize = m_f.fontSize * factors[qBound(0, st->sizeAdjust + 2, 6)];
+                struct Piece { int s, e; };
+                QList<Piece> pieces;
+                const QTextBlock blk = m_cur.block();
+                for (auto it = blk.begin(); !it.atEnd(); ++it) {
+                    const QTextCharFormat cf = it.fragment().charFormat();
+                    if (cf.hasProperty(QTextFormat::FontPointSize) && qRound(cf.fontPointSize() * 2) == qRound(styleSize * 2))
+                        pieces.append({it.fragment().position(), it.fragment().position() + it.fragment().length()});
+                }
+                for (const Piece &pc : pieces) {
+                    QTextCursor c(m_doc);
+                    c.setPosition(pc.s);
+                    c.setPosition(pc.e, QTextCursor::KeepAnchor);
+                    QTextCharFormat cf = c.charFormat();
+                    cf.clearProperty(QTextFormat::FontPointSize);
+                    cf.setProperty(QTextFormat::FontSizeAdjustment, st->sizeAdjust);
+                    c.setCharFormat(cf);
+                }
+            }
         QTextBlockFormat bf;
         if (m_opt.keepFormatting) {
             bf.setProperty(props::Style, styleName);

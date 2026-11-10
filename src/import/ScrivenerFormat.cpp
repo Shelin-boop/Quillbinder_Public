@@ -29,6 +29,7 @@
 #include <QJsonObject>
 #include <QSaveFile>
 #include <QRegularExpression>
+#include <QXmlStreamReader>
 #include <QSet>
 #include <QSysInfo>
 #include <QTextBlock>
@@ -163,16 +164,70 @@ QString scrivxStamp(const QString &path)
 }
 
 // two .scrivx files that differ only in the root's Modified and ModID attributes
+// 0.64.2: compared as XML (elements, attributes in any order, text other than white space between elements), not
+// byte for byte: a .scrivx that Scrivener wrote differs in its layout from what this program writes (attribute
+// order, quotes, indentation), so every full save wrote it anew although nothing in it had changed (C-37). The
+// root's Device (which program wrote it last) does not count either.
+static QString canonicalScrivx(const QByteArray &x, bool *ok)
+{
+    QXmlStreamReader r(x);
+    QString out;
+    out.reserve(x.size());
+    int depth = 0;
+    bool leaf = false;   // only white space since the last start tag: a title of one space is a title
+    QString pendingSpace;
+    while (!r.atEnd()) {
+        r.readNext();
+        if (r.isStartElement()) {
+            leaf = true;
+            pendingSpace.clear();
+            ++depth;
+            QStringList attrs;
+            for (const QXmlStreamAttribute &a : r.attributes()) {
+                const QString n = a.qualifiedName().toString();
+                if (depth == 1 && (n == QLatin1String("Modified") || n == QLatin1String("ModID") || n == QLatin1String("Device")))
+                    continue;
+                attrs << n + QLatin1Char('=') + a.value().toString();
+            }
+            attrs.sort();
+            out += QLatin1Char('<') + r.qualifiedName().toString() + QLatin1Char(' ') + attrs.join(QChar(0x1F)) + QLatin1Char('>');
+        } else if (r.isEndElement()) {
+            if (leaf)
+                out += pendingSpace;
+            leaf = false;
+            pendingSpace.clear();
+            --depth;
+            out += QStringLiteral("</>");
+        } else if (r.isCharacters()) {
+            if (!r.isWhitespace()) {
+                out += r.text().toString();
+                leaf = false;
+            } else if (leaf) {
+                pendingSpace += r.text().toString();
+            }
+        }
+    }
+    *ok = !r.hasError();
+    return out;
+}
+
 bool sameExceptStamps(const QByteArray &a, const QByteArray &b)
 {
-    static const QRegularExpression stamps(QStringLiteral(" (Modified|ModID)=\"[^\"]*\""));
+    if (a.isEmpty())
+        return false;
+    bool okA = false, okB = false;
+    const QString ca = canonicalScrivx(a, &okA), cb = canonicalScrivx(b, &okB);
+    if (okA && okB)
+        return ca == cb;
+    // not readable as XML: the old comparison of the bytes, without the stamps in the root
+    static const QRegularExpression stamps(QStringLiteral(" (Modified|ModID|Device)=\"[^\"]*\""));
     auto norm = [](const QByteArray &x) {
         const int end = x.indexOf('>', x.indexOf("<ScrivenerProject"));
         QString head = QString::fromUtf8(x.left(end + 1));
         head.remove(stamps);
         return head.toUtf8() + x.mid(end + 1);
     };
-    return !a.isEmpty() && norm(a) == norm(b);
+    return norm(a) == norm(b);
 }
 
 bool copyDir(const QString &from, const QString &to, const QStringList &skipRelative = {})
@@ -198,6 +253,21 @@ bool copyDir(const QString &from, const QString &to, const QStringList &skipRela
         }
     }
     return true;
+}
+
+// a color as Scrivener writes it ("r g b", each 0 to 1), as the reader takes it
+QColor parseScrivColor(const QString &s)
+{
+    const QStringList p = s.simplified().split(QLatin1Char(' '));
+    if (p.size() < 3)
+        return QColor();
+    bool ok1, ok2, ok3;
+    const double r = p[0].toDouble(&ok1), g = p[1].toDouble(&ok2), b = p[2].toDouble(&ok3);
+    if (!ok1 || !ok2 || !ok3)
+        return QColor();
+    if (r > 1.0 || g > 1.0 || b > 1.0)
+        return QColor(int(r), int(g), int(b));
+    return QColor::fromRgbF(float(r), float(g), float(b));
 }
 
 QString colorText(const QColor &c)
@@ -312,19 +382,17 @@ QByteArray scrivRtf(const QTextDocument *src, const Formatting &f, QList<Note> *
         QColor color;
     };
     QList<Range> ranges;
+    // links are changed after the walk: a format change invalidates the fragment iterator (0.64.2)
+    struct Link { int start, end; QString href; };
+    QList<Link> links;
     for (QTextBlock b = doc->begin(); b.isValid(); b = b.next()) {
         for (auto it = b.begin(); !it.atEnd(); ++it) {
             const QTextFragment fr = it.fragment();
             const QTextCharFormat cf = fr.charFormat();
             const auto kind = NoteKind(cf.intProperty(props::NoteKind));
-            if (cf.isAnchor() && cf.anchorHref().startsWith(QLatin1String("qb://"))) {
-                QTextCursor c(doc.get());
-                c.setPosition(fr.position());
-                c.setPosition(fr.position() + fr.length(), QTextCursor::KeepAnchor);
-                QTextCharFormat lf;
-                lf.setAnchorHref(QStringLiteral("scrivlnk://") + cf.anchorHref().mid(5));
-                c.mergeCharFormat(lf);
-            }
+            if (cf.isAnchor() && cf.anchorHref().startsWith(QLatin1String("qb://")))
+                links.append({fr.position(), fr.position() + fr.length(),
+                              QStringLiteral("scrivlnk://") + cf.anchorHref().mid(5)});
             if (kind == NoteKind::None)
                 continue;
             const QString id = cf.stringProperty(props::NoteId);
@@ -340,6 +408,14 @@ QByteArray scrivRtf(const QTextDocument *src, const Formatting &f, QList<Note> *
                     cf.property(props::NoteColor).value<QColor>()};
             ranges << r;
         }
+    }
+    for (const Link &l : links) {
+        QTextCursor c(doc.get());
+        c.setPosition(l.start);
+        c.setPosition(l.end, QTextCursor::KeepAnchor);
+        QTextCharFormat lf;
+        lf.setAnchorHref(l.href);
+        c.mergeCharFormat(lf);
     }
     // from the end, so that positions stay right
     std::sort(ranges.begin(), ranges.end(), [](const Range &a, const Range &b) { return a.start > b.start; });
@@ -389,7 +465,9 @@ QByteArray scrivRtf(const QTextDocument *src, const Formatting &f, QList<Note> *
         QTextCursor c(doc.get());
         c.setPosition(aStart);
         c.setPosition(aEnd, QTextCursor::KeepAnchor);
-        // keep bold, italics, fonts; take the note properties away
+        // keep bold, italics, fonts; take the note properties away (collected first, 0.64.2)
+        struct Piece { int s, e; QTextCharFormat f; };
+        QList<Piece> pieces;
         for (QTextBlock b = doc->findBlock(aStart); b.isValid() && b.position() < aEnd; b = b.next()) {
             for (auto it = b.begin(); !it.atEnd(); ++it) {
                 const QTextFragment fr = it.fragment();
@@ -400,11 +478,14 @@ QByteArray scrivRtf(const QTextDocument *src, const Formatting &f, QList<Note> *
                 text::clearNoteProps(cf);
                 cf.setAnchor(true);
                 cf.setAnchorHref(QStringLiteral("scrivcmt://") + n.id);
-                QTextCursor fc(doc.get());
-                fc.setPosition(fs);
-                fc.setPosition(fe, QTextCursor::KeepAnchor);
-                fc.setCharFormat(cf);
+                pieces.append({fs, fe, cf});
             }
+        }
+        for (const Piece &p : pieces) {
+            QTextCursor fc(doc.get());
+            fc.setPosition(p.s);
+            fc.setPosition(p.e, QTextCursor::KeepAnchor);
+            fc.setCharFormat(p.f);
         }
         if (notes)
             notes->prepend(n);
@@ -527,8 +608,11 @@ QDomElement binderItem(XmlCtx &c, const BinderItem *it)
         setChildText(meta, QStringLiteral("StatusID"), QString::number(it->status), metaAfter);
     else
         removeChild(meta, QStringLiteral("StatusID"));
-    setChildText(meta, QStringLiteral("IncludeInCompile"), it->includeInCompile ? QStringLiteral("Yes") : QStringLiteral("No"),
-                 {QStringLiteral("NotesTextSelection"), QStringLiteral("IconFileName"), QStringLiteral("FileExtension")});
+    // 0.64.2: an item without the entry is included (that is how it is read), so "Yes" is not added where the
+    // file has none (Scrivener leaves it out on its top folders; adding it changed a .scriv opened and closed)
+    if (!it->includeInCompile || !meta.firstChildElement(QStringLiteral("IncludeInCompile")).isNull() || existing.isNull())
+        setChildText(meta, QStringLiteral("IncludeInCompile"), it->includeInCompile ? QStringLiteral("Yes") : QStringLiteral("No"),
+                     {QStringLiteral("NotesTextSelection"), QStringLiteral("IconFileName"), QStringLiteral("FileExtension")});
     // the icon by Scrivener's name ("Notes (Yellow Notepad)", "Front Matter", an own icon's name) (0.17)
     {
         const QString iconName = icons::scrivenerName(it->icon);
@@ -541,7 +625,12 @@ QDomElement binderItem(XmlCtx &c, const BinderItem *it)
         setChildText(meta, QStringLiteral("FileExtension"), it->fileExt.toLower());
     else
         removeChild(meta, QStringLiteral("FileExtension"));
-    if (it->type != ItemType::Image && it->type != ItemType::Pdf
+    // 0.64.2: an element of the file that has no MetaData keeps having none, and text settings are added only
+    // to items new to the file (Scrivener leaves both out on its top folders; adding them changed a .scriv
+    // opened and closed without a change)
+    if (!existing.isNull() && existing.firstChildElement(QStringLiteral("MetaData")).isNull() && !meta.hasChildNodes())
+        e.removeChild(meta);
+    if (it->type != ItemType::Image && it->type != ItemType::Pdf && existing.isNull()
         && e.firstChildElement(QStringLiteral("TextSettings")).isNull()) {
         QDomElement ts = child(e, QStringLiteral("TextSettings"), true, {QStringLiteral("Children")});
         setChildText(ts, QStringLiteral("TextSelection"), QStringLiteral("0,0"));
@@ -681,6 +770,23 @@ QByteArray buildScrivx(Project *p, const QByteArray &existing, const QString &id
 
     // labels and statuses
     {
+        // 0.64.2: a label's color as the file wrote it stays when it is still the same color (this program
+        // keeps 8 bits per channel; writing 0.992157 for Scrivener's 0.993495 changed the file without a change)
+        QHash<int, QString> oldColor;
+        for (QDomElement l = root.firstChildElement(QStringLiteral("LabelSettings")).firstChildElement(QStringLiteral("Labels"))
+                                 .firstChildElement(QStringLiteral("Label"));
+             !l.isNull(); l = l.nextSiblingElement(QStringLiteral("Label")))
+            if (l.hasAttribute(QStringLiteral("Color")))
+                oldColor.insert(l.attribute(QStringLiteral("ID")).toInt(), l.attribute(QStringLiteral("Color")));
+        auto labelColor = [&](const Label &l) {
+            const QString was = oldColor.value(l.id);
+            if (!was.isEmpty()) {
+                const QColor o = parseScrivColor(was);
+                if (o.isValid() && l.color.isValid() && o.toRgb().rgb() == l.color.toRgb().rgb())
+                    return was;
+            }
+            return colorText(l.color);
+        };
         QDomElement ls = replaceTop(root, QStringLiteral("LabelSettings"), after(QStringLiteral("LabelSettings")));
         setChildText(ls, QStringLiteral("Title"), p->labelTitle);
         setChildText(ls, QStringLiteral("DefaultLabelID"), QStringLiteral("-1"));
@@ -692,7 +798,7 @@ QByteArray buildScrivx(Project *p, const QByteArray &existing, const QString &id
         for (const Label &l : p->labels) {
             QDomElement e = c.dom.createElement(QStringLiteral("Label"));
             e.setAttribute(QStringLiteral("ID"), l.id);
-            e.setAttribute(QStringLiteral("Color"), colorText(l.color));
+            e.setAttribute(QStringLiteral("Color"), labelColor(l));
             e.appendChild(c.dom.createTextNode(l.name));
             labels.appendChild(e);
         }
@@ -917,16 +1023,29 @@ bool lockedByScrivener(const QString &scrivDir, QString *who)
         QFile f(QDir(scrivDir).filePath(rel));
         if (!f.open(QIODevice::ReadOnly))
             continue;
+        // 0.64.2: "key=value" lines or XML elements, the keys in any case ("user", "userName", "host",
+        // "hostName", "computer", "computerName"); the exact form Scrivener writes was not verified here
         QString user, host;
-        for (const QByteArray &line : f.readAll().split('\n')) {
-            const QString l = QString::fromUtf8(line).trimmed();
-            if (l.startsWith(QLatin1String("user=")))
-                user = l.mid(5);
-            else if (l.startsWith(QLatin1String("host=")))
-                host = l.mid(5);
+        const QString all = QString::fromUtf8(f.read(64 * 1024));
+        static const QRegularExpression kv(QStringLiteral("^\\s*(user|username|host|hostname|computer|computername)\\s*[=:]\\s*(.+?)\\s*$"),
+                                           QRegularExpression::CaseInsensitiveOption | QRegularExpression::MultilineOption);
+        static const QRegularExpression el(QStringLiteral("<(user|username|host|hostname|computer|computername)>\\s*([^<]+?)\\s*</"),
+                                           QRegularExpression::CaseInsensitiveOption);
+        for (const QRegularExpression *re : {&kv, &el}) {
+            auto it = re->globalMatch(all);
+            while (it.hasNext()) {
+                const auto m = it.next();
+                const QString k = m.captured(1).toLower();
+                QString &target = k.startsWith(QLatin1String("user")) ? user : host;
+                if (target.isEmpty())
+                    target = m.captured(2).left(100);
+            }
         }
         if (who)
-            *who = (user.isEmpty() && host.isEmpty()) ? QObject::tr("unknown") : QObject::tr("%1 on %2").arg(user, host);
+            *who = (user.isEmpty() && host.isEmpty()) ? QObject::tr("unknown")
+                   : user.isEmpty()                    ? host
+                   : host.isEmpty()                    ? user
+                                                       : QObject::tr("%1 on %2").arg(user, host);
         return true;
     }
     return false;
@@ -1005,6 +1124,17 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
     WriteReport localReport;
     WriteReport &rep = reportIn ? *reportIn : localReport;
     const QString scrivDir = QFileInfo(scrivDirIn).absoluteFilePath();
+    // 0.64.2: a .scriv this program wrote before and that is gone now (renamed, moved, its drive not connected)
+    // is not made anew: the new one held only the changed documents (the others counted as changed elsewhere),
+    // and its name kept the original from being put back. The changes stay in the working copy.
+    if (!QFileInfo::exists(scrivDir) && !state.theirs.isEmpty()
+        && QFileInfo(state.scrivPath).absoluteFilePath() == scrivDir) {
+        if (error)
+            *error = QObject::tr("The Scrivener project is no longer at %1 (renamed, moved, or its drive is not connected). "
+                                 "Nothing was written into it; your changes are kept here. Put the project back and save again.")
+                         .arg(scrivDir);
+        return false;
+    }
     if (!QDir().mkpath(scrivDir + QLatin1String("/Files/Data")) || !QDir().mkpath(scrivDir + QLatin1String("/Settings"))
         || !QDir().mkpath(scrivDir + QLatin1String("/Snapshots"))) {
         if (error)
@@ -1471,8 +1601,15 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
     // the search index holds every text: a quick write leaves it for the next full one
     if (quick) {
         state.indexStale = state.indexStale || textChanged;
-    } else if (textChanged || state.indexStale || !QFile::exists(scrivDir + QLatin1String("/Files/search.indexes"))) {
-        writeFile(scrivDir + QLatin1String("/Files/search.indexes"), searchIndexes(p), nullptr);
+    } else if (textChanged || state.indexStale || (fresh && !QFile::exists(scrivDir + QLatin1String("/Files/search.indexes")))) {
+        // 0.64.2: a missing index is made only with a change or for a new .scriv (Scrivener makes its own):
+        // a .scriv opened and closed without a change stays as it was
+        // 0.64.2: a failed write is reported (as for docs.checksum): on a full disk the save looked fine when the
+        // texts had gone out with an earlier automatic save and only the index was left (S-D06)
+        if (!writeFile(scrivDir + QLatin1String("/Files/search.indexes"), searchIndexes(p), error)) {
+            state.indexStale = true;
+            return false;
+        }
         state.indexStale = false;
     }
     laps.lap("search index");
@@ -1491,6 +1628,12 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
     QString fp = quick ? updatedFingerprint(scrivDir, touched, scrivxSha) : QString();
     if (fp.isEmpty())
         fp = fingerprint(scrivDir);
+    // 0.64.2: files changed in the .scriv while the project was open stay there (keptTheirs); a fingerprint
+    // taken now would cover them, so the next opening would not read them and the program kept showing the
+    // old text (S-D02). Without a fingerprint the next opening reads the .scriv again and takes them.
+    // A quick write does not look at Scrivener's files: it keeps an empty fingerprint empty.
+    if (rep.keptTheirs > 0 || (quick && state.fingerprint.isEmpty()))
+        fp.clear();
     state.fingerprint = fp;
     laps.lap("fingerprint");
     laps.print(quick ? "scrivener write (quick)" : "scrivener write");
@@ -1881,8 +2024,12 @@ bool sync(Project *p, QString *error, bool quick)
     st.load(stateFile(p));
     laps.lap("state read");
     WriteReport rep;
-    if (!write(p, p->scrivenerPath, st, &rep, error, quick))
+    if (!write(p, p->scrivenerPath, st, &rep, error, quick)) {
+        // 0.64.2: what was written before the failure is recorded (each file's hash goes into the state only once it
+        // is written): without it the next save took this program's own files for changes made elsewhere
+        st.save(stateFile(p));
         return false;
+    }
     laps.lap("write");
     const bool ok = st.save(stateFile(p));
     // 0.64.1: files changed in the .scriv elsewhere whose version could not be kept were not written

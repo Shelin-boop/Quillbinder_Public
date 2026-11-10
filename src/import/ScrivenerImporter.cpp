@@ -32,6 +32,14 @@ namespace {
 bool s_haveNewFormatting = false;
 Formatting s_newFormatting;
 
+// 0.64.2: the temporary file of a write that was cut off (Qt's QSaveFile adds ".XXXXXX" to the name)
+bool isSaveLeftover(const QString &name)
+{
+    static const QRegularExpression re(QStringLiteral("^content\\.(rtf|comments|styles|txt)\\.[A-Za-z0-9]{6}$"),
+                                       QRegularExpression::CaseInsensitiveOption);
+    return re.match(name).hasMatch();
+}
+
 QColor parseScrivColor(const QString &s)
 {
     const QStringList p = s.simplified().split(QLatin1Char(' '));
@@ -387,6 +395,8 @@ void importItem(Ctx &c, const QDomElement &e, BinderItem *parent)
     if (!scrivId.isEmpty() && c.v3 && type == ItemType::Text) {
         const QDir d(contentBase(c, scrivId));
         for (const QFileInfo &fi : d.entryInfoList({QStringLiteral("content.*")}, QDir::Files)) {
+            if (isSaveLeftover(fi.fileName()))
+                continue;   // 0.64.2: a write cut off (content.rtf.Ab12Cd) is not a file of another kind
             const QString ext = fi.suffix().toLower();
             if (ext == QLatin1String("rtf") || ext == QLatin1String("comments") || ext == QLatin1String("styles")
                 || ext == QLatin1String("txt"))
@@ -414,7 +424,14 @@ void importItem(Ctx &c, const QDomElement &e, BinderItem *parent)
         if (!syn.isEmpty()) {
             QFile f(syn);
             if (f.open(QIODevice::ReadOnly))
-                it->synopsis = QString::fromUtf8(f.readAll()).trimmed();
+            {
+                // 0.64.2: as written, except line breaks at the end (it was trimmed: a synopsis starting
+                // with a space lost it on every save into the .scriv)
+                QString text = QString::fromUtf8(f.readAll());
+                while (text.endsWith(QLatin1Char('\n')) || text.endsWith(QLatin1Char('\r')))
+                    text.chop(1);
+                it->synopsis = text;
+            }
         }
         if (it->hasText()) {
             const QString content = findFile(c, scrivId, QStringLiteral("content.rtf"), QStringLiteral(".rtf"));
@@ -444,6 +461,8 @@ void importItem(Ctx &c, const QDomElement &e, BinderItem *parent)
                 QDir d(contentBase(c, scrivId));
                 for (const QFileInfo &fi : d.entryInfoList(QDir::Files)) {
                     const QString n = fi.fileName().toLower();
+                    if (isSaveLeftover(fi.fileName()))
+                        continue;
                     if (n.startsWith(QLatin1String("content.")) && !n.endsWith(QLatin1String(".comments"))
                         && !n.endsWith(QLatin1String(".rtf")) && !n.endsWith(QLatin1String(".styles"))) {
                         media = fi.absoluteFilePath();

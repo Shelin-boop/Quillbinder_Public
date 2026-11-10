@@ -379,7 +379,10 @@ static void optionsChecks()
         OptionsDialog d(&w, 0);
         d.show();
         bool seen = false;
+        // since 0.64.1 a file that names programs, folders or addresses brings the question
+        // "loadOptionsPlaces" first (closed: No), then the notice that the options were loaded (0.64.2)
         answerBox(300, QString(), QStringLiteral("OK"), nullptr, &seen);
+        answerBox(900, QString(), QStringLiteral("OK"), nullptr, &seen);
         QString e;
         const bool ok = d.loadOptionsFromFile(optFile, &e);
         check(ok && seen && as.recentCount == 7 && as.capitalizeSentences && MindMapPrefs::instance().iconSize == 24,

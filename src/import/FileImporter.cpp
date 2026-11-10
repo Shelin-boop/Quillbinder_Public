@@ -225,6 +225,9 @@ static void applyImportOptions(QTextDocument *doc, const Formatting &f, bool ann
             bf.setAlignment(b.blockFormat().alignment());
             bc.setBlockFormat(bf);
         }
+        // collected first: a format change invalidates the fragment walk of this block (0.64.2)
+        struct Piece { int s, e; QTextCharFormat f; };
+        QList<Piece> pieces;
         for (auto it = b.begin(); !it.atEnd(); ++it) {
             const QTextFragment fr = it.fragment();
             const QTextCharFormat cf = fr.charFormat();
@@ -234,10 +237,13 @@ static void applyImportOptions(QTextDocument *doc, const Formatting &f, bool ann
             QTextCharFormat out = normalChar;
             out.merge(display::semanticCharFormat(cf));
             out.clearProperty(props::CharStyle);
+            pieces.append({fr.position(), fr.position() + fr.length(), out});
+        }
+        for (const Piece &p : pieces) {
             QTextCursor fc(doc);
-            fc.setPosition(fr.position());
-            fc.setPosition(fr.position() + fr.length(), QTextCursor::KeepAnchor);
-            fc.setCharFormat(out);
+            fc.setPosition(p.s);
+            fc.setPosition(p.e, QTextCursor::KeepAnchor);
+            fc.setCharFormat(p.f);
         }
     }
     c.endEditBlock();

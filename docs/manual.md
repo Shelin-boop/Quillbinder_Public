@@ -47,7 +47,7 @@ If you log out or shut the computer down while {{APP}} is open, it saves everyth
 
 A project is a folder named *YourTitle*{{SUFFIX}}. Inside it, every document is an ordinary text file, so your writing stays readable even without {{APP}}. Double-click the *YourTitle*{{FILE}} file inside the folder to open the project. Do not rename or move files inside the project folder by hand.
 
-A project should be open in only one window at a time. If it is already open in another window or on another computer (for example through a synced folder), {{APP}} warns you before opening it.
+A project should be open in only one window at a time. If it is already open in another window or on another computer (for example through a synced folder), {{APP}} warns you before opening it. Starting {{APP}} again with a project that is open in a window of the program (from the file manager or a desktop shortcut) brings that window to the front instead of opening the project twice; another project opens in a window of its own.
 
 **A project in a synced folder** (OneDrive, Dropbox, Nextcloud, Syncthing, or any other sync program) can be used on several computers, one at a time. Close it on one computer and let the sync program finish before you open it on the other. {{APP}} helps with that on the level of files, whatever the sync program is:
 
@@ -238,6 +238,8 @@ Collections are extra lists of documents, for example "Needs research" or "Scene
 | Paste without formatting | Ctrl+Shift+V |
 | Paste with formatting (from other programs) | Ctrl+Alt+Shift+V |
 | Undo / redo | Ctrl+Z / Ctrl+Shift+Z |
+
+Bold, italic, superscript and the like work on the selection. Without a selection, inside a word they change the whole word; at the end of a word (or with nothing around the cursor) they change what you type next: type "H", press Ctrl+=, type "2", press Ctrl+= again and type "O" for H₂O.
 
 **Styles** (Heading 1–6, Title, Subtitle, Block Quote, and your own) are chosen from the list at the left of the format bar. Styles tell Compile what a paragraph is, so use them instead of making text large and bold by hand. See "Styles" below.
 
@@ -436,7 +438,7 @@ The **Insert** menu also offers the current date and time, special characters (e
 **File > Options > Corrections** sets what is corrected while you type. A word is corrected when you finish it, that is when you type a space, a Return, or a punctuation mark after it; **Ctrl+Z** right after takes back the correction alone.
 
 - **Fix capitalization of sentences**: the first word of a sentence gets a capital letter (not after abbreviations such as "Dr." or "e.g."). **Capitalize "i"**: "i" and "i'm" become "I" and "I'm". Both are off at first.
-- **Smart quotes** in the style you choose (“English”, „German“, »German«, «French», ”Swedish”); an apostrophe inside a word is always ’. Two hyphens become an em dash (—); three periods can become one ellipsis character (off at first). In script mode these can be switched off.
+- **Smart quotes** in the style you choose (“English”, „German“, »German«, «French», ”Swedish”); an apostrophe inside a word is always ’. Where the closing single mark is not the apostrophe (German ‚…‘, French ‹…›), a ' typed right after a word closes a single mark that is open in the paragraph; if you then go on typing letters ("geht's"), it becomes the apostrophe again. Two hyphens become an em dash (—); three periods can become one ellipsis character (off at first). In script mode these can be switched off.
 - **Quote marks already in the project** (since 0.61.1): under **Smart quotes**, **Convert to Typographic Quotes…** turns the straight " and ' of the project into the marks of the style chosen beside **Use smart quotes**, and **Convert to Straight Quotes…** turns every typographic quote mark and apostrophe back into " and '. A window like Project Replace (section 9) opens: the direction and the style once more, where to convert (titles, text, notes, synopses, custom metadata, comments and footnotes), the scope (the entire project or the documents selected in the binder, the Trash only when you tick it), and a snapshot of every text before it changes (ticked at first). **Count** shows how many marks would change; **Convert** asks once more and does it. Formatting stays (a bold quote mark stays bold). A mark opens after nothing, a space, a bracket, a dash, or an opening mark, and closes otherwise; an apostrophe inside a word or before a number ('90s) becomes ’. A straight mark with a space on both sides stays as it is, and an apostrophe at the start of a word ('tis) becomes an opening mark: look at those afterwards. Find and Replace cannot do this, because one mark has to become an opening or a closing one depending on its neighbors.
 - **Data detection**: a typed web address becomes a link; **[[Title]]** becomes a link to the document with that title, and if there is none, a new empty document of that name is made next to the text (Scrivener's "document links").
 - **Additional substitutions**: a list of what you type and what it becomes, for example "(c)" and ©, "->" and →. **Edit Substitutions...** changes the list; **Standard Substitutions** brings back the list the program comes with.

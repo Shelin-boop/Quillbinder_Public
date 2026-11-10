@@ -145,6 +145,12 @@ TextEditor::TextEditor(QWidget *parent) : QTextEdit(parent)
     setLineWrapColumnOrWidth(600);
     setAcceptRichText(true);
     setTabChangesFocus(false);
+    // 0.64.2: right after a picture the cursor carries the picture's format, and text typed or pasted there took
+    // it over (a pasted megabyte of text was saved as pictures); text gets the format without the picture
+    connect(this, &QTextEdit::currentCharFormatChanged, this, [this](const QTextCharFormat &f) {
+        if (f.isImageFormat() && !textCursor().hasSelection())   // a selected picture stays as it is
+            setCurrentCharFormat(text::withoutPicture(f));
+    });
     setFrameShape(QFrame::NoFrame);
     setMouseTracking(true);
     viewport()->setMouseTracking(true);
@@ -564,12 +570,25 @@ void TextEditor::smartTyping(QKeyEvent *e, bool *handled)
     // File > Options > Corrections: no smart punctuation in script mode
     if (s.scriptNoSmart && scriptActive())
         return;
+    auto textBefore = [&]() -> QString { return c.block().text().left(c.positionInBlock()); };
     if (s.smartQuotes && (ch == QLatin1Char('"') || ch == QLatin1Char('\''))) {
         // the quotes of the style chosen in File > Options > Corrections (0.21)
-        c.insertText(QString(autocorrect::smartQuote(ch, prevChar(), s.quoteStyle)));
+        const QChar mark = c.hasSelection() ? autocorrect::smartQuote(ch, QChar(), s.quoteStyle)
+                                            : autocorrect::smartQuote(ch, textBefore(), s.quoteStyle);
+        c.insertText(QString(mark));
         setTextCursor(c);
         *handled = true;
         return;
+    }
+    if (s.smartQuotes && !c.hasSelection() && ch.isLetterOrNumber()) {
+        // 0.64.2: a closing single mark followed by a letter was an apostrophe (geht's while a ‚ was open)
+        const int at = autocorrect::apostropheBeforeLetter(textBefore(), ch, s.quoteStyle);
+        if (at >= 0) {
+            QTextCursor m(document());
+            m.setPosition(c.block().position() + at);
+            m.setPosition(c.block().position() + at + 1, QTextCursor::KeepAnchor);
+            m.insertText(QString(QChar(0x2019)), m.charFormat());
+        }
     }
     // three periods become an ellipsis (0.21; off by default)
     if (s.ellipsis && ch == QLatin1Char('.') && !c.hasSelection() && c.positionInBlock() >= 2
@@ -699,6 +718,17 @@ void TextEditor::keyPressEvent(QKeyEvent *e)
         return;
     QTextCursor c = textCursor();
 
+    // 0.64.2: Backspace at the start of a list item takes the paragraph out of the list, and it gets the spacing and
+    // indent of its style again (it kept the list's, without them being set by hand, and showed the style's only
+    // after the project was opened again)
+    if (e->key() == Qt::Key_Backspace && noMods && !(e->modifiers() & Qt::ShiftModifier) && !c.hasSelection()
+        && c.atBlockStart() && c.block().textList() && !isReadOnly()) {
+        c.beginEditBlock();
+        leaveList(c);
+        c.endEditBlock();
+        setTextCursor(c);
+        return;
+    }
     if ((e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter) && !(e->modifiers() & Qt::ShiftModifier)) {
         const QString style = c.block().blockFormat().property(props::Style).toString();
         const Formatting f = m_project ? m_project->formatting : Formatting();
@@ -709,6 +739,16 @@ void TextEditor::keyPressEvent(QKeyEvent *e)
                 list->remove(c.block());
                 QTextBlockFormat bf = display::normalBlockFormat(f);
                 c.setBlockFormat(bf);
+                return;
+            }
+            // 0.64.2: the next item with the same paragraph format. Qt's own Enter set the spacing after the item left
+            // behind to 0 (not by hand, so it came back after the project was opened again: S-W03)
+            if (!c.hasSelection() && !(ps && !ps->next.isEmpty() && c.atBlockEnd())) {
+                c.beginEditBlock();
+                c.insertBlock(c.blockFormat(), c.charFormat());
+                c.endEditBlock();
+                setTextCursor(c);
+                ensureCursorVisible();
                 return;
             }
         }
@@ -1105,10 +1145,21 @@ static void insertSemantic(QTextCursor &c, QTextDocument *src, const Formatting 
         else if (keepParagraphs && c.block().length() <= 1)
             c.setBlockFormat(bf);
         first = false;
-        for (auto it = b.begin(); !it.atEnd(); ++it) {
-            const QTextFragment frag = it.fragment();
-            const QTextCharFormat in = frag.charFormat();
+        // 0.64.2: one picture per U+FFFC (a fragment of several pictures gave one), and text beside it with a
+        // picture's format is text (it was saved as one picture per letter)
+        QList<QPair<QString, QTextCharFormat>> pieces;
+        for (auto it = b.begin(); !it.atEnd(); ++it)
+            if (it.fragment().isValid())
+                pieces << text::pictureSafePieces(it.fragment().text(), it.fragment().charFormat());
+        for (const auto &piece : pieces) {
+            const QTextCharFormat in = piece.second;
             if (in.isImageFormat()) {
+                // 0.64.2: the picture comes along (RTF names it rtfimage://..., held only by the source
+                // document: a cut-and-pasted picture was lost when the text was saved)
+                const QUrl url(in.toImageFormat().name());
+                const QVariant pic = src->resource(QTextDocument::ImageResource, url);
+                if (pic.isValid() && !c.document()->resource(QTextDocument::ImageResource, url).isValid())
+                    c.document()->addResource(QTextDocument::ImageResource, url, pic);
                 c.insertImage(in.toImageFormat());
                 continue;
             }
@@ -1121,7 +1172,7 @@ static void insertSemantic(QTextCursor &c, QTextDocument *src, const Formatting 
             else
                 cf.clearProperty(props::CharStyle);
             merged.merge(cf);
-            c.insertText(frag.text(), merged);
+            c.insertText(piece.first, merged);
         }
     }
 }
@@ -1299,8 +1350,20 @@ void TextEditor::dropEvent(QDropEvent *e)
 void TextEditor::mergeFormat(const QTextCharFormat &fmt)
 {
     QTextCursor c = textCursor();
-    if (!c.hasSelection())
+    if (!c.hasSelection()) {
+        // 0.64.2: the whole word only when the cursor is inside it; at a word's end (just typed) or start the
+        // format is for what is typed next ("H", Subscript, "2" made the H subscript too)
+        const QTextBlock b = c.block();
+        const QString t = b.text();
+        const int at = c.position() - b.position();
+        auto wordChar = [](QChar ch) { return ch.isLetterOrNumber() || ch == QLatin1Char('\'') || ch == QChar(0x2019); };
+        const bool inside = at > 0 && at < t.size() && wordChar(t.at(at - 1)) && wordChar(t.at(at));
+        if (!inside) {
+            mergeCurrentCharFormat(fmt);
+            return;
+        }
         c.select(QTextCursor::WordUnderCursor);
+    }
     c.mergeCharFormat(fmt);
     mergeCurrentCharFormat(fmt);
 }
@@ -1694,6 +1757,20 @@ void TextEditor::setAlignment(Qt::Alignment a)
     applyParaSpec(sp);
 }
 
+// The block at c leaves its list: the spacing and indent of its style again, what was set by hand kept (0.64.2)
+void TextEditor::leaveList(QTextCursor &c)
+{
+    const Formatting f = m_project ? m_project->formatting : Formatting();
+    QTextBlock b = c.block();
+    if (QTextList *l = b.textList())
+        l->remove(b);
+    const QTextBlockFormat old = c.blockFormat();
+    const QString style = old.property(props::Style).toString();
+    QTextBlockFormat bf = direct::withParaSpec(display::blockFormatFor(f, style), direct::paraSpec(old), f, false);
+    bf.setIndent(0);
+    c.setBlockFormat(bf);
+}
+
 void TextEditor::toggleList(bool numbered)
 {
     QTextCursor c = textCursor();
@@ -1705,12 +1782,8 @@ void TextEditor::toggleList(bool numbered)
             QTextBlock b = document()->findBlock(c.selectionStart());
             const QTextBlock last = document()->findBlock(c.selectionEnd());
             while (b.isValid()) {
-                if (QTextList *bl = b.textList())
-                    bl->remove(b);
                 QTextCursor bc(b);
-                QTextBlockFormat bf = bc.blockFormat();
-                bf.setIndent(0);
-                bc.setBlockFormat(bf);
+                leaveList(bc);   // 0.64.2: the style's spacing and indent again
                 if (b == last)
                     break;
                 b = b.next();
@@ -2204,8 +2277,12 @@ QString TextEditor::addLinkedNote(NoteKind kind, const QString &noteText)
     stopBeforePunctuation(c);
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     const QTextCharFormat nf = text::noteFormat(kind, id, noteText);
-    c.beginEditBlock();
     const int start = c.selectionStart(), end = c.selectionEnd();
+    // Collect the pieces first: setting a format splits and merges the block's fragments, and
+    // a fragment iterator of that block is no longer valid afterwards (crash in the system
+    // test's undo marathon, 0.64.2).
+    struct Piece { int s, e; QTextCharFormat f; };
+    QList<Piece> pieces;
     for (QTextBlock b = document()->findBlock(start); b.isValid() && b.position() <= end; b = b.next()) {
         for (auto it = b.begin(); !it.atEnd(); ++it) {
             const QTextFragment fr = it.fragment();
@@ -2215,11 +2292,15 @@ QString TextEditor::addLinkedNote(NoteKind kind, const QString &noteText)
             QTextCharFormat cf = fr.charFormat();
             text::clearNoteProps(cf);
             cf.merge(nf);
-            QTextCursor fc(document());
-            fc.setPosition(s);
-            fc.setPosition(e, QTextCursor::KeepAnchor);
-            fc.setCharFormat(cf);
+            pieces.append({s, e, cf});
         }
+    }
+    c.beginEditBlock();
+    for (const Piece &p : pieces) {
+        QTextCursor fc(document());
+        fc.setPosition(p.s);
+        fc.setPosition(p.e, QTextCursor::KeepAnchor);
+        fc.setCharFormat(p.f);
     }
     c.endEditBlock();
     c.clearSelection();

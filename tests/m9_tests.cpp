@@ -1157,6 +1157,9 @@ int main(int argc, char **argv)
                           && cproj->docs()->text(np->id)->begin().blockFormat().stringProperty(props::Style) == QLatin1String("Script > Page")
                           && menuText(byKey(&w, QStringLiteral("scriptMode"))->text()) == QLatin1String("Script Mode - Comic Script"),
                       QStringLiteral("in the template project a new page is a script page"));
+                // 0.64.2: closed while its folder is still there (the temporary folder goes at the end of this block;
+                // since 0.64.2 a save into a folder that is gone fails and Close Project asks, which hung the test)
+                w.closeProject();
             }
         }
     }

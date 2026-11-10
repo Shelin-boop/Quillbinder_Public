@@ -367,11 +367,17 @@ void MainWindow::createMenus()
                     continue;
                 const QString title = QString(it->title).replace(QLatin1Char('&'), QLatin1String("&&"));
                 if (it->children.isEmpty()) {
-                    menu->addAction(icons::forItem(m_project.get(), it), title, this, [this, it] { openQuickReference(it); });
+                    menu->addAction(icons::forItem(m_project.get(), it), title, this, [this, id = it->id] {
+                        if (BinderItem *item = m_project ? m_project->item(id) : nullptr)
+                            openQuickReference(item);
+                    });
                 } else {
                     QMenu *sub = menu->addMenu(icons::forItem(m_project.get(), it), title);
                     if (!it->isRootFolder()) {
-                        sub->addAction(icons::forItem(m_project.get(), it), title, this, [this, it] { openQuickReference(it); });
+                        sub->addAction(icons::forItem(m_project.get(), it), title, this, [this, id = it->id] {
+                        if (BinderItem *item = m_project ? m_project->item(id) : nullptr)
+                            openQuickReference(item);
+                    });
                         sub->addSeparator();
                     }
                     fill(sub, it);
@@ -439,6 +445,12 @@ void MainWindow::createMenus()
     m_defaultTemplateMenu = docs->addMenu(tr("Default &Template for Subdocuments"));
     m_labelMenu = docs->addMenu(tr("&Label"));
     m_statusMenu = docs->addMenu(tr("&Status"));
+    // 0.64.2: the project's own names for labels and status, already when the Documents menu opens (before,
+    // the submenus showed them only after they had been opened once)
+    connect(docs, &QMenu::aboutToShow, this, [this] {
+        m_labelMenu->setTitle(m_project && !m_project->labelTitle.isEmpty() ? m_project->labelTitle : tr("&Label"));
+        m_statusMenu->setTitle(m_project && !m_project->statusTitle.isEmpty() ? m_project->statusTitle : tr("&Status"));
+    });
     add(docs, {"includeCompile", "bookmark"});
     auto fillLabelStatus = [this] {
         m_labelMenu->clear();
@@ -715,8 +727,10 @@ void MainWindow::createToolBars()
                 BinderItem *it = m_project->item(b.internalId());
                 if (!it)
                     continue;
-                m_bookmarkMenu->addAction(icons::forItem(m_project.get(), it), it->title, this, [this, it] {
-                    loadInPane(m_active, {it});
+                m_bookmarkMenu->addAction(icons::forItem(m_project.get(), it), it->title, this, [this, id = it->id] {
+                    // looked up again when chosen (0.64.2): the project may have changed since
+                    if (BinderItem *item = m_project && m_active ? m_project->item(id) : nullptr)
+                        loadInPane(m_active, {item});
                 });
             } else {
                 const QString target = b.target;
@@ -1072,8 +1086,15 @@ void MainWindow::fillGoToMenu(QMenu *menu)
             if (it == m_project->trash())
                 continue;
             const QString title = QString(it->title.isEmpty() ? tr("Untitled") : it->title).replace(QLatin1Char('&'), QLatin1String("&&"));
-            auto go = [this, it] {
-                loadInPane(m_active, {it});
+            // look the item up again when chosen: an entry of a menu filled earlier must not
+            // reach an item of a project closed since (crash in the system test's menu monkey, 0.64.2)
+            auto go = [this, id = it->id] {
+                if (!m_project || !m_active)
+                    return;
+                BinderItem *item = m_project->item(id);
+                if (!item)
+                    return;
+                loadInPane(m_active, {item});
                 m_active->focusEditor();
             };
             if (it->children.isEmpty()) {

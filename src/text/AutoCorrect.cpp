@@ -100,6 +100,36 @@ QChar smartQuote(QChar typed, QChar before, const QString &style)
     return typed;
 }
 
+QChar smartQuote(QChar typed, const QString &before, const QString &style)
+{
+    const QChar last = before.isEmpty() ? QChar() : before.back();
+    const QString q = quoteChars(style);
+    // 0.64.2: after a word, a ' closes a single mark that is open in the paragraph, where the style's closing
+    // single mark is not the apostrophe (German ‚single‘); else it is an apostrophe as before
+    if (typed == QLatin1Char('\'') && last.isLetterOrNumber() && q.at(3) != QChar(0x2019)) {
+        bool open = false;
+        for (QChar c : before)
+            if (c == q.at(2))
+                open = true;
+            else if (c == q.at(3))
+                open = false;
+        if (open)
+            return q.at(3);
+    }
+    return smartQuote(typed, before.isEmpty() ? QChar(' ') : last, style);
+}
+
+int apostropheBeforeLetter(const QString &before, QChar typed, const QString &style)
+{
+    // a closing single mark between two letters was an apostrophe ("‚Wie geht's?‘": the ' of geht's came while
+    // the mark was open)
+    const QString q = quoteChars(style);
+    const int n = before.size();
+    if (!typed.isLetterOrNumber() || n < 2 || q.at(3) == QChar(0x2019))
+        return -1;
+    return before.at(n - 1) == q.at(3) && before.at(n - 2).isLetterOrNumber() ? n - 1 : -1;
+}
+
 QList<QPair<int, QChar>> convertQuotes(const QString &text, bool typographic, const QString &style)
 {
     QList<QPair<int, QChar>> out;

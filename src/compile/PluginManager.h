@@ -43,7 +43,12 @@ public:
     tools::ToolInterface *tool(const QString &id) const;
     // Media engines (media/MediaApi.h, add-on "Media Playback"); the first one plays.
     QList<media::EngineInterface *> mediaEngines() const { return m_media; }
-    media::EngineInterface *mediaEngine() const { return m_media.isEmpty() ? nullptr : m_media.first(); }
+    media::EngineInterface *mediaEngine() const { return m_media.isEmpty() || m_mediaOff ? nullptr : m_media.first(); }
+#ifdef QB_TEST_SWITCHES
+    // tests only (0.64.2): the program as without the add-on "Media Playback", although its plugin is loaded
+    // (a loaded plugin cannot be taken out again; the system test's S-M06)
+    void setMediaOffForTests(bool off) { m_mediaOff = off; }
+#endif
     ExporterInterface *exporter(const QString &id) const;
     // Importers (import/ImporterApi.h): files by suffix, web pages.
     QList<importers::ImporterInterface *> importers() const { return m_importers; }
@@ -61,6 +66,7 @@ private:
     QList<ExporterInterface *> m_exporters;
     QList<tools::ToolInterface *> m_tools;
     QList<media::EngineInterface *> m_media;
+    bool m_mediaOff = false;
     QList<importers::ImporterInterface *> m_importers;
     QList<QObject *> m_owned;
     QList<CommandExporter *> m_commands;

@@ -149,6 +149,43 @@ QTextCharFormat highlightFormat(const QColor &color)
     return cf;
 }
 
+QTextCharFormat withoutPicture(const QTextCharFormat &cf)
+{
+    QTextCharFormat out = cf;
+    if (!out.isImageFormat())
+        return out;
+    out.setObjectType(QTextFormat::NoObject);
+    for (int p : {int(QTextFormat::ImageName), int(QTextFormat::ImageTitle), int(QTextFormat::ImageAltText),
+                  int(QTextFormat::ImageWidth), int(QTextFormat::ImageHeight), int(QTextFormat::ImageQuality)})
+        out.clearProperty(p);
+    return out;
+}
+
+QList<QPair<QString, QTextCharFormat>> pictureSafePieces(const QString &text, const QTextCharFormat &cf)
+{
+    QList<QPair<QString, QTextCharFormat>> out;
+    if (!cf.isImageFormat()) {
+        out.append({text, cf});
+        return out;
+    }
+    const QTextCharFormat plain = withoutPicture(cf);
+    QString run;
+    for (const QChar c : text) {
+        if (c == QChar::ObjectReplacementCharacter) {
+            if (!run.isEmpty()) {
+                out.append({run, plain});
+                run.clear();
+            }
+            out.append({QString(c), cf});
+        } else {
+            run += c;
+        }
+    }
+    if (!run.isEmpty())
+        out.append({run, plain});
+    return out;
+}
+
 QTextCharFormat linkFormat(const QString &href)
 {
     QTextCharFormat cf;
@@ -211,6 +248,37 @@ static bool isWordChar(QChar c)
     return c.isLetterOrNumber() || c == QLatin1Char('\'') || c == QChar(0x2019) || c == QLatin1Char('-');
 }
 
+// 0.64.2: what belongs to the word at plain[i], beyond isWordChar: combining marks (an accent written as
+// a character of its own, "e" + U+0301), letters outside the first Unicode plane (two UTF-16 units), and a
+// comma, period or apostrophe between two digits ("3,500", "1.000.000" are one word, as in Unicode's word rules)
+static bool belongsToWord(const QString &plain, int i, bool inWord, bool *letter)
+{
+    const QChar c = plain.at(i);
+    *letter = false;
+    if (c.isHighSurrogate() && i + 1 < plain.size() && plain.at(i + 1).isLowSurrogate()) {
+        const char32_t u = QChar::surrogateToUcs4(c, plain.at(i + 1));
+        *letter = QChar::isLetterOrNumber(u);
+        return *letter || (inWord && QChar::isMark(u));
+    }
+    if (c.isLowSurrogate() && i > 0 && plain.at(i - 1).isHighSurrogate()) {
+        const char32_t u = QChar::surrogateToUcs4(plain.at(i - 1), c);
+        *letter = QChar::isLetterOrNumber(u);
+        return *letter || (inWord && QChar::isMark(u));
+    }
+    if (c.isLetterOrNumber()) {
+        *letter = true;
+        return true;
+    }
+    if (isWordChar(c))
+        return true;
+    if (inWord && c.isMark())
+        return true;
+    if (inWord && (c == QLatin1Char(',') || c == QLatin1Char('.') || c == QChar(0x066B) || c == QChar(0x066C))
+        && i > 0 && plain.at(i - 1).isDigit() && i + 1 < plain.size() && plain.at(i + 1).isDigit())
+        return true;
+    return false;
+}
+
 Counts count(const QString &plain)
 {
     Counts r;
@@ -232,12 +300,13 @@ Counts count(const QString &plain)
                 paraHasText = true;
             }
         }
-        if (isWordChar(c)) {
+        bool letter = false;
+        if (belongsToWord(plain, i, inWord, &letter)) {
             if (!inWord) {
                 inWord = true;
                 wordHasAlnum = false;
             }
-            if (c.isLetterOrNumber())
+            if (letter)
                 wordHasAlnum = true;
         } else {
             if (inWord && wordHasAlnum)

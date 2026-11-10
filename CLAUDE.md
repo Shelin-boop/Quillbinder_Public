@@ -122,6 +122,11 @@ changed and what was checked. Preferences:
   nothing replaced when the other version cannot be kept (text, notes, project file), a figure cut and pasted, compile
   progress with the event loop running, cells not justified, Merge with notes, Merge Cells / Undo / Redo / Delete Rows,
   typing in a 1,000-row table against a plain `QTextEdit`; `QB_V0641_ONLY_TYPING=1` runs only that, `QB_V0641_KEYS=<n>`).
+- `qb_v0642_tests` (0.64.2, the fixes of the system test's full run of 0.64.1: word counts, a picture's format on
+  letters and pasted pictures, italic from RTF face names, German quotes, Markdown paragraphs (leading spaces, the style
+  Centered, a bold run ending in a space), the spare copy, project and .scriv folders that are gone, a .scriv as
+  Scrivener writes it opened and closed unchanged, pictures in notes, outside changes while open, Scrivener's XML lock,
+  linked notes over several formats, H2O by subscript, stale menu entries, the Documents menu, `showIfOpen`).
 - `qb_audit1_tests` (0.64.1, the fixes of the external audit of 2026-11-09: ids of a project file and names in archives
   (`core/PathSafety.*`), damaged ZIP entries, a Word 97 file with a looping sector chain (compiles the plugin's `Cfb.cpp`),
   XML nested 20,000 deep, the keys a project may hold and the question of Load Options, the code warning of packages,
@@ -255,6 +260,54 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
 - The add-on brings Qt Multimedia (only `libQt6Multimedia.so.6`: the microphone needs no Qt Multimedia plugin) and Qt's TLS
   plugin; `addons/speech-transcription/stage.sh` exits with 3 when whisper is not built, and `packaging/build-addons.sh`
   then leaves the add-on out. Icons of the add-on are in the program's icon set (Breeze: microphone, record, list).
+
+## Fixes of the system test's full run (0.64.2, 2026-11-10)
+
+- **Formats changed while walking fragments**: never change a char format inside a `QTextBlock::iterator` loop (Qt
+  invalidates the iterator: SIGSEGV in S-W14); collect (start, end, format) first, then apply. Done in
+  `TextEditor::addLinkedNote`, `scrivRtf` (links, note anchors), `FileImporter`'s `applyImportOptions`, `ObjectsUi`,
+  `Inspector` (snapshot zoom).
+- **Menus filled in `aboutToShow`** (Go To, Quick Reference, bookmarks): the lambdas capture the item's id and look it
+  up (`m_project->item(id)`); a pointer captured there crashed after the item was deleted (S-E04).
+- **Pictures**: `text::withoutPicture` / `text::pictureSafePieces` (a picture's format on letters is not a picture; one
+  picture per U+FFFC) in `insertSemantic`, `RtfIO`'s runs, `MarkdownIO`'s segments; `TextEditor` drops the picture
+  format from the current char format after a picture. `insertSemantic` copies the source document's picture resources
+  (RTF on the clipboard names them `rtfimage://...`; the pasted picture was lost at the save).
+  `DocumentStore::setNotesContent` copies resources as `setContent` does (pictures in notes of a .scriv).
+- **Markdown**: the style Centered is written `::Centered::` (`->text<-` stays for centering by hand; `toStandardMarkdown`
+  turns the style back into `->text<-`); `trimmedAscii` for centered paragraphs (no-break spaces at the ends stay);
+  white space at the end of a run moves out of its markers also when it is a text item of its own (`**ca **` was read
+  back as asterisks).
+- **Notices during typing**: `MainWindow::showWithoutTakingKeys` (not modal, `WA_ShowWithoutActivating`, the safe
+  button focused) for `lockTakenNotice` (Keep Working the default and escape button) and `conflictNotice`.
+  `changeEvent`'s full save on the way to another program emits `saveFailed` on failure (not the quick save when a window of the program takes over: m9 hung on a second modal box over Close Project's question). `TextEditor::leaveList` (Backspace at a list
+  item's start, a list switched off): the style's block format with the paragraph's own direct spec.
+- **Scrivener format**: `sameExceptStamps` compares the .scrivx as XML (`canonicalScrivx`: elements, sorted attributes
+  without the root's Modified/ModID/Device, text, white space only in leaf elements), else bytes; a .scriv opened and
+  closed without a change stays byte for byte (label colors kept as written
+  when the 8-bit color is the same, `IncludeInCompile` and `MetaData` not added to elements that had none, `TextSettings`
+  only for new items, `Device` ignored by `sameExceptStamps`, `search.indexes` made only with a change or for a new
+  .scriv); a failed `search.indexes` write fails the sync; `sync` saves the state also when `write` fails (what was
+  written is known); `write` refuses a .scriv that is gone (`state.theirs` known, same path); files kept as theirs
+  (`keptTheirs`) clear the fingerprint so the next opening reads the .scriv (S-D02); the importer skips QSaveFile
+  leftovers (`isSaveLeftover`) and keeps a synopsis' leading spaces; `lockedByScrivener` reads key=value and XML.
+- **Projects**: `Project::resolveProjectFile` maps `settings/spare-copy.qbx` to the project's own file; `saveImpl`
+  refuses when the project folder is gone (no folder made anew with only the changed documents).
+- **Second start**: `main.cpp` asks the running programs (`showProject` through the tool host's link,
+  `MainWindow::showIfOpen`) before making a window; the program that has the project open raises it.
+- Also: `SettingsLayer::takeProjectValues` writes program-only keys changed in "This project" scope to the program
+  file; `manualSave` with Scrivener's lock emits `saveFailed` (one notice); Take Snapshot reports failures; command
+  exporters drop an argument whose `{author}` / `{title}` is empty with its option; word counts
+  (`belongsToWord`); AutoCorrect's `smartQuote(typed, textBefore, style)` and `apostropheBeforeLetter`; the RTF reader
+  takes italic and bold from a face name also without kept fonts; `mergeFormat` changes the whole word only inside it;
+  `SpeechTool`'s download handlers hold their own reply (a resumed download's old reply no longer reaches the new one).
+- **Test switch**: `PluginManager::setMediaOffForTests` (QB_TEST_SWITCHES builds) acts as if Media Playback were not
+  installed (a plugin loaded in the process stays loaded when its add-on is removed).
+- **System test (harness)**: S-T01's typing gate in the 1,000-row table is gone (the writer's decision of 2026-11-10:
+  such a table is a spreadsheet's job); Scrivener format keeps inline notes as linked notes (decision "1A": the model
+  `scrivenerText`); `showDoc`, `cursorTo`, `toEnd` activate the window (focus, Edit commands and shortcuts need it
+  without a window manager); `formatRuns` ignores bold/italic/underline/strike on white space and the formatting of an
+  empty text; `fileDialogLater` sets the focused name field; S-Y04 syncs through `SyncSim` (conflicted copies).
 
 ## The external audit's fixes (0.64.1, report of 2026-11-09)
 

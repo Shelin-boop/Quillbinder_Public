@@ -13,7 +13,9 @@
 #include <QVariantMap>
 #include <memory>
 
+class QAbstractButton;
 class QAction;
+class QMessageBox;
 class QActionGroup;
 class QComboBox;
 class QFontComboBox;
@@ -118,6 +120,9 @@ public:
     void toolShowDocument(const QString &id);
     void toolSearch(const QString &text);
     QJsonObject toolProjectInfo() const;     // title, file, binder (instance link "info")
+    // 0.64.2: a second start with the project this window shows: the window comes to the front
+    // and the second start ends (instance link "showProject")
+    bool showIfOpen(const QString &path);
     // A note of the scratch pad (or another tool): new document or added to a text.
     bool receiveFromTool(const tools::SendRequest &request, QString *error);
     // tool interface 1.1 (0.61)
@@ -171,6 +176,7 @@ private:
     void renewLocks(bool write);
     void releaseLocks();
     void connectSyncSafety(Project *p);
+    void showWithoutTakingKeys(QMessageBox *box, QAbstractButton *safe);
     void showConflictNotice();
     QTimer *m_lockTimer = nullptr;
     QDateTime m_lockOpened;

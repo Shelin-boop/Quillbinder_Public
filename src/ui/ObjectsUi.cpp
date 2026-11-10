@@ -283,19 +283,23 @@ void ObjectTextEdit::setMarkdownText(const QString &md)
     m_loading = true;
     setMarkdown(md);
     // links look like links
+    // collect first: changing a format while walking the fragments invalidates the walk (0.64.2)
     QTextCursor c(document());
+    QList<QPair<int, int>> links;
     for (QTextBlock b = document()->begin(); b.isValid(); b = b.next())
         for (auto it = b.begin(); !it.atEnd(); ++it) {
             const QTextFragment fr = it.fragment();
-            if (!fr.charFormat().isAnchor())
-                continue;
-            QTextCharFormat f;
-            f.setForeground(palette().link());
-            f.setFontUnderline(true);
-            c.setPosition(fr.position());
-            c.setPosition(fr.position() + fr.length(), QTextCursor::KeepAnchor);
-            c.mergeCharFormat(f);
+            if (fr.charFormat().isAnchor())
+                links.append({fr.position(), fr.position() + fr.length()});
         }
+    QTextCharFormat lf;
+    lf.setForeground(palette().link());
+    lf.setFontUnderline(true);
+    for (const auto &r : links) {
+        c.setPosition(r.first);
+        c.setPosition(r.second, QTextCursor::KeepAnchor);
+        c.mergeCharFormat(lf);
+    }
     document()->setModified(false);
     m_loading = false;
 }

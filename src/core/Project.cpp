@@ -137,8 +137,19 @@ QString Project::resolveProjectFile(const QString &path)
             return QString();
         return QDir(path).filePath(files.first());
     }
-    if (fi.suffix() == QLatin1String(QB_PROJECT_FILE_SUFFIX).mid(1))
+    if (fi.suffix() == QLatin1String(QB_PROJECT_FILE_SUFFIX).mid(1)) {
+        // 0.64.2: the spare copy in a project's settings folder names the project itself (opened as a project
+        // of its own it showed every text empty, and a backup made then held only the settings folder)
+        if (fi.fileName() == QLatin1String("spare-copy") + QLatin1String(QB_PROJECT_FILE_SUFFIX)
+            && fi.absoluteDir().dirName() == QLatin1String("settings")) {
+            QDir projectDir = fi.absoluteDir();
+            projectDir.cdUp();
+            const QStringList own = projectDir.entryList({QStringLiteral("*") + QLatin1String(QB_PROJECT_FILE_SUFFIX)}, QDir::Files);
+            if (!own.isEmpty())
+                return projectDir.filePath(own.first());
+        }
         return fi.absoluteFilePath();
+    }
     return QString();
 }
 
@@ -792,6 +803,18 @@ bool Project::saveImpl(QString *error, bool quick)
     m_dirtySince.invalidate();
     if (quick)
         ++m_autosaves;
+    // 0.64.2: a project folder that is gone (renamed, moved, its drive not connected) is not made anew piece by
+    // piece: a new folder held only what changed since, and its name kept the project from being put back. The
+    // changes stay in memory; the next save after the folder is back writes them.
+    if (!m_folder.isEmpty() && !QFileInfo::exists(m_folder)) {
+        const QString why = tr("The project folder is no longer at %1 (renamed, moved, or its drive is not connected). "
+                               "Nothing was written; your changes are kept while the project stays open. Put the folder "
+                               "back and save again.")
+                                .arg(QDir::toNativeSeparators(m_folder));
+        if (error)
+            *error = why;
+        return false;
+    }
     bool ok = true;
     if (m_docs && !m_docs->saveDirty(error))
         ok = false;

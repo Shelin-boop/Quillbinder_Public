@@ -72,8 +72,10 @@ bool take(Project *p, const QString &docId, const QString &title, QString *error
     } while (QFile::exists(QDir(dir).filePath(name)));
     QSaveFile f(QDir(dir).filePath(name));
     if (!f.open(QIODevice::WriteOnly) || safesave::write(f, data) != data.size() || !safesave::commit(f)) {
-        if (error)
-            *error = f.errorString();
+        if (error)   // 0.64.2: the file's name when Qt gives no reason
+            *error = f.errorString().isEmpty() || f.errorString() == QLatin1String("Unknown error")
+                         ? QObject::tr("Cannot write %1").arg(QDir::toNativeSeparators(QDir(dir).filePath(name)))
+                         : f.errorString();
         return false;
     }
     QJsonObject idx = readIndex(dir);

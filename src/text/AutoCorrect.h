@@ -39,6 +39,12 @@ QString quoteChars(const QString &style);
 // The character for a typed " or ' after the character `before` (a space or
 // nothing: opening). An apostrophe inside a word is always ’.
 QChar smartQuote(QChar typed, QChar before, const QString &style);
+// The same with the paragraph's text before the cursor (0.64.2): after a word, a ' closes a single mark open in
+// it when the style's closing single mark is not the apostrophe (German, French, ...).
+QChar smartQuote(QChar typed, const QString &before, const QString &style);
+// When `typed` (a letter or digit) follows a closing single mark that follows a letter, the position in `before`
+// of that mark, which then was an apostrophe (it becomes ’); else -1.
+int apostropheBeforeLetter(const QString &before, QChar typed, const QString &style);
 
 // Quote marks of existing text (File > Options > Corrections, Convert Quotes, 0.61.1): the
 // positions in `text` that change and their new characters. typographic: straight " and '

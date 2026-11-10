@@ -341,8 +341,13 @@ int takeProjectValues()
         QSettings p(programFile(), QSettings::IniFormat);
         for (auto it = cur.cbegin(); it != cur.cend(); ++it) {
             const QString &k = it.key();
-            if (programOnly(k))
+            if (programOnly(k)) {
+                // 0.64.2: a setting of the program alone changed in "This project" (the computer's name, the
+                // number of recent projects ...) goes to the program's file; it was dropped here
+                if (!prog.contains(k) || prog.value(k) != it.value())
+                    p.setValue(k, it.value());
                 continue;
+            }
             bool own;
             if (prog.contains(k)) {
                 own = prog.value(k) != it.value();
