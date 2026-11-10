@@ -196,6 +196,12 @@ def main():
          "hunspell-1.7.5.tar.gz")
     comp("zlib", "1.3.2", "Zlib", "reading and writing packed files (linked into quillbinder.exe)",
          add_text("zlib.txt", read(os.path.join(LIC, "zlib", "LICENSE"))), "https://github.com/madler/zlib, tag v1.3.2")
+    # 0.65.0: the check of package signatures, compiled in from the Quillbinder source (src/core/third_party)
+    comp("Monocypher", "4.0.3", "BSD-2-Clause (dual-licensed: BSD-2-Clause or CC0-1.0)",
+         "the check of package signatures (Ed25519), compiled into quillbinder.exe",
+         add_text("monocypher.txt", read(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                                       "src", "core", "third_party", "monocypher", "LICENCE.md"))),
+         "src/core/third_party/monocypher of the Quillbinder source; upstream: https://github.com/LoupVaillant/Monocypher, tag 4.0.3")
 
     # ---- Microsoft's C++ runtime
     comp("Microsoft Visual C++ Runtime", "14.x", "Microsoft Software License Terms (redistributable code of Visual Studio)",

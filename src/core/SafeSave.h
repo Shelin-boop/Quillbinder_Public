@@ -6,7 +6,9 @@
 // of the old one and commit() returned true. Here the buffer is written and checked first, then the
 // file is synced (checked), then committed. False: nothing replaced (the temporary file goes when the
 // QSaveFile is destroyed).
+#include <QFile>
 #include <QSaveFile>
+#include <QString>
 
 #ifdef Q_OS_UNIX
 #include <cerrno>
@@ -61,6 +63,59 @@ inline bool commit(QSaveFile &f)
 #endif
     const bool done = f.commit();
     return done && f.error() == QFileDevice::NoError;
+}
+
+// A whole file written and committed as above (0.65.0): false with a reason, and nothing replaced.
+inline bool writeFile(const QString &path, const QByteArray &data, QString *error = nullptr)
+{
+    QSaveFile f(path);
+    if (!f.open(QIODevice::WriteOnly) || write(f, data) != data.size() || !commit(f)) {
+        if (error)
+            *error = QStringLiteral("%1: %2").arg(path,
+                                                 f.errorString().isEmpty() || f.errorString() == QLatin1String("Unknown error")
+                                                     ? QStringLiteral("not written")
+                                                     : f.errorString());
+        return false;
+    }
+    return true;
+}
+
+// A copy that is either the old target or the whole new file, never neither (0.65.0, audit F05/F11/F25):
+// read in pieces into a temporary file beside the target, synced, then renamed over it. The old code
+// removed the target first and then copied, so a failed copy left no file at all.
+inline bool copyFile(const QString &from, const QString &to, QString *error = nullptr)
+{
+    QFile in(from);
+    if (!in.open(QIODevice::ReadOnly)) {
+        if (error)
+            *error = QStringLiteral("%1: %2").arg(from, in.errorString());
+        return false;
+    }
+    QSaveFile out(to);
+    if (!out.open(QIODevice::WriteOnly)) {
+        if (error)
+            *error = QStringLiteral("%1: %2").arg(to, out.errorString());
+        return false;
+    }
+    qint64 copied = 0;
+    // read until nothing comes (not "until the size": a file whose size says less than it holds is noticed below)
+    for (;;) {
+        const QByteArray piece = in.read(4 << 20);
+        if (piece.isEmpty())
+            break;
+        if (write(out, piece) != piece.size())
+            break;
+        copied += piece.size();
+    }
+    if (in.error() != QFileDevice::NoError || copied != in.size() || !commit(out)) {
+        if (error)
+            *error = QStringLiteral("%1: %2").arg(to, in.error() != QFileDevice::NoError ? in.errorString()
+                                                      : out.errorString().isEmpty()      ? QStringLiteral("not written")
+                                                                                         : out.errorString());
+        out.cancelWriting();
+        return false;
+    }
+    return true;
 }
 
 } // namespace safesave

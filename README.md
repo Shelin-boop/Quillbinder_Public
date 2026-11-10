@@ -12,11 +12,11 @@ between the programs. Scrivener and Scapple are names of products of Literature 
 
 ## Download
 
-**Quillbinder 0.64.2 alpha for Linux (x86_64):**
+**Quillbinder 0.65.0 alpha for Linux (x86_64):**
 
-- **[Quillbinder-0.64.2-alpha-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.64.2-alpha/Quillbinder-0.64.2-alpha-x86_64.AppImage)**: the program
-- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.64.2-alpha/media-all-formats.qbpkg)**: audio and video in every format (an add-on; optional)
-- **[Quillbinder-0.64.2-full-alpha-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.64.2-alpha/Quillbinder-0.64.2-full-alpha-x86_64.AppImage)**:
+- **[Quillbinder-0.65.0-alpha-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.65.0-alpha/Quillbinder-0.65.0-alpha-x86_64.AppImage)**: the program
+- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.65.0-alpha/media-all-formats.qbpkg)**: audio and video in every format (an add-on; optional)
+- **[Quillbinder-0.65.0-full-alpha-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.65.0-alpha/Quillbinder-0.65.0-full-alpha-x86_64.AppImage)**:
   **the full version**: the program with all add-ons and all the libraries they need included (audio and
   video in every format, extra themes, project templates, the scriptwriting pack, the writing tools with offline speech recognition, the
   importers of web pages and old Word files). They are installed at the first start: one download, nothing
@@ -27,7 +27,10 @@ between the programs. Scrivener and Scapple are names of products of Literature 
 To start, make the AppImage executable (right-click > Properties > Permissions > *Is executable*, or
 `chmod +x`) and double-click it; **Help > Add to Application Menu** puts it into the menu of the desktop.
 Add-ons are installed with **File > Install Update or Add-on**. Everything on the Releases page is built by
-GitHub from this source code (`.github/workflows/release.yml`).
+GitHub from this source code (`.github/workflows/release.yml`). Since 0.65.0 every package and the checksum list
+(`SHA256SUMS.txt`, with its signature `SHA256SUMS.txt.sig`) are signed with the project's key
+(`packaging/quillbinder-signing-public.pem`); the program installs program updates only with that signature.
+How to check a download yourself: the user manual, section 17.
 
 **Quillbinder is alpha software.** Keep backups of your projects (**File > Back Up > Back Up Now**; the
 automatic backups are set under **File > Options > Backup**), and keep a copy of your manuscripts outside

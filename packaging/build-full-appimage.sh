@@ -65,7 +65,7 @@ MARK="\${XDG_DATA_HOME:-\$HOME/.local/share}/$APP_NAME/full-addons-installed-$VE
 if [ ! -e "\$MARK" ]; then
     ok=1
     for p in "\$HERE"/usr/share/$APP_ID/full-addons/*.qbpkg; do
-        "\$BIN" --install "\$p" > /dev/null 2>&1 || ok=0
+        "\$BIN" --install "\$p" --allow-unsigned > /dev/null 2>&1 || ok=0 # part of this AppImage (0.65.0)
     done
     if [ \$ok = 1 ]; then
         mkdir -p "\$(dirname "\$MARK")" && : > "\$MARK"

@@ -45,7 +45,11 @@ public slots:
     QString currentFile() const { return m_file; }
     QString text() const;
     void setText(const QString &text);   // as if typed
-    void save();
+    // false: the text could not be written (0.65.0, the audit's F01 for the transcripts); it stays open
+    bool save();
+    // before the text is left: saved, or else put into the emergency folder; false when neither worked
+    bool saveOrKeep();
+    QString emergencyFile() const { return m_emergency; }
     bool rename(const QString &title);
     bool remove(bool ask = true);
     void copyAll();
@@ -71,6 +75,7 @@ private:
     QString m_file;
     QString m_recordingFile;
     bool m_loading = false;
+    QString m_emergency;        // the last emergency copy (0.65.0)
     int m_pending = 0;          // recordings without text (0.64)
     QListWidget *m_list;
     QPlainTextEdit *m_edit;

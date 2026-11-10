@@ -213,6 +213,14 @@ target_link_libraries(qb_v0641_tests PRIVATE qbui Qt6::Test)
 # that are gone, a .scriv opened and closed unchanged, outside changes while open (xvfb-run -a ./qb_v0642_tests /tmp/shots).
 add_executable(qb_v0642_tests v0642_tests.cpp ${QB_RESOURCES_QRC})
 target_link_libraries(qb_v0642_tests PRIVATE qbui Qt6::Test)
+# The fixes of the external audit of 2026-11-10 (0.65.0): safe copies, the save journal, pictures, partial reads,
+# Roll Back, incomplete backups, Duplicate, object pictures, Scrivener format on two computers, command
+# exporters, the lock, same size and time, the storage format, large archives, bundles, signatures of packages,
+# the scratch pad, the end by a signal, the close question (xvfb-run -a ./qb_v0650_tests /tmp/shots; needs
+# the add-on packages in <build>/addons-dist, python3 and openssl).
+add_executable(qb_v0650_tests v0650_tests.cpp ${QB_RESOURCES_QRC})
+target_link_libraries(qb_v0650_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_v0650_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
 # The fixes of the external audit of 2026-11-09 (0.64.1): ids and archive names that are no plain
 # names, damaged archives and Word files, settings a project may hold, packages with code, links that
 # lead out, the socket folder, Scrivener's lock before every write, the name of this computer

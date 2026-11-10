@@ -1,4 +1,6 @@
 #pragma once
+#include <memory>
+#include <QFile>
 // Minimal ZIP writer/reader (deflate via zlib). Used for DOCX files and
 // project backups.
 
@@ -68,6 +70,8 @@ private:
         quint32 localOffset;
     };
     void parse();
+    // 0.65.0 (audit F17): a large archive is mapped, not read into memory (the file stays open while mapped)
+    std::shared_ptr<QFile> m_file;
     QByteArray m_data;
     QList<Entry> m_entries;
     bool m_valid = false;

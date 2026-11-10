@@ -20,6 +20,15 @@
   ]
  },
  {
+  "name": "Monocypher",
+  "version": "4.0.3",
+  "license": "BSD-2-Clause (dual-licensed: BSD-2-Clause or CC0-1.0)",
+  "where": "the check of package signatures (Ed25519), compiled into the program (0.65.0)",
+  "source": "src/core/third_party/monocypher/LICENCE.md",
+  "file": "monocypher.txt",
+  "url": "src/core/third_party/monocypher of the Quillbinder source (https://github.com/Shelin-boop/Quillbinder_Public); upstream: https://github.com/LoupVaillant/Monocypher, tag 4.0.3"
+ },
+ {
   "name": "AppImage type2-runtime",
   "license": "MIT",
   "where": "the start code at the beginning of the AppImage file",

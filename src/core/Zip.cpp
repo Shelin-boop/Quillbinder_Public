@@ -1,7 +1,9 @@
 #include "core/Zip.h"
+#include "core/SaveBatch.h"
 #include "core/PathSafety.h"
 
 #include <QDir>
+#include <limits>
 #include <QDirIterator>
 #include <QFileInfo>
 #include <zlib.h>
@@ -280,6 +282,8 @@ bool ZipWriter::addDirectory(const QString &diskDir, const QString &prefix)
     while (it.hasNext()) {
         const QString path = it.next();
         const QString rel = base.relativeFilePath(path);
+        if (savebatch::isStaged(path) || rel == QLatin1String("settings/journal.json"))
+            continue; // a save in progress (0.65.0): not project data
         const QString suffix = QFileInfo(path).suffix().toLower();
         static const QStringList packed = {QStringLiteral("png"), QStringLiteral("jpg"), QStringLiteral("jpeg"), QStringLiteral("zip"),
                                            QStringLiteral("mp3"), QStringLiteral("mp4"), QStringLiteral("m4a"), QStringLiteral("ogg"),
@@ -289,7 +293,13 @@ bool ZipWriter::addDirectory(const QString &diskDir, const QString &prefix)
                                            QStringLiteral("xz")};
         {
             QFile probe(path);
-            if (!probe.open(QIODevice::ReadOnly)) { // cannot be read: left out, the rest is written
+            bool unreadable = !probe.open(QIODevice::ReadOnly);
+#ifdef QB_TEST_SWITCHES
+            // the checks (0.65.0): a file that counts as unreadable (the test machine's root reads every file)
+            const QString fake = qEnvironmentVariable("QB_TEST_UNREADABLE");
+            unreadable = unreadable || (!fake.isEmpty() && path.endsWith(fake));
+#endif
+            if (unreadable) { // cannot be read: left out, the rest is written
                 m_skipped << path;
                 continue;
             }
@@ -528,13 +538,28 @@ qint64 ZipWriter::verify(const QString &path, QString *error)
     return qint64(count);
 }
 
-ZipReader::ZipReader(const QString &path)
+ZipReader::ZipReader(const QString &path) : m_file(std::make_shared<QFile>(path))
 {
-    QFile f(path);
-    if (f.open(QIODevice::ReadOnly)) {
-        m_data = f.readAll();
-        parse();
+    if (!m_file->open(QIODevice::ReadOnly))
+        return;
+    const qint64 size = m_file->size();
+    // 0.65.0 (audit F17): this reader knows no ZIP64, and its positions are 32-bit: an archive of 2 GiB or more is
+    // not read (before, it was read whole into memory and then misread)
+    if (size >= qint64(std::numeric_limits<int>::max()))
+        return;
+    // a large archive (a book's Word file with many pictures, a package) is mapped page by page instead of being
+    // read whole; small ones are read (a mapped file that another program shortens could end the program)
+    constexpr qint64 kMapAbove = 64ll * 1024 * 1024;
+    if (size > kMapAbove) {
+        if (uchar *p = m_file->map(0, size)) {
+            m_data = QByteArray::fromRawData(reinterpret_cast<const char *>(p), qsizetype(size));
+            parse();
+            return;
+        }
     }
+    m_data = m_file->readAll();
+    m_file->close();
+    parse();
 }
 
 ZipReader::ZipReader(const QByteArray &data) : m_data(data) { parse(); }

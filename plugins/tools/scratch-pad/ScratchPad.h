@@ -76,9 +76,14 @@ public slots:
     bool insertImage(const QImage &img);
     void takeScreenshot();
     bool sendTo(const QString &projectKey, const QString &mode, const QString &targetId);
-    void save();
+    // false: the note could not be written and stays open with its text (0.65.0, audit F01)
+    bool save();
     void refresh();
     QString status() const;
+    // where the text of a note went that could not be saved at the program's end ("" when none, 0.65.0)
+    QString emergencyFile() const { return m_emergency; }
+    // the program ends and the note cannot be saved: its text into the emergency folder (0.65.0)
+    void saveEmergencyCopy();
 
 protected:
     void closeEvent(QCloseEvent *e) override;
@@ -88,12 +93,16 @@ private:
     void fillSendMenu();
     void updateUi();
     QString storeImage(const QImage &img);
+    // the note could not be saved before `doing`: said once in the status line, and in a box unless tests run
+    void tellUnsaved(const QString &doing);
 
     qb::tools::ToolHost *m_host;
     QString m_folder;
     QString m_file;
     bool m_rich = false;
     bool m_loading = false;
+    QString m_saveError; // why the last save failed ("" when it worked)
+    QString m_emergency;
     QListWidget *m_list;
     QLineEdit *m_title;
     NoteEditor *m_edit;

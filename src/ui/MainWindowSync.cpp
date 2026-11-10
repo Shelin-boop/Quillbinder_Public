@@ -102,8 +102,10 @@ void MainWindow::takeLocks()
 {
     m_lockOpened = QDateTime::currentDateTimeUtc();
     m_lockLost = false;
+    m_lockWriteTold = false;
     for (const QString &f : lockFilesFor(m_project.get()))
-        syncsafe::writeLock(f, m_lockOpened);
+        if (!syncsafe::writeLock(f, m_lockOpened))
+            lockNotWritten(f);
     if (!m_lockTimer) {
         m_lockTimer = new QTimer(this);
         connect(m_lockTimer, &QTimer::timeout, this, [this] { renewLocks(true); });
@@ -143,9 +145,30 @@ void MainWindow::renewLocks(bool write)
             showWithoutTakingKeys(box, keep);
             return;
         }
-        if (write || !l.exists)
-            syncsafe::writeLock(f, m_lockOpened);
+        if ((write || !l.exists) && !syncsafe::writeLock(f, m_lockOpened))
+            lockNotWritten(f);
     }
+}
+
+// 0.65.0 (audit F13): the mark "open here" could not be written: another computer would open the project without a
+// warning. Said once per opening (the saves into the same folder usually fail too and are reported themselves).
+void MainWindow::lockNotWritten(const QString &file)
+{
+    m_lastLockProblem = file;
+    if (m_lockWriteTold)
+        return;
+    m_lockWriteTold = true;
+    const QString msg = tr("The project could not be marked as open on this computer (%1 could not be written). Another "
+                           "computer that opens it through your sync folder will not be warned. Check that the project "
+                           "folder is writable and the disk is not full.")
+                            .arg(QDir::toNativeSeparators(file));
+    statusBar()->showMessage(msg, 15000);
+    if (qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+        return;
+    auto *box = new QMessageBox(QMessageBox::Warning, tr("Project Not Marked as Open"), msg, QMessageBox::Ok, this);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    box->setObjectName(QStringLiteral("lockWriteNotice"));
+    showWithoutTakingKeys(box, box->button(QMessageBox::Ok));
 }
 
 void MainWindow::releaseLocks()

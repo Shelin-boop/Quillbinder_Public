@@ -3,6 +3,52 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.65.0 alpha (2026-11-10)
+
+A new AppImage and a program update for the AppImages of the same runtime (0.60.0 alpha and later); Scratch Pad 1.1
+and Speech Transcription 1.4. It fixes what the external audit of 2026-11-10 found, and signs every package.
+
+- **A save lands as a whole**. When one save writes several files (texts, their pictures, the Objects sheet, the
+  project file), they are written beside their places first, listed in a journal, and then put in place together. A
+  save cut off in the middle is finished at the next opening, or, if it had not got that far, the project stays as
+  it was at the save before; a notice says which. One file that cannot be written stops the whole save, and your
+  changes stay in the window for the next try.
+- **A list of the documents by title**: *contents-by-title.txt* in the project folder names each document, its place
+  in the binder and its files, so that a file can be found outside the program.
+- **Signed packages**. The release page's packages and checksum list are signed with the project's key; the program
+  installs program updates only with that signature, warns before an add-on without it (Cancel is the default), and
+  refuses a package whose signature does not match. On the command line, `--allow-unsigned` installs a package
+  without the signature. The manual (section 17) shows how to check a download yourself.
+- **Fixed: documents made in Scrivener on another computer were deleted**. A project in Scrivener format that was
+  open here while Scrivener added documents to it elsewhere (through a sync folder) lost those documents' folders at
+  the next full save. They are kept now, and the binder that names them is not replaced; open the project again to
+  see both. Pictures, PDFs, sound and video files and mind maps changed in the *.scriv* elsewhere are no longer
+  overwritten with the old version, and they are replaced in one step (before, the file was deleted first, so a
+  failed copy left none).
+- **Fixed: pictures could be lost without a notice** in projects stored as Markdown: a picture that could not be
+  written left the text pointing at a file that was not there. Now the save fails and says so.
+- **Fixed: Roll Back could empty a text** when the snapshot could not be read. Now the snapshot is read first, one
+  that holds no text replaces the text only after a question, and when the snapshot of the current text was asked
+  for but cannot be taken, nothing is rolled back.
+- **Fixed: the scratch pad could throw a note away** after a save that failed (switching notes, a new note, another
+  notes folder, the end of the program). The note stays open with its text now; at the end its text goes into the
+  emergency folder. The same for an edited transcription of Speech Transcription.
+- **Backups**: a backup with files missing is named *(incomplete)* and never counts among the backups to keep, so no
+  complete backup is deleted for it; the automatic backups when a project opens or closes tell such a backup (and
+  the one at opening tells a failure, which it did not).
+- **The end by logging out or shutting down**: when the save then fails, the texts not saved go into
+  *~/.local/share/Quillbinder/Emergency*, the next start says so, and the program ends with status 1.
+- **Closing a project that cannot be saved**: *Keep Open* is the default; *Save Texts Elsewhere…* writes the texts
+  not saved into a folder you choose.
+- **Also fixed**: Duplicate takes out a copy that is not complete (and says so); an object's old picture is deleted
+  only after the object's new file is written; a text read only in part is not saved over; a file changed elsewhere
+  with the same size and time is noticed; changing the storage format is all or nothing; a lock that cannot be
+  written is told; command exporters check the program's exit status, keep the earlier export when they fail, and
+  the window keeps being drawn while they run; a bundle installs all its parts or none; large archives are mapped
+  instead of read whole; the view state is written again after a failed write; the test runner ends with status 1
+  when a suite failed or was not built.
+- **The manual** says that the program does not encrypt projects or backups, and what to use instead.
+
 ## 0.64.2 alpha (2026-11-10)
 
 A new AppImage and a program update for the AppImages of the same runtime (0.60.0 alpha and later). It fixes what the

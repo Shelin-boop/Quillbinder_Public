@@ -73,8 +73,11 @@ void setSessionProject(const QString &path);
 void endSession();
 
 // SIGTERM, SIGINT, SIGHUP: `save` runs in the main thread (from the event loop),
-// then the session ends and the process exits with status 0.
+// then the session ends and the process exits with status 0, or 1 when `save` called
+// setTerminationSaveFailed() (0.65.0, audit F07).
 void onTermination(std::function<void()> save);
+void setTerminationSaveFailed();
+bool terminationSaveFailed();
 
 // ---- freezes
 // Watches the main thread from a thread of its own. When the main thread has not

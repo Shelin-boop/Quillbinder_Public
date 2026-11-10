@@ -1,4 +1,6 @@
 #include "compile/PluginManager.h"
+#include "compile/Progress.h"
+#include "core/SafeSave.h"
 
 #include "compile/ScriptExporters.h"
 #include "compile/EpubExporter.h"
@@ -10,6 +12,7 @@
 #include "core/Platform.h"
 
 #include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -122,10 +125,28 @@ bool CommandExporter::exportManuscript(const Manuscript &m, const QString &path,
             *error = QObject::tr("Could not start %1.").arg(m_program);
         return false;
     }
-    if (!proc.waitForFinished(m_timeout * 1000)) {
-        proc.kill();
+    // 0.65.0 (audit F24): waited in short steps with the compile's progress ticks, so the window keeps being drawn
+    // (and the freeze watchdog sees the program alive) while the other program works
+    QElapsedTimer waited;
+    waited.start();
+    while (!proc.waitForFinished(100) && proc.state() != QProcess::NotRunning) {
+        progress::tick();
+        if (waited.elapsed() > qint64(m_timeout) * 1000) {
+            proc.kill();
+            proc.waitForFinished(3000);
+            if (error)
+                *error = QObject::tr("%1 did not finish in time.").arg(QFileInfo(m_program).fileName());
+            return false;
+        }
+    }
+    // 0.65.0 (found while checking audit F11): a program that ended with an error or crashed has not made a file to
+    // trust, even when part of one is there
+    if (proc.exitStatus() != QProcess::NormalExit || proc.exitCode() != 0) {
         if (error)
-            *error = QObject::tr("%1 did not finish in time.").arg(QFileInfo(m_program).fileName());
+            *error = QObject::tr("%1 ended with an error (exit code %2).\n%3")
+                         .arg(QFileInfo(m_program).fileName())
+                         .arg(proc.exitStatus() == QProcess::NormalExit ? proc.exitCode() : -1)
+                         .arg(QString::fromLocal8Bit(proc.readAllStandardError()).left(800));
         return false;
     }
     const QString produced = m_output.isEmpty() ? directOut : subst(m_output);
@@ -136,10 +157,11 @@ bool CommandExporter::exportManuscript(const Manuscript &m, const QString &path,
                               QString::fromLocal8Bit(proc.readAllStandardError()).left(800));
         return false;
     }
-    QFile::remove(path);
-    if (!QFile::copy(produced, path)) {
+    // 0.65.0 (audit F11): replaced in one step; the earlier export stays when the copy fails (it was deleted first)
+    QString why;
+    if (!safesave::copyFile(produced, path, &why)) {
         if (error)
-            *error = QObject::tr("Cannot write %1").arg(path);
+            *error = QObject::tr("Cannot write %1: %2").arg(path, why);
         return false;
     }
     return true;

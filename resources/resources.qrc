@@ -1678,6 +1678,7 @@
     <file alias="licenses/texts/common-LGPL-2.1.txt">licenses/texts/common-LGPL-2.1.txt</file>
     <file alias="licenses/texts/common-LGPL-2.txt">licenses/texts/common-LGPL-2.txt</file>
     <file alias="licenses/texts/common-LGPL-3.txt">licenses/texts/common-LGPL-3.txt</file>
+    <file alias="licenses/texts/monocypher.txt">licenses/texts/monocypher.txt</file>
     <file alias="licenses/texts/quillbinder-0BSD.txt">licenses/texts/quillbinder-0BSD.txt</file>
     <file alias="licenses/texts/runtime-libfuse3.txt">licenses/texts/runtime-libfuse3.txt</file>
     <file alias="licenses/texts/runtime-musl.txt">licenses/texts/runtime-musl.txt</file>

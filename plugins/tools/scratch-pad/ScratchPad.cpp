@@ -1,7 +1,12 @@
 #include "ScratchPad.h"
 #include "ScreenGrab.h"
 
+#include "core/SafeSave.h"
+
 #include <QApplication>
+#include <cstdio>
+#include <QDateTime>
+#include <QClipboard>
 #include <QBuffer>
 #include <QCheckBox>
 #include <QCloseEvent>
@@ -261,8 +266,9 @@ OptionsSection *ScratchPadTool::createOptions(QWidget *parent)
 
 void ScratchPadTool::shutdown()
 {
-    if (m_window)
-        m_window->save();
+    // 0.65.0 (audit F01): a note that cannot be saved at the end goes into the emergency folder
+    if (m_window && !m_window->save())
+        m_window->saveEmergencyCopy();
 }
 
 // ------------------------------------------------------------------ window
@@ -377,7 +383,16 @@ ScratchPadWindow::ScratchPadWindow(ToolHost *host, QWidget *parent) : QWidget(pa
     connect(m_list, &QListWidget::currentItemChanged, this, [this](QListWidgetItem *cur) {
         if (m_loading)
             return;
-        save();
+        if (!save()) {
+            // 0.65.0 (audit F01): the note that could not be saved stays open; switching would throw its text away
+            m_loading = true;
+            for (int i = 0; i < m_list->count(); ++i)
+                if (m_list->item(i)->data(Qt::UserRole).toString() == m_file)
+                    m_list->setCurrentRow(i);
+            m_loading = false;
+            tellUnsaved(tr("another note is opened"));
+            return;
+        }
         load(cur ? cur->data(Qt::UserRole).toString() : QString());
     });
     connect(m_title, &QLineEdit::editingFinished, this, [this] {
@@ -403,7 +418,8 @@ ScratchPadWindow::ScratchPadWindow(ToolHost *host, QWidget *parent) : QWidget(pa
 
 ScratchPadWindow::~ScratchPadWindow()
 {
-    save();
+    if (!save())
+        saveEmergencyCopy();
 }
 
 void ScratchPadWindow::applySettings()
@@ -418,7 +434,11 @@ void ScratchPadWindow::applySettings()
     }
     if (f == m_folder)
         return;
-    save();
+    if (!save()) {
+        // 0.65.0 (audit F01): the notes folder changes only once the open note is saved
+        tellUnsaved(tr("the notes folder is changed"));
+        return;
+    }
     if (!m_folder.isEmpty())
         m_watch->removePath(m_folder);
     m_folder = f;
@@ -455,8 +475,15 @@ void ScratchPadWindow::refresh()
     if (current)
         m_list->setCurrentItem(current);
     m_loading = false;
-    if (!keep.isEmpty() && !current) // removed by someone else
-        load(QString());
+    if (!keep.isEmpty() && !current) { // removed by someone else
+        // 0.65.0: a note with changes not yet saved is written again rather than dropped
+        if (m_edit->document()->isModified() && save() && QFileInfo::exists(keep)) {
+            refresh();
+            return;
+        }
+        if (!m_edit->document()->isModified())
+            load(QString());
+    }
     updateUi();
 }
 
@@ -504,26 +531,81 @@ void ScratchPadWindow::updateUi()
         m_edit->setPlaceholderText(QString());
 }
 
-void ScratchPadWindow::save()
+bool ScratchPadWindow::save()
 {
     m_saveTimer->stop();
     if (m_file.isEmpty() || !m_edit->document()->isModified())
-        return;
+        return true;
     m_watch->removePath(m_file); // our own change is no news
-    QSaveFile f(m_file);
-    if (f.open(QIODevice::WriteOnly)) {
-        f.write((m_rich ? m_edit->toHtml() : m_edit->toPlainText()).toUtf8());
-        if (f.commit())
-            m_edit->document()->setModified(false);
-        else
-            m_status->setText(tr("The note could not be saved: %1").arg(f.errorString()));
-    }
+    // 0.65.0 (audit F01): written and checked as the project's files are (a failed open was silent, and Qt's
+    // commit misses a failed last write); the note stays marked as changed when it fails
+    QString why;
+    const QByteArray data = (m_rich ? m_edit->toHtml() : m_edit->toPlainText()).toUtf8();
+    const bool ok = qb::safesave::writeFile(m_file, data, &why);
     m_watch->addPath(m_file);
+    if (ok) {
+        m_edit->document()->setModified(false);
+        if (!m_saveError.isEmpty()) {
+            m_saveError.clear();
+            m_status->setText(tr("The note is saved."));
+        }
+        return true;
+    }
+    const bool first = m_saveError.isEmpty();
+    m_saveError = why;
+    m_status->setText(tr("The note could not be saved: %1").arg(why));
+    if (first)
+        QApplication::beep();
+    return false;
+}
+
+void ScratchPadWindow::tellUnsaved(const QString &doing)
+{
+    const QString title = QFileInfo(m_file).completeBaseName();
+    const QString msg = tr("The note “%1” could not be saved (%2), so it stays open until %3 is possible: its text is "
+                           "not lost. Free some space or check the notes folder, or copy the text somewhere else.")
+                            .arg(title, m_saveError, doing);
+    m_status->setText(msg);
+    if (qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+        return;
+    QMessageBox box(QMessageBox::Warning, tr("Note Not Saved"), msg, QMessageBox::NoButton, this);
+    QPushButton *copy = box.addButton(tr("Copy Text"), QMessageBox::ActionRole);
+    QPushButton *retry = box.addButton(tr("Try Again"), QMessageBox::ActionRole);
+    box.addButton(tr("Keep Open"), QMessageBox::RejectRole);
+    box.exec();
+    if (box.clickedButton() == copy)
+        QApplication::clipboard()->setText(m_edit->toPlainText());
+    else if (box.clickedButton() == retry)
+        save();
+}
+
+void ScratchPadWindow::saveEmergencyCopy()
+{
+    if (m_file.isEmpty() || !m_edit->document()->isModified())
+        return;
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/Quillbinder/Emergency");
+    QDir().mkpath(dir);
+    const QFileInfo fi(m_file);
+    const QString target = dir + QLatin1Char('/') + fi.completeBaseName() + QStringLiteral(" (scratch pad, ")
+                           + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH-mm-ss")) + QStringLiteral(").")
+                           + fi.suffix();
+    const QByteArray data = (m_rich ? m_edit->toHtml() : m_edit->toPlainText()).toUtf8();
+    if (qb::safesave::writeFile(target, data)) {
+        m_emergency = target;
+        std::fprintf(stderr, "Quillbinder: the scratch pad note \"%s\" could not be saved; its text is in %s\n",
+                     qPrintable(fi.completeBaseName()), qPrintable(target));
+    } else {
+        std::fprintf(stderr, "Quillbinder: the scratch pad note \"%s\" could not be saved, not even as an emergency copy\n",
+                     qPrintable(fi.completeBaseName()));
+    }
 }
 
 void ScratchPadWindow::newNote(bool rich)
 {
-    save();
+    if (!save()) {
+        tellUnsaved(tr("a new note is made"));
+        return;
+    }
     QString title = tr("Untitled Note");
     const QString ext = rich ? QStringLiteral(".html") : QStringLiteral(".txt");
     QString file = m_folder + QLatin1Char('/') + title + ext;
@@ -551,8 +633,11 @@ bool ScratchPadWindow::selectNote(const QString &title)
     for (int i = 0; i < m_list->count(); ++i)
         if (m_list->item(i)->text() == title) {
             m_list->setCurrentRow(i);
-            if (m_file != m_list->item(i)->data(Qt::UserRole).toString())
+            if (m_file != m_list->item(i)->data(Qt::UserRole).toString()) {
+                if (!save()) // 0.65.0: the open note could not be saved and stays open
+                    return false;
                 load(m_list->item(i)->data(Qt::UserRole).toString());
+            }
             return true;
         }
     return false;
@@ -580,7 +665,11 @@ bool ScratchPadWindow::renameNote(const QString &newTitle)
         m_title->setText(fi.completeBaseName());
         return false;
     }
-    save();
+    if (!save()) {
+        m_title->setText(fi.completeBaseName());
+        tellUnsaved(tr("the note is renamed"));
+        return false;
+    }
     m_watch->removePath(m_file);
     if (!QFile::rename(m_file, target)) {
         m_status->setText(tr("The note could not be renamed."));
@@ -647,8 +736,10 @@ QString ScratchPadWindow::storeImage(const QImage &img)
     const QString dir = scratch::imagesDir(m_folder);
     QDir().mkpath(dir);
     const QString name = QUuid::createUuid().toString(QUuid::WithoutBraces) + QStringLiteral(".png");
-    if (!img.save(dir + QLatin1Char('/') + name, "PNG"))
-        return QString();
+    QByteArray png;
+    QBuffer buf(&png);
+    if (!buf.open(QIODevice::WriteOnly) || !img.save(&buf, "PNG") || !qb::safesave::writeFile(dir + QLatin1Char('/') + name, png))
+        return QString(); // 0.65.0: checked like the note itself
     return QStringLiteral(".images/") + name;
 }
 
@@ -753,7 +844,13 @@ bool ScratchPadWindow::sendTo(const QString &projectKey, const QString &mode, co
 {
     if (m_file.isEmpty())
         return false;
-    save();
+    // 0.65.0 (found while checking audit F01): after a failed save the file holds an older text, which would
+    // have been sent
+    if (!save()) {
+        m_status->setText(tr("Not sent: the note could not be saved first (%1).").arg(m_saveError));
+        QApplication::beep();
+        return false;
+    }
     SendRequest r;
     r.file = m_file; // the note itself: the receiving window reads it (pictures relative to the notes folder)
     r.title = QFileInfo(m_file).completeBaseName();
@@ -776,7 +873,9 @@ bool ScratchPadWindow::sendTo(const QString &projectKey, const QString &mode, co
 
 void ScratchPadWindow::closeEvent(QCloseEvent *e)
 {
-    save();
+    // the window is only hidden: a note that could not be saved keeps its text (and is said so)
+    if (!save())
+        tellUnsaved(tr("the next save works"));
     m_host->setSetting(QString::fromLatin1(kTool), QStringLiteral("geometry"), saveGeometry());
     QWidget::closeEvent(e);
 }

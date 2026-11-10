@@ -963,7 +963,8 @@ int main(int argc, char **argv)
                 const QByteArray b = readAll(f);
                 QStringList found;
                 // the name as a string of the code ("\0NAME\0"), not inside a text such as the developer guide
-                for (const char *sw : {"QB_PLUGIN_PATH", "QB_SPEECH_SOURCE", "QB_SPEECH_ACCEPT_CHANGED", "QB_SPEECH_SKIP_TEST"})
+                for (const char *sw : {"QB_PLUGIN_PATH", "QB_SPEECH_SOURCE", "QB_SPEECH_ACCEPT_CHANGED", "QB_SPEECH_SKIP_TEST",
+                                        "QB_REQUIRE_SIGNED", "QB_TEST_SIGNING_KEY", "QB_TEST_UNREADABLE"})
                     if (b.contains(QByteArray(1, '\0') + sw + QByteArray(1, '\0')))
                         found << QLatin1String(sw);
                 check(!b.isEmpty() && found.isEmpty(),

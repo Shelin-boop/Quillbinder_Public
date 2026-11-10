@@ -77,6 +77,11 @@ public:
     // File > Compare and Transfer with this file (0.18; also for the tests): false if not compared
     bool compareWithFile(const QString &path);
     bool closeProject();
+    // an automatic backup that failed or is incomplete (0.65.0, audit F03); the last text for the tests
+    void tellBackupProblem(bool made, const QString &why, const QString &when);
+    QString lastBackupProblem() const { return m_lastBackupProblem; }
+    // the lock file that could not be written last (0.65.0, audit F13; for the tests)
+    QString lastLockProblem() const { return m_lastLockProblem; }
     Project *project() const { return m_project.get(); }
     void updateFormatBar();   // the format bar and the format commands follow the cursor (public for the tests, 0.62)
     // File > Options > Corrections, Convert Quotes (0.61.1): the dialog over `parent` (the Options window)
@@ -92,6 +97,12 @@ public:
     void showStartNotice();
     // Saves the project, mind maps and tool notes without questions (termination signal; 0.19).
     void saveForTermination();
+    // 0.65.0 (audit F07): a notice for the next start (notice.txt in the emergency folder), shown then once
+    static void writeEmergencyNotice(const QString &what, const QString &dir);
+    void showEmergencyNotice();
+    QString lastEmergencyNotice() const { return m_lastEmergencyNotice; }
+    // 0.65.0 (audit F19): what the opening found of an interrupted save (shown once; the last text for the tests)
+    QString lastSaveRecoveryNotice() const { return m_lastSaveRecovery; }
     bool isClosing() const { return m_closing; }
     // Help > Welcome Project, About, List of All Placeholders (MainWindowHelp.cpp; 0.40)
     void openWelcomeProject(bool firstStart = false);
@@ -174,6 +185,7 @@ private:
     bool confirmLock(const QString &lockFile);   // false: the writer chose not to open
     void takeLocks();
     void renewLocks(bool write);
+    void lockNotWritten(const QString &file); // 0.65.0 (audit F13)
     void releaseLocks();
     void connectSyncSafety(Project *p);
     void showWithoutTakingKeys(QMessageBox *box, QAbstractButton *safe);
@@ -360,6 +372,11 @@ private:
     EditorPane *m_active = nullptr;
     QPointer<CompositionWindow> m_composition;
     QStringList m_lastSettingsNotes;
+    QString m_lastBackupProblem;
+    bool m_lockWriteTold = false;
+    QString m_lastLockProblem;
+    QString m_lastEmergencyNotice;
+    QString m_lastSaveRecovery;
     QList<QAction *> m_toolActions;
     QHash<QString, QPointer<QMenu>> m_toolMenus;   // menus beside tool buttons, by command key (0.61)
 

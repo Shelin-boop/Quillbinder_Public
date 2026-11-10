@@ -14,8 +14,13 @@
                          <package.qbpkg> ... <out.qbpkg>
 
 The file list with SHA-256 sums is written into the manifest here.
+
+Signatures (0.65.0): with QB_SIGNING_KEY_FILE=<Ed25519 private key, PEM> every package gets manifest.sig,
+the key's signature of manifest.json (made with openssl). The release workflow sets it from the
+secret QB_SIGNING_KEY; without it packages are made unsigned (the program then warns, and refuses
+unsigned program updates). A bundle's parts carry their own signatures.
 """
-import argparse, hashlib, json, os, sys, zipfile
+import argparse, base64, hashlib, json, os, subprocess, sys, tempfile, zipfile
 
 
 def file_entry(path, rel, executable=False):
@@ -26,11 +31,34 @@ def file_entry(path, rel, executable=False):
     return e, data
 
 
+def signature(data):
+    """manifest.sig for these bytes, or None without QB_SIGNING_KEY_FILE"""
+    key = os.environ.get("QB_SIGNING_KEY_FILE")
+    if not key:
+        return None
+    with tempfile.TemporaryDirectory() as t:
+        msg, sig = os.path.join(t, "manifest.json"), os.path.join(t, "manifest.sig")
+        with open(msg, "wb") as f:
+            f.write(data)
+        subprocess.run(["openssl", "pkeyutl", "-sign", "-rawin", "-inkey", key, "-in", msg, "-out", sig], check=True)
+        raw = open(sig, "rb").read()
+        pub = subprocess.run(["openssl", "pkey", "-in", key, "-pubout", "-outform", "DER"], check=True,
+                             capture_output=True).stdout[-32:]
+    if len(raw) != 64 or len(pub) != 32:
+        sys.exit("make-package.py: the key in QB_SIGNING_KEY_FILE is not an Ed25519 key")
+    return json.dumps({"algorithm": "ed25519", "key": hashlib.sha256(pub).hexdigest()[:16],
+                       "signature": base64.b64encode(raw).decode(), "signs": "manifest.json"}, indent=2)
+
+
 def write_package(out, manifest, payload, packages=()):
     if os.path.exists(out):
         os.remove(out)
+    mdata = json.dumps(manifest, indent=2, ensure_ascii=False).encode("utf-8")
+    sig = signature(mdata)
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-        z.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
+        z.writestr("manifest.json", mdata)
+        if sig:
+            z.writestr("manifest.sig", sig)
         for rel, data in payload:
             z.writestr("payload/" + rel, data)
         for name, data in packages:

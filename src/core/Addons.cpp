@@ -161,6 +161,14 @@ PackageInfo inspectData(const QByteArray &data, const QString &appVersion, int d
     }
     Manifest &m = info.manifest;
     m = Manifest::fromJson(doc.object());
+    // 0.65.0 (audit F12): the signature over this description (which lists every file's checksum); one that does not
+    // match is never installed
+    info.signature = signing::checkManifest(mj, zr.fileData(QStringLiteral("manifest.sig"))).state;
+    if (info.signature == signing::State::Invalid) {
+        info.error = tr("The package's signature does not match: it was changed after it was signed, or it is damaged. "
+                        "It cannot be installed; download it again from the project's release page.");
+        return info;
+    }
     static const QRegularExpression idRe(QStringLiteral("^[a-z0-9][a-z0-9._-]{1,63}$"));
     static const QRegularExpression verRe(QStringLiteral("^\\d+(\\.\\d+){0,3}$"));
     if (m.format != 1) {
@@ -316,7 +324,18 @@ bool writeFiles(const ZipReader &zr, const Manifest &m, const QString &target, Q
     return true;
 }
 
-bool installData(const QByteArray &data, const PackageInfo &info, QStringList *log, QString *error, bool *restart)
+// 0.65.0 (audit F18): a package (or every member of a bundle) is first written into a folder of its own beside its
+// place and, for the program, started once; only when all of them are ready are they put in place, and when one of
+// them cannot be, the ones placed before it are put back. Before, the members of a bundle were installed one by
+// one, and a failure halfway left the first ones installed.
+struct Prepared {
+    Manifest m;
+    PackageInfo info;
+    QString target, tmp;
+    bool core = false;
+};
+
+bool prepare(const QByteArray &data, const PackageInfo &info, QList<Prepared> *out, QStringList *log, QString *error)
 {
     const Manifest &m = info.manifest;
     ZipReader zr(data);
@@ -336,52 +355,37 @@ bool installData(const QByteArray &data, const PackageInfo &info, QStringList *l
                 continue;
             }
             const QByteArray pd = zr.fileData(QLatin1String("packages/") + m.packages.at(i));
-            if (!installData(pd, info.nested.at(i), log, error, restart))
+            if (!prepare(pd, info.nested.at(i), out, log, error))
                 return false;
         }
         return true;
     }
-    const bool core = m.kind == QLatin1String("core");
-    const QString root = core ? coreRoot() : addonsRoot();
-    const QString name = core ? m.version : m.id;
-    const QString target = root + QLatin1Char('/') + name;
-    const QString tmp = root + QLatin1String("/.new-") + name;
-    QDir(tmp).removeRecursively();
-    if (!QDir().mkpath(tmp)) {
+    Prepared p;
+    p.m = m;
+    p.info = info;
+    p.core = m.kind == QLatin1String("core");
+    const QString root = p.core ? coreRoot() : addonsRoot();
+    const QString name = p.core ? m.version : m.id;
+    p.target = root + QLatin1Char('/') + name;
+    p.tmp = root + QLatin1String("/.new-") + name;
+    QDir(p.tmp).removeRecursively();
+    if (!QDir().mkpath(p.tmp)) {
         if (error)
-            *error = tr("Cannot create %1").arg(tmp);
+            *error = tr("Cannot create %1").arg(p.tmp);
         return false;
     }
-    if (!writeFiles(zr, m, tmp, error)) {
-        QDir(tmp).removeRecursively();
+    out->append(p); // its folder goes again when anything fails
+    if (!writeFiles(zr, m, p.tmp, error))
         return false;
-    }
-    if (core && !launcher::selfTest(tmp, m.binary.isEmpty() ? platform::programFileName() : m.binary, error)) {
-        QDir(tmp).removeRecursively();
+    if (p.core && !launcher::selfTest(p.tmp, m.binary.isEmpty() ? platform::programFileName() : m.binary, error))
         return false;
-    }
-    // 0.64.1 (audit S-4): the installed version moves aside first and goes only once the new one is in
-    // place; when the move fails, the old one comes back (before, it was deleted first)
-    const QString aside = target + QStringLiteral(".old-") + QString::number(QCoreApplication::applicationPid());
-    QDir(aside).removeRecursively();
-    const bool hadOld = QFileInfo::exists(target);
-    if (hadOld && !QDir().rename(target, aside)) {
-        if (error)
-            *error = tr("Cannot replace %1").arg(target);
-        QDir(tmp).removeRecursively();
-        return false;
-    }
-    if (!QDir().rename(tmp, target)) {
-        if (error)
-            *error = tr("Cannot create %1").arg(target);
-        QDir(tmp).removeRecursively();
-        if (hadOld)
-            QDir().rename(aside, target);
-        return false;
-    }
-    if (hadOld)
-        QDir(aside).removeRecursively();
-    if (core) {
+    return true;
+}
+
+void finish(const Prepared &p, QStringList *log, bool *restart)
+{
+    const Manifest &m = p.m;
+    if (p.core) {
         QJsonObject st = launcher::readState();
         // remember the version in use, to return to it if the new one fails
         const QString before = st.value(QStringLiteral("active")).toString();
@@ -409,8 +413,58 @@ bool installData(const QByteArray &data, const PackageInfo &info, QStringList *l
             *restart = true;
         if (log)
             *log << tr("Add-on \"%1\" %2 installed (%3).")
-                        .arg(m.name, m.version, info.provides.isEmpty() ? tr("no content") : info.provides.join(QLatin1String(", ")));
+                        .arg(m.name, m.version, p.info.provides.isEmpty() ? tr("no content") : p.info.provides.join(QLatin1String(", ")));
     }
+}
+
+bool installData(const QByteArray &data, const PackageInfo &info, QStringList *log, QString *error, bool *restart)
+{
+    QList<Prepared> prepared;
+    auto cleanTmp = [&prepared] {
+        for (const Prepared &p : std::as_const(prepared))
+            QDir(p.tmp).removeRecursively();
+    };
+    if (!prepare(data, info, &prepared, log, error)) {
+        cleanTmp();
+        return false;
+    }
+    // 0.64.1 (audit S-4): an installed version moves aside first and goes only once the new one is in place
+    struct Placed { QString target, aside; };
+    QList<Placed> placed;
+    auto putBack = [&placed] {
+        for (int i = int(placed.size()) - 1; i >= 0; --i) {
+            QDir(placed.at(i).target).removeRecursively();
+            if (!placed.at(i).aside.isEmpty())
+                QDir().rename(placed.at(i).aside, placed.at(i).target);
+        }
+    };
+    for (const Prepared &p : std::as_const(prepared)) {
+        const QString aside = p.target + QStringLiteral(".old-") + QString::number(QCoreApplication::applicationPid());
+        QDir(aside).removeRecursively();
+        const bool hadOld = QFileInfo::exists(p.target);
+        if (hadOld && !QDir().rename(p.target, aside)) {
+            if (error)
+                *error = tr("Cannot replace %1").arg(p.target);
+            putBack();
+            cleanTmp();
+            return false;
+        }
+        if (!QDir().rename(p.tmp, p.target)) {
+            if (error)
+                *error = tr("Cannot create %1").arg(p.target);
+            if (hadOld)
+                QDir().rename(aside, p.target);
+            putBack();
+            cleanTmp();
+            return false;
+        }
+        placed << Placed{p.target, hadOld ? aside : QString()};
+    }
+    for (const Placed &pl : std::as_const(placed))
+        if (!pl.aside.isEmpty())
+            QDir(pl.aside).removeRecursively();
+    for (const Prepared &p : std::as_const(prepared))
+        finish(p, log, restart);
     return true;
 }
 
@@ -489,6 +543,64 @@ Manifest Manifest::fromJson(const QJsonObject &o)
 
 // ------------------------------------------------------------------ inspect / install
 
+bool PackageInfo::trusted() const
+{
+    if (manifest.kind != QLatin1String("bundle"))
+        return signature == signing::State::Valid;
+    bool any = false;
+    for (const PackageInfo &n : nested) {
+        if (n.skip)
+            continue;
+        if (!n.trusted())
+            return false;
+        any = true;
+    }
+    return any;
+}
+
+bool PackageInfo::hasProgramUpdate() const
+{
+    if (manifest.kind == QLatin1String("core"))
+        return !skip;
+    for (const PackageInfo &n : nested)
+        if (n.hasProgramUpdate())
+            return true;
+    return false;
+}
+
+QString trustProblem(const PackageInfo &info, Unsigned policy)
+{
+#ifdef QB_TEST_SWITCHES
+    // builds with the tests: the suites install packages they make themselves (QB_REQUIRE_SIGNED checks the rule)
+    if (!qEnvironmentVariableIsSet("QB_REQUIRE_SIGNED"))
+        policy = Unsigned::AllowAll;
+#endif
+    if (policy == Unsigned::AllowAll)
+        return QString();
+    // the parts to look at: the package itself, or the parts of a bundle that are installed
+    QList<PackageInfo> parts;
+    if (info.manifest.kind == QLatin1String("bundle")) {
+        for (const PackageInfo &n : info.nested)
+            if (!n.skip)
+                parts << n;
+    } else {
+        parts << info;
+    }
+    for (const PackageInfo &p : std::as_const(parts)) {
+        if (p.trusted())
+            continue;
+        if (p.manifest.kind == QLatin1String("core"))
+            return tr("This program update is not signed by the Quillbinder project, so it is not installed. Program "
+                      "updates are installed only with the project's signature; download the update from the project's "
+                      "release page.");
+        if (policy == Unsigned::Refuse)
+            return tr("\"%1\" is not signed by the Quillbinder project. To install it anyway from the command line, add "
+                      "--allow-unsigned.")
+                .arg(p.manifest.name);
+    }
+    return QString();
+}
+
 PackageInfo inspect(const QByteArray &data)
 {
     return inspectData(data, QStringLiteral(QB_APP_VERSION), 0);
@@ -520,7 +632,7 @@ bool installBundled(const QString &dir, QStringList *log, QString *error)
     for (const QFileInfo &fi : packages) {
         QString err;
         bool restart = false;
-        if (!install(fi.absoluteFilePath(), log, &err, &restart)) {
+        if (!install(fi.absoluteFilePath(), log, &err, &restart, Unsigned::AllowAll)) {
             ok = false;
             if (error)
                 *error += (error->isEmpty() ? QString() : QStringLiteral("\n")) + fi.fileName() + QStringLiteral(": ") + err;
@@ -535,7 +647,7 @@ bool installBundled(const QString &dir, QStringList *log, QString *error)
     return ok;
 }
 
-bool install(const QString &file, QStringList *log, QString *error, bool *restartNeeded)
+bool install(const QString &file, QStringList *log, QString *error, bool *restartNeeded, Unsigned policy)
 {
     if (restartNeeded)
         *restartNeeded = false;
@@ -550,6 +662,12 @@ bool install(const QString &file, QStringList *log, QString *error, bool *restar
     if (!info.isValid()) {
         if (error)
             *error = info.error;
+        return false;
+    }
+    const QString why = trustProblem(info, policy);
+    if (!why.isEmpty()) {
+        if (error)
+            *error = why;
         return false;
     }
     return installData(data, info, log, error, restartNeeded);

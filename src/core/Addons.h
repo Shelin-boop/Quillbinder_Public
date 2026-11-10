@@ -1,4 +1,5 @@
 #pragma once
+#include "core/Signing.h"
 // Packages (.qbpkg), add-ons and installed program versions.
 //
 // A package is a ZIP file:
@@ -63,15 +64,32 @@ struct PackageInfo {
     QString error;              // not empty: the package cannot be installed
     QString note;               // e.g. "replaces version 1.0"
     bool skip = false;          // in a bundle: a program update the program already contains (W3), left out
+    // 0.65.0 (audit F12): the signature of the package's description (a bundle has none of its own)
+    signing::State signature = signing::State::Unsigned;
     bool isValid() const { return error.isEmpty(); }
+    // signed with a key the program trusts (a bundle: every part that is installed)
+    bool trusted() const;
+    // a program update is in it (one that is installed)
+    bool hasProgramUpdate() const;
 };
+
+// What to do with packages that are not signed by the project (0.65.0, audit F12). A package whose signature
+// does not match is never installed.
+enum class Unsigned {
+    Refuse,      // the command line without --allow-unsigned
+    AllowAddons, // the window, after its warning: add-ons yes, program updates no
+    AllowAll,    // the command line with --allow-unsigned, the add-ons that come with the full version
+};
+// "" when the package may be installed under the policy; else why not (for the writer)
+QString trustProblem(const PackageInfo &info, Unsigned policy);
 
 PackageInfo inspect(const QString &file);
 PackageInfo inspect(const QByteArray &data);
 
 // Installs a package (add-on, program update or bundle). log receives one
 // line per installed part.
-bool install(const QString &file, QStringList *log, QString *error, bool *restartNeeded);
+bool install(const QString &file, QStringList *log, QString *error, bool *restartNeeded,
+             Unsigned policy = Unsigned::AllowAddons);
 
 // The full version for Windows (port, W3): installs every package (*.qbpkg) in dir, once per program
 // version, as the start script of the full AppImage does on Linux. The marker

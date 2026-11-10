@@ -88,10 +88,25 @@ bool take(Project *p, const QString &docId, const QString &title, QString *error
 
 void load(Project *p, const Snapshot &s, QTextDocument *into)
 {
+    load(p, s, into, nullptr);
+}
+
+bool load(Project *p, const Snapshot &s, QTextDocument *into, QString *error)
+{
     QFile f(s.file);
-    if (!f.open(QIODevice::ReadOnly))
-        return;
-    p->docs()->deserialize(s.id, f.readAll(), into, s.file.endsWith(QLatin1String(".rtf")));
+    if (!f.open(QIODevice::ReadOnly)) {
+        if (error)
+            *error = QObject::tr("The snapshot's file cannot be read: %1").arg(f.exists() ? f.errorString() : QObject::tr("it is gone"));
+        return false;
+    }
+    const QByteArray data = f.readAll();
+    if (f.error() != QFileDevice::NoError || data.size() != f.size()) {
+        if (error)
+            *error = QObject::tr("The snapshot's file could not be read whole (%1 of %2 bytes).").arg(data.size()).arg(f.size());
+        return false;
+    }
+    p->docs()->deserialize(s.id, data, into, s.file.endsWith(QLatin1String(".rtf")));
+    return true;
 }
 
 bool remove(Project *p, const Snapshot &s)
@@ -155,10 +170,17 @@ bool setTitle(Project *, const Snapshot &s, const QString &title)
     return true;
 }
 
-bool rollBack(Project *p, const Snapshot &s)
+bool rollBack(Project *p, const Snapshot &s, QString *error, bool allowEmpty)
 {
     QTextDocument tmp;
-    load(p, s, &tmp);
+    if (!load(p, s, &tmp, error))
+        return false;
+    // a snapshot that gives no text replaces the text only when the writer said so (it may be damaged)
+    if (tmp.isEmpty() && !allowEmpty) {
+        if (error)
+            *error = QObject::tr("The snapshot holds no text (it may be damaged). The current text was kept.");
+        return false;
+    }
     p->docs()->setContent(s.id, &tmp);
     return true;
 }

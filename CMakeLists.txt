@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.16)
 # ---------------------------------------------------------------------------
 set(APP_NAME "Quillbinder")
 set(APP_ID   "quillbinder")
-set(APP_VERSION "0.64.2")
+set(APP_VERSION "0.65.0")
 # A word shown after the version number in Help > About, System Information and the
 # AppImage's file name ("alpha", "beta"; empty for a normal release). It is never part
 # of version comparisons: the program, the loader and the packages compare APP_VERSION only.
@@ -30,7 +30,7 @@ endif()
 # source of every library the AppImage and the add-ons carry (Help > Third-Party Licenses).
 set(APP_HOMEPAGE "https://github.com/Shelin-boop/Quillbinder_Public")
 
-project(${APP_ID} VERSION ${APP_VERSION} LANGUAGES CXX)
+project(${APP_ID} VERSION ${APP_VERSION} LANGUAGES C CXX) # C: Monocypher (src/core/third_party, 0.65.0)
 
 # Switches of the tests that load plugins from other folders or leave checks out (QB_PLUGIN_PATH,
 # QB_SPEECH_SOURCE, QB_SPEECH_ACCEPT_CHANGED, QB_SPEECH_SKIP_TEST): only in builds with the tests
@@ -105,7 +105,9 @@ configure_file(src/app/AppInfo.h.in ${CMAKE_BINARY_DIR}/generated/AppInfo.h @ONL
 file(GLOB_RECURSE CORE_SOURCES CONFIGURE_DEPENDS
   src/core/*.cpp src/core/*.h src/text/*.cpp src/text/*.h
   src/compile/*.cpp src/compile/*.h src/import/*.cpp src/import/*.h)
-add_library(qbcore STATIC ${CORE_SOURCES})
+add_library(qbcore STATIC ${CORE_SOURCES}
+  # package signatures (0.65.0): Monocypher's Ed25519 check, unchanged third-party C code
+  src/core/third_party/monocypher/monocypher.c src/core/third_party/monocypher/monocypher-ed25519.c)
 target_include_directories(qbcore PUBLIC src ${CMAKE_BINARY_DIR}/generated)
 target_link_libraries(qbcore PUBLIC Qt6::Core Qt6::Gui Qt6::Xml ZLIB::ZLIB)
 target_link_libraries(qbcore PRIVATE Qt6::GuiPrivate)

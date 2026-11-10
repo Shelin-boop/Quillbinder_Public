@@ -1042,6 +1042,7 @@ QWidget *Inspector::buildSnapshotsTab()
     auto *del = smallButton(w, QStringLiteral("list-remove"), tr("Delete snapshot"));
     auto *roll = new QToolButton(w);
     roll->setText(tr("Roll Back"));
+    roll->setObjectName(QStringLiteral("snapshotRollBack"));
     roll->setToolTip(tr("Replace the current text with the selected snapshot"));
     m_compare = new QToolButton(w);
     m_compare->setText(tr("Compare"));
@@ -1059,6 +1060,7 @@ QWidget *Inspector::buildSnapshotsTab()
     l->addLayout(head);
     auto *split = new QSplitter(Qt::Vertical, w);
     m_snapList = new QListWidget(split);
+    m_snapList->setObjectName(QStringLiteral("snapshotList"));
     m_snapList->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_snapList->setEditTriggers(QAbstractItemView::DoubleClicked);
     m_snapView = new QTextBrowser(split);
@@ -1098,9 +1100,41 @@ QWidget *Inspector::buildSnapshotsTab()
         if (answer == QMessageBox::Cancel)
             return;
         const Snapshot s = m_snaps[r];
-        if (answer == QMessageBox::Yes)
-            snapshots::take(m_project, m_item->id, tr("Before rolling back"));
-        snapshots::rollBack(m_project, s);
+        auto tell = [this](const QString &msg) {
+            if (qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+                setProperty("qbLastRollBackError", msg);
+            else
+                QMessageBox::warning(this, tr("Roll Back"), msg);
+        };
+        // 0.65.0 (audit F02): the snapshot is read and checked before anything changes
+        QTextDocument check;
+        QString why;
+        if (!snapshots::load(m_project, s, &check, &why)) {
+            tell(tr("%1\n\nThe current text was not changed.").arg(why));
+            return;
+        }
+        bool allowEmpty = false;
+        if (check.isEmpty()) {
+            if (!qEnvironmentVariableIsSet("QB_NO_DIALOGS")
+                && QMessageBox::question(this, tr("Roll Back"),
+                                         tr("The snapshot \"%1\" holds no text (it may be damaged). Replace the current "
+                                            "text with an empty one?").arg(s.title),
+                                         QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
+                       == QMessageBox::Yes)
+                allowEmpty = true;
+            if (!allowEmpty) {
+                tell(tr("The snapshot holds no text; the current text was kept."));
+                return;
+            }
+        }
+        // 0.65.0 (audit, found while checking F02): when the snapshot of the current text was asked for and
+        // could not be taken, the roll back stops (before, it went on and the current text was gone)
+        if (answer == QMessageBox::Yes && !snapshots::take(m_project, m_item->id, tr("Before rolling back"), &why)) {
+            tell(tr("A snapshot of the current text could not be taken, so nothing was rolled back:\n%1").arg(why));
+            return;
+        }
+        if (!snapshots::rollBack(m_project, s, &why, allowEmpty))
+            tell(why);
         refreshSnapshots();
     });
     connect(m_snapList, &QListWidget::itemSelectionChanged, this, &Inspector::showSnapshot);

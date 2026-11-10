@@ -119,6 +119,13 @@ bool runInstallPackage(QWidget *parent, const QString &file, bool *restart)
                              QObject::tr("\"%1\" cannot be installed.\n\n%2").arg(QFileInfo(file).fileName(), info.error));
         return false;
     }
+    // 0.65.0 (audit F12): a program update without the project's signature is not offered at all
+    const QString refused = trustProblem(info, Unsigned::AllowAddons);
+    if (!refused.isEmpty()) {
+        QMessageBox::warning(parent, QObject::tr("Install"),
+                             QObject::tr("\"%1\" cannot be installed.\n\n%2").arg(QFileInfo(file).fileName(), refused));
+        return false;
+    }
     QDialog dlg(parent);
     dlg.setWindowTitle(QObject::tr("Install %1").arg(kindLabel(info.manifest)));
     dlg.resize(560, 460);
@@ -151,17 +158,38 @@ bool runInstallPackage(QWidget *parent, const QString &file, bool *restart)
     scan(info);
     for (const PackageInfo &n : info.nested)
         scan(n);
-    if (hasCode) {
-        auto *warn = new QLabel(QObject::tr("This package contains program code (a program update, libraries, plugins that can start "
-                                            "programs, or templates). Packages are not signed yet: install it only if you trust where "
-                                            "it comes from, such as the project's release page."), &dlg);
-        warn->setObjectName(QStringLiteral("addonCodeWarning"));
-        warn->setWordWrap(true);
-        lay->addWidget(warn);
+    const bool signedOk = info.trusted();
+    if (signedOk) {
+        auto *note = new QLabel(QObject::tr("Signed by the Quillbinder project: it is the package the project published, "
+                                            "unchanged."), &dlg);
+        note->setObjectName(QStringLiteral("addonSignedNote"));
+        note->setWordWrap(true);
+        lay->addWidget(note);
+    } else {
+        // 0.65.0 (audit F12): add-ons without the project's signature come with a warning, and Cancel is the default
+        auto *unsignedNote = new QLabel(QObject::tr("Not signed by the Quillbinder project: it can come from anyone. Install "
+                                                    "it only if you made it yourself or trust where it comes from."),
+                                        &dlg);
+        unsignedNote->setObjectName(QStringLiteral("addonUnsignedWarning"));
+        unsignedNote->setWordWrap(true);
+        QFont bold = unsignedNote->font();
+        bold.setBold(true);
+        unsignedNote->setFont(bold);
+        lay->addWidget(unsignedNote);
+        if (hasCode) {
+            auto *warn = new QLabel(QObject::tr("It contains program code (libraries, plugins that can start programs, or "
+                                                "templates), which runs with your rights."),
+                                    &dlg);
+            warn->setObjectName(QStringLiteral("addonCodeWarning"));
+            warn->setWordWrap(true);
+            lay->addWidget(warn);
+        }
     }
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, &dlg);
     QPushButton *ok = buttons->addButton(QObject::tr("Install"), QDialogButtonBox::AcceptRole);
-    ok->setDefault(true);
+    ok->setDefault(signedOk);
+    if (!signedOk)
+        buttons->button(QDialogButtonBox::Cancel)->setDefault(true);
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
     lay->addWidget(buttons);

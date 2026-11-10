@@ -1,5 +1,6 @@
 #include "core/Objects.h"
 #include "core/SafeSave.h"
+#include "core/SaveBatch.h"
 #include "core/Paths.h"
 
 #include <QDir>
@@ -508,14 +509,15 @@ bool Store::isDirty() const { return m_schemaDirty || !m_dirty.isEmpty() || !m_r
 
 QString Store::fileOf(const Object &o) const { return QStringLiteral("%1/%2/%3.json").arg(m_dir, o.category, o.id); }
 
-static bool writeJson(const QString &path, const QJsonObject &o, QString *error)
+// 0.65.0 (audit F19): with the other files of the save when one runs; `done` once the file is in place
+static bool writeJson(const QString &path, const QJsonObject &o, QString *error, const QString &title,
+                      std::function<void()> done)
 {
     QDir().mkpath(QFileInfo(path).absolutePath());
-    QSaveFile f(path);
-    const QByteArray data = QJsonDocument(o).toJson();
-    if (!f.open(QIODevice::WriteOnly) || safesave::write(f, data) != data.size() || !safesave::commit(f)) {
+    QString why;
+    if (!savebatch::put(path, QJsonDocument(o).toJson(), &why, title, QObject::tr("Objects"), std::move(done))) {
         if (error)
-            *error = QObject::tr("Cannot write %1: %2").arg(path, f.errorString());
+            *error = why;
         return false;
     }
     return true;
@@ -529,12 +531,11 @@ bool Store::save(QString *error)
         const QString sf = m_dir + QLatin1String("/schema.json");
         if (!m_schemaLoaded && QFile::exists(sf))
             QFile::rename(sf, sf + QStringLiteral(".damaged-%1").arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"))));
-        if (writeJson(sf, m_schema.toJson(), error)) {
-            m_schemaDirty = false;
-            m_schemaLoaded = true;
-        } else {
+        if (!writeJson(sf, m_schema.toJson(), error, tr("Objects: categories and templates"), [this] {
+                m_schemaDirty = false;
+                m_schemaLoaded = true;
+            }))
             ok = false;
-        }
     }
     for (const QString &id : QSet<QString>(m_dirty)) {
         auto it = m_objects.constFind(id);
@@ -542,20 +543,31 @@ bool Store::save(QString *error)
             m_dirty.remove(id);
             continue;
         }
-        if (writeJson(fileOf(*it), it->toJson(), error))
-            m_dirty.remove(id);
-        else
+        if (!writeJson(fileOf(*it), it->toJson(), error, it->name, [this, id] { m_dirty.remove(id); }))
             ok = false;
     }
-    for (auto it = m_removedFiles.begin(); it != m_removedFiles.end();) {
-        if (!QFile::exists(it.value()) || QFile::remove(it.value()))
-            it = m_removedFiles.erase(it);
+    // 0.65.0 (audit F09): files of removed objects and replaced pictures go only after every write of this save is in
+    // place (before, a picture was deleted while the object's file that still named it had not been written); a
+    // picture that cannot be removed is tried again at the next save
+    auto cleanup = [this] {
+        for (auto it = m_removedFiles.begin(); it != m_removedFiles.end();) {
+            if (!QFile::exists(it.value()) || QFile::remove(it.value()))
+                it = m_removedFiles.erase(it);
+            else
+                ++it;
+        }
+        QStringList left;
+        for (const QString &p : std::as_const(m_orphanPictures))
+            if (QFile::exists(picturePath(p)) && !QFile::remove(picturePath(p)))
+                left << p;
+        m_orphanPictures = left;
+    };
+    if (ok) {
+        if (savebatch::Batch *b = savebatch::current())
+            b->after(cleanup);
         else
-            ++it;
+            cleanup();
     }
-    for (const QString &p : std::as_const(m_orphanPictures))
-        QFile::remove(picturePath(p));
-    m_orphanPictures.clear();
     return ok;
 }
 

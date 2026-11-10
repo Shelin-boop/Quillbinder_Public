@@ -53,8 +53,14 @@ for f in "$SRC"/*.src.tar; do
 done
 
 # ---- the release of this version
-cp "$SRC/SOURCES.txt" "$DIST/THIRD-PARTY-SOURCES.txt"
-(cd "$DIST" && rm -f SHA256SUMS.txt && sha256sum -- * > "$RUNNER_TEMP/SHA256SUMS.txt" && mv "$RUNNER_TEMP/SHA256SUMS.txt" SHA256SUMS.txt)
+if [ -f "$DIST/SHA256SUMS.txt.sig" ]; then
+    # 0.65.0 (audit F12): the job "release" (the only one with the signing key) made and signed the list; it is
+    # checked here, not made again
+    (cd "$DIST" && sha256sum -c --quiet SHA256SUMS.txt) || { echo "SHA256SUMS.txt does not match the files"; exit 1; }
+else
+    cp "$SRC/SOURCES.txt" "$DIST/THIRD-PARTY-SOURCES.txt"
+    (cd "$DIST" && rm -f SHA256SUMS.txt && sha256sum -- * > "$RUNNER_TEMP/SHA256SUMS.txt" && mv "$RUNNER_TEMP/SHA256SUMS.txt" SHA256SUMS.txt)
+fi
 python3 -I "$ROOT/tools/release-notes.py" "$DIST" > "$RUNNER_TEMP/notes.md"
 TITLE="$NAME $VERSION${LABEL:+ $LABEL}"
 # A full release marked "Latest" (0.60), also for an alpha (its title and text say so): GitHub's

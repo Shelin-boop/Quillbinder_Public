@@ -1,5 +1,7 @@
 #include "SpeechTool.h"
 
+#include "core/SafeSave.h"
+
 #include <QActionGroup>
 #include <QApplication>
 #include <QCheckBox>
@@ -139,7 +141,7 @@ void SpeechTool::shutdown()
         QThread::msleep(20);
     }
     if (m_panel)
-        m_panel->save();
+        m_panel->saveOrKeep(); // 0.65.0: at the end, an emergency copy when it cannot be saved
 }
 
 QList<InspectorTab> SpeechTool::inspectorTabs() const
@@ -988,7 +990,16 @@ TranscriptPanel::TranscriptPanel(SpeechTool *tool, QWidget *parent) : QWidget(pa
     connect(m_list, &QListWidget::currentRowChanged, this, [this](int row) {
         if (m_loading || row < 0)
             return;
-        save();
+        if (!save()) {
+            // 0.65.0: a text that could not be saved stays open (switching would throw it away)
+            m_loading = true;
+            for (int i = 0; i < m_list->count(); ++i)
+                if (m_list->item(i)->data(Qt::UserRole).toString() == m_file)
+                    m_list->setCurrentRow(i);
+            m_loading = false;
+            QApplication::beep();
+            return;
+        }
         load(m_list->item(row)->data(Qt::UserRole).toString());
     });
     connect(m_edit, &QPlainTextEdit::textChanged, this, [this] {
@@ -1002,7 +1013,7 @@ TranscriptPanel::TranscriptPanel(SpeechTool *tool, QWidget *parent) : QWidget(pa
 
 TranscriptPanel::~TranscriptPanel()
 {
-    save();
+    saveOrKeep();
 }
 
 void TranscriptPanel::refresh()
@@ -1106,31 +1117,49 @@ void TranscriptPanel::setText(const QString &text)
     m_edit->setPlainText(text);
 }
 
-void TranscriptPanel::save()
+bool TranscriptPanel::save()
 {
     m_saveTimer->stop();
     if (m_file.isEmpty() || m_loading || (m_file == m_recordingFile && m_tool->isBusy()))
-        return;
+        return true;
     // a recording without text yet (0.64): no empty text in its place (it would lose its Transcribe button)
     if (!QFileInfo::exists(m_file))
-        return;
+        return true;
     QFile cur(m_file);
     const QByteArray now = m_edit->toPlainText().toUtf8();
     if (cur.open(QIODevice::ReadOnly) && cur.readAll() == now)
-        return;
+        return true;
     cur.close();
-    QSaveFile f(m_file);
-    if (f.open(QIODevice::WriteOnly)) {
-        f.write(now);
-        f.commit();
+    // 0.65.0 (the audit's F01, found for the transcripts too): written and checked; a failure was not seen
+    QString why;
+    if (!qb::safesave::writeFile(m_file, now, &why)) {
+        m_status->setText(tr("The text could not be saved: %1").arg(why));
+        return false;
     }
+    return true;
+}
+
+bool TranscriptPanel::saveOrKeep()
+{
+    if (save())
+        return true;
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/Quillbinder/Emergency");
+    QDir().mkpath(dir);
+    const QString target = dir + QLatin1Char('/') + QFileInfo(m_file).completeBaseName() + QStringLiteral(" (transcript, ")
+                           + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH-mm-ss")) + QStringLiteral(").txt");
+    if (!qb::safesave::writeFile(target, m_edit->toPlainText().toUtf8()))
+        return false;
+    m_emergency = target;
+    m_status->setText(tr("The text could not be saved; a copy is in %1").arg(QDir::toNativeSeparators(target)));
+    return true;
 }
 
 bool TranscriptPanel::rename(const QString &title)
 {
     if (m_file.isEmpty() || (m_file == m_recordingFile && m_tool->isBusy()))
         return false;
-    save();
+    if (!save())
+        return false; // 0.65.0: renamed only once its text is saved
     QString safe = title;
     safe.replace(QLatin1Char('/'), QLatin1Char('-'));
     const QString target = QFileInfo(m_file).absolutePath() + QLatin1Char('/') + safe + QStringLiteral(".txt");
@@ -1183,7 +1212,7 @@ QString TranscriptPanel::status() const { return m_status->text(); }
 
 void TranscriptPanel::recordingStarted(const QString &file)
 {
-    save();
+    saveOrKeep();
     m_recordingFile = file;
     refresh();
     selectTranscript(QFileInfo(file).completeBaseName());
@@ -1197,7 +1226,7 @@ void TranscriptPanel::recordingStarted(const QString &file)
 
 void TranscriptPanel::transcriptionStarted(const QString &file)
 {
-    save();
+    saveOrKeep();
     m_recordingFile = file;
     refresh();
     selectTranscript(QFileInfo(file).completeBaseName());

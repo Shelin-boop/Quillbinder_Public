@@ -2672,12 +2672,36 @@ bool MainWindow::adoptProject(std::unique_ptr<Project> p, bool isNew)
     updateWindowTitle();
     updateTargetsDisplay();
     updateActions();
+    // 0.65.0 (audit F19): a save that was cut off last time was finished or dropped at the opening: told once
+    if (!proj->saveRecoveryText().isEmpty()) {
+        m_lastSaveRecovery = proj->saveRecoveryText();
+        proj->clearSaveRecoveryText();
+        if (!qEnvironmentVariableIsSet("QB_NO_DIALOGS")) {
+            auto *box = new QMessageBox(QMessageBox::Information, tr("Interrupted Save"), m_lastSaveRecovery, QMessageBox::Ok, this);
+            box->setAttribute(Qt::WA_DeleteOnClose);
+            box->setObjectName(QStringLiteral("saveRecoveryNotice"));
+            QTimer::singleShot(0, box, [box] { box->open(); });
+        }
+    }
     if (AppSettings::instance().backupOnOpen) {
+        // 0.65.0 (found while checking audit F03): the result is told; before, even a backup that failed was not
         QString out, err;
-        backup::backupProject(proj, AppSettings::instance().backupDir, AppSettings::instance().backupKeep, &out, &err);
+        const bool ok = backup::backupProject(proj, AppSettings::instance().backupDir, AppSettings::instance().backupKeep, &out, &err);
+        if (!ok || !err.isEmpty())
+            QTimer::singleShot(0, this, [this, ok, err] { tellBackupProblem(ok, err, tr("when the project opened")); });
     }
     toolhost::host().notifyProjectChanged();
     return true;
+}
+
+void MainWindow::tellBackupProblem(bool made, const QString &why, const QString &when)
+{
+    const QString msg = made ? tr("The automatic backup %1 is incomplete.\n\n%2").arg(when, why)
+                             : tr("The automatic backup %1 failed.\n\n%2").arg(when, why);
+    m_lastBackupProblem = msg;
+    statusBar()->showMessage(made ? tr("The automatic backup is incomplete.") : tr("The automatic backup failed."), 15000);
+    if (!qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+        QMessageBox::warning(this, tr("Backup"), msg);
 }
 
 bool MainWindow::closeProject()
@@ -2699,22 +2723,56 @@ bool MainWindow::closeProject()
         // 0.64.1: Scrivener has the .scriv open: the working copy holds the changes, the .scriv gets
         // them when it is opened here again after Scrivener closed it
         const bool scrivLock = !m_project->scrivenerLockRefused.isEmpty();
-        if (QMessageBox::warning(this, tr("Close Project"),
-                                 scrivLock ? tr("%1\n\nClose the project here anyway? The changes stay in this program's working "
-                                                "copy. When you open the project here again after Scrivener has closed it, "
-                                                "they go into the Scrivener project; where Scrivener changed something "
-                                                "meanwhile, its version is read.")
-                                                 .arg(err)
-                                           : tr("The project could not be saved:\n%1\n\nClose anyway and lose unsaved changes?").arg(err),
-                                 QMessageBox::Yes | QMessageBox::No)
-            != QMessageBox::Yes)
-            return false;
+        if (scrivLock) {
+            if (QMessageBox::warning(this, tr("Close Project"),
+                                     tr("%1\n\nClose the project here anyway? The changes stay in this program's working "
+                                        "copy. When you open the project here again after Scrivener has closed it, "
+                                        "they go into the Scrivener project; where Scrivener changed something "
+                                        "meanwhile, its version is read.")
+                                         .arg(err),
+                                     QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
+                != QMessageBox::Yes)
+                return false;
+        } else {
+            // 0.65.0 (audit F26): Keep Open is the default, and the texts can be saved elsewhere first
+            QMessageBox box(QMessageBox::Warning, tr("Close Project"),
+                            tr("The project could not be saved:\n%1\n\nKeep it open and try again after the cause is "
+                               "fixed, save the texts that are not saved yet into another folder, or close and lose "
+                               "the changes not saved.")
+                                .arg(err),
+                            QMessageBox::NoButton, this);
+            box.setObjectName(QStringLiteral("closeUnsavedQuestion"));
+            QPushButton *keep = box.addButton(tr("Keep Open"), QMessageBox::RejectRole);
+            QPushButton *elsewhere = box.addButton(tr("Save Texts Elsewhere..."), QMessageBox::ActionRole);
+            elsewhere->setObjectName(QStringLiteral("closeSaveElsewhere"));
+            QPushButton *lose = box.addButton(tr("Close Without Saving"), QMessageBox::DestructiveRole);
+            lose->setObjectName(QStringLiteral("closeLoseChanges"));
+            box.setDefaultButton(keep);
+            box.setEscapeButton(keep);
+            box.exec();
+            if (box.clickedButton() == elsewhere) {
+                const QString parent = QFileDialog::getExistingDirectory(this, tr("Save the Texts Not Saved Into"),
+                                                                         QDir::homePath());
+                if (parent.isEmpty())
+                    return false;
+                QString why;
+                const QString dir = m_project->writeEmergencyCopy(parent, &why);
+                QMessageBox::information(this, tr("Close Project"),
+                                         dir.isEmpty() ? tr("The texts could not be written there either: %1").arg(why)
+                                                       : tr("The texts not saved are in:\n%1\n\nThe project stays open.")
+                                                             .arg(QDir::toNativeSeparators(dir)));
+                return false;
+            }
+            if (box.clickedButton() != lose)
+                return false;
+        }
     }
     if (AppSettings::instance().backupOnClose) {
         QString out;
-        if (!backup::backupProject(m_project.get(), AppSettings::instance().backupDir, AppSettings::instance().backupKeep,
-                                   &out, &err))
-            QMessageBox::warning(this, tr("Backup"), tr("The automatic backup failed:\n%1").arg(err));
+        const bool ok = backup::backupProject(m_project.get(), AppSettings::instance().backupDir,
+                                              AppSettings::instance().backupKeep, &out, &err);
+        if (!ok || !err.isEmpty()) // 0.65.0 (audit F03): an incomplete backup is told too
+            tellBackupProblem(ok, err, tr("when the project closed"));
     }
     releaseLocks();
     for (QWidget *w : QApplication::topLevelWidgets())
@@ -2937,12 +2995,60 @@ void MainWindow::saveForTermination()
         saveUiState();
         mindmaps::saveAll(m_project.get());
         QString err;
-        if (!m_project->save(&err))
+        if (!m_project->save(&err)) {
+            // 0.65.0 (audit F07): the texts not saved go into the emergency folder, the next start says where, and
+            // the program ends with status 1 (before: a line on the error output only, and status 0)
             std::fprintf(stderr, "%s: saving before the end failed: %s\n", QB_APP_NAME, qPrintable(err));
+            crash::setTerminationSaveFailed();
+            QString why;
+            const QString dir = m_project->writeEmergencyCopy(QString(), &why);
+            if (!dir.isEmpty())
+                std::fprintf(stderr, "%s: the texts not saved are in %s\n", QB_APP_NAME, qPrintable(dir));
+            writeEmergencyNotice(tr("When the program was ended (by logging out, shutting down or a command), the "
+                                    "project \"%1\" could not be saved: %2")
+                                     .arg(m_project->title(), err),
+                                 dir);
+        }
         releaseLocks();
     }
     toolhost::host().shutdownTools(); // the writing tools save their work (scratch pad notes)
     QLocalServer::removeServer(toolhost::host().linkPath());
+}
+
+void MainWindow::writeEmergencyNotice(const QString &what, const QString &dir)
+{
+    const QString folder = dataDir() + QStringLiteral("/Emergency");
+    QDir().mkpath(folder);
+    QString text = what;
+    if (!dir.isEmpty())
+        text += QStringLiteral("\n\n") + tr("The texts and notes that were not saved are in:\n%1").arg(QDir::toNativeSeparators(dir));
+    else
+        text += QStringLiteral("\n\n") + tr("No copy of the texts could be written either.");
+    QFile f(folder + QStringLiteral("/notice.txt"));
+    if (f.open(QIODevice::Append)) {
+        f.write(text.toUtf8() + "\n\n");
+        f.close();
+    }
+}
+
+void MainWindow::showEmergencyNotice()
+{
+    const QString file = dataDir() + QStringLiteral("/Emergency/notice.txt");
+    QFile f(file);
+    if (!f.open(QIODevice::ReadOnly))
+        return;
+    const QString text = QString::fromUtf8(f.readAll()).trimmed();
+    f.close();
+    QFile::remove(file);
+    if (text.isEmpty())
+        return;
+    m_lastEmergencyNotice = text;
+    if (qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+        return;
+    auto *box = new QMessageBox(QMessageBox::Warning, tr("Not Saved Last Time"), text, QMessageBox::Ok, this);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    box->setObjectName(QStringLiteral("emergencyNotice"));
+    box->open();
 }
 
 void MainWindow::changeEvent(QEvent *e)
@@ -3113,6 +3219,7 @@ void MainWindow::duplicateItems()
     if (!m_project)
         return;
     QList<BinderItem *> created;
+    QString copyError; // 0.65.0 (audit F06): the first copy that failed
     std::function<BinderItem *(BinderItem *, BinderItem *, int, bool)> dup = [&](BinderItem *src, BinderItem *parent, int row,
                                                                                  bool top) -> BinderItem * {
         BinderItem *it = m_project->model()->createItem(parent, row, src->type, top ? src->title + tr(" (copy)") : src->title);
@@ -3128,17 +3235,32 @@ void MainWindow::duplicateItems()
         it->sectionType = src->sectionType;
         it->target = src->target;
         it->targetChars = src->targetChars;
-        m_project->docs()->copyDocument(src->id, it->id);
+        QString why;
+        if (copyError.isEmpty() && !m_project->docs()->copyDocument(src->id, it->id, &why))
+            copyError = tr("%1: %2").arg(src->title, why);
         it->wordCount = src->wordCount;
         it->charCount = src->charCount;
         for (BinderItem *c : src->children)
-            dup(c, it, -1, false);
+            if (copyError.isEmpty())
+                dup(c, it, -1, false);
         return it;
     };
     for (BinderItem *src : BinderModel::topLevelOnly(actionItems())) {
-        if (src->isRootFolder())
+        if (src->isRootFolder() || !copyError.isEmpty())
             continue;
         created << dup(src, src->parent, src->row() + 1, true);
+    }
+    if (!copyError.isEmpty()) {
+        // 0.65.0 (audit F06): a duplicate that is not complete is taken out again, so it is never taken for a copy
+        for (BinderItem *it : std::as_const(created))
+            m_project->model()->deletePermanently(it);
+        m_project->markIndexDirty();
+        const QString msg = tr("The duplicate could not be made, so nothing was added:\n%1").arg(copyError);
+        if (qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+            statusBar()->showMessage(msg, 10000);
+        else
+            QMessageBox::warning(this, tr("Duplicate"), msg);
+        return;
     }
     m_project->markIndexDirty();
     m_binder->select(created, true);
@@ -3965,8 +4087,11 @@ bool MainWindow::manualSave()
     // File > Options > Backup: a backup with each manual save
     if (s.backupOnManualSave) {
         QString out;
-        if (!backup::backupProject(m_project.get(), s.backupDir, s.backupKeep, &out, &err))
-            statusBar()->showMessage(tr("The backup could not be made: %1").arg(err), 8000);
+        const bool ok = backup::backupProject(m_project.get(), s.backupDir, s.backupKeep, &out, &err);
+        if (!ok)
+            statusBar()->showMessage(tr("The backup could not be made: %1").arg(err), 15000);
+        else if (!err.isEmpty()) // 0.65.0 (audit F03)
+            statusBar()->showMessage(err, 15000);
     }
     return true;
 }

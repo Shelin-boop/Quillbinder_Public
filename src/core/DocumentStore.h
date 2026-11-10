@@ -35,6 +35,8 @@ public:
     QTextDocument *loadedText(const QString &id) const;
 
     bool hasDirty() const;
+    // 0.65.0: every text and notes not saved yet, as RTF files (pictures inside) into `dir`; how many were written
+    int writeUnsaved(const QString &dir, QString *error = nullptr);
     bool saveDirty(QString *error);
     bool saveDocument(const QString &id, QString *error = nullptr);
 
@@ -47,13 +49,19 @@ public:
     QString notesPath(const QString &id) const;
     QString extension() const;
     void removeDocument(const QString &id);
-    void copyDocument(const QString &fromId, const QString &toId);
+    // 0.65.0 (audit F06): false with a reason when the source could not be saved or its files not copied
+    bool copyDocument(const QString &fromId, const QString &toId, QString *error = nullptr);
     // Replace the content of a document (import, templates, split/merge).
     void setContent(const QString &id, const QTextDocument *source);
     void setNotesContent(const QString &id, const QTextDocument *source);
 
     // Serialize / deserialize in the project storage format (snapshots)
     QByteArray serialize(const QString &id, const QTextDocument *doc);
+    // 0.65.0 (audit F04): why the last serialize could not write a picture of the text ("" when it could)
+    QString serializeError() const { return m_serializeError; }
+    // the document's title and its place in the binder ("Draft / Part One"), for the save journal (0.65.0)
+    QString titleOf(const QString &id) const;
+    QString placeOf(const QString &id) const;
     void deserialize(const QString &id, const QByteArray &data, QTextDocument *doc, bool rtf);
 
     QString importImage(const QString &id, const QString &filePath);
@@ -144,6 +152,7 @@ private:
     Project *m_project;
     QHash<QString, Entry> m_entries;
     QSet<QString> m_unreadable; // keys of files that are there but could not be read
+    QString m_serializeError;   // set by serialize when a picture could not be written (0.65.0)
     QSet<QString> m_missing;    // ids of texts whose file has not arrived (0.64)
     QHash<QString, QString> m_plainCache;
     QSet<QString> m_countPending;

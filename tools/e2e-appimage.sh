@@ -64,11 +64,11 @@ expect() { if eval "$1"; then echo "ok    $2"; else echo "FAIL  $2"; fails=$((fa
 
 step "built in"; BUILTIN=$(ver); echo "$BUILTIN"
 if [ -n "${QB_PREV_UPDATE:-}" ]; then
-    step "install the previous update"; cli --install "$(readlink -f "$QB_PREV_UPDATE")" | tail -2
+    step "install the previous update"; cli --install "$(readlink -f "$QB_PREV_UPDATE")" --allow-unsigned | tail -2
     PREV=$(ver); echo "$PREV"
 fi
 if [ "$UPDATE" != "-" ]; then
-    step "install the update"; cli --install "$UPDATE" | tail -2
+    step "install the update"; cli --install "$UPDATE" --allow-unsigned | tail -2
     NEW=$(ver); echo "$NEW"; cli --versions
     expect '[ "$NEW" != "$BUILTIN" ]' "the update is the active version"
     step "self-test"; QT_QPA_PLATFORM=offscreen cli --selftest > "$E/work/selftest.log" 2>&1; rc=$?

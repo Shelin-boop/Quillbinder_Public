@@ -756,7 +756,7 @@ void onTermination(std::function<void()> save)
             g_onTerm();
         endSession();
         std::fflush(nullptr);
-        ::_exit(0);
+        ::_exit(terminationSaveFailed() ? 1 : 0);
     });
     struct sigaction sa {};
     sa.sa_handler = onTermSignal;

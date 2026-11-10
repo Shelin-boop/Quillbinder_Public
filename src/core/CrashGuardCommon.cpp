@@ -13,6 +13,12 @@
 namespace qb {
 namespace crash {
 
+namespace {
+bool g_termSaveFailed = false;
+}
+void setTerminationSaveFailed() { g_termSaveFailed = true; }
+bool terminationSaveFailed() { return g_termSaveFailed; }
+
 Report readHeader(const QString &file)
 {
     Report r;

@@ -1,5 +1,6 @@
 #include "core/PathSafety.h"
 #include "core/SafeSave.h"
+#include "core/SaveBatch.h"
 #include "core/DocumentStore.h"
 
 #include "text/Script.h"
@@ -20,6 +21,7 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QSaveFile>
+#include <QSet>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
@@ -125,8 +127,24 @@ void DocumentStore::readFile(const QString &id, bool notes, QTextDocument *doc, 
             emit unreadableFile(id, notes, path, f.errorString());
         }
     }
+    QByteArray data;
     if (f.isOpen()) {
-        const QByteArray data = f.readAll();
+        data = f.readAll();
+        // 0.65.0 (audit F23): a read cut short (an I/O error, a file of a sync folder that is not all there)
+        // is not the text: shown empty and never saved over, as a file that cannot be opened
+        const bool regular = QFileInfo(path).isFile();
+        if (f.error() != QFileDevice::NoError || (regular && data.size() != f.size())) {
+            const QString key = keyFor(id, notes);
+            const QString why = f.error() != QFileDevice::NoError ? f.errorString()
+                                                                   : tr("only %1 of %2 bytes could be read").arg(data.size()).arg(f.size());
+            f.close();
+            if (!m_unreadable.contains(key)) {
+                m_unreadable.insert(key);
+                emit unreadableFile(id, notes, path, why);
+            }
+        }
+    }
+    if (f.isOpen()) {
         if (bytes)
             *bytes = data;
         if (rtf)
@@ -213,9 +231,10 @@ QByteArray DocumentStore::serialize(const QString &id, const QTextDocument *doc)
     if (it != m_entries.end())
         entry = &it.value();
     const QString dir = m_project->contentDir(id);
+    m_serializeError.clear();
     auto saver = [&](const QTextImageFormat &fmt) -> QString {
         const QString name = fmt.name();
-        if (entry && entry->savedImages.contains(name))
+        if (entry && entry->savedImages.contains(name) && QFile::exists(QDir(dir).filePath(entry->savedImages.value(name))))
             return entry->savedImages.value(name);
         if (name.startsWith(QLatin1String("images/")) && QFile::exists(QDir(dir).filePath(name)))
             return name;
@@ -231,9 +250,26 @@ QByteArray DocumentStore::serialize(const QString &id, const QTextDocument *doc)
             return name;
         QDir().mkpath(dir + QLatin1String("/images"));
         const QString rel = QStringLiteral("images/%1.png").arg(QUuid::createUuid().toString(QUuid::Id128).left(12));
-        img.save(QDir(dir).filePath(rel), "PNG");
-        if (entry)
-            entry->savedImages.insert(name, rel);
+        // 0.65.0 (audit F04): the picture's file is checked like the text's, and remembered only once it is
+        // in place; before, a failed write left the text pointing at a file that was never there
+        QByteArray png;
+        QBuffer buf(&png);
+        QString why;
+        if (!buf.open(QIODevice::WriteOnly) || !img.save(&buf, "PNG")) {
+            if (m_serializeError.isEmpty())
+                m_serializeError = tr("A picture of %1 could not be converted for saving.").arg(titleOf(id));
+            return rel;
+        }
+        const QString key = id;
+        if (!savebatch::put(QDir(dir).filePath(rel), png, &why, tr("picture in %1").arg(titleOf(id)), placeOf(id),
+                            [this, key, name, rel] {
+                                auto e = m_entries.find(key);
+                                if (e != m_entries.end())
+                                    e->savedImages.insert(name, rel);
+                            })) {
+            if (m_serializeError.isEmpty())
+                m_serializeError = tr("A picture of %1 could not be saved: %2").arg(titleOf(id), why);
+        }
         return rel;
     };
     return md::write(doc, m_project->formatting, saver).toUtf8();
@@ -273,6 +309,12 @@ bool DocumentStore::writeEntry(const QString &key, Entry &e, QString *error)
     }
     QDir().mkpath(dir);
     const QByteArray data = serialize(id, e.doc);
+    if (!m_serializeError.isEmpty()) {
+        // 0.65.0 (audit F04): a text whose picture could not be written is not saved either; it stays unsaved
+        if (error)
+            *error = m_serializeError;
+        return false;
+    }
     const QString other = (notes ? dir + QLatin1String("/notes.") : dir + QLatin1String("/text."))
                           + (m_project->storage == StorageFormat::Rtf ? QStringLiteral("md") : QStringLiteral("rtf"));
     // 0.64: the file holds exactly this already (a document marked as changed by showing it, or
@@ -286,7 +328,15 @@ bool DocumentStore::writeEntry(const QString &key, Entry &e, QString *error)
             return true;
         }
     }
-    if (syncsafe::changedSince(e.stamp, path) && QFileInfo::exists(path)) {
+    bool elsewhere = syncsafe::changedSince(e.stamp, path) && QFileInfo::exists(path);
+    // 0.65.0 (audit F14): the same size and time as read or written here, but other bytes (a sync program that sets
+    // times of its own, a file system with times in 2 s steps): changed elsewhere too
+    if (!elsewhere && e.stamp.known && !e.read.isNull() && QFileInfo::exists(path)) {
+        QFile cur(path);
+        if (cur.open(QIODevice::ReadOnly) && cur.readAll() != e.read)
+            elsewhere = true;
+    }
+    if (elsewhere) {
         // 0.64.1: written elsewhere, and not edited here (only shown, which marks it as changed):
         // the other version stays as it is, nothing is kept and nothing is written
         if (unchangedSinceRead(id, e, data)) {
@@ -303,20 +353,6 @@ bool DocumentStore::writeEntry(const QString &key, Entry &e, QString *error)
             return false;
         }
     }
-    QSaveFile f(path);
-    if (!f.open(QIODevice::WriteOnly) || safesave::write(f, data) != data.size() || !safesave::commit(f)) {
-        if (error)
-            *error = tr("Could not save %1: %2").arg(path, f.errorString());
-        return false;
-    }
-    // remove a file of the other storage format if one is still there
-    if (QFile::exists(other))
-        QFile::remove(other);
-    e.dirty = false;
-    if (e.stamp.known)
-        e.stamp = syncsafe::stampOf(path);
-    e.read = data;
-    e.readRtf = m_project->storage == StorageFormat::Rtf;
     // tables and pictures beside the text (0.62): older versions would turn them into text when they
     // save, so the project names 0.62.0 as the version it needs (they ask before opening it)
     if (!e.doc->rootFrame()->childFrames().isEmpty()
@@ -324,7 +360,71 @@ bool DocumentStore::writeEntry(const QString &key, Entry &e, QString *error)
         m_project->needsVersion = QStringLiteral("0.62.0");
         m_project->markIndexDirty();
     }
+    // 0.65.0 (audit F19): into the save that runs (all its files land together), else at once; the entry
+    // counts as saved only once the file is in place
+    const bool rtfNow = m_project->storage == StorageFormat::Rtf;
+    QString why;
+    const bool put = savebatch::put(path, data, &why, notes ? tr("%1 (notes)").arg(titleOf(id)) : titleOf(id), placeOf(id),
+                                    [this, key, path, other, data, rtfNow] {
+                                        // remove a file of the other storage format if one is still there
+                                        if (QFile::exists(other))
+                                            QFile::remove(other);
+                                        auto it = m_entries.find(key);
+                                        if (it == m_entries.end())
+                                            return;
+                                        it->dirty = false;
+                                        if (it->stamp.known)
+                                            it->stamp = syncsafe::stampOf(path);
+                                        it->read = data;
+                                        it->readRtf = rtfNow;
+                                    });
+    if (!put) {
+        if (error)
+            *error = tr("Could not save %1: %2").arg(path, why);
+        return false;
+    }
     return true;
+}
+
+int DocumentStore::writeUnsaved(const QString &dir, QString *error)
+{
+    int n = 0;
+    QSet<QString> used;
+    for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
+        if (!it->dirty || m_unreadable.contains(it.key()))
+            continue;
+        const QString id = it->isNotes ? it.key().mid(2) : it.key();
+        QString name = text::safeFileName(it->isNotes ? tr("%1 (notes)").arg(titleOf(id)) : titleOf(id));
+        if (name.isEmpty())
+            name = id;
+        QString base = name;
+        for (int k = 2; used.contains(base.toLower()); ++k)
+            base = QStringLiteral("%1 (%2)").arg(name).arg(k);
+        used.insert(base.toLower());
+        QString why;
+        if (safesave::writeFile(QDir(dir).filePath(base + QStringLiteral(".rtf")), rtf::write(it->doc, m_project->formatting), &why))
+            ++n;
+        else if (error && error->isEmpty())
+            *error = why;
+    }
+    return n;
+}
+
+QString DocumentStore::titleOf(const QString &id) const
+{
+    if (id == QLatin1String("PROJECT"))
+        return tr("project notes");
+    const BinderItem *it = m_project->item(id);
+    return it ? it->title : id;
+}
+
+QString DocumentStore::placeOf(const QString &id) const
+{
+    QStringList path;
+    const BinderItem *it = m_project->item(id);
+    for (const BinderItem *p = it ? it->parent : nullptr; p && p->parent; p = p->parent)
+        path.prepend(p->title);
+    return path.join(QStringLiteral(" / "));
 }
 
 bool DocumentStore::unchangedSinceRead(const QString &id, const Entry &e, const QByteArray &data)
@@ -437,25 +537,39 @@ void DocumentStore::removeDocument(const QString &id)
     pathsafety::removeTreeInside(m_project->contentDir(id), m_project->folderPath()); // (0.64.1, audit S-1)
 }
 
-static void copyDir(const QString &from, const QString &to)
+// 0.65.0 (audit F06): every step checked; false with the file that failed
+static bool copyDir(const QString &from, const QString &to, QString *error)
 {
     QDir src(from);
     if (!src.exists())
-        return;
-    QDir().mkpath(to);
-    for (const QFileInfo &fi : src.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot)) {
-        if (fi.isDir())
-            copyDir(fi.absoluteFilePath(), to + QLatin1Char('/') + fi.fileName());
-        else
-            QFile::copy(fi.absoluteFilePath(), to + QLatin1Char('/') + fi.fileName());
+        return true;
+    if (!QDir().mkpath(to)) {
+        if (error)
+            *error = QObject::tr("Cannot create %1").arg(QDir::toNativeSeparators(to));
+        return false;
     }
+    for (const QFileInfo &fi : src.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden)) {
+        if (savebatch::isStaged(fi.fileName()))
+            continue;
+        if (fi.isDir()) {
+            if (!copyDir(fi.absoluteFilePath(), to + QLatin1Char('/') + fi.fileName(), error))
+                return false;
+        } else if (!safesave::copyFile(fi.absoluteFilePath(), to + QLatin1Char('/') + fi.fileName(), error)) {
+            return false;
+        }
+    }
+    return true;
 }
 
-void DocumentStore::copyDocument(const QString &fromId, const QString &toId)
+bool DocumentStore::copyDocument(const QString &fromId, const QString &toId, QString *error)
 {
-    saveDocument(fromId);
-    saveDocument(keyFor(fromId, true));
-    copyDir(m_project->contentDir(fromId), m_project->contentDir(toId));
+    if (!saveDocument(fromId, error) || !saveDocument(keyFor(fromId, true), error))
+        return false;
+    if (!copyDir(m_project->contentDir(fromId), m_project->contentDir(toId), error)) {
+        pathsafety::removeTreeInside(m_project->contentDir(toId), m_project->folderPath());
+        return false;
+    }
+    return true;
 }
 
 // copy the source's image resources (a picture read from RTF is held by its document only)
@@ -480,7 +594,12 @@ void DocumentStore::setContent(const QString &id, const QTextDocument *source)
     copyImageResources(source, doc);
     QTextCursor c(doc);
     c.select(QTextCursor::Document);
-    c.insertFragment(QTextDocumentFragment(source));
+    // 0.65.0: an empty source empties the text (insertFragment does nothing with an empty fragment, so a roll back to
+    // an empty snapshot kept the text)
+    if (source->isEmpty())
+        c.removeSelectedText();
+    else
+        c.insertFragment(QTextDocumentFragment(source));
     // insertFragment keeps the first block format of the target: fix it
     QTextCursor first(doc);
     first.setBlockFormat(source->begin().blockFormat());
@@ -522,9 +641,19 @@ QString DocumentStore::importImage(const QString &id, const QImage &img)
     const QString dir = m_project->contentDir(id);
     QDir().mkpath(dir + QLatin1String("/images"));
     const QString rel = QStringLiteral("images/%1.png").arg(QUuid::createUuid().toString(QUuid::Id128).left(12));
-    img.save(QDir(dir).filePath(rel), "PNG");
-    if (QTextDocument *d = loadedText(id))
+    // 0.65.0 (audit F04): written checked; when it fails the picture stays in the document's memory and the
+    // next save writes it (or says that it cannot)
+    QByteArray png;
+    QBuffer buf(&png);
+    if (buf.open(QIODevice::WriteOnly) && img.save(&buf, "PNG"))
+        safesave::writeFile(QDir(dir).filePath(rel), png);
+    if (QTextDocument *d = loadedText(id)) {
         d->addResource(QTextDocument::ImageResource, QUrl(rel), img);
+        // a document looks a picture up by its name resolved against the document's folder: kept under that
+        // name too, so it is shown, and the save finds it in memory when its file could not be written
+        if (d->baseUrl().isValid())
+            d->addResource(QTextDocument::ImageResource, d->baseUrl().resolved(QUrl(rel)), img);
+    }
     return rel;
 }
 
@@ -621,9 +750,14 @@ bool DocumentStore::convertStorage(StorageFormat to, QString *error)
             text(id);
         notes(id);
     }
+    const StorageFormat was = m_project->storage;
     m_project->storage = to;
     bool ok = true;
-    for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
+    // 0.65.0 (audit F15): all texts and the project file in one save batch: either every text is in the new format
+    // (and the old files are removed after that), or nothing changed on disk and the project keeps its format
+    savebatch::Batch batch(m_project->folderPath(), m_project->journalFile());
+    savebatch::Scope scope(&batch);
+    for (auto it = m_entries.begin(); it != m_entries.end() && ok; ++it) {
         const bool empty = it->doc->isEmpty();
         const bool notes = it->isNotes;
         const QString id = notes ? it.key().mid(2) : it.key();
@@ -646,7 +780,16 @@ bool DocumentStore::convertStorage(StorageFormat to, QString *error)
     }
     m_plainCache.clear();
     m_project->markIndexDirty();
-    return ok && m_project->saveIndex(error);
+    if (ok && !m_project->saveIndex(error))
+        ok = false;
+    if (ok && !batch.commit(error))
+        ok = false;
+    if (!ok) {
+        batch.drop();
+        m_project->storage = was;
+        m_project->markIndexDirty();
+    }
+    return ok;
 }
 
 bool DocumentStore::restyleAll(const Formatting &oldF, const Formatting &newF, const styles::Changes &changes,
@@ -827,6 +970,7 @@ bool convertFile(const QString &inPath, const QString &outPath, const Formatting
         md::read(text, &doc, f);
     }
     QByteArray out;
+    QString pictureError;
     if (toRtf) {
         out = rtf::write(&doc, f);
     } else {
@@ -839,10 +983,20 @@ bool convertFile(const QString &inPath, const QString &outPath, const Formatting
                 return fmt.name();
             QDir().mkpath(QDir(outDir).filePath(imgDir));
             const QString rel = imgDir + QStringLiteral("/%1.png").arg(QUuid::createUuid().toString(QUuid::Id128).left(10));
-            img.save(QDir(outDir).filePath(rel), "PNG");
+            QByteArray png;
+            QBuffer buf(&png);
+            QString why;
+            if (!buf.open(QIODevice::WriteOnly) || !img.save(&buf, "PNG") || !safesave::writeFile(QDir(outDir).filePath(rel), png, &why))
+                if (pictureError.isEmpty())
+                    pictureError = why.isEmpty() ? QObject::tr("a picture could not be converted") : why;
             return rel;
         };
         QString text = md::write(&doc, f, saver);
+        if (!pictureError.isEmpty()) { // 0.65.0 (audit F04)
+            if (error)
+                *error = QObject::tr("Not converted: %1").arg(pictureError);
+            return false;
+        }
         if (standardMarkdown)
             text = md::toStandardMarkdown(text);
         out = text.toUtf8();

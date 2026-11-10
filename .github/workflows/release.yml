@@ -84,12 +84,32 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p /tmp/ci-log && echo tools > /tmp/ci-log/last-step
-          { apt-get update -qq && apt-get install -y -qq --no-install-recommends git ca-certificates curl gh xz-utils \
+          { apt-get update -qq && apt-get install -y -qq --no-install-recommends git ca-certificates curl gh xz-utils openssl \
             && apt-get -y -qq upgrade; } 2>&1 | tee /tmp/ci-log/tools.log
 
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
+
+      # 0.65.0 (external audit of 2026-11-10, F12): every package and the checksum list are signed with the project's
+      # release key. Without the secret, or with a key that is not the one the program carries, nothing is built.
+      - name: The signing key
+        env:
+          QB_SIGNING_KEY: ${{ secrets.QB_SIGNING_KEY }}
+        run: |
+          if [ -z "$QB_SIGNING_KEY" ]; then
+            echo "::error title=No signing key::The secret QB_SIGNING_KEY is not set: the release is not built unsigned."
+            exit 1
+          fi
+          mkdir -p /tmp/qb-signing && chmod 700 /tmp/qb-signing
+          ( umask 077; printf '%s\n' "$QB_SIGNING_KEY" > /tmp/qb-signing/key.pem )
+          want=$(grep -o 'kReleaseKey\[\] = "[0-9a-f]*"' src/core/Signing.cpp | grep -o '"[0-9a-f]*"' | tr -d '"')
+          have=$(openssl pkey -in /tmp/qb-signing/key.pem -pubout -outform DER | tail -c 32 | od -An -tx1 | tr -d ' \n')
+          if [ -z "$have" ] || [ "$have" != "$want" ]; then
+            echo "::error title=Wrong signing key::QB_SIGNING_KEY is not the key whose public half the program carries."
+            exit 1
+          fi
+          echo "signing key ok"
 
       - name: Build tools and the libraries of Ubuntu 24.04
         run: |
@@ -111,6 +131,7 @@ jobs:
         env:
           QB_FFMPEG_DIR: ${{ github.workspace }}/build/ffmpeg
           QB_FFMPEG_FULL_DIR: ${{ github.workspace }}/build/ffmpeg-full
+          QB_SIGNING_KEY_FILE: /tmp/qb-signing/key.pem
         run: |
           mkdir -p dist
           tools/ci-step.sh addons packaging/build-addons.sh build-appimage dist
@@ -132,6 +153,18 @@ jobs:
 
       - name: Third-party source code
         run: tools/ci-step.sh sources python3 -I tools/collect-sources.py sources
+
+      # 0.65.0 (audit F12): the checksum list of every release file, signed; the public key goes with the release
+      - name: Checksums and their signature
+        run: |
+          cp packaging/quillbinder-signing-public.pem dist/
+          cp sources/SOURCES.txt dist/THIRD-PARTY-SOURCES.txt
+          (cd dist && rm -f SHA256SUMS.txt SHA256SUMS.txt.sig && sha256sum -- * > /tmp/SHA256SUMS.txt && mv /tmp/SHA256SUMS.txt SHA256SUMS.txt)
+          openssl pkeyutl -sign -rawin -inkey /tmp/qb-signing/key.pem -in dist/SHA256SUMS.txt -out dist/SHA256SUMS.txt.sig
+          openssl pkeyutl -verify -pubin -inkey packaging/quillbinder-signing-public.pem -rawin -in dist/SHA256SUMS.txt \
+            -sigfile dist/SHA256SUMS.txt.sig
+          rm -rf /tmp/qb-signing
+
 
       - name: Hand the files to the job "publish"
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

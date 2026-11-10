@@ -7,6 +7,8 @@
 # prefix is there: QB_FFMPEG_DIR and QB_FFMPEG_FULL_DIR (default build/ffmpeg and
 # build/ffmpeg-full, see tools/get-ffmpeg.sh).
 # A suite passes when its last line says "0 failure(s)" and rc=0.
+# The exit status (0.65.0, audit F08): 1 when a suite failed, timed out, has no summary line or was not
+# built; the last lines name them ("failed: ...", "not built: ...").
 # Only some suites (names as printed below: qb_tests, ui, m6 ... m14, fixes, v017 ...):
 #   QB_SUITES="v040 m13"   run these
 #   QB_SAMPLE=10           add whole suites drawn at random until about 10 % of the checks are covered
@@ -133,39 +135,67 @@ run() {
     [ -n "$COUNTS" ] && echo "$name $((pass + fail))" >> "$COUNTS"
     grep -i "^FAIL\|\] FAIL " "$log" | head -5 | sed 's/^/    /'
     rm -rf "$h"
+    # 0.65.0 (audit F08): the result counts for the exit status
+    if [ "$rc" != 0 ] || [ "$fail" != 0 ] || [ -z "$summary" ] || [[ "$summary" != "0 failure(s)"* ]]; then
+        FAILED="$FAILED $name"
+    fi
 }
+# a suite whose program is not there counts as failed when it would run (0.65.0, audit F08: it was skipped silently)
+runx() {   # runx <name> <program to look for> <command ...>
+    local name=$1 prog=$2
+    shift 2
+    [ -n "$SELECTED" ] && [[ " $SELECTED " != *" $name "* ]] && return
+    if [ ! -x "$prog" ]; then
+        echo "$name not built ($prog)"
+        MISSING="$MISSING $name"
+        return
+    fi
+    run "$name" "$@"
+}
+FAILED=""
+MISSING=""
 run qb_tests $B/tests/qb_tests
 run ui $B/tests/qb_ui_tests "$OUT/shots-ui"
 for m in 6 7 8 9 10 11 12 13 14; do   # (m15, the tutorial of 0.15 to 0.30, is gone)
-    [ -x $B/tests/qb_m${m}_tests ] && run m$m $B/tests/qb_m${m}_tests "$OUT/shots-m$m"
+    runx m$m $B/tests/qb_m${m}_tests $B/tests/qb_m${m}_tests "$OUT/shots-m$m"
 done
-[ -x $B/tests/qb_fixes_tests ] && run fixes $B/tests/qb_fixes_tests "$OUT/shots-fixes"
-[ -x $B/tests/qb_v017_tests ] && run v017 $B/tests/qb_v017_tests "$OUT/shots-v017"
-[ -x $B/tests/qb_v018_tests ] && run v018 $B/tests/qb_v018_tests "$OUT/shots-v018"
-[ -x $B/tests/qb_v019_tests ] && run v019 $B/tests/qb_v019_tests "$OUT/shots-v019"
-[ -x $B/tests/qb_v020_tests ] && run v020 $B/tests/qb_v020_tests "$OUT/shots-v020"
-[ -x $B/tests/qb_v021_tests ] && run v021 $B/tests/qb_v021_tests "$OUT/shots-v021"
-[ -x $B/tests/qb_v0211_tests ] && run v0211 $B/tests/qb_v0211_tests "$OUT/shots-v0211"
-[ -x $B/tests/qb_v0212_tests ] && run v0212 $B/tests/qb_v0212_tests "$OUT/shots-v0212"
-[ -x $B/tests/qb_v040_tests ] && run v040 $B/tests/qb_v040_tests "$OUT/shots-v040"
-[ -x $B/tests/qb_v0401_tests ] && run v0401 $B/tests/qb_v0401_tests "$OUT/shots-v0401"
-[ -x $B/tests/qb_v0402_tests ] && run v0402 $B/tests/qb_v0402_tests "$OUT/shots-v0402"
-[ -x $B/tests/qb_v0403_tests ] && run v0403 $B/tests/qb_v0403_tests "$OUT/shots-v0403"
-[ -x $B/tests/qb_v050_tests ] && run v050 $B/tests/qb_v050_tests "$OUT/shots-v050"
-[ -x $B/tests/qb_v060_tests ] && run v060 $B/tests/qb_v060_tests "$OUT/shots-v060"
-[ -x $B/tests/qb_v0601_tests ] && run v0601 $B/tests/qb_v0601_tests "$OUT/shots-v0601"
-[ -x $B/tests/qb_v0602_tests ] && run v0602 $B/tests/qb_v0602_tests "$OUT/shots-v0602"
-[ -x $B/tests/qb_v0603_tests ] && run v0603 $B/tests/qb_v0603_tests "$OUT/shots-v0603"
-[ -x $B/tests/qb_v0604_tests ] && run v0604 $B/tests/qb_v0604_tests "$OUT/shots-v0604"
-[ -x $B/tests/qb_v0605_tests ] && run v0605 $B/tests/qb_v0605_tests "$OUT/shots-v0605"
-[ -x $B/tests/qb_v061_tests ] && run v061 $B/tests/qb_v061_tests "$OUT/shots-v061"
+runx fixes $B/tests/qb_fixes_tests $B/tests/qb_fixes_tests "$OUT/shots-fixes"
+runx v017 $B/tests/qb_v017_tests $B/tests/qb_v017_tests "$OUT/shots-v017"
+runx v018 $B/tests/qb_v018_tests $B/tests/qb_v018_tests "$OUT/shots-v018"
+runx v019 $B/tests/qb_v019_tests $B/tests/qb_v019_tests "$OUT/shots-v019"
+runx v020 $B/tests/qb_v020_tests $B/tests/qb_v020_tests "$OUT/shots-v020"
+runx v021 $B/tests/qb_v021_tests $B/tests/qb_v021_tests "$OUT/shots-v021"
+runx v0211 $B/tests/qb_v0211_tests $B/tests/qb_v0211_tests "$OUT/shots-v0211"
+runx v0212 $B/tests/qb_v0212_tests $B/tests/qb_v0212_tests "$OUT/shots-v0212"
+runx v040 $B/tests/qb_v040_tests $B/tests/qb_v040_tests "$OUT/shots-v040"
+runx v0401 $B/tests/qb_v0401_tests $B/tests/qb_v0401_tests "$OUT/shots-v0401"
+runx v0402 $B/tests/qb_v0402_tests $B/tests/qb_v0402_tests "$OUT/shots-v0402"
+runx v0403 $B/tests/qb_v0403_tests $B/tests/qb_v0403_tests "$OUT/shots-v0403"
+runx v050 $B/tests/qb_v050_tests $B/tests/qb_v050_tests "$OUT/shots-v050"
+runx v060 $B/tests/qb_v060_tests $B/tests/qb_v060_tests "$OUT/shots-v060"
+runx v0601 $B/tests/qb_v0601_tests $B/tests/qb_v0601_tests "$OUT/shots-v0601"
+runx v0602 $B/tests/qb_v0602_tests $B/tests/qb_v0602_tests "$OUT/shots-v0602"
+runx v0603 $B/tests/qb_v0603_tests $B/tests/qb_v0603_tests "$OUT/shots-v0603"
+runx v0604 $B/tests/qb_v0604_tests $B/tests/qb_v0604_tests "$OUT/shots-v0604"
+runx v0605 $B/tests/qb_v0605_tests $B/tests/qb_v0605_tests "$OUT/shots-v0605"
+runx v061 $B/tests/qb_v061_tests $B/tests/qb_v061_tests "$OUT/shots-v061"
 run v0611 $B/tests/qb_v0611_tests "$OUT/shots-v0611"
 run v062 $B/tests/qb_v062_tests "$OUT/shots-v062"
-[ -x $B/tests/qb_v064_tests ] && run v064 $B/tests/qb_v064_tests "$OUT/shots-v064"
-[ -x $B/tests/qb_v0641_tests ] && run v0641 $B/tests/qb_v0641_tests "$OUT/shots-v0641"
-[ -x $B/tests/qb_v0642_tests ] && run v0642 $B/tests/qb_v0642_tests "$OUT/shots-v0642"
-[ -x $B/tests/qb_audit1_tests ] && run audit1 $B/tests/qb_audit1_tests "$OUT/shots-audit1"
-[ -x $B/tests/qb_w2_tests ] && run w2 $B/tests/qb_w2_tests "$OUT/shots-w2"
-[ -x $B/tests/qb_w3_tests ] && run w3 $B/tests/qb_w3_tests "$OUT/shots-w3"
-[ -x $B/tests/qb_menu_audit ] && run menu_audit $B/tests/qb_menu_audit "$OUT/shots-audit"
+runx v064 $B/tests/qb_v064_tests $B/tests/qb_v064_tests "$OUT/shots-v064"
+runx v0641 $B/tests/qb_v0641_tests $B/tests/qb_v0641_tests "$OUT/shots-v0641"
+runx v0642 $B/tests/qb_v0642_tests $B/tests/qb_v0642_tests "$OUT/shots-v0642"
+runx v0650 $B/tests/qb_v0650_tests $B/tests/qb_v0650_tests "$OUT/shots-v0650"
+runx audit1 $B/tests/qb_audit1_tests $B/tests/qb_audit1_tests "$OUT/shots-audit1"
+runx w2 $B/tests/qb_w2_tests $B/tests/qb_w2_tests "$OUT/shots-w2"
+runx w3 $B/tests/qb_w3_tests $B/tests/qb_w3_tests "$OUT/shots-w3"
+# a suite that was asked for and is not there at all (a name mistyped in QB_SUITES)
+for n in $SELECTED; do
+    [[ " $RAN $MISSING " == *" $n "* ]] || MISSING="$MISSING $n"
+done
+if [ -n "$FAILED$MISSING" ]; then
+    [ -n "$FAILED" ] && echo "failed:$FAILED"
+    [ -n "$MISSING" ] && echo "not built:$MISSING"
+    exit 1
+fi
+echo "all suites passed"
 exit 0

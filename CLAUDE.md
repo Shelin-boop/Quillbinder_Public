@@ -34,7 +34,7 @@ changed and what was checked. Preferences:
   same version number. Audio and video for everyone: the add-on "Media Playback" (free formats), the add-on "Extra
   Video and Audio Formats" (formats licensed under patents), and the package `media-all-formats.qbpkg` that installs
   both in one step (built by `packaging/build-addons.sh`).
-- **Runtime**: the current AppImage is 0.64.1 alpha (before it 0.64.0 alpha, 0.63.0 alpha, 0.61.0 alpha, 0.60.0 alpha, 0.40.0 alpha / 0.50.0 alpha, 0.30.0 alpha, 0.20.0,
+- **Runtime**: the current AppImage is 0.65.0 alpha (before it 0.64.2 alpha, 0.64.1 alpha, 0.64.0 alpha, 0.63.0 alpha, 0.61.0 alpha, 0.60.0 alpha, 0.40.0 alpha / 0.50.0 alpha, 0.30.0 alpha, 0.20.0,
   0.16.0 and 0.2.0, with the same libraries), runtime id `u2404-qt6.4-r1` (`APP_RUNTIME` in CMakeLists.txt; a new
   AppImage with other libraries needs a new id). Program updates (.qbpkg) run on its libraries:
   build on Ubuntu 24.04 with Ubuntu's Qt 6.4.2, use no Qt API newer than 6.4, and add
@@ -127,6 +127,13 @@ changed and what was checked. Preferences:
   Centered, a bold run ending in a space), the spare copy, project and .scriv folders that are gone, a .scriv as
   Scrivener writes it opened and closed unchanged, pictures in notes, outside changes while open, Scrivener's XML lock,
   linked notes over several formats, H2O by subscript, stale menu entries, the Documents menu, `showIfOpen`).
+- `qb_v0650_tests` (0.65.0, the fixes of the external audit of 2026-11-10: safe copies, the save journal and its recovery
+  (also a journal naming files outside the project), contents-by-title.txt, pictures that cannot be written, partial reads,
+  Roll Back (core and inspector), incomplete backups, Duplicate, object pictures, storage conversion, same size and time,
+  a 70 MB archive, command exporters (exit status, event loop), bundles and signatures (RFC 8032 vector, the release key,
+  test keys made with openssl, `QB_TEST_SIGNING_KEY`, `QB_REQUIRE_SIGNED`), the scratch pad, the close question, the end by a
+  signal, the lock, Scrivener format with a document and a picture changed elsewhere, the manual). Needs
+  `<build>/addons-dist/tool-scratch-pad.qbpkg`, python3 and openssl.
 - `qb_audit1_tests` (0.64.1, the fixes of the external audit of 2026-11-09: ids of a project file and names in archives
   (`core/PathSafety.*`), damaged ZIP entries, a Word 97 file with a looping sector chain (compiles the plugin's `Cfb.cpp`),
   XML nested 20,000 deep, the keys a project may hold and the question of Load Options, the code warning of packages,
@@ -260,6 +267,68 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
 - The add-on brings Qt Multimedia (only `libQt6Multimedia.so.6`: the microphone needs no Qt Multimedia plugin) and Qt's TLS
   plugin; `addons/speech-transcription/stage.sh` exits with 3 when whisper is not built, and `packaging/build-addons.sh`
   then leaves the add-on out. Icons of the add-on are in the program's icon set (Breeze: microphone, record, list).
+
+## The external audit's fixes (0.65.0, report of 2026-11-10)
+
+- **Save journal** (`src/core/SaveBatch.*`, audit F19): `Project::saveImpl` runs a `savebatch::Batch` (`Scope` makes it
+  `current()`); `savebatch::put(path, data, error, title, place, done)` stages `<file>.qbstage` (synced) in a batch, else
+  writes at once; `done` runs once the file is in place (marks, stamps, `savedImages`). `commit`: with 2 files or more the
+  journal `settings/journal.json` (target, staged, sha256, replaces, title, place, device, key), then POSIX `rename`
+  (`savebatch::replace`, MoveFileEx on Windows), then the journal goes. A staging failure stops the whole save
+  (`batch.drop()`, entries stay dirty). `savebatch::recover` at `Project::open` and before each save: a committed journal
+  is finished (target unchanged since: renamed; changed: the staged file kept in `settings/conflicts`; missing: listed as
+  lost), stray `.qbstage` files without a journal are removed; only files inside the project, and only their own staged
+  name. `Project::saveRecoveryText` -> `MainWindow::m_lastSaveRecovery` (notice `saveRecoveryNotice`). Backups skip
+  `.qbstage` files and the journal. Writers on the batch: `DocumentStore::writeEntry` and its pictures, `Objects::writeJson`,
+  `Project::saveIndex`, `contents-by-title.txt` (`Project::titleListText`, Quillbinder format only), `convertStorage`
+  (its own batch). Not on it: the ui state, mind maps, snapshots, the Scrivener write.
+- **Pictures** (F04): `DocumentStore::serialize` encodes PNG into memory and writes it through `put`; a failure sets
+  `serializeError()`, and `writeEntry` fails. `importImage` writes checked (the resource stays for the save).
+- **Reads** (F23): `readFile` treats a read error or fewer bytes than the file's size as unreadable (`m_unreadable`).
+- **Same size and time** (F14): `writeEntry` compares the file with `Entry::read`, `saveIndex` with `m_indexSha`.
+- **Snapshots** (F02): `snapshots::load(..., &error)` and `rollBack(p, s, error, allowEmpty)`; the inspector reads first,
+  asks for an empty snapshot, stops when the "before" snapshot fails (`snapshotRollBack`, `snapshotList`,
+  property `qbLastRollBackError` with `QB_NO_DIALOGS`).
+- **Backups** (F03): skipped files -> `... (incomplete).zip`, true with *error; retention counts complete backups only and
+  removes incomplete ones older than the oldest kept. `MainWindow::tellBackupProblem` (open, close). Test switch
+  `QB_TEST_UNREADABLE=<path suffix>` in `ZipWriter::addDirectory`.
+- **Safe copies** (`safesave::copyFile`, `safesave::writeFile` in `SafeSave.h`, header-only, also for plugins): used by the
+  Scrivener media/icons/web page files, `copyDocument` (F06, `duplicateItems` removes a partial duplicate), the command
+  exporter (F11, also exit status; F24: waits in 100 ms steps with `progress::tick`).
+- **Scrivener format** (F10, F05, F25): the removed-document sweep knows only `state.theirs`; documents of the .scrivx on
+  disk this program never knew (`madeElsewhere`) keep their folders, and the .scrivx is then not written (`binderKept`,
+  `keptTheirs`, one notice per stamp: `Project::scrivenerBinderTold`). `SyncState::binder`/`binderKnown` ("binder" in
+  scrivener-sync.json): the UUIDs of the .scrivx at the last read or write; `mergeFromOld` keeps working-copy documents
+  not among them (states of older versions: `theirs` as before). Media and mind maps: changed only in the .scriv ->
+  kept; both -> `keepTheirs` first; copies through `safesave::copyFile`; a mind map or icon failure fails the sync.
+- **Objects** (F09): removed files and orphan pictures are deleted in the batch's `after` step, only when all writes
+  worked; pictures that cannot be removed stay listed.
+- **The end** (F07): `saveForTermination` on failure: `Project::writeEmergencyCopy` (RTF of every dirty entry,
+  `DocumentStore::writeUnsaved`, `<data>/Emergency/<title> <time>/` with README.txt), `MainWindow::writeEmergencyNotice`
+  (`<data>/Emergency/notice.txt`), `crash::setTerminationSaveFailed()` -> exit status 1; `showEmergencyNotice` at the
+  next start (main.cpp).
+- **Close question** (F26): `closeUnsavedQuestion` with Keep Open (default), `closeSaveElsewhere`, `closeLoseChanges`.
+- **Scratch Pad 1.1** (F01): `save()` returns bool (safesave), switching notes / New Note / folder / rename / send refuse
+  after a failed save (`tellUnsaved`), `saveEmergencyCopy` at the end. **Speech Transcription 1.4**: `TranscriptPanel::save`
+  bool, `saveOrKeep` (emergency copy) before a recording and at the end.
+- **Lock** (F13): `MainWindow::lockNotWritten` (notice `lockWriteNotice`, once per opening).
+- **Bundles** (F18): `Addons.cpp` `prepare` (every part into `.new-<name>`, the program's self-test), then all renamed,
+  the placed ones put back when one fails, then `finish`.
+- **ZIP reader** (F17): archives above 64 MiB are mapped (`ZipReader::m_file`), 2 GiB and more refused.
+- **Signatures** (F12, `src/core/Signing.*`, Monocypher 4.0.3 unchanged in `src/core/third_party/monocypher`, BSD-2-Clause,
+  listed in resources/licenses and licenses-windows): `manifest.sig` = Ed25519 signature of manifest.json
+  (`{"algorithm","key","signature","signs"}`); `signing::checkManifest`, `trustedKeys()` (the release key `kReleaseKey`,
+  `packaging/quillbinder-signing-public.pem`; test builds also `QB_TEST_SIGNING_KEY`). `PackageInfo::signature`,
+  `trusted()` (a bundle: every installed part), `addons::trustProblem(info, Unsigned::Refuse|AllowAddons|AllowAll)`:
+  a mismatching signature never; a program update only signed; an add-on after the window's warning
+  (`addonSignedNote` / `addonCodeWarning`, Cancel the default). `--install <file> --allow-unsigned` on the command line
+  (e2e-appimage.sh, the full AppImage's AppRun, win-check*.sh pass it). Test builds allow everything unless
+  `QB_REQUIRE_SIGNED` is set. `tools/make-package.py` signs with `QB_SIGNING_KEY_FILE` (openssl). The release workflow:
+  step "The signing key" (secret `QB_SIGNING_KEY`, checked against `kReleaseKey`, else the run stops), the packages
+  signed while they are made, "Checksums and their signature" (SHA256SUMS.txt + .sig + the public key, after the
+  third-party sources), `publish-release.sh` checks the signed list instead of making it again.
+- **Runner** (F08): `tools/run-all-tests.sh` ends with 1 and `failed: ...` / `not built: ...` (`runx` for suites that may
+  be missing; the line of the long-gone `menu_audit` was removed).
 
 ## Fixes of the system test's full run (0.64.2, 2026-11-10)
 

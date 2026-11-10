@@ -83,6 +83,17 @@ public:
     QString contentDir(const QString &id) const;
     QString snapshotsDir(const QString &id) const;
     QString settingsDir() const;
+    // the journal of a save in progress (settings/journal.json, 0.65.0, audit F19)
+    QString journalFile() const;
+    // what the opening found of a save that was cut off ("" = nothing), for a notice
+    QString saveRecoveryText() const { return m_saveRecovery; }
+    void clearSaveRecoveryText() { m_saveRecovery.clear(); }
+    // 0.65.0 (audit F07, F26): the texts and notes not yet saved, as RTF files in a new folder under `parent`
+    // (default: <data folder>/Emergency); the folder, or "" when nothing could be written (or nothing was unsaved)
+    QString writeEmergencyCopy(const QString &parent = QString(), QString *error = nullptr);
+    // the plain list of the documents with their titles and files (contents-by-title.txt, 0.65.0)
+    QString titleListFile() const;
+    QString titleListText() const;
     QString mediaFilePath(const BinderItem *item) const;
 
     BinderItem *root() const { return m_root; }
@@ -136,6 +147,8 @@ public:
     // the one that stopped the last write into it ("" = written), with "user on host" (0.64.1).
     QString scrivenerLockAtOpen;
     QString scrivenerLockRefused;
+    // 0.65.0 (audit F10): the stamp of the .scrivx whose documents made elsewhere were last told (once per change)
+    QString scrivenerBinderTold;
     QString scrivenerLockWho;
     // The file the writer knows the project by: the .scrivx of a project in
     // Scrivener format, the project file otherwise.
@@ -239,6 +252,8 @@ private:
     int m_gapSaveAfter = 5000;
     int m_autosaves = 0;
     bool m_uiDirty = false;
+    QString m_saveRecovery; // 0.65.0
+    QByteArray m_indexSha;  // SHA-256 of the project file as read or last written here (0.65.0, audit F14)
     syncsafe::Stamp m_indexMark; // the project file as read or last written here (0.64)
     bool writeUiState();
     QByteArray m_loadedIndex;   // the project file as it was read (for the spare copy)

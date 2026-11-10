@@ -548,6 +548,14 @@
    "source": "https://github.com/madler/zlib, tag v1.3.2"
   },
   {
+   "name": "Monocypher",
+   "version": "4.0.3",
+   "license": "BSD-2-Clause (dual-licensed: BSD-2-Clause or CC0-1.0)",
+   "where": "the check of package signatures (Ed25519), compiled into quillbinder.exe",
+   "text": "monocypher.txt",
+   "source": "src/core/third_party/monocypher of the Quillbinder source; upstream: https://github.com/LoupVaillant/Monocypher, tag 4.0.3"
+  },
+  {
    "name": "Microsoft Visual C++ Runtime",
    "version": "14.x",
    "license": "Microsoft Software License Terms (redistributable code of Visual Studio)",

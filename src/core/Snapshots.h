@@ -21,9 +21,13 @@ QList<Snapshot> list(Project *p, const QString &docId);   // newest first
 // from: the text to store if it is not the document's own (a copy read from its file)
 bool take(Project *p, const QString &docId, const QString &title, QString *error = nullptr, QTextDocument *from = nullptr);
 void load(Project *p, const Snapshot &s, QTextDocument *into);
+// 0.65.0 (audit F02): false with a reason when the snapshot's file cannot be read whole
+bool load(Project *p, const Snapshot &s, QTextDocument *into, QString *error);
 bool remove(Project *p, const Snapshot &s);
 bool setTitle(Project *p, const Snapshot &s, const QString &title);
-bool rollBack(Project *p, const Snapshot &s);
+// The text replaced with the snapshot; false with a reason (nothing replaced) when it cannot be read whole,
+// or when it holds no text while its file is not empty (0.65.0, audit F02)
+bool rollBack(Project *p, const Snapshot &s, QString *error = nullptr, bool allowEmpty = false);
 
 // All snapshots of a project (also of documents in the Trash and of documents no longer there).
 struct Totals {

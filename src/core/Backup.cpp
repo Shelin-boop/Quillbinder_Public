@@ -92,15 +92,34 @@ bool backupProject(Project *p, const QString &dirIn, int keep, QString *outPath,
             *error = QObject::tr("The backup %1 could not be checked (%2), so it was removed.").arg(path, why.isEmpty() ? QObject::tr("rename failed") : why);
         return false;
     }
+    // 0.65.0 (audit F03): a backup with files missing says so in its name, and never counts as one of the backups
+    // to keep: older complete backups are deleted only after a complete one
+    if (!zwSkipped.isEmpty()) {
+        QString named = QDir(dir).filePath(QFileInfo(path).completeBaseName() + QLatin1String(" (incomplete).zip"));
+        for (int n = 2; QFile::exists(named) && n < 100; ++n)
+            named = QDir(dir).filePath(QFileInfo(path).completeBaseName() + QStringLiteral(" (incomplete %1).zip").arg(n));
+        if (QFile::rename(path, named))
+            path = named;
+    }
     if (outPath)
         *outPath = path;
     if (error && !zwSkipped.isEmpty())
-        *error = QObject::tr("%n file(s) could not be read and are missing from the backup: %1", nullptr, int(zwSkipped.size()))
+        *error = QObject::tr("The backup is incomplete: %n file(s) could not be read and are missing from it: %1. Older "
+                             "backups were kept.", nullptr, int(zwSkipped.size()))
                      .arg(zwSkipped.join(QLatin1String(", ")));
-    if (keep > 0) {
-        QStringList existing = backupsFor(p->title(), dir);
-        while (existing.size() > keep)
-            QFile::remove(existing.takeFirst());
+    if (keep > 0 && zwSkipped.isEmpty()) {
+        QStringList complete, incomplete;
+        for (const QString &f : backupsFor(p->title(), dir))
+            (QFileInfo(f).completeBaseName().contains(QLatin1String(" (incomplete")) ? incomplete : complete) << f;
+        while (complete.size() > keep)
+            QFile::remove(complete.takeFirst());
+        // incomplete ones older than the oldest complete backup that stays are of no more use
+        if (!complete.isEmpty()) {
+            const QString oldest = QFileInfo(complete.first()).completeBaseName();
+            for (const QString &f : std::as_const(incomplete))
+                if (QFileInfo(f).completeBaseName() < oldest)
+                    QFile::remove(f);
+        }
     }
     return true;
 }

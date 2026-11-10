@@ -1697,6 +1697,7 @@
     <file alias="licenses/texts/dict-en_GB.txt">licenses-windows/texts/dict-en_GB.txt</file>
     <file alias="licenses/texts/dict-en_US.txt">licenses-windows/texts/dict-en_US.txt</file>
     <file alias="licenses/texts/hunspell.txt">licenses-windows/texts/hunspell.txt</file>
+    <file alias="licenses/texts/monocypher.txt">licenses-windows/texts/monocypher.txt</file>
     <file alias="licenses/texts/msvc-runtime.txt">licenses-windows/texts/msvc-runtime.txt</file>
     <file alias="licenses/texts/qt-aglfn.txt">licenses-windows/texts/qt-aglfn.txt</file>
     <file alias="licenses/texts/qt-blake2.txt">licenses-windows/texts/qt-blake2.txt</file>

@@ -1,6 +1,8 @@
 #include "core/Project.h"
 #include "core/SafeSave.h"
+#include "core/SaveBatch.h"
 #include "core/PathSafety.h"
+#include "core/Paths.h"
 #include "core/Timing.h"
 #include "core/Objects.h"
 #include "core/BinderModel.h"
@@ -16,6 +18,7 @@
 
 #include <QCryptographicHash>
 #include <QDir>
+#include <QDateTime>
 #include <QDomDocument>
 #include <QFile>
 #include <QFileInfo>
@@ -197,6 +200,12 @@ std::unique_ptr<Project> Project::open(const QString &path, QString *error)
     std::unique_ptr<Project> p(new Project);
     p->m_indexFile = file;
     p->m_folder = QFileInfo(file).absolutePath();
+    // 0.65.0 (audit F19): a save that was cut off is finished, or dropped as a whole, before anything is read
+    {
+        const savebatch::Recovery r = savebatch::recover(p->m_folder, p->journalFile(), p->settingsDir());
+        if (r.any())
+            p->m_saveRecovery = r.text();
+    }
     if (!p->loadIndex(error))
         return nullptr;
     QDir().mkpath(p->m_folder + QLatin1String("/content"));
@@ -704,13 +713,83 @@ QString Project::uiStateFile() const
 bool Project::writeUiState()
 {
     const QByteArray data = QJsonDocument::fromVariant(uiState).toJson();
-    m_uiDirty = false;
     QFile old(uiStateFile());
-    if (old.open(QIODevice::ReadOnly) && old.readAll() == data)
+    if (old.open(QIODevice::ReadOnly) && old.readAll() == data) {
+        m_uiDirty = false;
         return true; // the same as before: nothing for a sync program to carry
+    }
     old.close();
+    // 0.65.0 (audit F16): the mark is cleared only once the file is written, so a failed write is tried again
     QSaveFile ui(uiStateFile());
-    return ui.open(QIODevice::WriteOnly) && safesave::write(ui, data) == data.size() && safesave::commit(ui);
+    const bool ok = ui.open(QIODevice::WriteOnly) && safesave::write(ui, data) == data.size() && safesave::commit(ui);
+    if (ok)
+        m_uiDirty = false;
+    return ok;
+}
+
+QString Project::journalFile() const { return settingsDir() + QStringLiteral("/journal.json"); }
+
+QString Project::titleListFile() const { return m_folder + QStringLiteral("/contents-by-title.txt"); }
+
+QString Project::titleListText() const
+{
+    QStringList lines;
+    lines << tr("%1: the documents of this project and their files").arg(m_title)
+          << tr("Written by %1 with each save that changes it, so that a document's files can be found outside the "
+                "program. The program itself never reads this file.")
+                 .arg(QLatin1String(QB_APP_NAME))
+          << QString();
+    const QDir root(m_folder);
+    std::function<void(const BinderItem *, int)> walk = [&](const BinderItem *it, int depth) {
+        QStringList files;
+        const QString dir = contentDir(it->id);
+        // the files there now, and those this save puts there
+        const savebatch::Batch *b = savebatch::current();
+        for (const QString &f : {QStringLiteral("text.md"), QStringLiteral("text.rtf"), QStringLiteral("notes.md"),
+                                 QStringLiteral("notes.rtf")}) {
+            const QString path = dir + QLatin1Char('/') + f;
+            if (QFileInfo::exists(path) || (b && b->contains(path)))
+                files << root.relativeFilePath(path);
+        }
+        if (isMediaType(it->type)) {
+            const QString m = mediaFilePath(it);
+            if (QFileInfo::exists(m))
+                files << root.relativeFilePath(m);
+        }
+        const QString title = it->title.isEmpty() ? tr("(untitled)") : it->title;
+        lines << QString(depth * 2, QLatin1Char(' ')) + title + (files.isEmpty() ? QString() : QStringLiteral("    ") + files.join(QStringLiteral(", ")));
+        for (const BinderItem *c : it->children)
+            walk(c, depth + 1);
+    };
+    for (const BinderItem *c : m_root->children)
+        walk(c, 0);
+    return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
+}
+
+QString Project::writeEmergencyCopy(const QString &parent, QString *error)
+{
+    if (!m_docs || !m_docs->hasDirty())
+        return QString();
+    const QString base = parent.isEmpty() ? dataDir() + QStringLiteral("/Emergency") : parent;
+    const QString dir = QDir(base).filePath(text::safeFileName(m_title) + QStringLiteral(" ")
+                                            + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH-mm-ss")));
+    if (!QDir().mkpath(dir)) {
+        if (error)
+            *error = tr("Cannot create %1").arg(QDir::toNativeSeparators(dir));
+        return QString();
+    }
+    const int n = m_docs->writeUnsaved(dir, error);
+    if (n == 0) {
+        QDir(dir).removeRecursively();
+        return QString();
+    }
+    safesave::writeFile(QDir(dir).filePath(QStringLiteral("README.txt")),
+                        tr("The project \"%1\" (%2) could not be saved. These are its texts and notes that were not saved "
+                           "yet, as RTF files (Word, LibreOffice and %3 open them). Copy what you need back into the "
+                           "project.\n")
+                            .arg(m_title, QDir::toNativeSeparators(displayFile()), QLatin1String(QB_APP_NAME))
+                            .toUtf8());
+    return dir;
 }
 
 QString Project::spareCopyOf(const QString &projectFile)
@@ -815,26 +894,54 @@ bool Project::saveImpl(QString *error, bool quick)
             *error = why;
         return false;
     }
-    bool ok = true;
-    if (m_docs && !m_docs->saveDirty(error))
-        ok = false;
-    laps.lap("texts");
-    if (m_objects && m_objects->isDirty() && !m_objects->save(error))
-        ok = false;
-    // the project file: every change of the binder at once; new counts alone (while typing)
-    // with the next full save or a minute after the last write at the latest (0.60.5)
-    constexpr qint64 kCountsWait = 60000;
-    const qint64 since = m_lastIndexWrite.isValid() ? m_lastIndexWrite.elapsed() : kCountsWait;
-    const bool countsDue = m_countsDirty && (!quick || since >= kCountsWait);
-    if (m_indexDirty || countsDue || !QFileInfo::exists(m_indexFile)) {
-        if (!saveIndex(error))
-            ok = false;
-    } else if (m_countsDirty) {
-        QTimer::singleShot(int(kCountsWait - since) + 100, this, [this] {
-            if (m_countsDirty && m_lastIndexWrite.isValid() && m_lastIndexWrite.elapsed() >= kCountsWait)
-                scheduleSave();
-        });
+    // 0.65.0 (audit F19): a save of this session that could not put all its files in place is finished first
+    if (QFile::exists(journalFile())) {
+        const savebatch::Recovery r = savebatch::recover(m_folder, journalFile(), settingsDir());
+        if (r.any())
+            m_saveRecovery = r.text();
     }
+    // 0.65.0 (audit F19): every file of this save lands together (see core/SaveBatch.h); a file that cannot be
+    // written stops the whole save, and everything stays unsaved in memory for the next try
+    bool ok = true;
+    savebatch::Batch batch(m_folder, journalFile());
+    {
+        savebatch::Scope scope(&batch);
+        if (m_docs && !m_docs->saveDirty(error))
+            ok = false;
+        laps.lap("texts");
+        if (ok && m_objects && m_objects->isDirty() && !m_objects->save(error))
+            ok = false;
+        // the project file: every change of the binder at once; new counts alone (while typing)
+        // with the next full save or a minute after the last write at the latest (0.60.5)
+        constexpr qint64 kCountsWait = 60000;
+        const qint64 since = m_lastIndexWrite.isValid() ? m_lastIndexWrite.elapsed() : kCountsWait;
+        const bool countsDue = m_countsDirty && (!quick || since >= kCountsWait);
+        if (ok && (m_indexDirty || countsDue || !QFileInfo::exists(m_indexFile))) {
+            const bool binderChanged = m_indexDirty || !QFileInfo::exists(m_indexFile);
+            if (!saveIndex(error))
+                ok = false;
+            // the list of documents with their titles and files (0.65.0): only when it changed
+            if (ok && binderChanged && scrivenerPath.isEmpty()) {
+                const QByteArray list = titleListText().toUtf8();
+                QFile cur(titleListFile());
+                if (!(cur.open(QIODevice::ReadOnly) && cur.readAll() == list)) {
+                    cur.close();
+                    QString why;
+                    if (!savebatch::put(titleListFile(), list, &why, tr("list of documents")) && error)
+                        *error = why; // not a reason to stop the save: the program never reads it
+                }
+            }
+        } else if (ok && m_countsDirty) {
+            QTimer::singleShot(int(kCountsWait - since) + 100, this, [this] {
+                if (m_countsDirty && m_lastIndexWrite.isValid() && m_lastIndexWrite.elapsed() >= kCountsWait)
+                    scheduleSave();
+            });
+        }
+    }
+    if (!ok)
+        batch.drop();
+    else if (!batch.commit(error))
+        ok = false;
     if (m_uiDirty)
         writeUiState();
     laps.lap("project file");
@@ -1320,7 +1427,15 @@ bool Project::saveIndex(QString *error)
 
     // 0.64: the project file was written by someone else since it was read here (another computer
     // through a sync program): that version is kept before this one replaces it
-    if (syncsafe::changedSince(m_indexMark, m_indexFile) && QFileInfo::exists(m_indexFile)) {
+    bool indexElsewhere = syncsafe::changedSince(m_indexMark, m_indexFile) && QFileInfo::exists(m_indexFile);
+    // 0.65.0 (audit F14): the same size and time, other bytes than read or written here
+    if (!indexElsewhere && m_indexMark.known && !m_indexSha.isEmpty() && QFileInfo::exists(m_indexFile)) {
+        QFile cur(m_indexFile);
+        if (cur.open(QIODevice::ReadOnly)
+            && QCryptographicHash::hash(cur.readAll(), QCryptographicHash::Sha256) != m_indexSha)
+            indexElsewhere = true;
+    }
+    if (indexElsewhere) {
         const QString copy = syncsafe::keepCopy(m_indexFile, settingsDir(), tr("project file"));
         // 0.64.1: replaced only when that version was kept
         if (copy.isEmpty()) {
@@ -1333,25 +1448,24 @@ bool Project::saveIndex(QString *error)
         }
         emit conflictKept(QString(), tr("project file"), copy, false);
     }
-    QSaveFile f(m_indexFile);
-    if (!f.open(QIODevice::WriteOnly)) {
-        if (error)
-            *error = tr("Cannot write %1: %2").arg(m_indexFile, f.errorString());
-        return false;
-    }
     // characters XML does not allow (pasted control characters) would make the file unreadable
-    safesave::write(f, text::xmlSafeBytes(dom.toByteArray(1)));
-    if (!safesave::commit(f)) {
+    const QByteArray bytes = text::xmlSafeBytes(dom.toByteArray(1));
+    // 0.65.0 (audit F19): with the other files of the save; the marks are cleared once it is in place
+    QString why;
+    const QByteArray sha = QCryptographicHash::hash(bytes, QCryptographicHash::Sha256);
+    if (!savebatch::put(m_indexFile, bytes, &why, tr("project file"), QString(), [this, sha] {
+            m_indexMark = syncsafe::stampOf(m_indexFile);
+            m_indexSha = sha;
+            m_indexDirty = false;
+            m_countsDirty = false;
+            m_lastIndexWrite.start();
+        })) {
         if (error)
-            *error = tr("Cannot write %1: %2").arg(m_indexFile, f.errorString());
+            *error = why;
         return false;
     }
-    m_indexMark = syncsafe::stampOf(m_indexFile);
     // ui state: this computer's own file (0.64)
     writeUiState();
-    m_indexDirty = false;
-    m_countsDirty = false;
-    m_lastIndexWrite.start();
     return true;
 }
 
@@ -1368,6 +1482,7 @@ bool Project::loadIndex(QString *error)
     int line = 0, col = 0;
     m_loadedIndex = f.readAll();
     m_indexMark = syncsafe::stampOf(m_indexFile);
+    m_indexSha = QCryptographicHash::hash(m_loadedIndex, QCryptographicHash::Sha256);
     if (!dom.setContent(m_loadedIndex, &msg, &line, &col)) {
         // characters XML does not allow (written by versions before 0.20): removed, then read again
         int removed = 0;

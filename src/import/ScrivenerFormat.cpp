@@ -247,8 +247,8 @@ bool copyDir(const QString &from, const QString &to, const QStringList &skipRela
             QDir().mkpath(target);
         } else {
             QDir().mkpath(QFileInfo(target).absolutePath());
-            QFile::remove(target);
-            if (!QFile::copy(path, target))
+            // 0.65.0 (audit F05): copied beside the target and renamed over it; the old file stays when it fails
+            if (!safesave::copyFile(path, target))
                 return false;
         }
     }
@@ -1089,6 +1089,10 @@ bool SyncState::load(const QString &file)
     snapshots.clear();
     for (const QJsonValue &v : o.value(QStringLiteral("snapshots")).toArray())
         snapshots << v.toString();
+    binder.clear();
+    binderKnown = o.contains(QStringLiteral("binder"));
+    for (const QJsonValue &v : o.value(QStringLiteral("binder")).toArray())
+        binder << v.toString();
     return true;
 }
 
@@ -1108,6 +1112,8 @@ bool SyncState::save(const QString &file) const
     o[QStringLiteral("ours")] = a;
     o[QStringLiteral("theirs")] = b;
     o[QStringLiteral("snapshots")] = QJsonArray::fromStringList(snapshots);
+    if (binderKnown)
+        o[QStringLiteral("binder")] = QJsonArray::fromStringList(binder);
     QDir().mkpath(QFileInfo(file).absolutePath());
     QSaveFile f(file);
     if (!f.open(QIODevice::WriteOnly))
@@ -1335,19 +1341,31 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
             const QString target = dir + QLatin1String("content.") + it->fileExt.toLower();
             const QString theirKey = uuid + QLatin1String("/content.") + it->fileExt.toLower();
             const bool ourSame = state.ours.value(key) == h && !h.isEmpty();
-            const bool theirSame = state.theirs.value(theirKey) == statHash(target) && QFile::exists(target);
-            if (!(ourSame && theirSame) && QFile::exists(src)) {
-                QDir().mkpath(dir);
-                QFile::remove(target);
-                if (!QFile::copy(src, target)) {
-                    if (error)
-                        *error = QObject::tr("Cannot copy %1").arg(src);
-                    return false;
+            const bool theirThere = QFile::exists(target);
+            const bool theirKnown = state.theirs.contains(theirKey) && !state.theirs.value(theirKey).isEmpty();
+            const bool theirSame = state.theirs.value(theirKey) == statHash(target) && theirThere;
+            if (ourSame && !theirSame && theirKnown && theirThere) {
+                // 0.65.0 (audit F05): changed only in the .scriv (Scrivener, or this program on another computer):
+                // it stays, as a text does; the next opening reads it
+                ++rep.keptTheirs;
+            } else if (!(ourSame && theirSame) && QFile::exists(src)) {
+                // changed on both sides: the other version is kept first (a copy in settings/conflicts)
+                const bool mayWrite = ourSame || theirSame || !theirKnown || !theirThere || fresh || keepTheirs(key, target);
+                if (mayWrite) {
+                    QDir().mkpath(dir);
+                    // 0.65.0 (audit F05): copied beside the target, then renamed over it (before: deleted first, so a
+                    // failed copy left the .scriv without the file)
+                    QString why;
+                    if (!safesave::copyFile(src, target, &why)) {
+                        if (error)
+                            *error = QObject::tr("Cannot copy %1 into the Scrivener project: %2").arg(src, why);
+                        return false;
+                    }
+                    ++rep.written;
+                    state.ours.insert(key, h);
+                    state.theirs.insert(theirKey, statHash(target));
+                    any = true;
                 }
-                ++rep.written;
-                state.ours.insert(key, h);
-                state.theirs.insert(theirKey, statHash(target));
-                any = true;
             }
             // pictures of a web page document
             const QString pageFiles = p->contentDir(it->id) + QLatin1String("/page-files");
@@ -1360,21 +1378,40 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
             const QString key = it->id + QLatin1String("/mindmap");
             const QString theirKey = uuid + QLatin1Char('/') + mindmap::scrivenerFileName();
             const QString target = dir + mindmap::scrivenerFileName();
+            const bool theirThere = QFile::exists(target);
+            const bool theirKnown = state.theirs.contains(theirKey);
+            const bool theirSame = state.theirs.value(theirKey) == sha1File(target);
             if (QFile::exists(src)) {
                 const QString h = sha1File(src);
-                if (state.ours.value(key) != h || state.theirs.value(theirKey) != sha1File(target)) {
-                    QFile f(src);
-                    if (f.open(QIODevice::ReadOnly) && writeFile(target, f.readAll(), error)) {
+                const bool ourSame = state.ours.value(key) == h;
+                if (ourSame && !theirSame && theirKnown && theirThere) {
+                    ++rep.keptTheirs; // 0.65.0 (found while checking audit F25): changed only in the .scriv: it stays
+                } else if (!ourSame || !theirSame) {
+                    const bool mayWrite = ourSame || theirSame || !theirKnown || !theirThere || keepTheirs(key, target);
+                    if (mayWrite) {
+                        // 0.65.0 (audit F25): a board that cannot be read or written fails the sync (it was passed over)
+                        QFile f(src);
+                        if (!f.open(QIODevice::ReadOnly)) {
+                            if (error)
+                                *error = QObject::tr("Cannot read %1").arg(src);
+                            return false;
+                        }
+                        if (!writeFile(target, f.readAll(), error))
+                            return false;
                         ++rep.written;
                         state.ours.insert(key, h);
                         state.theirs.insert(theirKey, sha1File(target));
                     }
                 }
             } else if (state.ours.contains(key)) {
-                // the board was emptied here
-                QFile::remove(target);
-                state.ours.remove(key);
-                state.theirs.remove(theirKey);
+                // the board was emptied here; a board changed in the .scriv meanwhile is kept first
+                if (theirThere && theirKnown && !theirSame && !keepTheirs(key, target)) {
+                    ; // not kept: not removed either
+                } else {
+                    QFile::remove(target);
+                    state.ours.remove(key);
+                    state.theirs.remove(theirKey);
+                }
             }
         }
         Q_UNUSED(any);
@@ -1393,24 +1430,47 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
             const QString target = scrivDir + QLatin1String("/Icons/") + n + QLatin1String(".png");
             if (QFile::exists(src) && sha1File(src) != sha1File(target)) {
                 QDir().mkpath(scrivDir + QLatin1String("/Icons"));
-                QFile::remove(target);
-                QFile::copy(src, target);
+                // 0.65.0 (audit F25): replaced in one step, and a failure fails the sync (it was not looked at)
+                QString why;
+                if (!safesave::copyFile(src, target, &why)) {
+                    if (error)
+                        *error = QObject::tr("Cannot copy the icon %1 into the Scrivener project: %2").arg(n, why);
+                    return false;
+                }
             }
         }
     }
 
     // documents that are no longer there (emptied trash): their folders go,
     // as far as they belong to documents of this project or of the old binder
+    // 0.65.0 (external audit of 2026-11-10, F10): only documents this program knew at its last reading or writing of
+    // the .scriv count as deleted here. Before, every document of the .scrivx on disk that was not in this
+    // program's binder had its folder deleted: documents added in Scrivener on another computer (through a sync
+    // folder) while the project was open here were lost at the next full save. Those are kept now, and the
+    // binder that names them is not replaced (below).
+    // documents of the .scrivx on disk that this program never knew: made elsewhere
+    auto madeElsewhere = [&]() {
+        QSet<QString> known;
+        for (auto it = state.theirs.cbegin(); it != state.theirs.cend(); ++it)
+            known.insert(it.key().section(QLatin1Char('/'), 0, 0).toUpper());
+        for (const QString &u : std::as_const(state.binder))
+            known.insert(u.toUpper());
+        QStringList out;
+        QDomDocument d;
+        if (!existing.isEmpty() && d.setContent(existing)) {
+            const QDomNodeList items = d.elementsByTagName(QStringLiteral("BinderItem"));
+            for (int i = 0; i < items.size(); ++i) {
+                const QString uuid = items.at(i).toElement().attribute(QStringLiteral("UUID")).toUpper();
+                if (!uuid.isEmpty() && !present.contains(uuid) && !known.contains(uuid))
+                    out << uuid;
+            }
+        }
+        return out;
+    };
     if (!quick) {
         QSet<QString> known;
         for (auto it = state.theirs.cbegin(); it != state.theirs.cend(); ++it)
             known.insert(it.key().section(QLatin1Char('/'), 0, 0));
-        QDomDocument d;
-        if (!existing.isEmpty() && d.setContent(existing)) {
-            const QDomNodeList items = d.elementsByTagName(QStringLiteral("BinderItem"));
-            for (int i = 0; i < items.size(); ++i)
-                known.insert(items.at(i).toElement().attribute(QStringLiteral("UUID")).toUpper());
-        }
         for (const QString &uuid : std::as_const(known)) {
             if (uuid.isEmpty() || present.contains(uuid))
                 continue;
@@ -1565,8 +1625,25 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
         const QByteArray scrivxBytes = text::xmlSafeBytes(buildScrivx(p, existing, state.identifier));
         // 0.64: the binder was written elsewhere since this program read or wrote it: kept first
         const QString stampNow = scrivxStamp(scrivx);
-        if (!fresh && state.theirs.contains(QStringLiteral(".scrivx")) && state.theirs.value(QStringLiteral(".scrivx")) != stampNow
-            && QFileInfo::exists(scrivx)) {
+        bool binderKept = false;
+        const bool binderElsewhere = !fresh && state.theirs.contains(QStringLiteral(".scrivx"))
+                                     && state.theirs.value(QStringLiteral(".scrivx")) != stampNow && QFileInfo::exists(scrivx);
+        const QStringList addedElsewhere = binderElsewhere ? madeElsewhere() : QStringList();
+        if (binderElsewhere && !addedElsewhere.isEmpty()) {
+            // 0.65.0 (audit F10): the binder on disk names documents made elsewhere: replacing it would drop them.
+            // It stays; the next opening reads it and keeps what was made here (mergeFromOld)
+            binderKept = true;
+            ++rep.keptTheirs;
+            if (p->scrivenerBinderTold != stampNow) {
+                p->scrivenerBinderTold = stampNow;
+                emit p->conflictKept(QString(),
+                                     QObject::tr("the binder of the Scrivener project: %n document(s) were added to it "
+                                                 "elsewhere while it was open here. It was not replaced, so they are kept; "
+                                                 "close the project and open it again to see them with your changes",
+                                                 nullptr, int(addedElsewhere.size())),
+                                     QString(), false);
+            }
+        } else if (binderElsewhere) {
             const QString copy = syncsafe::keepCopy(scrivx, p->settingsDir(), QStringLiteral("binder (scrivx)"));
             if (copy.isEmpty()) {
                 // 0.64.1: not kept, so not replaced; the binder waits for the next write
@@ -1578,15 +1655,17 @@ bool write(Project *p, const QString &scrivDirIn, SyncState &state, WriteReport 
         }
         // the same binder as in the file (only the time and the change id would differ): not written,
         // so a full save without changes leaves the .scriv as it is (0.64)
-        if (rep.keepFailed.contains(QFileInfo(scrivx).fileName())) {
+        if (binderKept || rep.keepFailed.contains(QFileInfo(scrivx).fileName())) {
             ; // not written (above)
         } else if (fresh || !sameExceptStamps(existing, scrivxBytes)) {
             if (!writeFile(scrivx, scrivxBytes, error))
                 return false;
             scrivxSha = sha1(scrivxBytes);
         }
-        if (!rep.keepFailed.contains(QFileInfo(scrivx).fileName())) {
+        if (!binderKept && !rep.keepFailed.contains(QFileInfo(scrivx).fileName())) {
             state.theirs.insert(QStringLiteral(".scrivx"), scrivxStamp(scrivx));
+            state.binder = QStringList(present.cbegin(), present.cend());
+            state.binderKnown = true;
             if (ownScriv)
                 p->binderChangedSinceSync = false;
         }
@@ -1694,6 +1773,11 @@ static void recordAll(Project *p, const QString &scrivDir, SyncState &st)
             for (const Snapshot &s : snapshots::list(p, it->id))
                 st.snapshots << uuidFor(it->id) + QLatin1Char('/') + snapshotFileName(s.date);
     st.theirs.insert(QStringLiteral(".scrivx"), scrivxStamp(scrivxIn(scrivDir)));
+    st.binder.clear();
+    for (BinderItem *it : p->allItems())
+        if (!it->isRootFolder())
+            st.binder << uuidFor(it->id);
+    st.binderKnown = true;
     st.fingerprint = fingerprint(scrivDir);
 }
 
@@ -1792,8 +1876,16 @@ static int mergeFromOld(Project *np, Project *op, const QString &scrivDir, const
     // the .scriv had once and has no longer were deleted in Scrivener and stay away.
     {
         QSet<QString> synced;
-        for (auto it = st.theirs.cbegin(); it != st.theirs.cend(); ++it)
-            synced.insert(it.key().section(QLatin1Char('/'), 0, 0).toUpper());
+        if (st.binderKnown) {
+            // 0.65.0 (audit F10): only the documents the .scriv's binder had when this program last read or wrote
+            // it; a document made here while the binder could not be written (documents added elsewhere) has its
+            // texts in the .scriv already, and is kept
+            for (const QString &u : st.binder)
+                synced.insert(u.toUpper());
+        } else {
+            for (auto it = st.theirs.cbegin(); it != st.theirs.cend(); ++it)
+                synced.insert(it.key().section(QLatin1Char('/'), 0, 0).toUpper());
+        }
         QHash<const BinderItem *, BinderItem *> placed;
         auto rootOf = [np](const BinderItem *old) -> BinderItem * {
             switch (old->type) {

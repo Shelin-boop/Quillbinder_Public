@@ -778,7 +778,7 @@ public:
                 g_onTerm();
             endSession();
             std::fflush(nullptr);
-            ::_exit(0);
+            ::_exit(terminationSaveFailed() ? 1 : 0);
         }
         return false;
     }

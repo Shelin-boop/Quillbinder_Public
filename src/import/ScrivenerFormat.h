@@ -46,6 +46,10 @@ struct SyncState {
     QHash<QString, QString> theirs;  // "<ID>/content.rtf" ... -> SHA-1 of the file in the .scriv
     QStringList snapshots;           // "<ID>/<file>" written by this program
     bool indexStale = false;         // texts changed since Files/search.indexes was written (0.60.5)
+    // 0.65.0 (audit F10): the documents (UUIDs) of the .scrivx as last read or written here; a document of the working
+    // copy that is not among them never reached the .scriv's binder (kept at the next opening)
+    QStringList binder;
+    bool binderKnown = false;        // false: a state of a version before 0.65 (then `theirs` is used, as before)
     bool load(const QString &file);
     bool save(const QString &file) const;
 };

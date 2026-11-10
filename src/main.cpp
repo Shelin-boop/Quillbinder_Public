@@ -69,6 +69,7 @@ int main(int argc, char **argv)
                         "  package.qbpkg      update or add-on to install\n"
                         "  --no-restore       do not reopen the last project\n"
                         "  --install <file>   install a package without opening a window\n"
+                        "  --allow-unsigned   with --install: also a package not signed by the project\n"
                         "  --versions         list the installed program versions\n"
                         "  --tool <key>       run a command of a writing tool without the main window\n"
                         "  --scratch-pad      the scratch pad (same as --tool scratch-pad.show)\n",
@@ -82,7 +83,12 @@ int main(int argc, char **argv)
             bool restart = false;
             // Windows: the wide command line, so that any letter in the path works (argv is the ANSI code page)
             const QString file = QCoreApplication::arguments().value(i + 1, QString::fromLocal8Bit(argv[i + 1]));
-            const bool ok = qb::addons::install(file, &log, &error, &restart);
+            // 0.65.0 (audit F12): without the project's signature only with --allow-unsigned (no window to warn in)
+            bool allowUnsigned = false;
+            for (int k = 1; k < argc; ++k)
+                allowUnsigned = allowUnsigned || QByteArray(argv[k]) == "--allow-unsigned";
+            const bool ok = qb::addons::install(file, &log, &error, &restart,
+                                                allowUnsigned ? qb::addons::Unsigned::AllowAll : qb::addons::Unsigned::Refuse);
             for (const QString &l : log)
                 std::printf("%s\n", qPrintable(l));
             if (!ok)
@@ -297,6 +303,7 @@ int main(int argc, char **argv)
 
     QTimer::singleShot(0, &w, [&w, toOpen, toInstall, previous, reopening]() mutable {
         w.showStartNotice();
+        w.showEmergencyNotice(); // 0.65.0 (audit F07): the last end could not save
         if (!previous.isEmpty() && !qEnvironmentVariableIsSet("QB_NO_DIALOGS")
             && qb::showPreviousEnds(&w, previous, reopening))
             toOpen.clear(); // the last session ended right after the start: not the last project this time

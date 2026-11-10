@@ -18,6 +18,14 @@
    "source": "the SVG files themselves, in resources/icons of the Quillbinder source (https://github.com/Shelin-boop/Quillbinder_Public); upstream: https://invent.kde.org/frameworks/breeze-icons"
   },
   {
+   "name": "Monocypher",
+   "version": "4.0.3",
+   "license": "BSD-2-Clause (dual-licensed: BSD-2-Clause or CC0-1.0)",
+   "where": "the check of package signatures (Ed25519), compiled into the program (0.65.0)",
+   "text": "monocypher.txt",
+   "source": "src/core/third_party/monocypher of the Quillbinder source (https://github.com/Shelin-boop/Quillbinder_Public); upstream: https://github.com/LoupVaillant/Monocypher, tag 4.0.3"
+  },
+  {
    "name": "AppImage type2-runtime",
    "version": "",
    "license": "MIT",
