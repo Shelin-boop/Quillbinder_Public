@@ -27,6 +27,8 @@ constexpr const char *kStageSuffix = ".qbstage";
 
 // A file name of a save in progress (never read as project data, never backed up)
 bool isStaged(const QString &fileName);
+// 0.70.0: a folder's entries (a new or renamed file in it) reach the disk (POSIX; nothing elsewhere)
+void syncDir(const QString &dir);
 
 class Batch
 {

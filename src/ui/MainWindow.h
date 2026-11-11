@@ -16,6 +16,7 @@
 class QAbstractButton;
 class QAction;
 class QMessageBox;
+class QLabel;
 class QActionGroup;
 class QComboBox;
 class QFontComboBox;
@@ -103,6 +104,15 @@ public:
     QString lastEmergencyNotice() const { return m_lastEmergencyNotice; }
     // 0.65.0 (audit F19): what the opening found of an interrupted save (shown once; the last text for the tests)
     QString lastSaveRecoveryNotice() const { return m_lastSaveRecovery; }
+    // 0.70.0 (audit A U-05): File > Back Up > Restore From Backup (a list of this project's backups); the file
+    // restored and opened (the checks call restoreBackupFile; lastRestoredProject() names what was opened)
+    void restoreBackup();
+    bool restoreBackupFile(const QString &zip);
+    QString lastRestoredProject() const { return m_lastRestored; }
+    // 0.70.0 (audit A S-01, B U-2, S-1): the state shown in the status bar ("Saved", "Not saved yet", "Not saved:
+    // the last save failed at ..."); the time the saves began to fail (invalid: they work)
+    QString saveStateText() const;
+    QDateTime saveFailedSince() const { return m_saveFailedSince; }
     bool isClosing() const { return m_closing; }
     // Help > Welcome Project, About, List of All Placeholders (MainWindowHelp.cpp; 0.40)
     void openWelcomeProject(bool firstStart = false);
@@ -189,6 +199,13 @@ private:
     void releaseLocks();
     void connectSyncSafety(Project *p);
     void showWithoutTakingKeys(QMessageBox *box, QAbstractButton *safe);
+    // 0.70.0 (audit A S-01): a failed save: the sign in the status bar and the title, a new attempt by timer, the
+    // notice (not taking the keyboard; again after 5 min of failing); a save that works clears it
+    void noteSaveFailed(const QString &err, bool notice = true);
+    void noteSaved();
+    void updateSaveState();
+    void retrySave();
+    void saveTextsElsewhere();
     void showConflictNotice();
     QTimer *m_lockTimer = nullptr;
     QDateTime m_lockOpened;
@@ -377,6 +394,14 @@ private:
     QString m_lastLockProblem;
     QString m_lastEmergencyNotice;
     QString m_lastSaveRecovery;
+    QLabel *m_saveState = nullptr;
+    QTimer *m_saveStateTimer = nullptr;
+    QTimer *m_saveRetry = nullptr;
+    QDateTime m_saveFailedSince;
+    QDateTime m_saveNoticeShown;
+    QString m_lastSaveError;
+    QPointer<QMessageBox> m_saveNotice;
+    QString m_lastRestored;
     QList<QAction *> m_toolActions;
     QHash<QString, QPointer<QMenu>> m_toolMenus;   // menus beside tool buttons, by command key (0.61)
 

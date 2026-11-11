@@ -13,6 +13,10 @@
   make-package.py bundle --id <id> --name <name> --version X.Y [--description "text"]
                          <package.qbpkg> ... <out.qbpkg>
 
+  make-package.py sign <package.qbpkg> ...
+      signs finished packages in place (0.70.0, audit A S-03: the release workflow builds without the key
+      and signs in a job of its own that runs no third-party code); a bundle's parts are signed too
+
 The file list with SHA-256 sums is written into the manifest here.
 
 Signatures (0.65.0): with QB_SIGNING_KEY_FILE=<Ed25519 private key, PEM> every package gets manifest.sig,
@@ -111,6 +115,39 @@ def cmd_bundle(a):
     write_package(a.out, manifest, [], packages)
 
 
+def signed_bytes(data):
+    """the package (bytes of a .qbpkg) with manifest.sig made anew, its parts (a bundle's packages) as well"""
+    import io
+    src = zipfile.ZipFile(io.BytesIO(data))
+    manifest = src.read("manifest.json")
+    sig = signature(manifest)
+    if not sig:
+        sys.exit("make-package.py sign: QB_SIGNING_KEY_FILE is not set")
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+        z.writestr("manifest.json", manifest)
+        z.writestr("manifest.sig", sig)
+        for info in src.infolist():
+            if info.filename in ("manifest.json", "manifest.sig"):
+                continue
+            body = src.read(info.filename)
+            if info.filename.startswith("packages/") and info.filename.endswith(".qbpkg"):
+                z.writestr(info.filename, signed_bytes(body), compress_type=zipfile.ZIP_STORED)
+            else:
+                z.writestr(info, body, compress_type=info.compress_type)
+    return out.getvalue()
+
+
+def cmd_sign(a):
+    for p in a.packages:
+        data = signed_bytes(open(p, "rb").read())
+        tmp = p + ".signing"
+        with open(tmp, "wb") as f:
+            f.write(data)
+        os.replace(tmp, p)
+        print(f"{p}  signed ({len(data) / 1e6:.2f} MB)")
+
+
 ap = argparse.ArgumentParser()
 sub = ap.add_subparsers(dest="cmd", required=True)
 s = sub.add_parser("addon"); s.add_argument("--platform"); s.add_argument("folder"); s.add_argument("out")
@@ -125,5 +162,7 @@ s.add_argument("--id", required=True); s.add_argument("--name", required=True)
 s.add_argument("--version", required=True); s.add_argument("--description", default="")
 s.add_argument("--whats-new", action="append")
 s.add_argument("packages", nargs="+"); s.add_argument("out"); s.set_defaults(fn=cmd_bundle)
+s = sub.add_parser("sign")
+s.add_argument("packages", nargs="+"); s.set_defaults(fn=cmd_sign)
 args = ap.parse_args()
 args.fn(args)

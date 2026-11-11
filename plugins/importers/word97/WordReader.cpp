@@ -415,8 +415,14 @@ void Reader::readPieces()
             if (idx < m_prc.size())
                 p.prmGrpprl = m_prc.at(idx);
         }
-        if (p.cpEnd > p.cpStart)
-            m_pieces << p;
+        // 0.70.0 (audit A U-11, B L-1): a piece holds no more characters than its bytes in the stream
+        if (p.cpEnd > p.cpStart && p.fc < quint32(m_wd.size())) {
+            const quint32 room = quint32((m_wd.size() - qint64(p.fc)) / (p.compressed ? 1 : 2));
+            if (p.cpEnd - p.cpStart > room)
+                p.cpEnd = p.cpStart + room;
+            if (p.cpEnd > p.cpStart)
+                m_pieces << p;
+        }
     }
     std::sort(m_pieces.begin(), m_pieces.end(), [](const Piece &a, const Piece &b) { return a.cpStart < b.cpStart; });
 }
@@ -1191,6 +1197,20 @@ Failure Reader::run(const QByteArray &file, Content *out, QString *error)
         if (error)
             *error = QObject::tr("The document is damaged (no text).");
         return Failure::Damaged;
+    }
+    // 0.70.0 (audit A U-11, B L-1): the counts of characters in the file's header are bounded by the characters
+    // its pieces hold (a damaged count made the reader ask for gigabytes of memory and then crash, or loop for
+    // minutes over characters that are not there)
+    {
+        quint64 held = 0;
+        for (const Piece &pc : std::as_const(m_pieces))
+            held = qMax<quint64>(held, pc.cpEnd);
+        held = qMin<quint64>(held, quint64(16) * 1024 * 1024); // 16 million characters: far beyond any manuscript
+        quint64 left = held;
+        for (quint32 *ccp : {&m_ccpText, &m_ccpFtn, &m_ccpHdd, &m_ccpMcr, &m_ccpAtn, &m_ccpEdn, &m_ccpTxbx}) {
+            *ccp = quint32(qMin<quint64>(*ccp, left));
+            left -= *ccp;
+        }
     }
     readFkps(12, false);
     readFkps(13, true);

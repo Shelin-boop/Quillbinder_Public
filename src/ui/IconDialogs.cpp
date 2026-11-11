@@ -1,4 +1,5 @@
 #include "ui/IconDialogs.h"
+#include "ui/Ask.h"
 #include <QMenu>
 #include "core/IconCatalog.h"
 #include "core/ItemIcons.h"
@@ -214,8 +215,8 @@ ManageIconsDialog::ManageIconsDialog(Project *project, QWidget *parent) : QDialo
         for (BinderItem *b : m_project->allItems())
             if (b->icon == QStringLiteral("custom:") + name)
                 ++users;
-        if (users && QMessageBox::question(this, tr("Delete Icon"),
-                                           tr("%n document(s) use this icon; they get their standard icon back.", nullptr, users))
+        if (users && ask::question(this, tr("Delete Icon"),
+                                           tr("%n document(s) use this icon; they get their standard icon back.", nullptr, users), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Delete Icon"))
                          != QMessageBox::Yes)
             return;
         for (BinderItem *b : m_project->allItems())

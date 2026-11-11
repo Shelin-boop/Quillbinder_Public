@@ -1,4 +1,6 @@
 #include "ui/OptionsDialog.h"
+#include "ui/Language.h"
+#include "ui/Ask.h"
 #include "compile/PluginManager.h"
 #include "core/Backup.h"
 #include "core/CrashGuard.h"
@@ -195,7 +197,9 @@ OptionsDialog::OptionsDialog(QWidget *parent, int page) : QDialog(parent)
     // 0.62: whose options: the program's (all projects) or the open project's
     {
         const bool canProject = look::project() && !settingslayer::projectFile().isEmpty() && settingslayer::projectFirst();
-        m_optScope = s_nextScope >= 0 ? s_nextScope : (canProject ? ThisProject : AllProjects);
+        // 0.70.0 (audit A S-05, the writer's decision of 2026-11-10): the window opens for the program (all
+        // projects), as Options do in other programs; "This project" is the deliberate choice
+        m_optScope = s_nextScope >= 0 ? s_nextScope : AllProjects;
         if (!canProject)
             m_optScope = AllProjects;
         s_nextScope = -1;
@@ -243,9 +247,9 @@ OptionsDialog::OptionsDialog(QWidget *parent, int page) : QDialog(parent)
             done(SwitchScope);
         });
         connect(m_scopeReset, &QPushButton::clicked, this, [this] {
-            if (QMessageBox::question(this, tr("Use Program Settings"),
+            if (ask::question(this, tr("Use Program Settings"),
                                       tr("This project's own settings are removed; the program's settings apply to it "
-                                         "again. Its look (Appearance) stays as it is.\n\nGo on?"))
+                                         "again. Its look (Appearance) stays as it is.\n\nGo on?"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Use Program Settings"))
                 != QMessageBox::Yes)
                 return;
             settingslayer::endProjectEdit();
@@ -546,6 +550,17 @@ QWidget *OptionsDialog::generalSection()
     f->addRow(hint(tr("Ticked, a project can keep settings of its own (choose \"This project\" at the top of this window); "
                       "they apply while it is open. Unticked, the program's settings apply to every project, also its look; "
                       "what projects keep stays in them for later."),
+                   startup));
+    // 0.70.0: the program's language (English or German)
+    m_language = new QComboBox(startup);
+    m_language->setObjectName(QStringLiteral("optLanguage"));
+    for (const QString &code : language::available())
+        m_language->addItem(language::displayName(code), code);
+    m_language->setCurrentIndex(qMax(0, m_language->findData(s.language)));
+    m_language->setEnabled(m_optScope == AllProjects);
+    f->addRow(tr("Language:"), m_language);
+    f->addRow(hint(tr("The language of menus, windows and messages; it changes at the next start of the program. The "
+                      "manual and the welcome project stay in English."),
                    startup));
     pages.append({tr("Startup"), startup});
 
@@ -2413,9 +2428,9 @@ bool OptionsDialog::loadOptionsFromFile(const QString &file, QString *error)
 
 bool OptionsDialog::restoreDefaults(bool ask)
 {
-    if (ask && QMessageBox::question(this, tr("Defaults"),
+    if (ask && ask::question(this, tr("Defaults"),
                                      tr("Set every option back to the program's standard?\n\nYour recent projects, themes of your "
-                                        "own, layouts, toolbars and keyboard shortcuts stay as they are."))
+                                        "own, layouts, toolbars and keyboard shortcuts stay as they are."), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Restore Defaults"))
                    != QMessageBox::Yes)
         return false;
     AppSettings::instance().resetToDefaults();
@@ -2623,6 +2638,18 @@ void OptionsDialog::apply()
         settingslayer::takeProjectValues();
     if (m_projectFirst && m_optScope == AllProjects && m_projectFirst->isChecked() != settingslayer::projectFirst())
         settingslayer::setProjectFirst(m_projectFirst->isChecked());
+    // 0.70.0: the language, program-wide, for the next start
+    if (m_language && m_optScope == AllProjects) {
+        const QString code = m_language->currentData().toString();
+        AppSettings &as = AppSettings::instance();
+        if (code != as.language) {
+            as.language = code;
+            as.save();
+            if (!qEnvironmentVariableIsSet("QB_NO_DIALOGS") && isVisible())
+                QMessageBox::information(this, tr("Language"),
+                                         tr("The program speaks %1 from its next start.").arg(language::displayName(code)));
+        }
+    }
     updateScopeInfo();
 }
 

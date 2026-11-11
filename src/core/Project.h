@@ -1,4 +1,5 @@
 #pragma once
+#include <QMap>
 #include "core/BinderItem.h"
 #include "core/ProjectTypes.h"
 #include "core/SyncSafety.h"
@@ -52,7 +53,7 @@ public:
     // keep coming, the first short gap (gapPause without a change, a breath between words)
     // saves too, so typing that goes on is saved about every 5 s without waiting for a pause.
     void scheduleSave();
-    void setAutosaveDelay(int ms) { m_saveTimer.setInterval(ms); }
+    void setAutosaveDelay(int ms) { m_saveDelay = ms; m_saveTimer.setInterval(ms); }
     void setMaxSaveWait(int ms) { m_maxSaveWait = ms; }
     void setGapSave(int afterMs, int pauseMs) { m_gapSaveAfter = afterMs; m_gapTimer.setInterval(pauseMs); }
     int autosaveCount() const { return m_autosaves; }   // tests
@@ -75,6 +76,14 @@ public:
     // Returns how many; the folder's title goes into folderTitle.
     int recoverUnlistedDocuments(QString *folderTitle = nullptr);
     bool hasUnsavedChanges() const;
+    // 0.70.0 (audit A U-01, A S-01): things the window keeps that are not saved (a mind map board whose save
+    // failed or is due): counted by hasUnsavedChanges(), named by unsavedTitles(), written into the emergency
+    // copy through emergencyExtra
+    void setUnsavedExtra(const QString &key, const QString &title, bool unsaved);
+    bool hasUnsavedExtra() const { return !m_unsavedExtra.isEmpty(); }
+    // the titles of the documents (and boards) not saved, at most `max`
+    QStringList unsavedTitles(int max = 8) const;
+    std::function<int(const QString &dir, QString *error)> emergencyExtra;
 
     QString folderPath() const { return m_folder; }
     QString indexPath() const { return m_indexFile; }
@@ -248,6 +257,8 @@ private:
     QElapsedTimer m_dirtySince; // the first change not saved yet
     bool m_forcedSave = false;
     int m_maxSaveWait = 30000;
+    int m_saveDelay = 2000;
+    QMap<QString, QString> m_unsavedExtra; // key -> title (0.70.0)
     QTimer m_gapTimer;          // a short gap in changes that keep coming (0.64)
     int m_gapSaveAfter = 5000;
     int m_autosaves = 0;

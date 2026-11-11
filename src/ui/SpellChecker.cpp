@@ -1,4 +1,5 @@
 #include "ui/SpellChecker.h"
+#include "core/SafeSave.h"
 #include "ui/Theme.h"
 
 #include <QEvent>
@@ -267,11 +268,7 @@ void SpellChecker::setPersonalWords(const QStringList &words)
     s_suggested.clear();
     m_personal = QSet<QString>(words.cbegin(), words.cend());
     m_cache.clear();
-    QDir().mkpath(QFileInfo(personalFile()).absolutePath());
-    QFile f(personalFile());
-    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        for (const QString &w : personalWords())
-            f.write(w.toUtf8() + '\n');
+    writePersonalFile();
     const QString lang = m_language;
 #ifdef QB_HAVE_HUNSPELL
     if (m_handle) {
@@ -294,11 +291,23 @@ void SpellChecker::addToPersonal(const QString &word)
     if (m_handle)
         Hunspell_add(static_cast<Hunhandle *>(m_handle), toDictionary(word).constData());
 #endif
-    QDir().mkpath(QFileInfo(personalFile()).absolutePath());
-    QFile f(personalFile());
-    if (f.open(QIODevice::Append))
-        f.write(word.toUtf8() + '\n');
+    writePersonalFile();
     rehighlightAll();
+}
+
+// 0.70.0 (audit A F-09): the whole list into a new file that takes the old one's place only when it is
+// complete (before: the file was emptied first and written word by word, unchecked)
+bool SpellChecker::writePersonalFile()
+{
+    QDir().mkpath(QFileInfo(personalFile()).absolutePath());
+    QByteArray data;
+    for (const QString &w : personalWords())
+        data += w.toUtf8() + '\n';
+    QString why;
+    if (safesave::writeFile(personalFile(), data, &why))
+        return true;
+    qWarning("%s: the personal dictionary could not be saved: %s", QB_APP_NAME, qPrintable(why));
+    return false;
 }
 
 void SpellChecker::ignore(const QString &word)

@@ -1,4 +1,5 @@
 #include "ui/Inspector.h"
+#include "ui/Ask.h"
 #include "ui/LinkOpen.h"
 #include "ui/LookMenu.h"
 #include "ui/DocMirror.h"
@@ -1082,7 +1083,7 @@ QWidget *Inspector::buildSnapshotsTab()
         const int r = m_snapList->currentRow();
         if (r < 0 || r >= m_snaps.size() || !m_project)
             return;
-        if (QMessageBox::question(this, tr("Delete Snapshot"), tr("Delete the snapshot \"%1\"?").arg(m_snaps[r].title))
+        if (ask::question(this, tr("Delete Snapshot"), tr("Delete the snapshot \"%1\"?").arg(m_snaps[r].title), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Delete Snapshot"))
             != QMessageBox::Yes)
             return;
         snapshots::remove(m_project, m_snaps[r]);

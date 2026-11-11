@@ -1,4 +1,5 @@
 #include "ui/KeyboardPage.h"
+#include "ui/Ask.h"
 #include "AppInfo.h"
 #include "ui/ToolHost.h"
 #include <QClipboard>
@@ -178,9 +179,9 @@ KeyboardPage::KeyboardPage(QWidget *parent) : QWidget(parent), m_changes(command
         const QString other = commands::conflict(key, c->standard, without);
         if (!other.isEmpty()) {
             const commands::Command *o = commands::find(other);
-            if (QMessageBox::question(this, tr("Shortcut in Use"),
+            if (ask::question(this, tr("Shortcut in Use"),
                                       tr("%1 is now the shortcut of “%2”. Take it away from there?")
-                                          .arg(native(c->standard), o ? o->fullLabel() : other))
+                                          .arg(native(c->standard), o ? o->fullLabel() : other), QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
                 != QMessageBox::Yes)
                 return;
         }
@@ -188,9 +189,9 @@ KeyboardPage::KeyboardPage(QWidget *parent) : QWidget(parent), m_changes(command
         selectionChanged();
     });
     connect(m_resetAll, &QPushButton::clicked, this, [this] {
-        if (QMessageBox::question(this, tr("Keyboard Shortcuts"),
+        if (ask::question(this, tr("Keyboard Shortcuts"),
                                   tr("Give every command the shortcut the program came with? Your changes (%1) will be lost.")
-                                      .arg(changes()))
+                                      .arg(changes()), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Reset All Shortcuts"))
             == QMessageBox::Yes)
             resetAll();
     });

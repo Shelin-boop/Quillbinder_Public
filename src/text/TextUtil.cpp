@@ -401,7 +401,8 @@ QString firstLineTitle(const QTextDocument *doc, int maxChars)
 bool isUntitled(const QString &title)
 {
     const QString t = title.trimmed();
-    return t.isEmpty() || t == QLatin1String("Untitled") || t == QObject::tr("Untitled");
+    // 0.70.0: also the German name, whatever language the program speaks now (a project made in either)
+    return t.isEmpty() || t == QLatin1String("Untitled") || t == QStringLiteral("Unbenannt") || t == QObject::tr("Untitled");
 }
 
 QString safeFileName(const QString &title)

@@ -19,6 +19,7 @@
 #include <QTextFrame>
 #include <QTextTable>
 #include <QTextFragment>
+#include <QPointer>
 #include <QTextList>
 #include <QUrl>
 #include <QUuid>
@@ -63,6 +64,116 @@ bool looksLikeRtf(const QByteArray &data)
     while (i < data.size() && (data[i] == ' ' || data[i] == '\n' || data[i] == '\r' || data[i] == '\t'))
         ++i;
     return data.mid(i, 5) == "{\\rtf";
+}
+
+namespace {
+// Walks the braces of RTF data: calls brace(pos, open) for every brace that is not escaped and not inside
+// the bytes of a \binN group.
+template <typename F>
+void walkBraces(const QByteArray &d, F brace)
+{
+    const int n = int(d.size());
+    for (int i = 0; i < n; ++i) {
+        const char c = d.at(i);
+        if (c == '\\') {
+            if (i + 1 < n && (d.at(i + 1) == '{' || d.at(i + 1) == '}' || d.at(i + 1) == '\\')) {
+                ++i;
+                continue;
+            }
+            // \binN: N bytes of binary data follow (after one optional space)
+            if (d.mid(i + 1, 3) == "bin") {
+                int j = i + 4;
+                qint64 len = 0;
+                while (j < n && d.at(j) >= '0' && d.at(j) <= '9' && len < (qint64(1) << 40))
+                    len = len * 10 + (d.at(j++) - '0');
+                if (j < n && d.at(j) == ' ')
+                    ++j;
+                i = int(qMin<qint64>(n, j + len)) - 1;
+            }
+            continue;
+        }
+        if (c == '{' || c == '}')
+            if (!brace(i, c == '{'))
+                return;
+    }
+}
+
+bool onlySpaceAfter(const QByteArray &d, int pos)
+{
+    for (int i = pos + 1; i < d.size(); ++i)
+        if (!(d.at(i) == ' ' || d.at(i) == '\n' || d.at(i) == '\r' || d.at(i) == '\t' || d.at(i) == '\0'))
+            return false;
+    return true;
+}
+} // namespace
+
+bool wellFormed(const QByteArray &data, QString *why)
+{
+    auto fail = [why](const char *text) {
+        if (why)
+            *why = QString::fromLatin1(text);
+        return false;
+    };
+    if (!looksLikeRtf(data))
+        return fail("its beginning is damaged (it does not start as an RTF file)");
+    int depth = 0;
+    bool negative = false, closedEarly = false;
+    walkBraces(data, [&](int pos, bool open) {
+        if (open) {
+            ++depth;
+            return true;
+        }
+        if (--depth < 0) {
+            negative = true;
+            return false;
+        }
+        if (depth == 0 && !onlySpaceAfter(data, pos)) {
+            closedEarly = true;
+            return false;
+        }
+        return true;
+    });
+    if (negative || closedEarly)
+        return fail("it closes groups it never opened (stray closing braces)");
+    if (depth != 0)
+        return fail("it is cut off (it ends inside a group)");
+    return true;
+}
+
+QByteArray mended(const QByteArray &data)
+{
+    // the start: from "{\rtf", else from "\rtf", else from the first control word or group
+    QByteArray s;
+    int p = int(data.indexOf("{\\rtf"));
+    if (p >= 0) {
+        s = data.mid(p);
+    } else if ((p = int(data.indexOf("\\rtf"))) >= 0) {
+        s = '{' + data.mid(p);
+    } else {
+        int q = 0;
+        while (q < data.size() && data.at(q) != '\\' && data.at(q) != '{')
+            ++q;
+        s = "{\\rtf1 " + data.mid(q);
+    }
+    s.replace('\0', "");
+    // braces: a closing one that would end the outer group before the end is dropped; open ones are closed
+    QList<int> drop;
+    int depth = 0;
+    walkBraces(s, [&](int pos, bool open) {
+        if (open) {
+            ++depth;
+        } else if (depth <= 1 && !onlySpaceAfter(s, pos)) {
+            drop.append(pos);
+        } else {
+            --depth;
+        }
+        return true;
+    });
+    for (int i = int(drop.size()) - 1; i >= 0; --i)
+        s.remove(drop.at(i), 1);
+    while (depth-- > 0)
+        s += '}';
+    return s;
 }
 
 static QString familyOf(const QTextCharFormat &cf)
@@ -766,7 +877,9 @@ private:
         QString inst;
     };
     QList<Field> m_fields;
-    QMap<int, QTextList *> m_lists;
+    // 0.70.0 (audit B F-1): Qt deletes a list when its last paragraph leaves it (a table cell, a \pard
+    // that changes the paragraph); a guarded pointer turns null then instead of pointing at freed memory
+    QMap<int, QPointer<QTextList>> m_lists;
     QMap<int, int> m_listTypes;
     bool m_prevBlockList = false;
     QString m_qbNote;
@@ -1275,7 +1388,7 @@ private:
         if (w == "s") { q.style = p; return; }
         if (w == "pagebb") { q.pagebb = true; return; }
         if (w == "ls") { q.hasLs = true; if (q.listType == 0) q.listType = 1; if (q.listLevel < 0) q.listLevel = 0; return; }
-        if (w == "ilvl") { q.listLevel = p; return; }
+        if (w == "ilvl") { q.listLevel = qBound(0, p, 8); return; } // 0.70.0: levels 0 to 8, as RTF has
     }
 
     void pictWord(const QByteArray &w, bool, int p)
@@ -1378,8 +1491,9 @@ private:
             if (parentDest != D_QbList) {
                 const QStringList parts = m_collect.simplified().split(QLatin1Char(' '));
                 if (parts.size() >= 2) {
-                    ps().listLevel = parts[0].toInt();
-                    ps().listType = parts[1].toInt();
+                    // 0.70.0 (audit B F-1): a level or type out of range (a damaged or hostile file) is bounded
+                    ps().listLevel = qBound(0, parts[0].toInt(), 8);
+                    ps().listType = qBound(0, parts[1].toInt(), 2);
                 }
             }
             break;
@@ -1962,7 +2076,7 @@ private:
                 else
                     ++it;
             }
-            QTextList *l = m_lists.value(q.listLevel, nullptr);
+            QTextList *l = m_lists.value(q.listLevel).data();
             if (l && m_listTypes.value(q.listLevel) == q.listType) {
                 l->add(m_cur.block());
             } else {
@@ -1995,8 +2109,13 @@ ReadResult read(const QByteArray &data, QTextDocument *doc, const Formatting &f,
     const bool undo = doc->isUndoRedoEnabled();
     doc->setUndoRedoEnabled(false);
     doc->clear();
+    // 0.70.0 (audit A F-10): one edit block, so that an insertion does not lay out its whole paragraph again to place
+    // the cursor (a paragraph with 9,900 formatted spans took 20 s, now a fraction of a second)
+    QTextCursor block(doc);
+    block.beginEditBlock();
     Reader r(data, doc, f, opt);
     ReadResult res = r.run();
+    block.endEditBlock();
     doc->setUndoRedoEnabled(undo);
     doc->setModified(false);
     return res;

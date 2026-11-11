@@ -1,4 +1,5 @@
 #include "SpeechTool.h"
+#include "ui/Ask.h"
 
 #include "core/SafeSave.h"
 
@@ -783,14 +784,14 @@ void SpeechTool::checkAndInstall(const QString &file, const QString &expectedId,
             yes = yes || qEnvironmentVariableIsSet("QB_SPEECH_ACCEPT_CHANGED");
 #endif
             if (!yes && !quiet())
-                yes = QMessageBox::question(m_host ? m_host->window() : nullptr, tr("Speech Transcription"),
+                yes = qb::ask::question(m_host ? m_host->window() : nullptr, tr("Speech Transcription"),
                                             entry ? tr("The file differs from the one Quillbinder knows for \"%1\" (its "
                                                        "checksum is another). Use it only if you trust where it comes from: "
                                                        "it is read by the speech engine. Check and use it?")
                                                         .arg(entry->title)
                                                   : tr("The file is not one of the models Quillbinder knows (its checksum is "
                                                        "another). Use it only if you trust where it comes from: it is read by "
-                                                       "the speech engine. Check and use it?"))
+                                                       "the speech engine. Check and use it?"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
                       == QMessageBox::Yes;
             if (!yes) {
                 QFile::remove(file);
@@ -902,9 +903,9 @@ bool SpeechTool::removeModel()
     if (f.isEmpty() || isBusy() || m_job != Job::None)
         return false;
     if (!quiet()
-        && QMessageBox::question(m_host ? m_host->window() : nullptr, tr("Speech Transcription"),
+        && qb::ask::question(m_host ? m_host->window() : nullptr, tr("Speech Transcription"),
                                  tr("Remove the model %1? Speech transcription needs a model; it can be downloaded again.")
-                                     .arg(QFileInfo(f).fileName()))
+                                     .arg(QFileInfo(f).fileName()), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Remove Model"))
                != QMessageBox::Yes)
         return false;
     if (m_engine)
@@ -1183,8 +1184,8 @@ bool TranscriptPanel::remove(bool ask)
     if (m_file.isEmpty() || (m_file == m_recordingFile && m_tool->isBusy()))
         return false;
     if (ask && !qEnvironmentVariableIsSet("QB_NO_DIALOGS")
-        && QMessageBox::question(this, tr("Speech Transcription"),
-                                 tr("Move \"%1\" to the trash?").arg(QFileInfo(m_file).completeBaseName()))
+        && qb::ask::question(this, tr("Speech Transcription"),
+                                 tr("Move \"%1\" to the trash?").arg(QFileInfo(m_file).completeBaseName()), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Move to Trash"))
                != QMessageBox::Yes)
         return false;
     m_saveTimer->stop();
@@ -1327,6 +1328,8 @@ namespace {
 
 class SpeechOptions : public QObject, public OptionsSection
 {
+    // 0.70.0: its texts in their own translation context (the class has no Q_OBJECT, so tr() was QObject's)
+    static QString tr(const char *s, const char *c = nullptr, int n = -1) { return QCoreApplication::translate("SpeechOptions", s, c, n); }
 public:
     SpeechOptions(SpeechTool *tool, QWidget *parent);
     QWidget *widget() override { return m_w; }

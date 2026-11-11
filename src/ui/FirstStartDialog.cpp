@@ -53,6 +53,14 @@ FirstStartDialog::FirstStartDialog(QWidget *parent) : QDialog(parent)
     row->addWidget(m_folder, 1);
     row->addWidget(choose);
     bf->addRow(tr("Folder:"), row);
+    // 0.70.0 (audit A U-05): a backup on the same drive is lost with it
+    auto *driveHint = new QLabel(tr("Best on another drive (a USB stick, a second disk, a folder your sync program "
+                                    "copies), so that the backups outlive a failing disk. File > Back Up > Restore From "
+                                    "Backup brings one back."),
+                                 backups);
+    driveHint->setObjectName(QStringLiteral("firstBackupHint"));
+    driveHint->setWordWrap(true);
+    bf->addRow(driveHint);
     connect(choose, &QPushButton::clicked, this, [this] {
         const QString d = QFileDialog::getExistingDirectory(this, tr("Folder for Backups"), m_folder->text());
         if (!d.isEmpty())

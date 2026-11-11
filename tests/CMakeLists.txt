@@ -221,6 +221,13 @@ target_link_libraries(qb_v0642_tests PRIVATE qbui Qt6::Test)
 add_executable(qb_v0650_tests v0650_tests.cpp ${QB_RESOURCES_QRC})
 target_link_libraries(qb_v0650_tests PRIVATE qbui Qt6::Test)
 target_compile_definitions(qb_v0650_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
+# The fixes of the two external audits of 2026-11-10 and the writer's decisions (0.70.0 beta): text read and
+# written exactly, failed saves, backups, pictures in Merge and Split, questions, settings, hostile files, build
+# and release, the German interface, the dark page (xvfb-run -a ./qb_v0700_tests /tmp/shots; needs python3,
+# openssl and, for the Word 97 check, plugins/importers/qb_doc_dump).
+add_executable(qb_v0700_tests v0700_tests.cpp ${QB_RESOURCES_QRC} ${CMAKE_SOURCE_DIR}/translations/translations.qrc)
+target_link_libraries(qb_v0700_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_v0700_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
 # The fixes of the external audit of 2026-11-09 (0.64.1): ids and archive names that are no plain
 # names, damaged archives and Word files, settings a project may hold, packages with code, links that
 # lead out, the socket folder, Scrivener's lock before every write, the name of this computer

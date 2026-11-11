@@ -1,6 +1,7 @@
 // File > Project Format: projects in Scrivener 3 format (.scriv) and in the
 // program's own format, and converting between them (import/ScrivenerFormat.h).
 #include "ui/MainWindow.h"
+#include "ui/Ask.h"
 
 #include "core/Platform.h"
 #include "core/Project.h"
@@ -98,10 +99,10 @@ bool MainWindow::openScrivenerProject(const QString &path)
         return false;
     QString who;
     if (scrivener::lockedByScrivener(scrivDir, &who)
-        && QMessageBox::question(this, tr("Open Scrivener Project"),
+        && ask::question(this, tr("Open Scrivener Project"),
                                  tr("Scrivener has this project open (%1), or was not closed properly.\n\n"
                                     "If both programs work on it at the same time, changes are lost. Open it anyway?")
-                                     .arg(who))
+                                     .arg(who), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Open Anyway"))
                != QMessageBox::Yes)
         return false;
     if (m_project && !closeProject())

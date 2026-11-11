@@ -652,17 +652,24 @@ static void settingsChecks(MainWindow &w, bool freshWasStandard, const QString &
         check(standardValues(as, &detail), QStringLiteral("OK in the Options window keeps the values exactly"), detail);
     }
 
-    // the colors on screen, in a light and a dark theme
+    // the colors on screen, in a light and a dark theme (since 0.70.0 a dark theme shows the standard paper as a
+    // very dark gray page with white text: the writer's decision of 2026-11-10)
     for (const QString &th : {QStringLiteral("light"), QStringLiteral("dark")}) {
         as.theme = th;
         as.save();
         theme::apply();
         settle(150);
-        check(theme::color(theme::Role::EditorPaper) == QColor(0xd1, 0xd4, 0x95)
-                  && theme::color(theme::Role::EditorMargin) == QColor(0x99, 0x99, 0x99)
-                  && theme::color(theme::Role::EditorText).lightness() < 100,
-              QStringLiteral("theme %1: paper #d1d495, beside the column #999999, dark text on the paper").arg(th),
-              theme::color(theme::Role::EditorText).name());
+        if (th == QLatin1String("light"))
+            check(theme::color(theme::Role::EditorPaper) == QColor(0xd1, 0xd4, 0x95)
+                      && theme::color(theme::Role::EditorMargin) == QColor(0x99, 0x99, 0x99)
+                      && theme::color(theme::Role::EditorText).lightness() < 100,
+                  QStringLiteral("theme %1: paper #d1d495, beside the column #999999, dark text on the paper").arg(th),
+                  theme::color(theme::Role::EditorText).name());
+        else
+            check(theme::color(theme::Role::EditorPaper) == QColor(0x1e, 0x1e, 0x1e)
+                      && theme::color(theme::Role::EditorText) == QColor(Qt::white),
+                  QStringLiteral("theme %1: the standard paper shows as a very dark gray page with white text (0.70.0)").arg(th),
+                  theme::color(theme::Role::EditorPaper).name() + QLatin1Char(' ') + theme::color(theme::Role::EditorText).name());
     }
     as.theme = QStringLiteral("light");
     as.save();

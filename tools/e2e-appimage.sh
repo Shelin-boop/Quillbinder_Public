@@ -40,6 +40,8 @@ rm -rf "$E/home" "$E/run" "$E/work" "$E/shots"
 mkdir -p "$E/home" "$E/run" "$E/work" "$E/shots"
 chmod 700 "$E/run"
 export HOME=$E/home XDG_CONFIG_HOME=$E/home/.config XDG_DATA_HOME=$E/home/.local/share XDG_RUNTIME_DIR=$E/run
+# 0.70.0 (audit A U-07): from 0.70.0 on the launcher starts an unsigned (development) update only with this set
+export QB_ALLOW_UNSIGNED_CORE=1
 unset QT_QPA_PLATFORM
 cli() { "$APPIMAGE" --appimage-extract-and-run "$@"; }
 ver() { cli --version | awk '{print $NF}'; }   # "Quillbinder 0.14.1" -> 0.14.1

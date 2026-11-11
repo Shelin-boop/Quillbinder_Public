@@ -1,4 +1,5 @@
 #include "ui/AddonDialogs.h"
+#include "ui/Ask.h"
 #include "AppInfo.h"
 #include "core/ItemIcons.h"
 #include "core/Launcher.h"
@@ -306,7 +307,7 @@ AddonManagerDialog::AddonManagerDialog(QWidget *parent) : QDialog(parent)
         if (!it)
             return;
         const QString v = it->data(0, Qt::UserRole).toString();
-        if (QMessageBox::question(this, windowTitle(), tr("Remove program version %1 from this computer?").arg(v))
+        if (ask::question(this, windowTitle(), tr("Remove program version %1 from this computer?").arg(v), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Remove"))
             != QMessageBox::Yes)
             return;
         QString err;
@@ -318,7 +319,7 @@ AddonManagerDialog::AddonManagerDialog(QWidget *parent) : QDialog(parent)
         QTreeWidgetItem *it = m_addons->currentItem();
         if (!it)
             return;
-        if (QMessageBox::question(this, windowTitle(), tr("Remove the add-on \"%1\"?").arg(it->text(0))) != QMessageBox::Yes)
+        if (ask::question(this, windowTitle(), tr("Remove the add-on \"%1\"?").arg(it->text(0)), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Remove")) != QMessageBox::Yes)
             return;
         QString err;
         if (!removeAddon(it->data(0, Qt::UserRole).toString(), &err))

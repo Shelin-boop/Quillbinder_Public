@@ -310,7 +310,7 @@ int main(int argc, char **argv)
     // ============================================================ version, license, nothing left of the tutorial
     // (0.50: the version itself is checked by qb_v050_tests; here: 0.40.0 or newer, with the label shown)
     check(QVersionNumber::fromString(QLatin1String(QB_APP_VERSION)) >= QVersionNumber(0, 40, 0)
-              && QLatin1String(QB_APP_VERSION_SHOWN) == QLatin1String(QB_APP_VERSION " alpha"),
+              && QLatin1String(QB_APP_VERSION_SHOWN) == QLatin1String(QB_APP_VERSION " " QB_APP_VERSION_LABEL),
           QStringLiteral("version 0.40.0 or newer, shown with its label (\"%1\")").arg(QStringLiteral(QB_APP_VERSION_SHOWN)),
           QStringLiteral(QB_APP_VERSION_SHOWN));
     {

@@ -1,4 +1,10 @@
 #include "ui/MindMapDoc.h"
+#include "core/BinderItem.h"
+#include "text/TextUtil.h"
+#include "core/SafeSave.h"
+#include <QDir>
+#include <QMessageBox>
+#include <QApplication>
 #include <QRegularExpression>
 #include "ui/Theme.h"
 #include "core/Project.h"
@@ -131,7 +137,12 @@ MindMapDoc::MindMapDoc(Project *project, const QString &itemId, QObject *parent)
     }
     if (!path().isEmpty() && QFile::exists(path())) {
         QString err;
-        board.load(path(), &err);
+        // 0.70.0 (audit A U-02): a board file that cannot be read is shown as far as it was read, read-only, and
+        // never written or removed (before: an empty board that the first change wrote over the file)
+        if (!board.load(path(), &err)) {
+            m_unreadable = true;
+            m_loadError = err.isEmpty() ? tr("the file is damaged") : err;
+        }
     }
     // a file of a version before 0.21.1 has one background color: the board's own
     // when it differs from the default of light themes, else the default
@@ -149,7 +160,29 @@ MindMapDoc::MindMapDoc(Project *project, const QString &itemId, QObject *parent)
     connect(&theme::Notifier::instance(), &theme::Notifier::changed, this, [this] { applyBackground(); });
     m_saveTimer.setSingleShot(true);
     m_saveTimer.setInterval(1200);
-    connect(&m_saveTimer, &QTimer::timeout, this, [this] { save(); });
+    connect(&m_saveTimer, &QTimer::timeout, this, [this] { saveOrTell(); });
+}
+
+QString MindMapDoc::unsavedKey() const { return QStringLiteral("mindmap:") + m_itemId; }
+
+QString MindMapDoc::unsavedTitle() const
+{
+    const BinderItem *it = m_project ? m_project->item(m_itemId) : nullptr;
+    return tr("mind map of %1").arg(it ? it->title : m_itemId);
+}
+
+bool MindMapDoc::saveOrTell()
+{
+    QString err;
+    if (save(&err))
+        return true;
+    // 0.70.0 (audit A U-01, B U-1): a board that cannot be written is told like a text that cannot be
+    // (the window's failed-save notice and sign), stays marked as not saved, and is tried again
+    if (m_project)
+        emit m_project->saveFailed(tr("The mind map of %1 could not be saved: %2")
+                                       .arg(m_project->item(m_itemId) ? m_project->item(m_itemId)->title : m_itemId, err));
+    m_saveTimer.start(15000);
+    return false;
 }
 
 MindMapDoc::~MindMapDoc()
@@ -246,6 +279,8 @@ void MindMapDoc::applyBackground()
 void MindMapDoc::touched()
 {
     m_dirty = true;
+    if (m_project)
+        m_project->setUnsavedExtra(unsavedKey(), unsavedTitle(), true);
     m_saveTimer.start();
     emit boardChanged();
 }
@@ -255,16 +290,25 @@ bool MindMapDoc::save(QString *error)
     m_saveTimer.stop();
     if (!m_project || !m_project->item(m_itemId)) {
         m_dirty = false; // the document is gone (emptied trash)
+        if (m_project)
+            m_project->setUnsavedExtra(unsavedKey(), QString(), false);
+        return true;
+    }
+    if (m_unreadable) { // never written over (0.70.0, audit A U-02)
+        m_dirty = false;
+        m_project->setUnsavedExtra(unsavedKey(), QString(), false);
         return true;
     }
     const bool hadFile = QFile::exists(path());
     if (!hadFile && !board.worthSaving()) { // (a board with a color of its own is kept, 0.21.1)
         m_dirty = false;
+        m_project->setUnsavedExtra(unsavedKey(), QString(), false);
         return true;
     }
     if (!board.save(path(), error))
         return false;
     m_dirty = false;
+    m_project->setUnsavedExtra(unsavedKey(), QString(), false);
     // a project in Scrivener format takes the file into the .scriv at its next save
     m_project->markIndexDirty();
     emit saved();
@@ -291,6 +335,32 @@ MindMapDoc *docFor(Project *project, const QString &itemId)
         return d;
     auto *d = new MindMapDoc(project, itemId, project);
     docs.insert(itemId, d);
+    if (!d->loadError().isEmpty()) {
+        // 0.70.0 (audit A U-02): told without taking the keyboard; the board is read-only
+        const QString title = d->unsavedTitle();
+        const QString why = d->loadError();
+        const QString file = d->path();
+        QTimer::singleShot(0, project, [title, why, file] {
+            QWidget *parent = QApplication::activeWindow();
+            if (qEnvironmentVariableIsSet("QB_NO_DIALOGS")) {
+                if (parent)
+                    parent->setProperty("qbLastBoardNotice", title);
+                return;
+            }
+            auto *box = new QMessageBox(QMessageBox::Warning, MindMapDoc::tr("Mind Map Opened Read-Only"),
+                                        MindMapDoc::tr("The %1 cannot be read (%2):\n%3\n\nIt is shown as far as it "
+                                                       "could be read, and it cannot be changed, so that its file is not "
+                                                       "overwritten. Repair or replace the file, then close and reopen "
+                                                       "the project.")
+                                            .arg(title, why, QDir::toNativeSeparators(file)),
+                                        QMessageBox::Ok, parent);
+            box->setObjectName(QStringLiteral("mindMapUnreadableNotice"));
+            box->setAttribute(Qt::WA_DeleteOnClose);
+            box->setWindowModality(Qt::NonModal);
+            box->setAttribute(Qt::WA_ShowWithoutActivating);
+            box->show();
+        });
+    }
     if (first)
         QObject::connect(project, &QObject::destroyed, [project] { registry().remove(project); });
     return d;
@@ -321,20 +391,53 @@ bool hasMap(Project *project, const QString &itemId)
     return item.match(QString::fromUtf8(f.readAll())).hasMatch();
 }
 
-void saveAll(Project *project)
+bool saveAll(Project *project, QString *error)
 {
-    for (const QPointer<MindMapDoc> &d : registry().value(project))
-        if (d && d->isDirty())
-            d->save();
+    bool ok = true;
+    for (const QPointer<MindMapDoc> &d : registry().value(project)) {
+        if (!d || !d->isDirty())
+            continue;
+        QString err;
+        if (!d->save(&err)) {
+            // 0.70.0 (audit A U-01): reported, not dropped
+            ok = false;
+            if (error) {
+                if (!error->isEmpty())
+                    *error += QLatin1Char('\n');
+                *error += MindMapDoc::tr("The %1 could not be saved: %2").arg(d->unsavedTitle(), err);
+            }
+        }
+    }
+    return ok;
 }
 
-void closeAll(Project *project)
+void closeAll(Project *project, bool discard)
 {
-    saveAll(project);
+    if (!discard)
+        saveAll(project);
     for (const QPointer<MindMapDoc> &d : registry().value(project))
-        if (d)
+        if (d) {
+            if (discard)
+                d->discardChanges();
             delete d.data();
+        }
     registry().remove(project);
+}
+
+int writeUnsaved(Project *project, const QString &dir, QString *error)
+{
+    int n = 0;
+    for (const QPointer<MindMapDoc> &d : registry().value(project)) {
+        if (!d || !d->isDirty())
+            continue;
+        const QString file = QDir(dir).filePath(text::safeFileName(d->unsavedTitle()) + QStringLiteral(".xml"));
+        QString why;
+        if (safesave::writeFile(file, d->board.toXml(), &why))
+            ++n;
+        else if (error && error->isEmpty())
+            *error = why;
+    }
+    return n;
 }
 
 } // namespace mindmaps

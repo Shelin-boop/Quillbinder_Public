@@ -333,7 +333,16 @@ Screenplay fromFountain(const QString &input)
     int lastActionLine = -2;   // line of the last action text (consecutive lines are one paragraph)
     int lastDialogueLine = -2;
     QStringList collected;     // lines of the paragraph being built (action, dialogue)
+    // 0.70.0 (audit A F-10): the lines of a paragraph are parsed once, when it is complete (before: all of them
+    // again with every further line, so a dialogue of 8,000 lines took 10 s)
+    int pendingPara = -1;
+    auto flushPending = [&] {
+        if (pendingPara >= 0 && pendingPara < sp.paras.size())
+            sp.paras[pendingPara].spans = parseLines(collected);
+        pendingPara = -1;
+    };
     auto add = [&](Role role, const QStringList &text, int depth = 1) -> Para & {
+        flushPending();
         Para p;
         p.role = role;
         p.depth = depth;
@@ -365,9 +374,10 @@ Screenplay fromFountain(const QString &input)
                 add(Role::Lyrics, {t.mid(1).trimmed()});
             } else if (lastDialogueLine == i - 1 && !sp.paras.isEmpty() && sp.paras.last().role == Role::Dialogue) {
                 collected << t;
-                sp.paras.last().spans = parseLines(collected);
+                pendingPara = int(sp.paras.size()) - 1;
                 lastDialogueLine = i;
             } else {
+                flushPending();
                 collected = QStringList{t};
                 add(Role::Dialogue, collected);
                 lastDialogueLine = i;
@@ -401,9 +411,10 @@ Screenplay fromFountain(const QString &input)
                 a.chop(1);
             if (lastActionLine == i - 1 && !sp.paras.isEmpty() && sp.paras.last().role == Role::Action) {
                 collected << a;
-                sp.paras.last().spans = parseLines(collected);
+                pendingPara = int(sp.paras.size()) - 1;
             } else {
-                collected = QStringList{a};
+                flushPending();
+            collected = QStringList{a};
                 add(Role::Action, collected);
             }
             lastActionLine = i;
@@ -455,13 +466,15 @@ Screenplay fromFountain(const QString &input)
         a.replace(QLatin1Char('\t'), QLatin1String("    "));
         if (lastActionLine == i - 1 && !sp.paras.isEmpty() && sp.paras.last().role == Role::Action) {
             collected << a;
-            sp.paras.last().spans = parseLines(collected);
+            pendingPara = int(sp.paras.size()) - 1;
         } else {
+            flushPending();
             collected = QStringList{a};
             add(Role::Action, collected);
         }
         lastActionLine = i;
     }
+    flushPending();
     return sp;
 }
 

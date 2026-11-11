@@ -14,6 +14,7 @@
 #include "text/RtfIO.h"
 #include "text/Styles.h"
 #include "text/TextUtil.h"
+#include "import/FileImporter.h"
 
 #include <QBuffer>
 #include <QDir>
@@ -22,6 +23,7 @@
 #include <QImage>
 #include <QSaveFile>
 #include <QSet>
+#include <QStringDecoder>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
@@ -104,6 +106,42 @@ void DocumentStore::preloadImages(QTextDocument *doc, const QString &dir)
     }
 }
 
+// 0.70.0 (audit A F-04): the program writes its Markdown files in UTF-8. A file in another encoding (saved by
+// another editor as Windows-1252 or UTF-16) is decoded as well as possible for showing, and *damage says why it
+// must not be written over.
+QString DocumentStore::decodeStored(const QByteArray &data, QString *damage)
+{
+    if (data.startsWith("\xFF\xFE") || data.startsWith("\xFE\xFF")) {
+        *damage = tr("it was saved by another program as UTF-16, not as UTF-8");
+        QStringDecoder dec(QStringConverter::Utf16);
+        return dec(data);
+    }
+    if (data.contains('\0')) {
+        int oddZero = 0, evenZero = 0;
+        for (int i = 0; i < data.size(); ++i)
+            if (data.at(i) == '\0')
+                ++((i % 2) ? oddZero : evenZero);
+        *damage = tr("it holds zero bytes (saved by another program as UTF-16, or damaged)");
+        if (oddZero > evenZero * 4) {
+            QStringDecoder dec(QStringConverter::Utf16LE);
+            return dec(data);
+        }
+        if (evenZero > oddZero * 4) {
+            QStringDecoder dec(QStringConverter::Utf16BE);
+            return dec(data);
+        }
+        QByteArray copy = data;
+        copy.replace('\0', "");
+        return QString::fromUtf8(copy);
+    }
+    QStringDecoder utf8(QStringConverter::Utf8, QStringConverter::Flag::Stateless);
+    const QString s = utf8(data);
+    if (!utf8.hasError())
+        return s;
+    *damage = tr("it is not in UTF-8 (saved by another program in another character encoding, such as Windows-1252)");
+    return importer::decodeText(data, QStringLiteral("windows-1252"));
+}
+
 void DocumentStore::readFile(const QString &id, bool notes, QTextDocument *doc, QByteArray *bytes, bool *rtf)
 {
     const QString dir = m_project->contentDir(id);
@@ -149,15 +187,32 @@ void DocumentStore::readFile(const QString &id, bool notes, QTextDocument *doc, 
             *bytes = data;
         if (rtf)
             *rtf = rtfFile || rtf::looksLikeRtf(data);
+        // 0.70.0 (audit A F-05, F-04): a file that is there but damaged, or written by another program in
+        // another character encoding, is shown as well as it can be read, read-only, and never written:
+        // before, it was read as an empty text or with replacement characters and the next save wrote that
+        // over the file
+        QString damage;
+        const bool blank = data.trimmed().isEmpty();
         if (rtfFile || rtf::looksLikeRtf(data)) {
+            QByteArray shown = data;
+            if (!blank && !rtf::wellFormed(data, &damage))
+                shown = rtf::mended(data);
             rtf::ReadOptions o;
             o.keepFormatting = m_project->storage == StorageFormat::Rtf;
-            rtf::read(data, doc, m_project->formatting, o);
+            rtf::read(shown, doc, m_project->formatting, o);
             if (m_project->storage == StorageFormat::Markdown)
                 display::normalizeDocument(doc, m_project->formatting);
         } else {
-            md::read(QString::fromUtf8(data), doc, m_project->formatting);
+            md::read(decodeStored(data, &damage), doc, m_project->formatting);
             preloadImages(doc, dir);
+        }
+        if (!damage.isEmpty()) {
+            const QString key = keyFor(id, notes);
+            m_damaged.insert(key);
+            if (!m_unreadable.contains(key)) {
+                m_unreadable.insert(key);
+                emit damagedFile(id, notes, path, damage);
+            }
         }
     } else {
         QTextCursor c(doc);
@@ -220,6 +275,20 @@ bool DocumentStore::hasDirty() const
         if (e.dirty)
             return true;
     return false;
+}
+
+QStringList DocumentStore::dirtyTitles(int max) const
+{
+    QStringList out;
+    for (auto it = m_entries.cbegin(); it != m_entries.cend() && out.size() < max; ++it) {
+        if (!it->dirty || m_unreadable.contains(it.key()))
+            continue;
+        const QString id = it->isNotes ? it.key().mid(2) : it.key();
+        const QString t = it->isNotes ? tr("notes of %1").arg(titleOf(id)) : titleOf(id);
+        if (!out.contains(t))
+            out << t;
+    }
+    return out;
 }
 
 QByteArray DocumentStore::serialize(const QString &id, const QTextDocument *doc)
@@ -308,6 +377,21 @@ bool DocumentStore::writeEntry(const QString &key, Entry &e, QString *error)
         return true;
     }
     QDir().mkpath(dir);
+    // 0.70.0 (audit B F-4): control characters (from pasted data) cannot be stored and are left out, as since
+    // 0.20; now the writer is told once per document
+    if (!m_toldControl.contains(key)) {
+        int count = 0;
+        const QString plain = e.doc->toRawText();
+        for (const QChar c : plain) {
+            const ushort u = c.unicode();
+            if (u < 0x20 && u != '\t' && u != '\n' && u != '\r')
+                ++count;
+        }
+        if (count > 0) {
+            m_toldControl.insert(key);
+            emit charactersLeftOut(id, notes, count);
+        }
+    }
     const QByteArray data = serialize(id, e.doc);
     if (!m_serializeError.isEmpty()) {
         // 0.65.0 (audit F04): a text whose picture could not be written is not saved either; it stays unsaved
@@ -573,18 +657,45 @@ bool DocumentStore::copyDocument(const QString &fromId, const QString &toId, QSt
 }
 
 // copy the source's image resources (a picture read from RTF is held by its document only)
-static void copyImageResources(const QTextDocument *source, QTextDocument *doc)
+void DocumentStore::carryPictures(const QTextDocument *namesIn, const QTextDocument *from, QTextDocument *to)
 {
-    for (QTextBlock b = source->begin(); b.isValid(); b = b.next())
-        for (auto it = b.begin(); !it.atEnd(); ++it) {
-            const QTextCharFormat cf = it.fragment().charFormat();
-            if (cf.isImageFormat()) {
-                const QUrl url(cf.toImageFormat().name());
-                const QVariant v = const_cast<QTextDocument *>(source)->resource(QTextDocument::ImageResource, url);
-                if (v.isValid())
-                    doc->addResource(QTextDocument::ImageResource, url, v);
+    // 0.70.0 (audit A U-03): a picture of a text is a file in its document's folder, named relative to it; the
+    // picture is looked up by its name resolved against the target's folder, so it is added there under that
+    // name too (before, only under the bare name, which the target never looked up: Merge, Split at Selection and
+    // new documents from a template saved the text without its pictures)
+    QSet<QString> done;
+    auto walk = [&](const QTextFrame *frame, const auto &self) -> void {
+        for (auto fit = frame->begin(); !fit.atEnd(); ++fit) {
+            if (QTextFrame *child = fit.currentFrame()) {
+                self(child, self);
+                continue;
+            }
+            const QTextBlock b = fit.currentBlock();
+            for (auto it = b.begin(); !it.atEnd(); ++it) {
+                const QTextCharFormat cf = it.fragment().charFormat();
+                if (!cf.isImageFormat())
+                    continue;
+                const QString name = cf.toImageFormat().name();
+                if (name.isEmpty() || done.contains(name))
+                    continue;
+                done.insert(name);
+                const QUrl url(name);
+                const QVariant v = const_cast<QTextDocument *>(from)->resource(QTextDocument::ImageResource, url);
+                if (!v.isValid() || (v.canConvert<QByteArray>() && v.toByteArray().isEmpty() && !v.canConvert<QImage>()))
+                    continue;
+                to->addResource(QTextDocument::ImageResource, url, v);
+                const QUrl resolved = to->baseUrl().resolved(url);
+                if (resolved != url)
+                    to->addResource(QTextDocument::ImageResource, resolved, v);
             }
         }
+    };
+    walk(namesIn->rootFrame(), walk);
+}
+
+static void copyImageResources(const QTextDocument *source, QTextDocument *doc)
+{
+    DocumentStore::carryPictures(source, source, doc);
 }
 
 void DocumentStore::setContent(const QString &id, const QTextDocument *source)

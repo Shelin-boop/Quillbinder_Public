@@ -45,7 +45,7 @@ int compareVersions(const QString &a, const QString &b)
 
 namespace {
 
-QString tr(const char *s) { return QObject::tr(s); }
+QString tr(const char *s) { return QCoreApplication::translate("qb::addons", s); } // 0.70.0: the context lupdate gives these texts
 
 bool safeRelativePath(const QString &p)
 {
@@ -301,26 +301,38 @@ bool writeFiles(const ZipReader &zr, const Manifest &m, const QString &target, Q
     for (const FileEntry &fe : m.files) {
         const QString path = target + QLatin1Char('/') + fe.path;
         QDir().mkpath(QFileInfo(path).absolutePath());
-        QFile f(path);
         const QByteArray fd = zr.fileData(QLatin1String("payload/") + fe.path);
-        if (!f.open(QIODevice::WriteOnly) || f.write(fd) != fd.size()) {
+        // 0.70.0 (audit A U-08): written, synced and checked like the project's files (a full disk at the wrong
+        // moment left a cut-off library that the checksums in memory did not see)
+        QString why;
+        if (!safesave::writeFile(path, fd, &why)) {
             if (error)
-                *error = tr("Cannot write %1").arg(path);
+                *error = tr("Cannot write %1: %2").arg(path, why);
             return false;
         }
-        f.close();
         if (fe.executable)
             QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner
                                             | QFileDevice::ReadUser | QFileDevice::ExeUser | QFileDevice::ReadGroup
                                             | QFileDevice::ReadOther);
     }
-    QFile mf(target + QLatin1String("/manifest.json"));
-    if (!mf.open(QIODevice::WriteOnly)) {
+    QString why;
+    if (!safesave::writeFile(target + QLatin1String("/manifest.json"), QJsonDocument(m.toJson()).toJson(), &why)) {
         if (error)
-            *error = tr("Cannot write %1").arg(mf.fileName());
+            *error = tr("Cannot write %1: %2").arg(target + QLatin1String("/manifest.json"), why);
         return false;
     }
-    mf.write(QJsonDocument(m.toJson()).toJson());
+    // 0.70.0 (audit A U-07): the package's manifest and its signature as they came, so that the launcher can
+    // check the origin of an installed program before every start (not only its checksum)
+    const QByteArray signedManifest = zr.fileData(QStringLiteral("manifest.json"));
+    const QByteArray signature = zr.fileData(QStringLiteral("manifest.sig"));
+    if (!signedManifest.isEmpty() && !signature.isEmpty()) {
+        if (!safesave::writeFile(target + QLatin1String("/package-manifest.json"), signedManifest, &why)
+            || !safesave::writeFile(target + QLatin1String("/package-manifest.sig"), signature, &why)) {
+            if (error)
+                *error = tr("Cannot write the package's signature into %1: %2").arg(target, why);
+            return false;
+        }
+    }
     return true;
 }
 

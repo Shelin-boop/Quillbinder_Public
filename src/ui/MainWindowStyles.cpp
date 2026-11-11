@@ -2,6 +2,7 @@
 // styles (menus, format bar list, Styles Panel, creating and changing styles).
 
 #include "ui/MainWindow.h"
+#include "ui/Ask.h"
 
 #include "AppInfo.h"
 #include "core/DocumentStore.h"
@@ -375,10 +376,10 @@ void MainWindow::deleteStyle(const QString &name)
     if (idx < 0)
         return;
     const QString shown = sheet.styles[idx].name;
-    if (QMessageBox::question(styleUiParent(), tr("Delete Style"),
-                              tr("Delete the style “%1”?\n\nText that uses it keeps its look as formatting set by hand, "
-                                 "but is no longer connected to a style.").arg(shown),
-                              QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Yes)
+    if (ask::question(styleUiParent(), tr("Delete Style"),
+                      tr("Delete the style “%1”?\n\nText that uses it keeps its look as formatting set by hand, "
+                         "but is no longer connected to a style.").arg(shown),
+                      QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel, tr("Delete Style")) // 0.70.0: Cancel the default
         != QMessageBox::Yes)
         return;
     sheet.styles.removeAt(idx);

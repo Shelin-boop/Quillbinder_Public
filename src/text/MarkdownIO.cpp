@@ -7,7 +7,9 @@
 
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QHash>
 #include <QMap>
+#include <QPointer>
 #include <QRegularExpression>
 #include <QTextBlock>
 #include <QTextCursor>
@@ -190,7 +192,8 @@ private:
     const QString &m_s;
 
     QChar at(int i) const { return (i >= 0 && i < m_s.size()) ? m_s.at(i) : QChar(); }
-    bool startsAt(int i, const char *lit) const { return m_s.mid(i).startsWith(QLatin1String(lit)); }
+    // 0.70.0 (audit A F-10): a view, not a copy of the rest of the paragraph for every character looked at
+    bool startsAt(int i, const char *lit) const { return i >= 0 && i <= m_s.size() && QStringView(m_s).mid(i).startsWith(QLatin1String(lit)); }
 
     void tokenize(int from, int to, QList<Tok> &out)
     {
@@ -421,7 +424,9 @@ private:
                 while (i + n < to && m_s.at(i + n) == c)
                     ++n;
                 const bool pairOnly = (c == QLatin1Char('~') || c == QLatin1Char('='));
-                if ((pairOnly && n != 2) || n > 3) {
+                // 0.70.0 (audit A F-01): runs of up to six marks close and open in one place
+                // ("***Note****: ...*" = bold and italic end, italic goes on); longer runs stay text
+                if ((pairOnly && n != 2) || n > 6) {
                     buf += m_s.mid(i, n);
                     i += n;
                     continue;
@@ -506,8 +511,26 @@ private:
                             break;
                         }
                     }
+                    // 0.70.0 (audit A F-01): bold and italic opened by one run ("***") may close in either order: the
+                    // one this run can close goes first (a "**" after "***...": the bold, not the italic)
+                    if (p > 0 && !stack[p - 1].barrier && stack[p - 1].tok == stack[p].tok) {
+                        const int top = need(stack[p].kind), below = need(stack[p - 1].kind);
+                        if ((top > remaining && below <= remaining)
+                            || (remaining < top + below && below == remaining && top != remaining))
+                            std::swap(stack[p - 1], stack[p]);
+                    }
                     if (p < 0 || need(stack[p].kind) > remaining)
                         break;
+                    // 0.70.0 (audit A F-01): the "rule of three" of CommonMark: when one of the two runs can
+                    // both open and close, they do not pair if their lengths add up to a multiple of three
+                    // (unless both are). "*... end**!***" is italic with a bold "!" (the "**" opens), not
+                    // italic closed and opened again.
+                    {
+                        const Tok &o = toks[stack[p].tok];
+                        const bool eitherBoth = (t.canOpen && t.canClose) || (o.canOpen && o.canClose);
+                        if (eitherBoth && (o.len + t.len) % 3 == 0 && !(o.len % 3 == 0 && t.len % 3 == 0))
+                            break;
+                    }
                     dropAbove(p);
                     Entry e = stack.takeLast();
                     e.matched = true;
@@ -522,6 +545,10 @@ private:
                 } else if (t.ch == QLatin1Char('=')) {
                     stack.append({idx, Kind::Highlight, 2, false, false});
                 } else {
+                    if (remaining > 3) { // at most bold and italic open in one place; the rest is text
+                        t.literalBefore += QString(remaining - 3, t.ch);
+                        remaining = 3;
+                    }
                     if (remaining >= 2)
                         stack.append({idx, Kind::Bold, 2, false, false});
                     if (remaining == 1 || remaining == 3)
@@ -915,6 +942,7 @@ struct Item {
     enum T { Text, Open, Close, Raw } t;
     int attr = 0;
     QString s;
+    bool tag = false; // 0.70.0: bold or italic written as <b> / <i> (see emitFormatting)
 };
 
 class Writer
@@ -1139,18 +1167,32 @@ private:
     {
         QList<Item> items;
         QList<int> open;
-        for (const Seg &s : segs) {
+        // 0.70.0 (audit A F-01): how far a format reaches from segment i on, in characters; formats that
+        // open together are opened longest first, so the one that ends first is the innermost and
+        // closes without closing and opening the others again
+        auto reach = [&segs](int from, int a) {
+            qsizetype n = 0;
+            for (int j = from; j < segs.size() && (segs[j].attrs & a); ++j)
+                n += segs[j].image ? 1 : segs[j].text.size();
+            return n;
+        };
+        for (int si = 0; si < segs.size(); ++si) {
+            const Seg &s = segs[si];
             int k = 0;
             while (k < open.size() && (s.attrs & open[k]))
                 ++k;
             for (int x = open.size() - 1; x >= k; --x)
                 items.append({Item::Close, open[x], QString()});
             open.erase(open.begin() + k, open.end());
-            for (int a : kAttrOrder) {
-                if ((s.attrs & a) && !open.contains(a)) {
-                    items.append({Item::Open, a, QString()});
-                    open.append(a);
-                }
+            QList<int> toOpen;
+            for (int a : kAttrOrder)
+                if ((s.attrs & a) && !open.contains(a))
+                    toOpen.append(a);
+            std::stable_sort(toOpen.begin(), toOpen.end(),
+                             [&](int x, int y) { return reach(si, x) > reach(si, y); });
+            for (int a : toOpen) {
+                items.append({Item::Open, a, QString()});
+                open.append(a);
             }
             if (s.image)
                 items.append({Item::Raw, 0, imageMarkdown(s)});
@@ -1160,7 +1202,8 @@ private:
         for (int x = open.size() - 1; x >= 0; --x)
             items.append({Item::Close, open[x], QString()});
 
-        // move whitespace out of markers
+        for (int pass = 0; pass < 2; ++pass) {
+        // move whitespace out of markers (0.70.0: twice, with the removal of empty pairs between)
         for (int i = 0; i < items.size(); ++i) {
             if (items[i].t != Item::Text)
                 continue;
@@ -1215,13 +1258,91 @@ private:
                 }
             }
         }
+        }
+        // 0.70.0 (audit A F-01): bold and italic are written with asterisks only where a reader cannot take them
+        // otherwise: a run of marks that only opens, followed by a letter, or only closes, after one. A run that
+        // closes and opens at once ("*****"), or marks next to a space on the wrong side (the result of moving white
+        // space out of the formats), are written as tags (<b> </b>, <i> </i>, which the reader knows) instead, for
+        // both ends of that bold or italic run.
+        {
+            const auto star = [](int a) { return a == A_B || a == A_I; };
+            // pair the marks: each open with its close
+            QList<int> partner(items.size(), -1);
+            {
+                QHash<int, int> openAt;
+                for (int i = 0; i < items.size(); ++i) {
+                    if (!star(items[i].attr))
+                        continue;
+                    if (items[i].t == Item::Open) {
+                        openAt.insert(items[i].attr, i);
+                    } else if (items[i].t == Item::Close && openAt.contains(items[i].attr)) {
+                        const int o = openAt.take(items[i].attr);
+                        partner[i] = o;
+                        partner[o] = i;
+                    }
+                }
+            }
+            auto rendered = [&](int i) -> QString {
+                const Item &it = items[i];
+                switch (it.t) {
+                case Item::Text: return escapeInline(it.s, m_escapeBrackets);
+                case Item::Raw: return it.s;
+                case Item::Open: return it.tag && star(it.attr) ? QStringLiteral("<x>") : openMarker(it.attr);
+                case Item::Close: return it.tag && star(it.attr) ? QStringLiteral("</x>") : closeMarker(it.attr);
+                }
+                return QString();
+            };
+            auto isStarMark = [&](int i) { return (items[i].t == Item::Open || items[i].t == Item::Close) && star(items[i].attr) && !items[i].tag; };
+            auto toTag = [&](int i) {
+                items[i].tag = true;
+                if (partner[i] >= 0)
+                    items[partner[i]].tag = true;
+            };
+            for (bool changed = true; changed;) {
+                changed = false;
+                for (int i = 0; i < items.size() && !changed; ++i) {
+                    if (!isStarMark(i) || (i > 0 && isStarMark(i - 1)))
+                        continue;
+                    int j = i;
+                    bool opens = false, closes = false;
+                    while (j < items.size() && isStarMark(j)) {
+                        (items[j].t == Item::Open ? opens : closes) = true;
+                        ++j;
+                    }
+                    QChar before, after;
+                    for (int k = i - 1; k >= 0 && before.isNull(); --k) {
+                        const QString r = rendered(k);
+                        if (!r.isEmpty())
+                            before = r.back();
+                    }
+                    for (int k = j; k < items.size() && after.isNull(); ++k) {
+                        const QString r = rendered(k);
+                        if (!r.isEmpty())
+                            after = r.front();
+                    }
+                    bool bad = false;
+                    if (opens && closes)
+                        bad = true;
+                    else if (opens)
+                        bad = after.isNull() || after.isSpace();
+                    else
+                        bad = before.isNull() || before.isSpace();
+                    if (bad) {
+                        for (int k = i; k < j; ++k)
+                            if (!opens || !closes || items[k].t == Item::Open)
+                                toTag(k);
+                        changed = true;
+                    }
+                }
+            }
+        }
         QString out;
         for (const Item &it : items) {
             switch (it.t) {
             case Item::Text: out += escapeInline(it.s, m_escapeBrackets); break;
             case Item::Raw: out += it.s; break;
-            case Item::Open: out += openMarker(it.attr); break;
-            case Item::Close: out += closeMarker(it.attr); break;
+            case Item::Open: out += it.tag ? (it.attr == A_B ? QStringLiteral("<b>") : QStringLiteral("<i>")) : openMarker(it.attr); break;
+            case Item::Close: out += it.tag ? (it.attr == A_B ? QStringLiteral("</b>") : QStringLiteral("</i>")) : closeMarker(it.attr); break;
             }
         }
         return out;
@@ -1327,7 +1448,7 @@ namespace {
 struct LineReader {
     QTextCursor &cur;
     const Formatting &f;
-    QMap<int, QTextList *> lists;
+    QMap<int, QPointer<QTextList>> lists; // 0.70.0: guarded, as in the RTF reader (Qt deletes empty lists)
     QMap<int, int> listTypes;
     bool prevWasList = false;
 
@@ -1365,7 +1486,7 @@ struct LineReader {
                 else
                     ++it;
             }
-            QTextList *l = lists.value(bi.listLevel, nullptr);
+            QTextList *l = lists.value(bi.listLevel).data();
             if (l && listTypes.value(bi.listLevel) == bi.listType) {
                 l->add(cur.block());
             } else {
@@ -1481,6 +1602,10 @@ void read(const QString &markdown, QTextDocument *doc, const Formatting &f)
     const QStringList lines = text.split(QLatin1Char('\n'));
 
     QTextCursor cur(doc);
+    // 0.70.0 (audit A F-10): one edit block: outside one, every insertion laid out its whole paragraph again to
+    // place the cursor (a paragraph of 4,000 bold spans took seconds)
+    QTextCursor block(doc);
+    block.beginEditBlock();
     LineReader lr{cur, f};
     bool reuse = true;   // the next line goes into the cursor's block (the first one, or the one after a table)
 
@@ -1546,6 +1671,7 @@ void read(const QString &markdown, QTextDocument *doc, const Formatting &f)
         lr.line(line, reuse);
         reuse = false;
     }
+    block.endEditBlock();
     doc->setUndoRedoEnabled(undo);
     doc->setModified(false);
 }

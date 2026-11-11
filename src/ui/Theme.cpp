@@ -464,10 +464,36 @@ static QColor mix(const QColor &a, const QColor &b, double share)
 
 static bool darkColor(const QColor &c) { return c.lightness() < 128; }
 
-QMap<Role, QColor> resolvedColors(const Theme &t, const QMap<QString, QColor> &own)
+QMap<Role, QColor> resolvedColors(const Theme &t, const QMap<QString, QColor> &ownIn)
 {
     capture();
     QMap<Role, QColor> set = t.colors;
+    // 0.70.0 (audit A S-07, the writer's decision of 2026-11-10): with a dark theme the page is a very dark gray with
+    // white text, unless the writer chose a page color of their own: the program's standard paper (#d1d495, kept as
+    // an own color since 0.21.2) and its gray beside the column give way to it
+    QMap<QString, QColor> own = ownIn;
+    {
+        const QColor win = set.contains(Role::Window) ? set.value(Role::Window) : s_systemPalette.color(QPalette::Window);
+        const QColor standardPaper(0xd1, 0xd4, 0x95), standardMargin(0x99, 0x99, 0x99);
+        const QColor paper = own.value(QStringLiteral("editorPaper"));
+        // only the standard paper as an own color: a theme alone (no own colors) shows as it always did
+        if (darkColor(win) && paper.isValid() && paper.rgb() == standardPaper.rgb()) {
+            const QColor margin = own.value(QStringLiteral("editorMargin"));
+            const bool standardBeside = !margin.isValid() || margin.rgb() == standardMargin.rgb();
+            if (t.colors.contains(Role::EditorPaper)) {
+                // the theme brings a page of its own (a dark one): that one shows
+                own.remove(QStringLiteral("editorPaper"));
+                if (standardBeside)
+                    own.remove(QStringLiteral("editorMargin"));
+            } else {
+                own.insert(QStringLiteral("editorPaper"), QColor(0x1e, 0x1e, 0x1e));
+                if (!own.contains(QStringLiteral("editorText")))
+                    own.insert(QStringLiteral("editorText"), QColor(0xff, 0xff, 0xff));
+                if (standardBeside)
+                    own.insert(QStringLiteral("editorMargin"), QColor(0x14, 0x14, 0x14));
+            }
+        }
+    }
     for (auto it = own.constBegin(); it != own.constEnd(); ++it) {
         Role r;
         if (roleFromKey(it.key(), &r) && it.value().isValid())

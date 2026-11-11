@@ -100,6 +100,8 @@ QString relativeTo(const QString &folder, const QString &path) { return QDir(fol
 
 } // namespace
 
+void syncDir(const QString &dir) { syncFolder(dir); }
+
 bool isStaged(const QString &fileName) { return fileName.endsWith(QLatin1String(kStageSuffix)); }
 
 bool replace(const QString &from, const QString &to)
@@ -194,6 +196,14 @@ bool Batch::commit(QString *error)
         root.insert(QStringLiteral("time"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
         root.insert(QStringLiteral("files"), files);
         QDir().mkpath(QFileInfo(m_journal).absolutePath());
+        // 0.70.0 (audit A U-10): the folders of the staged files reach the disk before the journal names them
+        {
+            QSet<QString> staged;
+            for (const Item &i : std::as_const(m_items))
+                staged.insert(QFileInfo(i.staged).absolutePath());
+            for (const QString &d : std::as_const(staged))
+                syncFolder(d);
+        }
         QString why;
         if (!safesave::writeFile(m_journal, QJsonDocument(root).toJson(), &why)) {
             if (error)

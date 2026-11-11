@@ -9,6 +9,7 @@
 #include <QFile>
 #include <QList>
 #include <QString>
+#include <atomic>
 #include <QStringList>
 
 namespace qb {
@@ -24,6 +25,10 @@ public:
     // A file from disk, read and compressed in pieces (any size; Zip64 above 4 GiB).
     bool addFileFromDisk(const QString &name, const QString &path, bool compress = true);
     bool addDirectory(const QString &diskDir, const QString &prefix); // recursive
+    // 0.70.0 (audit A U-06): bytes read so far are added to *bytes; addDirectory stops when *cancel turns true
+    // (both may be read and set from another thread)
+    void setProgress(std::atomic<qint64> *bytes, const std::atomic<bool> *cancel) { m_bytes = bytes; m_cancel = cancel; }
+    bool cancelled() const { return m_cancelled; }
     bool close();
     QString errorString() const { return m_error; }
     // files addDirectory could not read (they are left out; the rest is written)
@@ -47,6 +52,9 @@ private:
     QString m_error;
     QStringList m_skipped;
     bool m_closed = false;
+    std::atomic<qint64> *m_bytes = nullptr;
+    const std::atomic<bool> *m_cancel = nullptr;
+    bool m_cancelled = false;
 };
 
 class ZipReader

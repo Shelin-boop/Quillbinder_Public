@@ -1,4 +1,5 @@
 #include "ui/ToolDialogs.h"
+#include "ui/Ask.h"
 
 #include "import/FileImporter.h"
 #include "ui/DragDrop.h"
@@ -365,8 +366,8 @@ KeywordsDialog::KeywordsDialog(Project *p, QWidget *parent) : QDialog(parent), m
         if (!ti)
             return;
         const QString id = ti->data(0, Qt::UserRole).toString();
-        if (QMessageBox::question(this, tr("Delete Keyword"),
-                                  tr("Delete \"%1\" and remove it from all documents?").arg(ti->text(0)))
+        if (ask::question(this, tr("Delete Keyword"),
+                                  tr("Delete \"%1\" and remove it from all documents?").arg(ti->text(0)), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Delete Keyword"))
             != QMessageBox::Yes)
             return;
         QStringList ids{id};

@@ -13,9 +13,18 @@
 # "Third-party source code") and creates the tag v<version>-<label> if it is not there yet.
 #
 # 0.64.1 (the external audit's X-5): only the job "publish" may write (releases, tags); it runs no
-# code that was downloaded or built, it takes the files of the job "release" as an artifact. No
+# code that was downloaded or built, it takes the files of the jobs before it as an artifact. No
 # checkout keeps the token (persist-credentials: false), and the actions are pinned to commits
 # (the tag each one had on 2026-11-09 in the comment).
+#
+# 0.70.0 (the external audits of 2026-11-10, A S-02 and S-03):
+#  - "build" builds and checks everything WITHOUT the signing key (FFmpeg, whisper.cpp, the packaging
+#    tools and Ubuntu's packages run there); "sign-packages" and "sign-checksums" get the key and run no
+#    third-party code: only openssl and Python of the runner and tools/make-package.py of this commit;
+#    "assemble" puts the signed add-ons into the full version (without the key).
+#  - "tests" runs the project's full test suite (all suites but v060, which checks the private
+#    repository); nothing is published unless it passes (a suite that fails is run once more, for the
+#    rare timing failures of a two-core machine).
 name: Release
 
 on:
@@ -67,7 +76,8 @@ jobs:
             echo "build=true" >> "$GITHUB_OUTPUT"
           fi
 
-  release:
+  build:
+    # everything is built and checked here, without the signing key
     needs: version
     if: needs.version.outputs.build == 'true'
     runs-on: ubuntu-24.04
@@ -91,26 +101,6 @@ jobs:
         with:
           persist-credentials: false
 
-      # 0.65.0 (external audit of 2026-11-10, F12): every package and the checksum list are signed with the project's
-      # release key. Without the secret, or with a key that is not the one the program carries, nothing is built.
-      - name: The signing key
-        env:
-          QB_SIGNING_KEY: ${{ secrets.QB_SIGNING_KEY }}
-        run: |
-          if [ -z "$QB_SIGNING_KEY" ]; then
-            echo "::error title=No signing key::The secret QB_SIGNING_KEY is not set: the release is not built unsigned."
-            exit 1
-          fi
-          mkdir -p /tmp/qb-signing && chmod 700 /tmp/qb-signing
-          ( umask 077; printf '%s\n' "$QB_SIGNING_KEY" > /tmp/qb-signing/key.pem )
-          want=$(grep -o 'kReleaseKey\[\] = "[0-9a-f]*"' src/core/Signing.cpp | grep -o '"[0-9a-f]*"' | tr -d '"')
-          have=$(openssl pkey -in /tmp/qb-signing/key.pem -pubout -outform DER | tail -c 32 | od -An -tx1 | tr -d ' \n')
-          if [ -z "$have" ] || [ "$have" != "$want" ]; then
-            echo "::error title=Wrong signing key::QB_SIGNING_KEY is not the key whose public half the program carries."
-            exit 1
-          fi
-          echo "signing key ok"
-
       - name: Build tools and the libraries of Ubuntu 24.04
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -127,11 +117,10 @@ jobs:
       - name: AppImage
         run: tools/ci-step.sh appimage packaging/build-appimage.sh
 
-      - name: Add-ons and program update
+      - name: Add-ons and program update (not signed yet)
         env:
           QB_FFMPEG_DIR: ${{ github.workspace }}/build/ffmpeg
           QB_FFMPEG_FULL_DIR: ${{ github.workspace }}/build/ffmpeg-full
-          QB_SIGNING_KEY_FILE: /tmp/qb-signing/key.pem
         run: |
           mkdir -p dist
           tools/ci-step.sh addons packaging/build-addons.sh build-appimage dist
@@ -140,39 +129,21 @@ jobs:
           cp build-appimage/*.AppImage dist/
           ls -la dist
 
-      - name: Full version (the AppImage with all add-ons inside)
-        run: |
-          tools/ci-step.sh full packaging/build-full-appimage.sh build-appimage dist
-          cp build-appimage/*-full-*.AppImage dist/
-
       - name: Check the AppImage
         run: tools/ci-step.sh e2e tools/e2e-appimage.sh "$(ls dist/*-x86_64.AppImage | grep -v -- -full-)" - /tmp/e2e
-
-      - name: Check the full version
-        run: tools/ci-step.sh e2e-full tools/e2e-appimage.sh "$(ls dist/*-full-*-x86_64.AppImage)" - /tmp/e2e-full
 
       - name: Third-party source code
         run: tools/ci-step.sh sources python3 -I tools/collect-sources.py sources
 
-      # 0.65.0 (audit F12): the checksum list of every release file, signed; the public key goes with the release
-      - name: Checksums and their signature
-        run: |
-          cp packaging/quillbinder-signing-public.pem dist/
-          cp sources/SOURCES.txt dist/THIRD-PARTY-SOURCES.txt
-          (cd dist && rm -f SHA256SUMS.txt SHA256SUMS.txt.sig && sha256sum -- * > /tmp/SHA256SUMS.txt && mv /tmp/SHA256SUMS.txt SHA256SUMS.txt)
-          openssl pkeyutl -sign -rawin -inkey /tmp/qb-signing/key.pem -in dist/SHA256SUMS.txt -out dist/SHA256SUMS.txt.sig
-          openssl pkeyutl -verify -pubin -inkey packaging/quillbinder-signing-public.pem -rawin -in dist/SHA256SUMS.txt \
-            -sigfile dist/SHA256SUMS.txt.sig
-          rm -rf /tmp/qb-signing
-
-
-      - name: Hand the files to the job "publish"
+      - name: Hand the files to the job "sign-packages"
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: release-files
+          name: unsigned
           path: |
             dist
             sources
+            packaging/tools/appimagetool-x86_64.AppImage
+            packaging/tools/runtime-x86_64
           retention-days: 3
           if-no-files-found: error
 
@@ -193,9 +164,270 @@ jobs:
           path: /tmp/e2e
           if-no-files-found: ignore
 
+  tests:
+    # 0.70.0 (audit A S-02): the full test suite of this commit; publishing waits for it
+    needs: version
+    if: needs.version.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    container: ubuntu:24.04
+    timeout-minutes: 330
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Tools to fetch the source
+        run: |
+          apt-get update -qq && apt-get install -y -qq --no-install-recommends git ca-certificates curl xz-utils openssl
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Build tools, LibreOffice and epubcheck
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          bash tools/enable-deb-src.sh
+          QB_FULL_SETUP=1 bash tools/cloud-setup.sh
+
+      - name: FFmpeg and whisper.cpp (for the add-ons' suites)
+        run: tools/get-ffmpeg.sh > /tmp/ffmpeg.log 2>&1 && tools/get-whisper.sh > /tmp/whisper.log 2>&1 || { tail -40 /tmp/ffmpeg.log /tmp/whisper.log; exit 1; }
+
+      - name: Build with the test suites
+        run: |
+          cmake -S . -B build -G Ninja -DQB_TEST_SWITCHES=ON > /tmp/configure.log 2>&1 || { tail -40 /tmp/configure.log; exit 1; }
+          cmake --build build -j"$(nproc)" > /tmp/build.log 2>&1 || { grep -m 40 'error' /tmp/build.log; tail -20 /tmp/build.log; exit 1; }
+
+      - name: The full test suite
+        run: |
+          set +e
+          QB_SKIP_SUITES="v060" tools/run-all-tests.sh build/test-results x11 2>&1 | tee /tmp/tests.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" != 0 ]; then
+            failed=$(sed -n 's/^failed: *//p' /tmp/tests.log | tail -1)
+            missing=$(sed -n 's/^not built: *//p' /tmp/tests.log | tail -1)
+            if [ -n "$missing" ] || [ -z "$failed" ]; then
+              echo "::error title=Test suites::not built: $missing; failed: $failed"
+              exit 1
+            fi
+            echo "once more: $failed"
+            QB_SUITES="$failed" tools/run-all-tests.sh build/test-results-again x11 2>&1 | tee /tmp/tests-again.log
+            if [ "${PIPESTATUS[0]}" != 0 ]; then
+              echo "::error title=Test suites failed::$(tail -n 3 /tmp/tests-again.log | tr '\n' ' ')"
+              exit 1
+            fi
+          fi
+
+      - name: Logs of the suites
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-logs
+          path: |
+            build/test-results/*.log
+            build/test-results-again/*.log
+          if-no-files-found: ignore
+
+  sign-packages:
+    # 0.70.0 (audit A S-03): the key is only here and in "sign-checksums": no third-party code runs in either
+    needs: [version, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: unsigned
+          path: unsigned
+
+      # 0.65.0 (external audit of 2026-11-10, F12): every package and the checksum list are signed with the project's
+      # release key. Without the secret, or with a key that is not the one the program carries, nothing is signed.
+      - name: The signing key
+        env:
+          QB_SIGNING_KEY: ${{ secrets.QB_SIGNING_KEY }}
+        run: |
+          if [ -z "$QB_SIGNING_KEY" ]; then
+            echo "::error title=No signing key::The secret QB_SIGNING_KEY is not set: the release is not published unsigned."
+            exit 1
+          fi
+          mkdir -p /tmp/qb-signing && chmod 700 /tmp/qb-signing
+          ( umask 077; printf '%s\n' "$QB_SIGNING_KEY" > /tmp/qb-signing/key.pem )
+          want=$(grep -o 'kReleaseKey\[\] = "[0-9a-f]*"' src/core/Signing.cpp | grep -o '"[0-9a-f]*"' | tr -d '"')
+          have=$(openssl pkey -in /tmp/qb-signing/key.pem -pubout -outform DER | tail -c 32 | od -An -tx1 | tr -d ' \n')
+          if [ -z "$have" ] || [ "$have" != "$want" ]; then
+            echo "::error title=Wrong signing key::QB_SIGNING_KEY is not the key whose public half the program carries."
+            exit 1
+          fi
+          echo "signing key ok"
+
+      - name: Sign the packages
+        env:
+          QB_SIGNING_KEY_FILE: /tmp/qb-signing/key.pem
+        run: |
+          mkdir -p signed
+          cp unsigned/dist/*.qbpkg signed/
+          python3 -I tools/make-package.py sign signed/*.qbpkg
+          # every signature checked against the public key the program carries
+          for p in signed/*.qbpkg; do
+            python3 -I - "$p" <<'PY'
+          import base64, json, subprocess, sys, tempfile, zipfile, io, os
+          def check(data, name):
+              z = zipfile.ZipFile(io.BytesIO(data))
+              m, s = z.read("manifest.json"), json.loads(z.read("manifest.sig"))
+              with tempfile.TemporaryDirectory() as t:
+                  open(os.path.join(t, "m"), "wb").write(m)
+                  open(os.path.join(t, "s"), "wb").write(base64.b64decode(s["signature"]))
+                  subprocess.run(["openssl", "pkeyutl", "-verify", "-pubin", "-inkey", "packaging/quillbinder-signing-public.pem",
+                                  "-rawin", "-in", os.path.join(t, "m"), "-sigfile", os.path.join(t, "s")], check=True,
+                                 stdout=subprocess.DEVNULL)
+              for n in z.namelist():
+                  if n.startswith("packages/") and n.endswith(".qbpkg"):
+                      check(z.read(n), n)
+              print("signed:", name)
+          check(open(sys.argv[1], "rb").read(), sys.argv[1])
+          PY
+          done
+          rm -rf /tmp/qb-signing
+
+      - name: Hand the signed packages on
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: signed-packages
+          path: signed
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: The key is gone
+        if: always()
+        run: rm -rf /tmp/qb-signing
+
+  assemble:
+    # the full version with the signed add-ons inside (third-party packaging tools, but no key here)
+    needs: [version, build, sign-packages]
+    runs-on: ubuntu-24.04
+    container: ubuntu:24.04
+    timeout-minutes: 120
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Tools to fetch the source
+        run: |
+          apt-get update -qq && apt-get install -y -qq --no-install-recommends git ca-certificates curl xz-utils openssl
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: unsigned
+          path: unsigned
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: signed-packages
+          path: signed
+
+      - name: The libraries for the check
+        run: |
+          mkdir -p /tmp/ci-log
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          tools/ci-step.sh setup bash tools/cloud-setup.sh
+
+      - name: Full version (the AppImage with all signed add-ons inside)
+        run: |
+          mkdir -p dist build-appimage packaging/tools
+          cp unsigned/dist/* dist/
+          cp signed/*.qbpkg dist/                          # the signed packages take the place of the unsigned ones
+          cp unsigned/packaging/tools/* packaging/tools/
+          chmod +x packaging/tools/* dist/*.AppImage       # (artifacts do not keep the executable bit)
+          cp "$(ls dist/*-x86_64.AppImage | grep -v -- -full-)" build-appimage/
+          tools/ci-step.sh full packaging/build-full-appimage.sh build-appimage dist
+          cp build-appimage/*-full-*.AppImage dist/
+          ls -la dist
+
+      - name: Check the full version
+        run: tools/ci-step.sh e2e-full tools/e2e-appimage.sh "$(ls dist/*-full-*-x86_64.AppImage)" - /tmp/e2e-full
+
+      - name: Hand the files to the job "sign-checksums"
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: assembled
+          path: |
+            dist
+            unsigned/sources
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: The end of the failed step's log (as an annotation)
+        if: failure()
+        run: |
+          s=$(cat /tmp/ci-log/last-step 2>/dev/null || echo unknown)
+          f=/tmp/ci-log/$s.log
+          [ -f "$f" ] || { echo "::error title=Step $s failed::no log"; exit 0; }
+          msg=$(tail -n 80 "$f" | cut -c1-300 | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | sed ':a;N;$!ba;s/\n/%0A/g')
+          echo "::error title=Step $s failed::$msg"
+
+  sign-checksums:
+    # the checksum list of every release file, signed (0.65.0, audit F12); waits for the test suites
+    needs: [version, assemble, tests]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: assembled
+          path: assembled
+
+      - name: Checksums and their signature
+        env:
+          QB_SIGNING_KEY: ${{ secrets.QB_SIGNING_KEY }}
+        run: |
+          mkdir -p /tmp/qb-signing && chmod 700 /tmp/qb-signing
+          ( umask 077; printf '%s\n' "$QB_SIGNING_KEY" > /tmp/qb-signing/key.pem )
+          mkdir -p release/dist release/sources
+          cp assembled/dist/* release/dist/
+          cp -r assembled/unsigned/sources/. release/sources/
+          cp packaging/quillbinder-signing-public.pem release/dist/
+          cp release/sources/SOURCES.txt release/dist/THIRD-PARTY-SOURCES.txt
+          (cd release/dist && rm -f SHA256SUMS.txt SHA256SUMS.txt.sig && sha256sum -- * > /tmp/SHA256SUMS.txt && mv /tmp/SHA256SUMS.txt SHA256SUMS.txt)
+          openssl pkeyutl -sign -rawin -inkey /tmp/qb-signing/key.pem -in release/dist/SHA256SUMS.txt -out release/dist/SHA256SUMS.txt.sig
+          rm -rf /tmp/qb-signing
+          openssl pkeyutl -verify -pubin -inkey packaging/quillbinder-signing-public.pem -rawin -in release/dist/SHA256SUMS.txt \
+            -sigfile release/dist/SHA256SUMS.txt.sig
+
+      - name: Hand the files to the job "publish"
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-files
+          path: release
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: The key is gone
+        if: always()
+        run: rm -rf /tmp/qb-signing
+
   publish:
-    # the only job with write permission: it publishes what the job "release" built
-    needs: [version, release]
+    # the only job with write permission: it publishes what the jobs before it built, signed and tested
+    needs: [version, sign-checksums, tests]
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:
@@ -221,6 +453,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           mkdir -p /tmp/ci-log
+          chmod +x release-files/dist/*.AppImage
           ls -la release-files/dist
           tools/ci-step.sh publish tools/publish-release.sh "$TAG" release-files/dist release-files/sources
 

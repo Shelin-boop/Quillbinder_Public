@@ -95,12 +95,13 @@ QString unescapeMnemonic(const QString &t)
 // Two entries of one menu with the same Alt letter only select each other in
 // turn; the later entry gets a free letter of its text (a word start first).
 // Entries without a letter (names of documents, styles, files) stay as they are.
+// Hidden entries count too: they may show later.
 void fixMnemonics(QMenu *m)
 {
     QSet<QChar> used;
     QList<QAction *> clashing;
     for (QAction *a : m->actions()) {
-        if (a->isSeparator() || !a->isVisible())
+        if (a->isSeparator())
             continue;
         const QString text = a->text();
         const int tab = int(text.indexOf(QLatin1Char('\t')));
@@ -210,7 +211,7 @@ void MainWindow::createMenus()
     projectFormat->setObjectName(QStringLiteral("projectFormatMenu"));
     add(projectFormat, {"formatQuillbinder", "formatScrivener", "", "saveCopyScrivener", "saveCopyQuillbinder"});
     QMenu *bk = file->addMenu(tr("&Back Up"));
-    add(bk, {"backupNow", "backupTo", "showBackups"});
+    add(bk, {"backupNow", "backupTo", "", "restoreBackup", "showBackups"});
     file->addSeparator();
     QMenu *imp = file->addMenu(icons::action(QStringLiteral("document-import")), tr("&Import"));
     menuAlias(imp, QStringLiteral("importFiles"), tr("&Files…"));

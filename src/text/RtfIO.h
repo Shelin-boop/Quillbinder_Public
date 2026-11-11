@@ -44,6 +44,13 @@ QByteArray write(const QTextDocument *doc, const Formatting &f);
 QString toPlainText(const QByteArray &data);
 
 bool looksLikeRtf(const QByteArray &data);
+// 0.70.0 (audit A F-05): an RTF file as this program writes it starts with "{\rtf" and closes its groups in
+// order to the end. False (with a reason) for a file whose start is damaged, that closes groups it never
+// opened, or that is cut off.
+bool wellFormed(const QByteArray &data, QString *why = nullptr);
+// A copy of a damaged RTF file mended as far as that is safe (junk before the start dropped, closing braces
+// that close nothing dropped, groups left open closed), to show what it still holds.
+QByteArray mended(const QByteArray &data);
 
 } // namespace rtf
 } // namespace qb

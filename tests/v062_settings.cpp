@@ -70,6 +70,17 @@ void settingsChecks()
     QString title;
     int countAfter = -1;
     {
+        // 0.70.0 (audit A S-05): the window opens for all projects; This project is chosen on purpose
+        {
+            OptionsDialog first(&w);
+            auto *scope0 = combo(&first, "optScope");
+            check(scope0 && scope0->currentIndex() == OptionsDialog::AllProjects && first.optionScope() == OptionsDialog::AllProjects
+                      && !first.windowTitle().contains(QLatin1String("This Project")),
+                  QStringLiteral("Options: the window opens for all projects, also with a project open (audit A S-05)"),
+                  first.windowTitle());
+            first.reject();
+        }
+        OptionsDialog::setNextScope(OptionsDialog::ThisProject);
         OptionsDialog dlg(&w);
         title = dlg.windowTitle();
         dlg.showSection(OptionsDialog::SCorrections);
@@ -78,7 +89,7 @@ void settingsChecks()
         auto *scope = combo(&dlg, "optScope");
         check(scope && scope->currentIndex() == OptionsDialog::ThisProject && dlg.optionScope() == OptionsDialog::ThisProject
                   && title.contains(QLatin1String("This Project")),
-              QStringLiteral("Options: \"Settings for\" shows This project when a project is open"), title);
+              QStringLiteral("Options: \"Settings for\" shows This project when chosen"), title);
         if (auto *qs = combo(&dlg, "optQuoteStyle"))
             qs->setCurrentIndex(qs->findData(QStringLiteral("de")));
         dlg.apply();
@@ -127,6 +138,7 @@ void settingsChecks()
 
     // keyboard shortcuts of the project
     {
+        OptionsDialog::setNextScope(OptionsDialog::ThisProject); // (0.70.0: the window opens for all projects)
         OptionsDialog dlg(&w);
         if (dlg.keyboardPage())
             dlg.keyboardPage()->assign(QStringLiteral("bold"), QKeySequence(QStringLiteral("Ctrl+Alt+B")), true);
@@ -198,6 +210,7 @@ void settingsChecks()
     {
         int seen = -1;
         int round = 0;
+        OptionsDialog::setNextScope(OptionsDialog::ThisProject);
         OptionsDialog::run(&w, [&](OptionsDialog &dlg) {
             ++round;
             seen = dlg.optionScope();
@@ -217,6 +230,7 @@ void settingsChecks()
     // Use Program Settings
     {
         withModal<QMessageBox>(300, [](QMessageBox *b) { b->button(QMessageBox::Yes)->click(); });
+        OptionsDialog::setNextScope(OptionsDialog::ThisProject);
         OptionsDialog dlg(&w);
         auto *reset = dlg.findChild<QPushButton *>(QStringLiteral("optScopeReset"));
         check(reset && reset->isEnabled(), QStringLiteral("Use Program Settings is offered while the project has own settings"));

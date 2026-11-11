@@ -511,7 +511,7 @@ int main(int argc, char **argv)
         backup::backupProject(p.get(), dir, 2, &out, &e);
         auto complete = [&] {
             int n = 0;
-            for (const QString &f : backup::backupsFor(p->title(), dir))
+            for (const QString &f : backup::backupsFor(p.get(), dir))
                 n += QFileInfo(f).completeBaseName().contains(QLatin1String("(incomplete")) ? 0 : 1;
             return n;
         };
@@ -521,13 +521,13 @@ int main(int argc, char **argv)
         qunsetenv("QB_TEST_UNREADABLE");
         QTest::qWait(1100);
         backup::backupProject(p.get(), dir, 2, &out, &e);
-        const QStringList all = backup::backupsFor(p->title(), dir);
+        const QStringList all = backup::backupsFor(p.get(), dir);
         int incomplete = 0;
         for (const QString &f : all)
             incomplete += QFileInfo(f).completeBaseName().contains(QLatin1String("(incomplete")) ? 1 : 0;
         QTest::qWait(1100);
         backup::backupProject(p.get(), dir, 2, &out, &e);
-        const QStringList all2 = backup::backupsFor(p->title(), dir);
+        const QStringList all2 = backup::backupsFor(p.get(), dir);
         int incomplete2 = 0;
         for (const QString &f : all2)
             incomplete2 += QFileInfo(f).completeBaseName().contains(QLatin1String("(incomplete")) ? 1 : 0;

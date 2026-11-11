@@ -209,6 +209,7 @@ private:
     int m_optScope = AllProjects;
     bool m_suspendedLayer = false;
     QCheckBox *m_projectFirst = nullptr;
+    QComboBox *m_language = nullptr;
     QComboBox *m_scopeCombo = nullptr;
     QLabel *m_scopeInfo = nullptr;
     QPushButton *m_scopeReset = nullptr;

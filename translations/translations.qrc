@@ -1,0 +1,7 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+<qresource prefix="/translations">
+    <file>quillbinder_de.qm</file>
+    <file>qt_de.qm</file>
+</qresource>
+</RCC>

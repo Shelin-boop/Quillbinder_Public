@@ -1,4 +1,12 @@
 #include "core/Zip.h"
+#include <QtGlobal>
+#include <cerrno>
+#include <cstring>
+#ifdef Q_OS_UNIX
+#include <unistd.h>
+#elif defined(Q_OS_WIN)
+#include <io.h>
+#endif
 #include "core/SaveBatch.h"
 #include "core/PathSafety.h"
 
@@ -280,10 +288,18 @@ bool ZipWriter::addDirectory(const QString &diskDir, const QString &prefix)
     QDirIterator it(diskDir, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
     bool ok = true;
     while (it.hasNext()) {
+        if (m_cancel && m_cancel->load()) {
+            m_cancelled = true;
+            m_error = QObject::tr("cancelled");
+            return false;
+        }
         const QString path = it.next();
         const QString rel = base.relativeFilePath(path);
         if (savebatch::isStaged(path) || rel == QLatin1String("settings/journal.json"))
             continue; // a save in progress (0.65.0): not project data
+        if (rel == QLatin1String("settings/lock") || rel.endsWith(QLatin1String("/quillbinder.lock"))
+            || rel == QLatin1String("quillbinder.lock"))
+            continue; // 0.70.0 (audit A U-09): who has the project open (computer and login name) stays out
         const QString suffix = QFileInfo(path).suffix().toLower();
         static const QStringList packed = {QStringLiteral("png"), QStringLiteral("jpg"), QStringLiteral("jpeg"), QStringLiteral("zip"),
                                            QStringLiteral("mp3"), QStringLiteral("mp4"), QStringLiteral("m4a"), QStringLiteral("ogg"),
@@ -306,6 +322,8 @@ bool ZipWriter::addDirectory(const QString &diskDir, const QString &prefix)
         }
         if (!addFileFromDisk(prefix.isEmpty() ? rel : prefix + QLatin1Char('/') + rel, path, !packed.contains(suffix)))
             ok = false;
+        if (m_bytes)
+            m_bytes->fetch_add(QFileInfo(path).size());
     }
     return ok;
 }
@@ -387,6 +405,16 @@ bool ZipWriter::close()
     if (!ok)
         m_error = m_file.errorString();
     ok = m_file.flush() && ok;
+#ifdef Q_OS_UNIX
+    // 0.70.0 (audit A F-11): the archive is on the disk before older backups are deleted
+    if (ok && ::fsync(m_file.handle()) != 0 && errno != EINVAL && errno != ENOTSUP && errno != EOPNOTSUPP && errno != ENOSYS) {
+        ok = false;
+        m_error = QString::fromLocal8Bit(std::strerror(errno));
+    }
+#elif defined(Q_OS_WIN)
+    if (ok && ::_commit(m_file.handle()) != 0)
+        ok = false;
+#endif
     m_file.close();
     return ok;
 }

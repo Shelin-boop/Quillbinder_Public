@@ -19,6 +19,7 @@
 // version runs again.
 
 #include <QJsonObject>
+#include <QByteArray>
 #include <QString>
 
 namespace qb {
@@ -26,6 +27,10 @@ namespace launcher {
 
 // Call first in main(). Returns only if this binary should keep running.
 void maybeRunInstalledCore(int argc, char **argv);
+// 0.70.0 (audit A U-07): whether the installed program update in `dir` may start: its package manifest and
+// signature (package-manifest.json / .sig, kept by the installer) are the project's and name the program file with
+// expectedSha; *why: the rest of the notice ("is not signed ...").
+bool coreOrigin(const QString &dir, const QString &binaryFile, const QByteArray &expectedSha, QString *why);
 
 // True when this process is an installed update started by the loader.
 bool isOverlay();

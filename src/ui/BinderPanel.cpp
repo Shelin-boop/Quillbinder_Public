@@ -1,4 +1,5 @@
 #include "ui/BinderPanel.h"
+#include "ui/Ask.h"
 #include "ui/Zoom.h"
 #include "core/BinderModel.h"
 #include "core/ItemIcons.h"
@@ -762,8 +763,8 @@ BinderPanel::BinderPanel(QWidget *parent) : QWidget(parent)
         const QString id = currentCollectionId();
         if (!m_project || id.isEmpty() || id == QLatin1String("__search"))
             return;
-        if (QMessageBox::question(this, tr("Delete Collection"),
-                                  tr("Delete this collection? The documents themselves stay in the binder."))
+        if (ask::question(this, tr("Delete Collection"),
+                                  tr("Delete this collection? The documents themselves stay in the binder."), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Delete Collection"))
             != QMessageBox::Yes)
             return;
         for (int i = 0; i < m_project->collections.size(); ++i)

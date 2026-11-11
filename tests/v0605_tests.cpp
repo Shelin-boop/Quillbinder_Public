@@ -218,8 +218,8 @@ int main(int argc, char **argv)
     QDir().mkpath(outDir);
 
     check(Project::compareVersionText(QLatin1String(QB_APP_VERSION), QStringLiteral("0.60.5")) >= 0
-              && QLatin1String(QB_APP_VERSION_SHOWN).endsWith(QLatin1String(" alpha")),
-          QStringLiteral("version 0.60.5 or newer, shown with \"alpha\""), QStringLiteral(QB_APP_VERSION_SHOWN));
+              && QLatin1String(QB_APP_VERSION_SHOWN).endsWith(QLatin1String(" " QB_APP_VERSION_LABEL)),
+          QStringLiteral("version 0.60.5 or newer, shown with its label"), QStringLiteral(QB_APP_VERSION_SHOWN));
     QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
     QIcon::setThemeSearchPaths(QIcon::themeSearchPaths() << QStringLiteral(":/icons"));
     QIcon::setThemeName(QStringLiteral("qbicons"));

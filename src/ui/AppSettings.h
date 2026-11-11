@@ -16,6 +16,8 @@ class AppSettings : public QObject
 public:
     static AppSettings &instance();
     void load();
+    // 0.70.0 (audit A U-04): a project's settings make saving only safer (called by load())
+    void keepSavingSafe();
     void save();
     void addRecent(const QString &projectPath);
     void removeRecent(const QString &projectPath);
@@ -38,6 +40,7 @@ public:
     QString forename, surname;
     int autosaveSeconds = 2;
     bool openLastProject = true;
+    QString language = QStringLiteral("en"); // 0.70.0: "en" or "de"; takes effect at the next start (ui/Language.h)
     QStringList recentProjects;
     QString lastProjectDir;
     bool useDesktopPortal = true;

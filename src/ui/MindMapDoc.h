@@ -68,7 +68,13 @@ public:
     QString path() const;
     MindMapScene *scene() const { return m_scene; }
     QUndoStack *undoStack() const { return m_undo; }
-    bool locked() const { return board.settings.locked; }
+    // locked by the writer, or read-only because its file could not be read (0.70.0)
+    bool locked() const { return board.settings.locked || m_unreadable; }
+    // 0.70.0 (audit A U-02): the file could not be read: "" = it could
+    QString loadError() const { return m_loadError; }
+    bool isUnreadable() const { return m_unreadable; }
+    // "mind map of <title>": how notices and the emergency copy name it
+    QString unsavedTitle() const;
 
     // Every change: begin() before, commit() after (one undo step), or
     // change(text, fn) for both. Nested calls make one step.
@@ -80,6 +86,10 @@ public:
     void restore(const QByteArray &xml);
 
     bool save(QString *error = nullptr);
+    // save(); a failure is reported as the project's failed save and tried again in 15 s (0.70.0)
+    bool saveOrTell();
+    // the changes are dropped (Close Without Saving)
+    void discardChanges() { m_dirty = false; m_saveTimer.stop(); }
     bool isDirty() const { return m_dirty; }
 
     // Background (0.21.1): the board's own color for the kind of theme in use
@@ -96,6 +106,9 @@ signals:
 
 private:
     void touched();
+    QString unsavedKey() const;
+    bool m_unreadable = false;
+    QString m_loadError;
 
     QPointer<Project> m_project;
     QString m_itemId;
@@ -114,10 +127,13 @@ namespace mindmaps {
 MindMapDoc *docFor(Project *project, const QString &itemId);
 // Is there a board for the item (an open one with notes, or a file)?
 bool hasMap(Project *project, const QString &itemId);
-// Saves every open board of the project (on project save and close).
-void saveAll(Project *project);
-// Closes the boards of a project (after saving them).
-void closeAll(Project *project);
+// Saves every open board of the project (on project save and close); false (and the reasons) when one
+// could not be saved (0.70.0, audit A U-01).
+bool saveAll(Project *project, QString *error = nullptr);
+// Closes the boards of a project (after saving them; `discard`: without saving).
+void closeAll(Project *project, bool discard = false);
+// The boards with changes not saved, as XML files in `dir` (the emergency copy); how many were written.
+int writeUnsaved(Project *project, const QString &dir, QString *error = nullptr);
 // Every open board draws itself anew (after File > Options > Extras > Mind Map).
 void refreshAll();
 } // namespace mindmaps

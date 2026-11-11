@@ -34,7 +34,7 @@ changed and what was checked. Preferences:
   same version number. Audio and video for everyone: the add-on "Media Playback" (free formats), the add-on "Extra
   Video and Audio Formats" (formats licensed under patents), and the package `media-all-formats.qbpkg` that installs
   both in one step (built by `packaging/build-addons.sh`).
-- **Runtime**: the current AppImage is 0.65.0 alpha (before it 0.64.2 alpha, 0.64.1 alpha, 0.64.0 alpha, 0.63.0 alpha, 0.61.0 alpha, 0.60.0 alpha, 0.40.0 alpha / 0.50.0 alpha, 0.30.0 alpha, 0.20.0,
+- **Runtime**: the current AppImage is 0.70.0 beta (before it 0.65.0 alpha, 0.64.2 alpha, 0.64.1 alpha, 0.64.0 alpha, 0.63.0 alpha, 0.61.0 alpha, 0.60.0 alpha, 0.40.0 alpha / 0.50.0 alpha, 0.30.0 alpha, 0.20.0,
   0.16.0 and 0.2.0, with the same libraries), runtime id `u2404-qt6.4-r1` (`APP_RUNTIME` in CMakeLists.txt; a new
   AppImage with other libraries needs a new id). Program updates (.qbpkg) run on its libraries:
   build on Ubuntu 24.04 with Ubuntu's Qt 6.4.2, use no Qt API newer than 6.4, and add
@@ -58,7 +58,7 @@ changed and what was checked. Preferences:
 ## Build
 
     tools/cloud-setup.sh                  # once on a fresh Ubuntu 24.04 (as root)
-    cmake -S . -B build -G Ninja
+    cmake -S . -B build -G Ninja -DQB_TEST_SWITCHES=ON   # the switches the suites need (off by default since 0.70.0)
     cmake --build build -j"$(nproc)"
 
 ## Tests
@@ -134,6 +134,15 @@ changed and what was checked. Preferences:
   test keys made with openssl, `QB_TEST_SIGNING_KEY`, `QB_REQUIRE_SIGNED`), the scratch pad, the close question, the end by a
   signal, the lock, Scrivener format with a document and a picture changed elsewhere, the manual). Needs
   `<build>/addons-dist/tool-scratch-pad.qbpkg`, python3 and openssl.
+- `qb_v0700_tests` (0.70.0 beta, the fixes of the two external audits of 2026-11-10 (report A: 31 faults, report B: 14
+  items) and the writer's decisions: Markdown round trips of touching formats (4,000 random sentences), the RTF
+  reader's lists, damaged RTF and other encodings read-only, control characters told, the save state and the
+  failed-save notice, mind maps that cannot be saved or read, backups per project, Restore, backup progress and
+  Cancel, pictures in Merge and Split, questions with a default (a source check), project settings only safer,
+  the 30 s latest save, the project file of a folder with several, binder depth, duplicate ids, foreign XML,
+  counts, boards, Word 97 damaged copies (needs `plugins/importers/qb_doc_dump`), reading speed, the release
+  workflow's jobs, `make-package.py sign`, `launcher::coreOrigin`, the self-test, German, the dark page).
+  `QB_V0700_ONLY=markdown,rtf,damaged,saves,backups,pictures,dialogs,hostile,release,german` runs parts.
 - `qb_audit1_tests` (0.64.1, the fixes of the external audit of 2026-11-09: ids of a project file and names in archives
   (`core/PathSafety.*`), damaged ZIP entries, a Word 97 file with a looping sector chain (compiles the plugin's `Cfb.cpp`),
   XML nested 20,000 deep, the keys a project may hold and the question of Load Options, the code warning of packages,
@@ -267,6 +276,53 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
 - The add-on brings Qt Multimedia (only `libQt6Multimedia.so.6`: the microphone needs no Qt Multimedia plugin) and Qt's TLS
   plugin; `addons/speech-transcription/stage.sh` exits with 3 when whisper is not built, and `packaging/build-addons.sh`
   then leaves the add-on out. Icons of the add-on are in the program's icon set (Breeze: microphone, record, list).
+
+## The two external audits' fixes (0.70.0 beta, reports A and B of 2026-11-10)
+
+- **Markdown emphasis** (A F-01, `MarkdownIO.cpp`): the reader takes runs of up to six marks, closes before it opens,
+  follows CommonMark's rule of three, and lets the two kinds of one "***" run close in either order; the writer
+  opens the longer-lasting format first and writes `<b>`/`<i>` for a bold or italic run whose marks would be
+  ambiguous (a run that closes and opens, marks next to a space on the wrong side). `startsAt` uses a view (it copied
+  the rest of the paragraph per character). Property check in v0700 (4,000 random sentences).
+- **Readers**: `QPointer<QTextList>` for cached lists in the RTF and Markdown readers (Qt deletes empty lists; B F-1),
+  list levels 0..8; `rtf::wellFormed` / `rtf::mended`; `DocumentStore::decodeStored` (UTF-8 strictly, UTF-16, zero
+  bytes); a damaged or other-encoding file -> `m_damaged` + `m_unreadable` (shown as read, read-only, never
+  written), signal `damagedFile` -> notice `damagedDocumentNotice`; `charactersLeftOut` once per document.
+- **Failed saves** (A S-01): `MainWindow::noteSaveFailed` / `noteSaved` / `retrySave` / `updateSaveState`: status-bar
+  label `saveState` (Saved / Not saved yet / red failure), `setWindowModified` with "[*]" in the title, retries every
+  15 s for 2 min then 60 s, notice `saveFailedNotice` through `showWithoutTakingKeys` (again after 5 min), button
+  `saveFailedElsewhere`. `Project::setUnsavedExtra` / `unsavedTitles` / `emergencyExtra`; `m_saveDelay` and the 30 s
+  latest save whatever the delay (A S-09).
+- **Mind maps** (A U-01, U-02): `MindMapDoc::saveOrTell` (emits the project's `saveFailed`, retries in 15 s),
+  `mindmaps::saveAll(p, &err)` checked by File > Save, close and the end; `closeAll(p, discard)`;
+  `mindmaps::writeUnsaved` for the emergency copy; a board that cannot be read is `isUnreadable()`, `locked()`, never
+  written (`mindMapUnreadableNotice`).
+- **Backups** (A F-02, U-05, U-06, U-09, F-11, U-10): `backup::projectFolder` ("<title> <key>", key = SHA-1 of the
+  project folder's canonical place), `Where::ProjectFolder|AsChosen`, `backupsFor(Project*)`; packing and checking in a
+  `QThread::create` worker with `setProgressHandler` (the window's QProgressDialog `backupProgress`, Cancel); fsync of
+  the archive and `savebatch::syncDir` before the clean-up and of staged folders before the journal; ZipWriter leaves
+  out `settings/lock`; `backup::restore` + `MainWindow::restoreBackup` / `restoreBackupFile` (File > Back Up > Restore
+  From Backup).
+- **Pictures** (A U-03): `DocumentStore::carryPictures(namesIn, from, to)` adds a picture under the target's resolved
+  name too (QTextDocument looks resources up by the resolved URL); Merge, Split and every `setContent`.
+- **Questions** (A F-03, B S-3): `ui/Ask.h` (`ask::question` with a default and an action name, `ask::confirm`); every
+  `QMessageBox::question` names its default (v0700's source check).
+- **Settings**: `AppSettings::keepSavingSafe` (a project may only make saving safer; ranges), Options opens for all
+  projects (A S-05), `app/language` program-only.
+- **Project file** (A F-06, F-07, F-08, B F-2, L-1): root element and version checked; nesting refused above 5,000
+  (checked with QXmlStreamReader before QDom), flattened above 200 (`readItem` without recursion); duplicate ids get
+  new ids with a copy of the shared text folder; counts saturate; `resolveProjectFile` prefers the .qbx named like the
+  folder, else the newest, and `open()` tells about the others. Boards: ids, places and sizes bounded.
+- **Word 97** (A U-11): pieces bounded by the stream, character counts by the pieces (16 million at most).
+- **Build and release** (A S-04, S-03, S-02, U-07): `QB_TEST_SWITCHES` off by default (the runner refuses a build
+  without it); the release workflow's jobs build (no key), tests (full suite but v060, one retry), sign-packages
+  (`make-package.py sign`), assemble (the full version), sign-checksums, publish; the installer keeps
+  `package-manifest.json`/`.sig`, and `launcher::coreOrigin` checks them before every start (Linux; unsigned only with
+  `QB_ALLOW_UNSIGNED_CORE`, which `tools/e2e-appimage.sh` sets).
+- **German** (S-06): `ui/Language.*` (QTranslator from `:/translations/quillbinder_de.qm` and `qt_de.qm`, setting
+  `app/language`, `QB_LANGUAGE`), `translations/README.md` for lupdate/lrelease. **Dark page** (S-07): in
+  `theme::resolvedColors`, a dark theme with the standard own paper shows #1e1e1e with white text (or the theme's
+  own page). **Self-test** (S-08): the font resolver. **Crash reports** (Info-1): a note about personal names.
 
 ## The external audit's fixes (0.65.0, report of 2026-11-10)
 

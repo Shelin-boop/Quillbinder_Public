@@ -1,4 +1,5 @@
 #include "ScratchPad.h"
+#include "ui/Ask.h"
 #include "ScreenGrab.h"
 
 #include "core/SafeSave.h"
@@ -688,7 +689,7 @@ void ScratchPadWindow::deleteNote(bool ask)
     if (m_file.isEmpty())
         return;
     const QString title = QFileInfo(m_file).completeBaseName();
-    if (ask && QMessageBox::question(this, tr("Delete Note"), tr("Delete the note “%1”? This cannot be undone.").arg(title))
+    if (ask && qb::ask::question(this, tr("Delete Note"), tr("Delete the note “%1”? This cannot be undone.").arg(title), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Delete Note"))
                    != QMessageBox::Yes)
         return;
     // pictures that only this note uses

@@ -1,4 +1,5 @@
 #include "core/MindMap.h"
+#include <cmath>
 #include "core/SafeSave.h"
 #include "text/TextUtil.h"
 
@@ -827,6 +828,8 @@ QString idList(const QSet<int> &ids)
     return parts.join(QStringLiteral(", "));
 }
 
+constexpr int kMaxBoardId = 1000000;
+
 QSet<int> parseIds(const QString &t)
 {
     QSet<int> out;
@@ -847,6 +850,10 @@ QSet<int> parseIds(const QString &t)
                 out.insert(v);
         }
     }
+    // 0.70.0 (audit B L-1): ids of a board are small numbers; others (a damaged or hostile file) are dropped, so
+    // that moving the ids up (Scapple counts from 0) cannot overflow
+    for (auto it = out.begin(); it != out.end();)
+        it = (*it < -kMaxBoardId || *it > kMaxBoardId) ? out.erase(it) : std::next(it);
     return out;
 }
 
@@ -1006,6 +1013,10 @@ QPointF parsePoint(const QString &t, bool *ok)
         pt.setX(p[0].trimmed().toDouble(&a));
         pt.setY(p[1].trimmed().toDouble(&b));
     }
+    // 0.70.0 (audit B L-1): places within a sane board (a damaged file's huge or invalid numbers made the
+    // arithmetic of the board overflow)
+    auto sane = [](double v) { return std::isfinite(v) ? qBound(-1.0e7, v, 1.0e7) : 0.0; };
+    pt = QPointF(sane(pt.x()), sane(pt.y()));
     *ok = a && b;
     return pt;
 }
@@ -1238,15 +1249,15 @@ bool Board::fromXml(const QByteArray &xml, QString *error)
     const QDomElement ns = root.firstChildElement(QStringLiteral("Notes"));
     for (QDomElement e = ns.firstChildElement(QStringLiteral("Note")); !e.isNull(); e = e.nextSiblingElement(QStringLiteral("Note"))) {
         Note n;
-        n.id = e.attribute(QStringLiteral("ID")).toInt();
+        n.id = qBound(-kMaxBoardId, e.attribute(QStringLiteral("ID")).toInt(), kMaxBoardId); // 0.70.0: bounded
         if (ids.contains(n.id))
             continue; // a broken file: the first note of an id wins
         bool ok = false;
         n.pos = parsePoint(e.attribute(QStringLiteral("Position")), &ok);
-        n.width = qMax(20.0, e.attribute(QStringLiteral("Width"), QStringLiteral("160")).toDouble());
-        n.height = e.attribute(QStringLiteral("Height")).toDouble();
+        n.width = qBound(20.0, e.attribute(QStringLiteral("Width"), QStringLiteral("160")).toDouble(), 1.0e5);
+        n.height = qBound(0.0, e.attribute(QStringLiteral("Height")).toDouble(), 1.0e5);
         n.fontSize = e.attribute(QStringLiteral("FontSize"), QStringLiteral("12")).toDouble();
-        if (n.fontSize <= 0)
+        if (!(n.fontSize > 0) || n.fontSize > 1000)
             n.fontSize = 12;
         n.indent = qBound(0, e.attribute(QStringLiteral("Indent")).toInt(), 20);
         readAppearance(e.firstChildElement(QStringLiteral("Appearance")), n.look, &n.align, &n.bold, &n.italic, &n.underline, &n.strike);
@@ -1257,8 +1268,8 @@ bool Board::fromXml(const QByteArray &xml, QString *error)
             const QStringList p = r.text().split(QLatin1Char(','));
             if (p.size() < 2)
                 continue;
-            tr.start = p[0].trimmed().toInt();
-            tr.length = p[1].trimmed().toInt();
+            tr.start = qBound(0, p[0].trimmed().toInt(), 100000000); // 0.70.0: bounded
+            tr.length = qBound(0, p[1].trimmed().toInt(), 100000000);
             tr.bold = isYes(r.attribute(QStringLiteral("Bold")));
             tr.italic = isYes(r.attribute(QStringLiteral("Italic")));
             tr.underline = isYes(r.attribute(QStringLiteral("Underline")));
@@ -1282,13 +1293,13 @@ bool Board::fromXml(const QByteArray &xml, QString *error)
     const QDomElement bs = root.firstChildElement(QStringLiteral("BackgroundShapes"));
     for (QDomElement e = bs.firstChildElement(QStringLiteral("Shape")); !e.isNull(); e = e.nextSiblingElement(QStringLiteral("Shape"))) {
         Shape s;
-        s.id = e.attribute(QStringLiteral("ID")).toInt();
+        s.id = qBound(-kMaxBoardId, e.attribute(QStringLiteral("ID")).toInt(), kMaxBoardId); // 0.70.0: bounded
         if (ids.contains(s.id))
             s.id = -1; // given a free id below
         bool ok = false;
         const QPointF p = parsePoint(e.attribute(QStringLiteral("Position")), &ok);
-        s.rect = QRectF(p, QSizeF(qMax(10.0, e.attribute(QStringLiteral("Width"), QStringLiteral("100")).toDouble()),
-                                  qMax(10.0, e.attribute(QStringLiteral("Height"), QStringLiteral("100")).toDouble())));
+        s.rect = QRectF(p, QSizeF(qBound(10.0, e.attribute(QStringLiteral("Width"), QStringLiteral("100")).toDouble(), 1.0e6),
+                                  qBound(10.0, e.attribute(QStringLiteral("Height"), QStringLiteral("100")).toDouble(), 1.0e6)));
         s.look.borderWeight = 1;
         readAppearance(e.firstChildElement(QStringLiteral("Appearance")), s.look, nullptr, nullptr, nullptr, nullptr, nullptr);
         const QDomElement mag = e.firstChildElement(QStringLiteral("Magnetic"));

@@ -158,8 +158,8 @@ int main(int argc, char **argv)
 
     // ================================================================ version
     check(Project::compareVersionText(QLatin1String(QB_APP_VERSION), QStringLiteral("0.60.0")) >= 0
-              && QLatin1String(QB_APP_VERSION_SHOWN).endsWith(QLatin1String(" alpha")),
-          QStringLiteral("the version is 0.60.0 or newer, shown with \"alpha\""), QStringLiteral(QB_APP_VERSION_SHOWN));
+              && QLatin1String(QB_APP_VERSION_SHOWN).endsWith(QLatin1String(" " QB_APP_VERSION_LABEL)),
+          QStringLiteral("the version is 0.60.0 or newer, shown with its label"), QStringLiteral(QB_APP_VERSION_SHOWN));
 
     // ================================================================ About names FFmpeg with its license
     {
@@ -311,10 +311,10 @@ int main(int argc, char **argv)
     {
         QTemporaryDir dist;
         const QString v = QStringLiteral(QB_APP_VERSION);
-        for (const QString &n : {QStringLiteral("Quillbinder-%1-alpha-x86_64.AppImage").arg(v), QStringLiteral("quillbinder-%1-update.qbpkg").arg(v),
+        for (const QString &n : {QStringLiteral("Quillbinder-%1-%2-x86_64.AppImage").arg(v, QStringLiteral(QB_APP_VERSION_LABEL)), QStringLiteral("quillbinder-%1-update.qbpkg").arg(v),
                                  QStringLiteral("SHA256SUMS.txt")})
             writeFile(dist.path() + QLatin1Char('/') + n, QByteArray());
-        writeFile(dist.path() + QStringLiteral("/Quillbinder-%1-full-alpha-x86_64.AppImage").arg(v), QByteArray());
+        writeFile(dist.path() + QStringLiteral("/Quillbinder-%1-full-%2-x86_64.AppImage").arg(v, QStringLiteral(QB_APP_VERSION_LABEL)), QByteArray());
         for (const QString &n : {QStringLiteral("media-playback.qbpkg"), QStringLiteral("media-extra-formats.qbpkg"),
                                  QStringLiteral("media-all-formats.qbpkg"), QStringLiteral("themes-extra.qbpkg")}) {
             const QString built = kBuild + QStringLiteral("/addons-dist/") + n;
@@ -327,7 +327,7 @@ int main(int argc, char **argv)
         check(rc == 0 && notes.contains(QLatin1String("download **media-all-formats.qbpkg**")) && at > 0
                   && at < notes.indexOf(QLatin1String("| media-extra-formats.qbpkg")) && at < notes.indexOf(QLatin1String("| media-playback.qbpkg"))
                   && notes.contains(QLatin1String("one package, every format"))
-                  && notes.contains(QStringLiteral("| Quillbinder-%1-full-alpha-x86_64.AppImage | **The full version**").arg(v))
+                  && notes.contains(QStringLiteral("| Quillbinder-%1-full-%2-x86_64.AppImage | **The full version**").arg(v, QStringLiteral(QB_APP_VERSION_LABEL)))
                   && notes.contains(QLatin1String("the full version, with all add-ons and the libraries they need included")),
               QStringLiteral("the release text names the one media package in the steps and first among the add-ons"), notes.left(2500));
         const QString news = run(QStringLiteral("python3"), {QStringLiteral("-I"), tools + QStringLiteral("release-notes.py"), QStringLiteral("--whats-new")}, &rc);

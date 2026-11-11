@@ -945,7 +945,7 @@ void MindMapWindow::closeEvent(QCloseEvent *e)
         m_view->saveView(); // the window's zoom and place of this board (0.21.1)
     if (m_doc) {
         m_doc->scene()->endEditing();
-        m_doc->save();
+        m_doc->saveOrTell(); // 0.70.0: a failure is told
         windows().remove(m_doc);
     }
     QMainWindow::closeEvent(e);

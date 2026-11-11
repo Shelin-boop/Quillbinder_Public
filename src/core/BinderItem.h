@@ -1,4 +1,5 @@
 #pragma once
+#include <limits>
 #include "core/ProjectTypes.h"
 
 #include <QDateTime>
@@ -52,18 +53,21 @@ public:
     bool hasText() const { return isTextType(type); }
     bool isContainer() const { return isFolder() || !children.isEmpty(); }
     // the counts of the item's own text and of everything inside it (0.60.1: the total of a folder)
-    int totalWordCount() const
+    // 0.70.0 (audit B L-1): totals in 64 bits, given back at most INT_MAX (counts from a damaged file cannot overflow)
+    int totalWordCount() const { return int(qMin<qint64>(totalWords64(), std::numeric_limits<int>::max())); }
+    qint64 totalWords64() const
     {
-        int n = hasText() ? wordCount : 0;
+        qint64 n = hasText() ? qMax(0, wordCount) : 0;
         for (const BinderItem *c : children)
-            n += c->totalWordCount();
+            n += c->totalWords64();
         return n;
     }
-    int totalCharCount() const
+    int totalCharCount() const { return int(qMin<qint64>(totalChars64(), std::numeric_limits<int>::max())); }
+    qint64 totalChars64() const
     {
-        int n = hasText() ? charCount : 0;
+        qint64 n = hasText() ? qMax(0, charCount) : 0;
         for (const BinderItem *c : children)
-            n += c->totalCharCount();
+            n += c->totalChars64();
         return n;
     }
     int row() const { return parent ? int(parent->children.indexOf(const_cast<BinderItem *>(this))) : 0; }

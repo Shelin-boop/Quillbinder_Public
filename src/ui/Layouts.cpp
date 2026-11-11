@@ -1,4 +1,5 @@
 #include "ui/Layouts.h"
+#include "ui/Ask.h"
 #include "AppInfo.h"
 #include "core/Addons.h"
 #include "core/Paths.h"
@@ -558,8 +559,8 @@ LayoutsDialog::LayoutsDialog(Capture capture, Apply apply, QWidget *parent)
         layouts::Layout l;
         if (!layouts::load(selectedId(), &l))
             return;
-        if (QMessageBox::question(this, tr("Update Layout"),
-                                  tr("Replace the layout “%1” with the window as it is now?").arg(l.name))
+        if (ask::question(this, tr("Update Layout"),
+                                  tr("Replace the layout “%1” with the window as it is now?").arg(l.name), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Update Layout"))
             != QMessageBox::Yes)
             return;
         QString err;
@@ -580,7 +581,7 @@ LayoutsDialog::LayoutsDialog(Capture capture, Apply apply, QWidget *parent)
         layouts::Layout l;
         if (!layouts::load(selectedId(), &l))
             return;
-        if (QMessageBox::question(this, tr("Delete Layout"), tr("Delete the layout “%1”?").arg(l.name)) != QMessageBox::Yes)
+        if (ask::question(this, tr("Delete Layout"), tr("Delete the layout “%1”?").arg(l.name), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Delete Layout")) != QMessageBox::Yes)
             return;
         QString err;
         if (!removeSelected(&err))

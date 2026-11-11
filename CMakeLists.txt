@@ -7,11 +7,11 @@ cmake_minimum_required(VERSION 3.16)
 # ---------------------------------------------------------------------------
 set(APP_NAME "Quillbinder")
 set(APP_ID   "quillbinder")
-set(APP_VERSION "0.65.0")
+set(APP_VERSION "0.70.0")
 # A word shown after the version number in Help > About, System Information and the
 # AppImage's file name ("alpha", "beta"; empty for a normal release). It is never part
 # of version comparisons: the program, the loader and the packages compare APP_VERSION only.
-set(APP_VERSION_LABEL "alpha")
+set(APP_VERSION_LABEL "beta")
 if(APP_VERSION_LABEL)
   set(APP_VERSION_SHOWN "${APP_VERSION} ${APP_VERSION_LABEL}")
 else()
@@ -33,14 +33,10 @@ set(APP_HOMEPAGE "https://github.com/Shelin-boop/Quillbinder_Public")
 project(${APP_ID} VERSION ${APP_VERSION} LANGUAGES C CXX) # C: Monocypher (src/core/third_party, 0.65.0)
 
 # Switches of the tests that load plugins from other folders or leave checks out (QB_PLUGIN_PATH,
-# QB_SPEECH_SOURCE, QB_SPEECH_ACCEPT_CHANGED, QB_SPEECH_SKIP_TEST): only in builds with the tests
-# (0.64.1, the external audit's X-10). The packages are built with -DQB_BUILD_TESTS=OFF.
-if(DEFINED QB_BUILD_TESTS)
-  set(QB_TEST_SWITCHES_DEFAULT ${QB_BUILD_TESTS})
-else()
-  set(QB_TEST_SWITCHES_DEFAULT ON)
-endif()
-option(QB_TEST_SWITCHES "Honor the test switches that load plugins from other folders or skip checks" ${QB_TEST_SWITCHES_DEFAULT})
+# QB_SPEECH_SOURCE, QB_SPEECH_ACCEPT_CHANGED, QB_SPEECH_SKIP_TEST, QB_TEST_SIGNING_KEY, unsigned program
+# updates): 0.70.0 (audit A S-04) off unless asked for, so that a program built as the README says behaves
+# like a release (signatures required). The test runs build with -DQB_TEST_SWITCHES=ON.
+option(QB_TEST_SWITCHES "Honor the test switches that load plugins from other folders or skip checks (test builds only)" OFF)
 if(QB_TEST_SWITCHES)
   add_compile_definitions(QB_TEST_SWITCHES=1)
 endif()
@@ -124,7 +120,9 @@ if(WIN32)
 else()
   set(QB_RESOURCES_QRC ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
 endif()
-add_executable(${APP_ID} src/main.cpp ${QB_RESOURCES_QRC})
+# 0.70.0: the German texts (translations/README.md)
+set(QB_TRANSLATIONS_QRC ${CMAKE_SOURCE_DIR}/translations/translations.qrc)
+add_executable(${APP_ID} src/main.cpp ${QB_RESOURCES_QRC} ${QB_TRANSLATIONS_QRC})
 target_link_libraries(${APP_ID} PRIVATE qbui)
 if(WIN32)
   set_target_properties(${APP_ID} PROPERTIES WIN32_EXECUTABLE ON) # no console window
@@ -176,6 +174,9 @@ endif()
 
 # Tests (headless round-trip checks)
 option(QB_BUILD_TESTS "Build tests" ON)
+if(QB_BUILD_TESTS AND NOT QB_TEST_SWITCHES)
+  message(STATUS "The test suites need the test switches: configure with -DQB_TEST_SWITCHES=ON to run them")
+endif()
 if(QB_BUILD_TESTS)
   if(WIN32)
     # Windows (W3): only the suites tools/win-tests.sh names are built (cmake --build build --target ...)

@@ -35,6 +35,12 @@ public:
     QTextDocument *loadedText(const QString &id) const;
 
     bool hasDirty() const;
+    // the titles of the documents with changes not saved, at most `max` (0.70.0, for the failed-save notice)
+    QStringList dirtyTitles(int max = 8) const;
+    // 0.70.0 (audit A U-03): the pictures named by the text of `namesIn`, looked up in `from` (its resources or its
+    // folder), become resources of `to` under the names `to` looks them up by, so that its next save writes them
+    // into its own folder (text moved between documents: Merge, Split, templates)
+    static void carryPictures(const QTextDocument *namesIn, const QTextDocument *from, QTextDocument *to);
     // 0.65.0: every text and notes not saved yet, as RTF files (pictures inside) into `dir`; how many were written
     int writeUnsaved(const QString &dir, QString *error = nullptr);
     bool saveDirty(QString *error);
@@ -105,6 +111,9 @@ public:
     // file is missing: most likely the sync program is not finished).
     bool isUnreadable(const QString &id, bool notes = false) const { return m_unreadable.contains(keyFor(id, notes)); }
     bool isMissing(const QString &id) const { return m_missing.contains(id); }
+    // 0.70.0: the file is there and was read, but it is damaged or in another character encoding: shown as read,
+    // read-only, never written
+    bool isDamaged(const QString &id, bool notes = false) const { return m_damaged.contains(keyFor(id, notes)); }
     // Documents the project file lists with text whose text file is not there (0.64; a project in
     // Scrivener format: none, its working copy is on this computer).
     QStringList textsNotArrived() const;
@@ -125,8 +134,14 @@ signals:
     // 0.64: the project file lists text for this document, but its file is not there (yet): shown
     // empty, cannot be edited, never written, until the project is opened again.
     void missingFile(const QString &id, const QString &path);
+    // 0.70.0 (audit A F-04, F-05): the file is damaged (RTF) or not in UTF-8 (Markdown): shown as well as it
+    // could be read, read-only, and never written over
+    void damagedFile(const QString &id, bool notes, const QString &path, const QString &why);
+    // 0.70.0 (audit B F-4): the text holds control characters, which are left out when it is stored (once per document)
+    void charactersLeftOut(const QString &id, bool notes, int count);
 
 private:
+    static QString decodeStored(const QByteArray &data, QString *damage);
     struct Entry {
         QTextDocument *doc = nullptr;
         bool dirty = false;
@@ -154,6 +169,8 @@ private:
     QSet<QString> m_unreadable; // keys of files that are there but could not be read
     QString m_serializeError;   // set by serialize when a picture could not be written (0.65.0)
     QSet<QString> m_missing;    // ids of texts whose file has not arrived (0.64)
+    QSet<QString> m_toldControl; // keys told about control characters left out (0.70.0)
+    QSet<QString> m_damaged;    // keys of files read but damaged or in another encoding (0.70.0)
     QHash<QString, QString> m_plainCache;
     QSet<QString> m_countPending;
     QTimer m_countTimer;

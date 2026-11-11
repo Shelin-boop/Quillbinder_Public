@@ -48,6 +48,7 @@ public:
     static QString checkedWordAt(const QString &paragraph, int pos, int *start);
 
 private:
+    bool writePersonalFile();
     SpellChecker();
     ~SpellChecker();
     void *m_handle = nullptr;

@@ -294,8 +294,8 @@ int main(int argc, char **argv)
 
     // (0.40.2: the version check of the newest run is in tests/v0402_tests.cpp; here: 0.40.1 or newer)
     check(Project::compareVersionText(QLatin1String(QB_APP_VERSION), QStringLiteral("0.40.1")) >= 0
-              && QLatin1String(QB_APP_VERSION_SHOWN).endsWith(QLatin1String(" alpha")),
-          QStringLiteral("version 0.40.1 or newer, shown with \"alpha\""), QStringLiteral(QB_APP_VERSION_SHOWN));
+              && QLatin1String(QB_APP_VERSION_SHOWN).endsWith(QLatin1String(" " QB_APP_VERSION_LABEL)),
+          QStringLiteral("version 0.40.1 or newer, shown with its label"), QStringLiteral(QB_APP_VERSION_SHOWN));
     fontListChecks();
 
     QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));

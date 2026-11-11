@@ -8,6 +8,7 @@
 #include "core/Launcher.h"
 #include "text/FontFaces.h"
 #include "ui/AppSettings.h"
+#include "ui/Language.h"
 #include "ui/CrashDialogs.h"
 #include "ui/MainWindow.h"
 #include "ui/MediaPlayback.h"
@@ -16,6 +17,7 @@
 #include <QAction>
 #include "text/PageLayout.h"
 #include <QApplication>
+#include <QFontDatabase>
 #include <QTextDocument>
 #include <QThread>
 
@@ -125,6 +127,7 @@ int main(int argc, char **argv)
     }
 
     QApplication app(argc, argv);
+    qb::language::install(); // 0.70.0: English or German (File > Options > General > Startup), before any window
     // fonts with several designs in one family (Sitka: Small ... Banner) get a family per
     // design, so that Bold and Italic stay within the design (0.40.1, text/FontFaces.h)
     qb::fontfaces::install();
@@ -258,6 +261,29 @@ int main(int argc, char **argv)
             || !qb::pagelayout::clear(&probe, 600) || probe.pageCount() != 1) {
             std::printf("selftest failed: page layout\n");
             return 3;
+        }
+        // 0.70.0 (audit A S-08): the font code works on Qt's private font list as well: the list is there, a family
+        // is found by its own name, and a face name of a family is found again (text/FontFaces.cpp)
+        {
+            const QStringList families = QFontDatabase::families();
+            if (families.isEmpty()) {
+                std::printf("selftest failed: no fonts\n");
+                return 3;
+            }
+            QString any = families.first();
+            bool common = false;
+            for (const char *f : {"DejaVu Sans", "Liberation Serif", "Noto Sans", "FreeSerif", "DejaVu Serif"})
+                if (families.contains(QLatin1String(f))) {
+                    any = QLatin1String(f);
+                    common = true;
+                    break;
+                }
+            const qb::fontfaces::Resolved r = qb::fontfaces::resolve(any);
+            const qb::fontfaces::Resolved bold = qb::fontfaces::resolve(QString(any).remove(QLatin1Char(' ')) + QStringLiteral("-Bold"));
+            if (r.family != any || (common && (bold.family != any || !bold.bold))) {
+                std::printf("selftest failed: fonts (%s)\n", qPrintable(any));
+                return 3;
+            }
         }
         std::printf("selftest ok %s\n", QB_APP_VERSION);
         return 0;

@@ -1,4 +1,7 @@
 #include "core/Project.h"
+#include <QSet>
+#include <QDirIterator>
+#include <limits>
 #include "core/SafeSave.h"
 #include "core/SaveBatch.h"
 #include "core/PathSafety.h"
@@ -138,7 +141,23 @@ QString Project::resolveProjectFile(const QString &path)
                                                        QDir::Files);
         if (files.isEmpty())
             return QString();
-        return QDir(path).filePath(files.first());
+        // 0.70.0 (audit B F-2): with several project files (a sync program's conflict copy "My Novel (conflicted
+        // copy ...).qbx" beside "My Novel.qbx") the one named like the folder is opened, else the newest; before,
+        // the first by name, which was the copy (opening tells about the others, see open())
+        const QString folderName = QDir(path).dirName();
+        for (const QString &f : files)
+            if (QFileInfo(f).completeBaseName() == folderName)
+                return QDir(path).filePath(f);
+        QString newest;
+        QDateTime newestTime;
+        for (const QString &f : files) {
+            const QDateTime t = QFileInfo(QDir(path).filePath(f)).lastModified();
+            if (newest.isEmpty() || t > newestTime) {
+                newest = f;
+                newestTime = t;
+            }
+        }
+        return QDir(path).filePath(newest);
     }
     if (fi.suffix() == QLatin1String(QB_PROJECT_FILE_SUFFIX).mid(1)) {
         // 0.64.2: the spare copy in a project's settings folder names the project itself (opened as a project
@@ -208,6 +227,19 @@ std::unique_ptr<Project> Project::open(const QString &path, QString *error)
     }
     if (!p->loadIndex(error))
         return nullptr;
+    // 0.70.0 (audit B F-2): other project files beside this one are most likely copies a sync program made
+    {
+        QStringList others = QDir(p->m_folder).entryList({QStringLiteral("*") + QLatin1String(QB_PROJECT_FILE_SUFFIX)}, QDir::Files);
+        others.removeAll(QFileInfo(file).fileName());
+        if (!others.isEmpty()) {
+            const QString told = tr("This project's folder holds other project files beside \"%1\", which was opened: %2. "
+                                    "A sync program may have made them (a copy from another computer kept beside "
+                                    "yours). Compare them before you go on, and open another one with File > Open "
+                                    "Project if it holds your latest work.")
+                                     .arg(QFileInfo(file).fileName(), others.join(QLatin1String(", ")));
+            p->openNotice = p->openNotice.isEmpty() ? told : p->openNotice + QStringLiteral("\n\n") + told;
+        }
+    }
     QDir().mkpath(p->m_folder + QLatin1String("/content"));
     QDir().mkpath(p->m_folder + QLatin1String("/snapshots"));
     QDir().mkpath(p->m_folder + QLatin1String("/settings"));
@@ -445,27 +477,27 @@ bool Project::isTemplate(const BinderItem *item) const
 
 int Project::draftWordCount() const
 {
-    int n = 0;
+    qint64 n = 0; // 0.70.0 (audit B L-1): 64 bits, at most INT_MAX
     if (m_draft)
-        m_draft->forEach([&](BinderItem *i) { n += i->wordCount; });
-    return n;
+        m_draft->forEach([&](BinderItem *i) { n += qMax(0, i->wordCount); });
+    return int(qMin<qint64>(n, std::numeric_limits<int>::max()));
 }
 
 int Project::draftCharCount() const
 {
-    int n = 0;
+    qint64 n = 0; // 0.70.0 (audit B L-1): 64 bits, at most INT_MAX
     if (m_draft)
-        m_draft->forEach([&](BinderItem *i) { n += i->charCount; });
-    return n;
+        m_draft->forEach([&](BinderItem *i) { n += qMax(0, i->charCount); });
+    return int(qMin<qint64>(n, std::numeric_limits<int>::max()));
 }
 
 int Project::totalWordCount() const
 {
-    int n = 0;
+    qint64 n = 0; // 0.70.0 (audit B L-1): 64 bits, at most INT_MAX
     for (BinderItem *i : allItems())
         if (!isInTrash(i))
-            n += i->wordCount;
-    return n;
+            n += qMax(0, i->wordCount);
+    return int(qMin<qint64>(n, std::numeric_limits<int>::max()));
 }
 
 int Project::totalCharCount() const
@@ -680,7 +712,8 @@ void Project::scheduleSave()
     if (!m_dirtySince.isValid())
         m_dirtySince.start();
     const qint64 age = m_dirtySince.elapsed();
-    if (age >= qMax<qint64>(m_maxSaveWait, m_saveTimer.interval())) {
+    // 0.70.0 (audit A S-09): the latest save stays at m_maxSaveWait (30 s) whatever the autosave delay
+    if (age >= m_maxSaveWait) {
         // the changes go on without a pause: save now (from the event loop) instead of waiting
         if (!m_forcedSave) {
             m_forcedSave = true;
@@ -695,9 +728,9 @@ void Project::scheduleSave()
         }
         return;
     }
-    m_saveTimer.start();
+    m_saveTimer.start(int(qMin<qint64>(m_saveDelay, qMax<qint64>(1, m_maxSaveWait - age))));
     // 0.64: unsaved for about 5 s (or the autosave delay when that is longer): the next short gap saves
-    if (m_gapTimer.interval() > 0 && age + m_gapTimer.interval() >= qMax<qint64>(m_gapSaveAfter, m_saveTimer.interval()))
+    if (m_gapTimer.interval() > 0 && age + m_gapTimer.interval() >= qMin<qint64>(qMax<qint64>(m_gapSaveAfter, m_saveDelay), m_maxSaveWait))
         m_gapTimer.start();
 }
 
@@ -768,7 +801,7 @@ QString Project::titleListText() const
 
 QString Project::writeEmergencyCopy(const QString &parent, QString *error)
 {
-    if (!m_docs || !m_docs->hasDirty())
+    if ((!m_docs || !m_docs->hasDirty()) && m_unsavedExtra.isEmpty())
         return QString();
     const QString base = parent.isEmpty() ? dataDir() + QStringLiteral("/Emergency") : parent;
     const QString dir = QDir(base).filePath(text::safeFileName(m_title) + QStringLiteral(" ")
@@ -778,7 +811,9 @@ QString Project::writeEmergencyCopy(const QString &parent, QString *error)
             *error = tr("Cannot create %1").arg(QDir::toNativeSeparators(dir));
         return QString();
     }
-    const int n = m_docs->writeUnsaved(dir, error);
+    int n = m_docs ? m_docs->writeUnsaved(dir, error) : 0;
+    if (emergencyExtra) // 0.70.0: mind map boards not saved
+        n += emergencyExtra(dir, error);
     if (n == 0) {
         QDir(dir).removeRecursively();
         return QString();
@@ -857,7 +892,24 @@ int Project::recoverUnlistedDocuments(QString *folderTitle)
 
 bool Project::hasUnsavedChanges() const
 {
-    return m_indexDirty || (m_docs && m_docs->hasDirty()) || (m_objects && m_objects->isDirty());
+    return m_indexDirty || (m_docs && m_docs->hasDirty()) || (m_objects && m_objects->isDirty()) || !m_unsavedExtra.isEmpty();
+}
+
+void Project::setUnsavedExtra(const QString &key, const QString &title, bool unsaved)
+{
+    if (unsaved)
+        m_unsavedExtra.insert(key, title);
+    else
+        m_unsavedExtra.remove(key);
+}
+
+QStringList Project::unsavedTitles(int max) const
+{
+    QStringList out = m_docs ? m_docs->dirtyTitles(max) : QStringList();
+    for (auto it = m_unsavedExtra.cbegin(); it != m_unsavedExtra.cend() && out.size() < max; ++it)
+        if (!out.contains(it.value()))
+            out << it.value();
+    return out;
 }
 
 objects::Store *Project::objects()
@@ -1119,7 +1171,45 @@ static void writeItem(QDomDocument &dom, QDomElement &parent, const BinderItem *
     parent.appendChild(e);
 }
 
-static BinderItem *readItem(const QDomElement &e, BinderItem *parent)
+// 0.70.0 (audit A F-08): a binder deeper than this is flattened when it is read (its deeper items become siblings
+// at this depth); deeper than kRefusedDepth the file is refused. No writer nests so deep; a damaged or hostile
+// file ended the program at its first save (the walks of the binder call themselves once per level).
+constexpr int kMaxBinderDepth = 200;
+constexpr int kRefusedDepth = 5000;
+
+static BinderItem *readOneItem(const QDomElement &e, BinderItem *parent);
+
+// Reads an item and everything inside it without calling itself (any depth of the file).
+static BinderItem *readItem(const QDomElement &top, BinderItem *topParent, int *flattened = nullptr)
+{
+    struct Work {
+        QDomElement e;
+        BinderItem *parent;
+        int depth;
+    };
+    BinderItem *first = nullptr;
+    QList<Work> stack{{top, topParent, 1}};
+    while (!stack.isEmpty()) {
+        const Work w = stack.takeLast();
+        BinderItem *it = readOneItem(w.e, w.parent);
+        if (!first)
+            first = it;
+        else
+            w.parent->children.append(it);
+        QList<QDomElement> kids;
+        const QDomElement ch = w.e.firstChildElement(QStringLiteral("Children"));
+        for (QDomElement c = ch.firstChildElement(QStringLiteral("Item")); !c.isNull(); c = c.nextSiblingElement(QStringLiteral("Item")))
+            kids << c;
+        const bool tooDeep = w.depth >= kMaxBinderDepth;
+        if (tooDeep && flattened)
+            *flattened += int(kids.size());
+        for (int i = int(kids.size()) - 1; i >= 0; --i)
+            stack.append({kids.at(i), tooDeep ? w.parent : it, tooDeep ? w.depth : w.depth + 1});
+    }
+    return first;
+}
+
+static BinderItem *readOneItem(const QDomElement &e, BinderItem *parent)
 {
     auto *it = new BinderItem;
     it->parent = parent;
@@ -1149,8 +1239,9 @@ static BinderItem *readItem(const QDomElement &e, BinderItem *parent)
     it->scriptMode = e.attribute(QStringLiteral("script")) == QLatin1String("1");
     it->autoTitle = e.attribute(QStringLiteral("autoTitle")) == QLatin1String("1");
     it->corkboardPos = e.attribute(QStringLiteral("cork"));
-    it->wordCount = e.attribute(QStringLiteral("words"), QStringLiteral("0")).toInt();
-    it->charCount = e.attribute(QStringLiteral("chars"), QStringLiteral("0")).toInt();
+    // 0.70.0 (audit B L-1): counts from the file within sane bounds
+    it->wordCount = qBound(0, e.attribute(QStringLiteral("words"), QStringLiteral("0")).toInt(), 100000000);
+    it->charCount = qBound(0, e.attribute(QStringLiteral("chars"), QStringLiteral("0")).toInt(), 1000000000);
     it->title = e.firstChildElement(QStringLiteral("Title")).text();
     it->synopsis = e.firstChildElement(QStringLiteral("Synopsis")).text();
     const QDomElement kw = e.firstChildElement(QStringLiteral("Keywords"));
@@ -1160,9 +1251,6 @@ static BinderItem *readItem(const QDomElement &e, BinderItem *parent)
     for (QDomElement f = cm.firstChildElement(QStringLiteral("F")); !f.isNull(); f = f.nextSiblingElement(QStringLiteral("F")))
         it->custom.insert(f.attribute(QStringLiteral("id")), f.text());
     it->bookmarks = readBookmarks(e.firstChildElement(QStringLiteral("Bookmarks")));
-    const QDomElement ch = e.firstChildElement(QStringLiteral("Children"));
-    for (QDomElement c = ch.firstChildElement(QStringLiteral("Item")); !c.isNull(); c = c.nextSiblingElement(QStringLiteral("Item")))
-        it->children.append(readItem(c, it));
     return it;
 }
 
@@ -1483,6 +1571,23 @@ bool Project::loadIndex(QString *error)
     m_loadedIndex = f.readAll();
     m_indexMark = syncsafe::stampOf(m_indexFile);
     m_indexSha = QCryptographicHash::hash(m_loadedIndex, QCryptographicHash::Sha256);
+    {
+        // 0.70.0 (audit A F-08): nesting deeper than kRefusedDepth: refused as damaged
+        int depth = 0, deepest = 0;
+        QXmlStreamReader r(m_loadedIndex);
+        while (!r.atEnd() && deepest <= kRefusedDepth * 2 + 4) {
+            r.readNext();
+            if (r.isStartElement())
+                deepest = qMax(deepest, ++depth);
+            else if (r.isEndElement())
+                --depth;
+        }
+        if (deepest > kRefusedDepth * 2 + 4) { // an item is two elements deep per level (Item, Children)
+            if (error)
+                *error = tr("The project file is damaged: its binder is nested more than %1 levels deep.").arg(kRefusedDepth);
+            return false;
+        }
+    }
     if (!dom.setContent(m_loadedIndex, &msg, &line, &col)) {
         // characters XML does not allow (written by versions before 0.20): removed, then read again
         int removed = 0;
@@ -1504,6 +1609,15 @@ bool Project::loadIndex(QString *error)
         }
     }
     const QDomElement rootEl = dom.documentElement();
+    // 0.70.0 (audit A F-06): a file that is not a project file of this program (other XML named *.qbx, a file a sync
+    // program put there) is refused; before, it opened as an empty project and the first save replaced it
+    if (rootEl.tagName() != QLatin1String("QuillbinderProject")
+        || rootEl.attribute(QStringLiteral("version"), QStringLiteral("1")).toInt() < 1) {
+        if (error)
+            *error = tr("%1 is not a project file of %2 (it holds \"%3\"). It was not opened and is not changed.")
+                         .arg(QDir::toNativeSeparators(m_indexFile), QLatin1String(QB_APP_NAME), rootEl.tagName());
+        return false;
+    }
     m_title = rootEl.attribute(QStringLiteral("title"), QFileInfo(m_indexFile).completeBaseName());
     needsVersion = rootEl.attribute(QStringLiteral("needs"));
     storage = rootEl.attribute(QStringLiteral("storage")) == QLatin1String("rtf") ? StorageFormat::Rtf
@@ -1513,10 +1627,54 @@ bool Project::loadIndex(QString *error)
     m_root->id = QStringLiteral("ROOT");
     m_root->type = ItemType::Folder;
     const QDomElement binder = rootEl.firstChildElement(QStringLiteral("Binder"));
+    int flattened = 0;
     for (QDomElement c = binder.firstChildElement(QStringLiteral("Item")); !c.isNull();
          c = c.nextSiblingElement(QStringLiteral("Item")))
-        m_root->children.append(readItem(c, m_root));
+        m_root->children.append(readItem(c, m_root, &flattened));
+    // 0.70.0 (audit A F-07): ids must be unique: two items with one id shared one text, and emptying the Trash of
+    // one deleted it for both. A second item with an id gets a new one, with a copy of the text folder they shared.
+    int renamed = 0;
+    {
+        QSet<QString> seen;
+        QList<BinderItem *> walk{m_root};
+        while (!walk.isEmpty()) {
+            BinderItem *it = walk.takeLast();
+            if (it != m_root) {
+                if (seen.contains(it->id)) {
+                    const QString old = it->id;
+                    it->id = newId();
+                    const QString from = QDir(m_folder).filePath(QStringLiteral("content/") + old);
+                    const QString to = QDir(m_folder).filePath(QStringLiteral("content/") + it->id);
+                    if (QFileInfo(from).isDir()) {
+                        QDirIterator di(from, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+                        while (di.hasNext()) {
+                            const QString f = di.next();
+                            const QString target = to + QLatin1Char('/') + QDir(from).relativeFilePath(f);
+                            QDir().mkpath(QFileInfo(target).absolutePath());
+                            safesave::copyFile(f, target);
+                        }
+                    }
+                    ++renamed;
+                }
+                seen.insert(it->id);
+            }
+            // (pushed from the last to the first, so the first in the binder keeps its id)
+            for (qsizetype k = it->children.size() - 1; k >= 0; --k)
+                walk.append(it->children.at(k));
+        }
+    }
     registerItem(m_root);
+    if (flattened > 0 || renamed > 0) {
+        m_indexDirty = true; // the repair is kept with the next save
+        QStringList what;
+        if (flattened > 0)
+            what << tr("%n item(s) nested deeper than %1 levels were moved up to that level.", nullptr, flattened).arg(kMaxBinderDepth);
+        if (renamed > 0)
+            what << tr("%n item(s) had the same id as another item and were given a new one (each keeps a copy of the "
+                       "text they shared); check them.", nullptr, renamed);
+        const QString told = tr("The project file was repaired while it was read: %1").arg(what.join(QLatin1Char(' ')));
+        openNotice = openNotice.isEmpty() ? told : openNotice + QStringLiteral("\n\n") + told;
+    }
     for (BinderItem *c : m_root->children) {
         if (c->type == ItemType::Draft && !m_draft)
             m_draft = c;

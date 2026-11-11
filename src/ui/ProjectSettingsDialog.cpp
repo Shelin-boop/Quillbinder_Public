@@ -1,4 +1,5 @@
 #include "ui/ProjectSettingsDialog.h"
+#include "ui/Ask.h"
 #include "text/DirectFormat.h"
 #include "ui/AppSettings.h"
 #include "ui/FormatDialogs.h"
@@ -719,12 +720,12 @@ void ProjectSettingsDialog::apply()
 
     const StorageFormat want = m_rtf->isChecked() ? StorageFormat::Rtf : StorageFormat::Markdown;
     if (want != p->storage) {
-        const auto answer = QMessageBox::question(
+        const auto answer = ask::question(
             this, tr("Convert Project"),
             want == StorageFormat::Rtf
                 ? tr("Convert all documents from Markdown to RTF?")
                 : tr("Convert all documents from RTF to Markdown?\n\nFonts, sizes and colors of individual "
-                     "passages are not kept in Markdown; bold, italics, headings, notes and similar are."));
+                     "passages are not kept in Markdown; bold, italics, headings, notes and similar are."), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Convert"));
         if (answer == QMessageBox::Yes) {
             QString err;
             if (!p->docs()->convertStorage(want, &err))

@@ -1,4 +1,5 @@
 #include "ui/CrashDialogs.h"
+#include "ui/Ask.h"
 #include "AppInfo.h"
 #include "core/Addons.h"
 #include "core/BinderItem.h"
@@ -569,7 +570,8 @@ SystemInfoDialog::SystemInfoDialog(const Project *project, QWidget *parent) : QD
     setWindowTitle(tr("System Information"));
     auto *l = new QVBoxLayout(this);
     auto *intro = new QLabel(tr("What %1 knows about itself and this computer. Copy it into a message when you report a "
-                                "problem; it names files and folders but holds no text of your documents.")
+                                "problem; it names files and folders but holds no text of your documents. Names of files "
+                                "and folders can contain personal names: look it over before you send it.")
                                  .arg(QLatin1String(QB_APP_NAME)),
                              this);
     intro->setWordWrap(true);
@@ -614,7 +616,8 @@ CrashReportsDialog::CrashReportsDialog(QWidget *parent) : QDialog(parent)
     auto *intro = new QLabel(tr("When %1 ends because of an error, or does not respond for 30 seconds, it writes a report "
                                 "on this computer. Nothing is sent anywhere. To report the problem, copy the report into a "
                                 "message (or send the file). It names files, folders and the commands used before the "
-                                "error, but holds no text of your documents.")
+                                "error, but holds no text of your documents. Names of files and folders (and project "
+                                "titles) can contain personal names: look the report over before you send it.")
                                  .arg(QLatin1String(QB_APP_NAME)),
                              this);
     intro->setWordWrap(true);
@@ -654,7 +657,7 @@ CrashReportsDialog::CrashReportsDialog(QWidget *parent) : QDialog(parent)
         }
     });
     connect(m_deleteAll, &QPushButton::clicked, this, [this] {
-        if (QMessageBox::question(this, tr("Delete All Crash Reports"), tr("Delete all %1?").arg(text::plural(count(), tr("crash report"), tr("crash reports"))))
+        if (ask::question(this, tr("Delete All Crash Reports"), tr("Delete all %1?").arg(text::plural(count(), tr("crash report"), tr("crash reports"))), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Delete All"))
             != QMessageBox::Yes)
             return;
         for (const crash::Report &r : crash::reports())

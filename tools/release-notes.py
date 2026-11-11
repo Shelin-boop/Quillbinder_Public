@@ -56,7 +56,8 @@ def main(dist):
                "independent program, not made by or connected with Literature & Latte." % shown)
     out.append("")
     if label:
-        out.append("> **This is an %s version.** Keep backups of your projects (File > Back Up > Back Up Now; the "
+        article = "an" if label[:1].lower() in "aeiou" else "a"
+        out.append("> **This is " + article + " %s version.** Keep backups of your projects (File > Back Up > Back Up Now; the "
                    "automatic backups are set under File > Options > Backup), and keep a copy of your manuscripts "
                    "outside the program." % label)
         out.append("")

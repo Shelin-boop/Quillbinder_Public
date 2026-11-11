@@ -195,7 +195,12 @@ void TextEditor::setProjectDocument(Project *project, BinderItem *item, QTextDoc
     if (unreadable) {
         setReadOnly(true);
         setProperty("qbUnreadable", true);
-        setPlaceholderText(project->docs()->isMissing(item->id) && !isNotes
+        setPlaceholderText(project->docs()->isDamaged(item->id, isNotes)
+                               // 0.70.0: read, but damaged or in another character encoding
+                               ? tr("The file of this document is damaged or was saved by another program in another "
+                                    "character encoding. Nothing of it could be read, and it cannot be edited here, so the "
+                                    "file is not overwritten.")
+                           : project->docs()->isMissing(item->id) && !isNotes
                                // 0.64: the project file says it has text, but its file has not arrived (a sync program)
                                ? tr("The text of this document has not arrived on this computer yet (is your sync program "
                                     "finished?). It is shown empty and cannot be edited, so nothing is saved in its place. "

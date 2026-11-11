@@ -3,6 +3,48 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.70.0 beta (2026-11-10)
+
+A new AppImage and a program update for the AppImages of the same runtime (0.60.0 alpha and later); Scratch Pad 1.2,
+Speech Transcription 1.5 and Word 97-2003 Import 1.2. It fixes what two external audits of 2026-11-10 found, speaks
+German if you want it, and is the first beta.
+
+- **The save state is always on screen**. The status bar says Saved, Not saved yet, or, in red, that the last save
+  failed and when; the title is marked while saves fail. The message of a failed save no longer takes the keyboard
+  (before, the next typed key closed it unread), names the documents, offers Save Texts Elsewhere, and comes again
+  after five minutes of failing; the program tries again by itself until a save works.
+- **Mind maps are saved like texts**. A board that cannot be saved is told, kept in the window, counted when the
+  project closes, and written into the emergency copy; before, its changes were dropped without a word. A board file
+  that cannot be read opens read-only instead of being replaced by the first change.
+- **Backups per project, and restored by the program**. Each project's backups are in a folder of their own, so a
+  copy of a project, a restored backup or another project with the same title can no longer delete them (before,
+  backups were told apart by the title). File > Back Up > Restore From Backup lists them and opens one in a new
+  folder beside the project. A backup shows its progress and can be cancelled, is on the disk before older ones are
+  deleted, and no longer carries the lock file with the computer's and the login's name.
+- **Fixed: bold inside italics came back with asterisks** in Markdown storage (the standard). Files written so far
+  are read right again, and touching formats are written so that they cannot be misread.
+- **Fixed: Merge Documents and Split at Selection lost pictures**; they go along with the text now.
+- **Fixed: a damaged RTF file could crash the program, or open empty and be replaced by an empty file**; a text file
+  saved in another character encoding lost its umlauts. Such files are shown as far as they can be read, read-only,
+  with a message, and never written over.
+- **Questions before deleting have Cancel as the default**: Enter or a space typed too early no longer empties the
+  Trash or deletes a snapshot, a keyword, a collection, a layout, a style or a note; the button names the step.
+- **Safer settings**: File > Options opens for all projects; a project's own settings can make saving safer, never
+  less safe; the latest automatic save is 30 seconds after a change whatever the delay; a folder with several
+  project files (a sync program's conflict copy) opens the one named like the folder and says so.
+- **Damaged and hostile files**: a Word 97 file with wrong lengths, a binder nested thousands of levels deep, two
+  items with one id, other XML named .qbx, huge counts in a project file or a board are handled without a crash or
+  a loss; long formatted paragraphs and long screenplay dialogue are read much faster.
+- **Releases are tested and signed apart**: the release workflow runs the full test suite before anything is
+  published, and the signing key is used only in jobs that run no third-party code. An installed program update is
+  checked for the project's signature before every start, and a program built as the README says now behaves like
+  a release (the test switches are off unless asked for).
+- **Deutsch**: File > Options > General > Startup > Language switches the menus, windows and messages to German
+  (from the next start). The manual and the welcome project stay in English. Each Alt letter is used once per menu,
+  also with entries that are hidden at first or change their name (View > Document or Combined Text).
+- **Dark themes get a dark page**: a very dark gray page with white text instead of the light paper (a page color
+  you chose yourself stays).
+
 ## 0.65.0 alpha (2026-11-10)
 
 A new AppImage and a program update for the AppImages of the same runtime (0.60.0 alpha and later); Scratch Pad 1.1

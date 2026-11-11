@@ -6,6 +6,8 @@
 // The version as people see it: the number plus the label of CMakeLists.txt
 // ("0.30.0 alpha"). Only for display; compare versions with QB_APP_VERSION.
 #define QB_APP_VERSION_SHOWN "@APP_VERSION_SHOWN@"
+// the label alone ("beta" since 0.70.0; "" without one)
+#define QB_APP_VERSION_LABEL "@APP_VERSION_LABEL@"
 #define QB_RUNTIME_ID  "@APP_RUNTIME@"
 // The public project page and its release with the third-party source code (0.50).
 #define QB_APP_HOMEPAGE "@APP_HOMEPAGE@"

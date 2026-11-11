@@ -947,7 +947,7 @@ static void uiChecks()
     // deleting with the question
     panel->showObject(fens);
     settle(150);
-    answerBox(300, QString(), QStringLiteral("Yes"));
+    answerBox(300, QString(), QStringLiteral("Delete")); // 0.70.0: the button names the step
     panel->deleteSelected(true);
     settle(300);
     check(!st->object(fens) && st->object(ashvale)->ids(QStringLiteral("environment")).isEmpty()

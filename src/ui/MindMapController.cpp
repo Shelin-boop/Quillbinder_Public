@@ -1,4 +1,5 @@
 #include "ui/MindMapController.h"
+#include "ui/Ask.h"
 #include "core/SafeSave.h"
 #include "ui/LinkOpen.h"
 #include "core/IconCatalog.h"
@@ -214,14 +215,14 @@ void MindMapController::createActions()
     foot->setCheckable(true);
     on(foot, [this](bool b) {
         board().settings.footer = b;
-        m_doc->save();
+        m_doc->saveOrTell(); // 0.70.0: a failure is told
         emit footerToggled(b);
     });
     QAction *guides = add(QStringLiteral("mm_pageGuides"), tr("&Page Guides"));
     guides->setCheckable(true);
     on(guides, [this](bool b) {
         board().settings.pageGuides = b;
-        m_doc->save();
+        m_doc->saveOrTell(); // 0.70.0: a failure is told
         m_view->viewport()->update();
     });
     on(add(QStringLiteral("mm_actualSize"), tr("&Actual Size"), QKeySequence(Qt::CTRL | Qt::Key_0), QStringLiteral("zoom-original")),
@@ -2479,12 +2480,12 @@ void MindMapController::addToBinder()
     const QList<int> order = board().readingOrder(only);
     if (order.isEmpty())
         return;
-    const auto answer = QMessageBox::question(m_owner, tr("Add Notes to the Binder"),
+    const auto answer = ask::question(m_owner, tr("Add Notes to the Binder"),
                                               tr("%n note(s) become documents inside “%1”, in the reading order of the board "
                                                  "(left to right, top to bottom; connected notes after the note they hang on).",
                                                  nullptr, int(order.size()))
                                                   .arg(owner->title),
-                                              QMessageBox::Ok | QMessageBox::Cancel);
+                                              QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Ok);
     if (answer != QMessageBox::Ok)
         return;
     for (int id : order) {

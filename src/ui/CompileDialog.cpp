@@ -1,4 +1,5 @@
 #include "ui/CompileDialog.h"
+#include "ui/Ask.h"
 #include "compile/Compiler.h"
 #include "compile/PluginManager.h"
 #include "compile/PdfExporter.h"
@@ -274,7 +275,7 @@ CompileDialog::CompileDialog(Project *p, QWidget *parent) : QDialog(parent), m_p
         const Format f = currentFormat();
         if (f.builtin)
             return;
-        if (QMessageBox::question(this, tr("Delete Format"), tr("Delete the compile format \"%1\"?").arg(f.name))
+        if (ask::question(this, tr("Delete Format"), tr("Delete the compile format \"%1\"?").arg(f.name), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Delete Format"))
             == QMessageBox::Yes) {
             deleteUserFormat(f.name);
             loadFormats(QString());

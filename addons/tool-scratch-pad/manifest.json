@@ -1,11 +1,9 @@
 {
   "id": "tool-scratch-pad",
   "name": "Scratch Pad",
-  "version": "1.1",
+  "version": "1.2",
   "description": "Writing tool: Window > Scratch Pad (Alt+Shift+Return) keeps notes outside every project, as formatted or plain text, with pictures of the screen (camera button). Notes are sent to any open project, as a new document or added to the end of a text. The scratch pad can also be opened from every program with a desktop shortcut (Options > Keyboard). Folder and format: Options > General.",
   "author": "Quillbinder",
   "minApp": "0.11.0",
-  "whatsNew": [
-    "A note that cannot be saved stays open with its text, and its text goes into the emergency folder when the program ends"
-  ]
+  "whatsNew": ["Delete Note asks with Cancel as the default, so Enter does not delete the note", "German texts when the program speaks German"]
 }

@@ -2,6 +2,7 @@
 #include "core/Addons.h"
 #include "core/Paths.h"
 #include "core/Platform.h"
+#include "core/Signing.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -308,6 +309,47 @@ static bool startChild(const QString &binary, QString *notice, const QString &ac
 }
 #endif
 
+bool coreOrigin(const QString &dir, const QString &binaryFile, const QByteArray &expectedSha, QString *why)
+{
+    // the package's own manifest and its signature, kept as they came, must be the project's, and the program
+    // file must be the one it names (before 0.70.0 only the checksum in the folder's own manifest was compared,
+    // which whoever writes the folder can rewrite)
+    auto readAll = [](const QString &path) {
+        QFile f(path);
+        return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+    };
+    const QByteArray pm = readAll(dir + QLatin1String("/package-manifest.json"));
+    const QByteArray ps = readAll(dir + QLatin1String("/package-manifest.sig"));
+    if (!pm.isEmpty() && !ps.isEmpty()) {
+        if (signing::checkManifest(pm, ps).state != signing::State::Valid) {
+            *why = QStringLiteral("does not carry a valid signature of the project and was switched off. Install it again "
+                                  "from the project's release page.");
+            return false;
+        }
+        const addons::Manifest sm = addons::Manifest::fromJson(QJsonDocument::fromJson(pm).object());
+        QByteArray signedSum;
+        for (const addons::FileEntry &fe : sm.files)
+            if (fe.path == binaryFile)
+                signedSum = fe.sha256;
+        if (signedSum.isEmpty() || signedSum.toLower() != expectedSha.toLower()) {
+            *why = QStringLiteral("does not match its signed list of files and was switched off. Install it again.");
+            return false;
+        }
+        return true;
+    }
+#if !defined(QB_TEST_SWITCHES) && !defined(Q_OS_WIN)
+    // an update installed without a signature (only possible with --allow-unsigned on the command line) runs only
+    // when QB_ALLOW_UNSIGNED_CORE is set (the end-to-end checks of development builds). Windows: its packages are
+    // not signed yet, so this waits for the Windows release.
+    if (!qEnvironmentVariableIsSet("QB_ALLOW_UNSIGNED_CORE")) {
+        *why = QStringLiteral("is not signed by the project and was switched off. Install the update from the project's "
+                              "release page.");
+        return false;
+    }
+#endif
+    return true;
+}
+
 // Tries to start the active program version. Returns (to the caller's
 // fallback) when it cannot or must not be started; "notice" then says why.
 static void runCore(const QString &active, QJsonObject &st, char **argv, QString *notice)
@@ -328,6 +370,14 @@ static void runCore(const QString &active, QJsonObject &st, char **argv, QString
     for (const addons::FileEntry &fe : m.files)
         if (fe.path == QFileInfo(binary).fileName())
             expected = fe.sha256;
+    // 0.70.0 (audit A U-07): before every start, the update's origin too (launcher::coreOrigin)
+    {
+        QString why;
+        if (!coreOrigin(dir, QFileInfo(binary).fileName(), expected, &why)) {
+            *notice = QStringLiteral("Program update %1 %2").arg(active, why);
+            return;
+        }
+    }
     QFile bf(binary);
     QCryptographicHash hash(QCryptographicHash::Sha256);
     if (!bf.open(QIODevice::ReadOnly) || !hash.addData(&bf) || expected.isEmpty()

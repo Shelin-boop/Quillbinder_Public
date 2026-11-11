@@ -432,7 +432,7 @@ static void generalOptionChecks()
     as.notifyChanged();
     binder->select({a, b}, true);
     settle(100);
-    answerBox(200, QString(), QStringLiteral("Yes"));
+    answerBox(200, QString(), QStringLiteral("Merge")); // 0.70.0: the button names the step
     byKey(&w, QStringLiteral("merge"))->trigger();
     settle(300);
     check(plain(p, a) == QLatin1String("First.\n* * *\nSecond."), QStringLiteral("Separators: merged documents get the custom separator on a line of its own"),
@@ -441,7 +441,7 @@ static void generalOptionChecks()
     as.notifyChanged();
     binder->select({a, c}, true);
     settle(100);
-    answerBox(200, QString(), QStringLiteral("Yes"));
+    answerBox(200, QString(), QStringLiteral("Merge")); // 0.70.0: the button names the step
     byKey(&w, QStringLiteral("merge"))->trigger();
     settle(300);
     check(plain(p, a).endsWith(QLatin1String("Second.\n\nThird.")), QStringLiteral("... or an empty line"), plain(p, a));
@@ -551,7 +551,9 @@ static void generalOptionChecks()
         QTest::keyClicks(e, QStringLiteral(" more"));
         settle(100);
         check(w.editedSinceManualSave().contains(b->id), QStringLiteral("(the edited text is noted)"));
-        const int backupsBefore = QDir(backups.path()).entryList(QDir::Files).size();
+        // (0.70.0: the backups of a project are in a folder of their own inside the backup folder)
+        const QString projectBackups = backup::projectFolder(p, backups.path());
+        const int backupsBefore = QDir(projectBackups).entryList(QDir::Files).size();
         w.manualSave();
         settle(200);
         check(snapshots::list(p, b->id).size() == before + 1 && snapshots::list(p, a->id).size() == beforeA,
@@ -559,8 +561,8 @@ static void generalOptionChecks()
               QStringLiteral("b %1 -> %2, a %3 -> %4").arg(before).arg(snapshots::list(p, b->id).size()).arg(beforeA).arg(snapshots::list(p, a->id).size()));
         check(w.statusBar()->currentMessage().contains(QLatin1String("Snapshot")),
               QStringLiteral("Behaviors > Snapshots: a message says that snapshots were taken"), w.statusBar()->currentMessage());
-        check(QDir(backups.path()).entryList(QDir::Files).size() == backupsBefore + 1,
-              QStringLiteral("Backup: a backup with each manual save"), QDir(backups.path()).entryList(QDir::Files).join(QLatin1Char(',')));
+        check(QDir(projectBackups).entryList(QDir::Files).size() == backupsBefore + 1,
+              QStringLiteral("Backup: a backup with each manual save"), QDir(projectBackups).entryList(QDir::Files).join(QLatin1Char(',')));
     }
     as.snapshotOnManualSave = false;
     as.snapshotNotify = false;

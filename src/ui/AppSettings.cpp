@@ -85,6 +85,7 @@ void AppSettings::load()
     surname = s.value(QStringLiteral("surname")).toString();
     autosaveSeconds = s.value(QStringLiteral("autosave"), 2).toInt();
     openLastProject = s.value(QStringLiteral("openLast"), true).toBool();
+    language = s.value(QStringLiteral("language"), QStringLiteral("en")).toString() == QLatin1String("de") ? QStringLiteral("de") : QStringLiteral("en");
     recentProjects = s.value(QStringLiteral("recent")).toStringList();
     welcomeFolder = s.value(QStringLiteral("welcomeFolder")).toString();
     welcomeShown = s.value(QStringLiteral("welcomeShown"), false).toBool();
@@ -362,8 +363,29 @@ void AppSettings::load()
     toolbarIconSize = qBound(16, s.value(QStringLiteral("iconSize"), toolbarIconSize).toInt(), 48);
     toolbarStyle = s.value(QStringLiteral("style"), toolbarStyle).toString();
     s.endGroup();
+    keepSavingSafe();
     if (putStandard)
         save(); // writes the standard and the key that says it was put
+}
+
+// 0.70.0 (audit A U-04): a project's own settings (settings/options.ini, also from someone else) may make saving
+// safer, never less safe: the shorter autosave delay of program and project counts, a backup that the program
+// makes stays on, the larger number of backups is kept, and the automatic quit is the program's alone. The values
+// are checked for their ranges here too (before, only the Options window did).
+void AppSettings::keepSavingSafe()
+{
+    const QVariantMap prog = settingslayer::programValues();
+    auto progInt = [&prog](const char *key, int def) { return prog.value(QLatin1String(key), def).toInt(); };
+    auto progBool = [&prog](const char *key, bool def) { return prog.value(QLatin1String(key), def).toBool(); };
+    autosaveSeconds = qBound(1, qMin(autosaveSeconds, qBound(1, progInt("app/autosave", 2), 300)), 300);
+    backupOnClose = backupOnClose || progBool("backup/onClose", true);
+    backupOnOpen = backupOnOpen || progBool("backup/onOpen", false);
+    backupOnManualSave = backupOnManualSave || progBool("backup/onManualSave", false);
+    const int progKeep = qBound(0, progInt("backup/keep", 5), 100);
+    backupKeep = qBound(0, backupKeep, 100);
+    backupKeep = (backupKeep == 0 || progKeep == 0) ? 0 : qMax(backupKeep, progKeep); // 0: keep all
+    autoQuit = progBool("app/autoQuit", false);
+    autoQuitMinutes = qBound(1, progInt("app/autoQuitMinutes", 30), 600);
 }
 
 void AppSettings::save()
@@ -374,6 +396,7 @@ void AppSettings::save()
     s.setValue(QStringLiteral("surname"), surname);
     s.setValue(QStringLiteral("autosave"), autosaveSeconds);
     s.setValue(QStringLiteral("openLast"), openLastProject);
+    s.setValue(QStringLiteral("language"), language);
     s.setValue(QStringLiteral("recent"), recentProjects);
     s.setValue(QStringLiteral("welcomeFolder"), welcomeFolder);
     s.setValue(QStringLiteral("welcomeShown"), welcomeShown);

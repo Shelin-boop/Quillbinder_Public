@@ -12,11 +12,11 @@ between the programs. Scrivener and Scapple are names of products of Literature 
 
 ## Download
 
-**Quillbinder 0.65.0 alpha for Linux (x86_64):**
+**Quillbinder 0.70.0 beta for Linux (x86_64):**
 
-- **[Quillbinder-0.65.0-alpha-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.65.0-alpha/Quillbinder-0.65.0-alpha-x86_64.AppImage)**: the program
-- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.65.0-alpha/media-all-formats.qbpkg)**: audio and video in every format (an add-on; optional)
-- **[Quillbinder-0.65.0-full-alpha-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.65.0-alpha/Quillbinder-0.65.0-full-alpha-x86_64.AppImage)**:
+- **[Quillbinder-0.70.0-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.70.0-beta/Quillbinder-0.70.0-beta-x86_64.AppImage)**: the program
+- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.70.0-beta/media-all-formats.qbpkg)**: audio and video in every format (an add-on; optional)
+- **[Quillbinder-0.70.0-full-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.70.0-beta/Quillbinder-0.70.0-full-beta-x86_64.AppImage)**:
   **the full version**: the program with all add-ons and all the libraries they need included (audio and
   video in every format, extra themes, project templates, the scriptwriting pack, the writing tools with offline speech recognition, the
   importers of web pages and old Word files). They are installed at the first start: one download, nothing
@@ -30,9 +30,11 @@ Add-ons are installed with **File > Install Update or Add-on**. Everything on th
 GitHub from this source code (`.github/workflows/release.yml`). Since 0.65.0 every package and the checksum list
 (`SHA256SUMS.txt`, with its signature `SHA256SUMS.txt.sig`) are signed with the project's key
 (`packaging/quillbinder-signing-public.pem`); the program installs program updates only with that signature.
+Since 0.70.0 the release workflow runs the full test suite before anything is published, and the signing key is
+used only in jobs of their own that run no third-party code.
 How to check a download yourself: the user manual, section 17.
 
-**Quillbinder is alpha software.** Keep backups of your projects (**File > Back Up > Back Up Now**; the
+**Quillbinder is beta software.** Keep backups of your projects (**File > Back Up > Back Up Now**; the
 automatic backups are set under **File > Options > Backup**), and keep a copy of your manuscripts outside
 the program.
 
@@ -62,6 +64,13 @@ sudo apt install build-essential cmake qt6-base-dev qt6-base-private-dev qt6-svg
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
 ./build/quillbinder
+```
+
+A build like this behaves like a release (since 0.70.0 the test switches are off unless asked for). To run the
+test suites, configure with `-DQB_TEST_SWITCHES=ON`:
+
+```
+cmake -S . -B build -DQB_TEST_SWITCHES=ON
 ```
 
 ## Tests

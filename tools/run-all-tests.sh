@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs every test suite of Quillbinder and prints one line per suite.
 #   tools/run-all-tests.sh [output dir] [offscreen|x11]
-# Needs a build in build/ (cmake -S . -B build && cmake --build build -j"$(nproc)").
+# Needs a build in build/ with the test switches (cmake -S . -B build -DQB_TEST_SWITCHES=ON && cmake --build build -j"$(nproc)").
 # Logs: <output dir>/<suite>.<mode>.log, screenshots: <output dir>/shots-<suite>/.
 # The add-on packages (the media add-ons need FFmpeg) are built first when an FFmpeg
 # prefix is there: QB_FFMPEG_DIR and QB_FFMPEG_FULL_DIR (default build/ffmpeg and
@@ -13,6 +13,7 @@
 #   QB_SUITES="v040 m13"   run these
 #   QB_SAMPLE=10           add whole suites drawn at random until about 10 % of the checks are covered
 #                          (counts from tests/check-counts.txt); QB_SEED=<n> repeats a draw
+#   QB_SKIP_SUITES="v060"  leave these out (0.70.0: the release workflow, where the public copy has no private files)
 # A full run in x11 mode (neither variable set) writes tests/check-counts.txt anew.
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 # 0.62: programs started by the suites skip the questions of the first start
@@ -26,7 +27,12 @@ OUT=$(cd "$OUT" && pwd)
 cd "$ROOT" || exit 1
 B=build
 if [ ! -x $B/tests/qb_tests ]; then
-    echo "no build in $ROOT/$B: cmake -S . -B build && cmake --build build -j\$(nproc)"
+    echo "no build in $ROOT/$B: cmake -S . -B build -DQB_TEST_SWITCHES=ON && cmake --build build -j\$(nproc)"
+    exit 1
+fi
+# 0.70.0 (audit A S-04): the switches are off by default; the suites need them
+if ! grep -q '^QB_TEST_SWITCHES:BOOL=ON' "$B/CMakeCache.txt" 2>/dev/null; then
+    echo "the build in $ROOT/$B has no test switches: cmake -S . -B build -DQB_TEST_SWITCHES=ON, then build again"
     exit 1
 fi
 # which suites run: all, or QB_SUITES plus a random sample (QB_SAMPLE percent of the checks)
@@ -76,7 +82,7 @@ EOF
         SELECTED="$SELECTED ${drawn[0]}"
     fi
     echo "suites: $(echo $SELECTED | tr ' ' '\n' | awk '!seen[$0]++' | tr '\n' ' ')"
-elif [ "$MODE" = x11 ]; then
+elif [ "$MODE" = x11 ] && [ -z "$QB_SKIP_SUITES" ]; then
     COUNTS=$(mktemp)
 fi
 if [ -d "$QB_FFMPEG_DIR/lib" ]; then
@@ -116,6 +122,7 @@ PS=$(ls -d /tmp/pulse-*/native 2>/dev/null | head -1)
 run() {
     local name=$1; shift
     [ -n "$SELECTED" ] && [[ " $SELECTED " != *" $name "* ]] && return
+    [[ " $QB_SKIP_SUITES " == *" $name "* ]] && { echo "$name skipped (QB_SKIP_SUITES)"; return; }
     RAN="$RAN $name"
     local log="$OUT/$name.$MODE.log"
     local start=$(date +%s)
@@ -145,6 +152,7 @@ runx() {   # runx <name> <program to look for> <command ...>
     local name=$1 prog=$2
     shift 2
     [ -n "$SELECTED" ] && [[ " $SELECTED " != *" $name "* ]] && return
+    [[ " $QB_SKIP_SUITES " == *" $name "* ]] && { echo "$name skipped (QB_SKIP_SUITES)"; return; }
     if [ ! -x "$prog" ]; then
         echo "$name not built ($prog)"
         MISSING="$MISSING $name"
@@ -185,6 +193,7 @@ runx v064 $B/tests/qb_v064_tests $B/tests/qb_v064_tests "$OUT/shots-v064"
 runx v0641 $B/tests/qb_v0641_tests $B/tests/qb_v0641_tests "$OUT/shots-v0641"
 runx v0642 $B/tests/qb_v0642_tests $B/tests/qb_v0642_tests "$OUT/shots-v0642"
 runx v0650 $B/tests/qb_v0650_tests $B/tests/qb_v0650_tests "$OUT/shots-v0650"
+runx v0700 $B/tests/qb_v0700_tests $B/tests/qb_v0700_tests "$OUT/shots-v0700"
 runx audit1 $B/tests/qb_audit1_tests $B/tests/qb_audit1_tests "$OUT/shots-audit1"
 runx w2 $B/tests/qb_w2_tests $B/tests/qb_w2_tests "$OUT/shots-w2"
 runx w3 $B/tests/qb_w3_tests $B/tests/qb_w3_tests "$OUT/shots-w3"

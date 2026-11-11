@@ -1,4 +1,5 @@
 #include "ui/ObjectsUi.h"
+#include "ui/Ask.h"
 #include "ui/TextEditor.h"
 #include "ui/Zoom.h"
 #include "core/BinderItem.h"
@@ -1704,7 +1705,7 @@ void ObjectsPanel::deleteSelected(bool ask)
     if (ask) {
         const QString q = folder ? tr("Delete the folder “%1”? Its objects stay; they move one level up.").arg(it->text(0))
                                  : tr("Delete “%1”? Links to it in other objects are removed as well.").arg(it->text(0));
-        if (QMessageBox::question(this, tr("Delete"), q) != QMessageBox::Yes)
+        if (ask::question(this, tr("Delete"), q, QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Delete")) != QMessageBox::Yes)
             return;
     }
     if (folder)
@@ -2216,9 +2217,9 @@ bool ObjectTemplatesDialog::run(Project *project, const QString &category, QWidg
         if (dlg.removedCategories().contains(o->category))
             doomed << o->id;
     if (!doomed.isEmpty()
-        && QMessageBox::question(parent, dlg.windowTitle(),
+        && ask::question(parent, dlg.windowTitle(),
                                  tr("%n object(s) belong to the categories you removed. Delete them as well? (No: nothing is changed.)",
-                                    nullptr, int(doomed.size())))
+                                    nullptr, int(doomed.size())), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Delete Them"))
                != QMessageBox::Yes)
         return false;
     for (const QString &id : doomed)
