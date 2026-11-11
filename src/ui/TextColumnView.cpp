@@ -436,11 +436,13 @@ void TextColumnView::ensureCursorVisible(TextEditor *e)
     const QPoint p = e->viewport()->mapTo(m_container, r.topLeft());
     if (e->cursorMovedByMouse()) {
         // a click or a drag: the cursor is where the mouse is, so the view moves only when the
-        // mouse has left it (a drag beyond the edge), and only as far as needed (0.40.2)
+        // mouse has left it (a drag beyond the edge), and only as far as needed (0.40.2). A line
+        // the edge cuts through is in sight: a click on it does not move the view (0.80.0; Qt 6.12's
+        // line heights put a line across the bottom edge where Qt 6.4's ended above it)
         const int top = verticalScrollBar()->value(), bottom = top + viewport()->height();
-        if (p.y() < top)
+        if (p.y() + r.height() <= top)
             verticalScrollBar()->setValue(p.y());
-        else if (p.y() + r.height() > bottom)
+        else if (p.y() >= bottom)
             verticalScrollBar()->setValue(p.y() + r.height() - viewport()->height());
         return;
     }

@@ -113,7 +113,7 @@ public:
     virtual bool isStarted() const = 0;
     virtual QString startedBackend() const = 0;
     // One line for the options and the Add-on Manager, e.g.
-    // "Qt Multimedia 6.4.2 with FFmpeg 6.1.1 (built in)".
+    // "Qt Multimedia 6.12.0 with FFmpeg 9.0.2 (built in)".
     virtual QString description() const = 0;
     // Lower-case file name suffixes the engine is meant to play.
     virtual QStringList fileSuffixes() const = 0;

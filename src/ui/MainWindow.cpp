@@ -124,6 +124,7 @@
 #include <QTextDocumentFragment>
 #include <QTextList>
 #include <QTimer>
+#include <QWindow>
 #include <QToolBar>
 #include <QToolButton>
 #include <QUrl>
@@ -190,12 +191,33 @@ public:
         case QEvent::ThemeChange: // the desktop theme changed: Qt has read its effects again
             noUiAnimations();
             break;
+        case QEvent::Show:
+            aboveToolWindow(o);
+            break;
         default: break;
         }
         return QObject::eventFilter(o, e);
     }
 
 private:
+    // a dialog opened from a tool window (the Styles panel) belongs to that window, so the window manager keeps it
+    // above the panel (0.40.3). Qt 6.12 gives such a dialog the main window as its transient parent (Qt 6.4 took the
+    // tool window); set here, before the dialog's window is shown (0.80.0)
+    static void aboveToolWindow(QObject *o)
+    {
+        auto *w = qobject_cast<QWidget *>(o);
+        if (!w || !w->isWindow() || !w->parentWidget()
+            || (w->windowType() != Qt::Dialog && w->windowType() != Qt::Sheet))
+            return;
+        QWidget *owner = w->parentWidget()->window();
+        if (!owner || owner->windowType() != Qt::Tool || !owner->windowHandle())
+            return;
+        if (!w->windowHandle())
+            w->winId();
+        if (QWindow *h = w->windowHandle(); h && h->transientParent() != owner->windowHandle())
+            h->setTransientParent(owner->windowHandle());
+    }
+
     QPointer<MainWindow> m_window;
 };
 } // namespace
@@ -1852,8 +1874,9 @@ QString MainWindow::aboutText()
               "combined text, snapshots, mind maps, objects and compile.</p>"
               "<p>Built with Qt %3.</p>"
               "<p><b>Credits</b><br>Main Developer: Claude.AI w. Opus 5.5 Extra</p>"
-              "<p><b>License</b><br>%1 is free software under the Zero-Clause BSD license (0BSD): anyone may use, "
-              "copy, change and pass it on, with or without fee, without conditions and without warranty.</p>"
+              "<p><b>License</b><br>%1 is free software under the Apache License 2.0: anyone may use, copy, change "
+              "and pass it on, with or without fee, keeping the license and the NOTICE file, which names the "
+              "project and its source. Without warranty.</p>"
               "<p>The program uses parts of other projects, each under its own license; <b>Third-Party "
               "Licenses…</b> below (also in the Help menu) lists them with their full texts:</p>"
               "<ul><li>Qt, The Qt Company's own build for Windows, under the GNU LGPL version 3. Its libraries are "
@@ -1880,8 +1903,9 @@ QString MainWindow::aboutText()
               "combined text, snapshots, mind maps, objects and compile.</p>"
               "<p>Built with Qt %3.</p>"
               "<p><b>Credits</b><br>Main Developer: Claude.AI w. Opus 5.5 Extra</p>"
-              "<p><b>License</b><br>%1 is free software under the Zero-Clause BSD license (0BSD): anyone may use, "
-              "copy, change and pass it on, with or without fee, without conditions and without warranty.</p>"
+              "<p><b>License</b><br>%1 is free software under the Apache License 2.0: anyone may use, copy, change "
+              "and pass it on, with or without fee, keeping the license and the NOTICE file, which names the "
+              "project and its source. Without warranty.</p>"
               "<p>The program uses parts of other projects (Qt, Hunspell, ICU, the Breeze icons and more), each under its "
               "own license. <b>Third-Party Licenses…</b> below (also in the Help menu) lists them with their full "
               "texts.</p>"

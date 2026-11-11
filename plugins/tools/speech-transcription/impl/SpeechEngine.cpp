@@ -3,6 +3,7 @@
 // own. Loaded by the writing tool (libqb-speech.so) when it is first needed; see SpeechApi.h.
 #include "../SpeechApi.h"
 #include "../SpeechLogic.h"
+#include "core/AudioBackend.h"
 
 #include <QAudioDevice>
 #include <QAudioFormat>
@@ -697,6 +698,7 @@ private:
 
 extern "C" Q_DECL_EXPORT speech::EngineInterface *qb_speech_impl_create()
 {
+    audiobackend::avoidUnconfiguredPipeWire(); // 0.80.0: before Qt Multimedia looks for a microphone
     return new Engine;
 }
 

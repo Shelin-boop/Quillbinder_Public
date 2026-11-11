@@ -3,7 +3,7 @@
 A writing studio for long texts (binder, corkboard, outliner, combined text,
 snapshots, targets, composition mode, mind maps, object sheets, compile to DOCX,
 PDF and EPUB, projects in its own format or in Scrivener 3 format), written in
-C++17 with Qt 6 for Ubuntu 24.04 LTS and KDE Plasma. Works under Kubuntu 26.04 LTS
+C++17 with Qt 6.12 for Ubuntu 24.04 LTS and KDE Plasma. Works under Kubuntu 26.04 LTS
 Wayland. "Quillbinder" is a working name; it is set once in `CMakeLists.txt` (`APP_NAME`, `APP_ID`).
 
 Quillbinder is an independent program. It is not made by or connected with Literature & Latte,
@@ -12,17 +12,21 @@ between the programs. Scrivener and Scapple are names of products of Literature 
 
 ## Download
 
-**Quillbinder 0.70.0 beta for Linux (x86_64):**
+**Quillbinder 0.80.0 beta for Linux (x86_64):**
 
-- **[Quillbinder-0.70.0-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.70.0-beta/Quillbinder-0.70.0-beta-x86_64.AppImage)**: the program
-- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.70.0-beta/media-all-formats.qbpkg)**: audio and video in every format (an add-on; optional)
-- **[Quillbinder-0.70.0-full-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.70.0-beta/Quillbinder-0.70.0-full-beta-x86_64.AppImage)**:
+- **[Quillbinder-0.80.0-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.80.0-beta/Quillbinder-0.80.0-beta-x86_64.AppImage)**: the program
+- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.80.0-beta/media-all-formats.qbpkg)**: audio and video in every format (an add-on; optional)
+- **[Quillbinder-0.80.0-full-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.80.0-beta/Quillbinder-0.80.0-full-beta-x86_64.AppImage)**:
   **the full version**: the program with all add-ons and all the libraries they need included (audio and
   video in every format, extra themes, project templates, the scriptwriting pack, the writing tools with offline speech recognition, the
   importers of web pages and old Word files). They are installed at the first start: one download, nothing
   else to install.
 - [All files of the newest version](https://github.com/Shelin-boop/Quillbinder_Public/releases/latest): the other
   add-ons, the program update and SHA-256 checksums. Earlier versions: [Releases](https://github.com/Shelin-boop/Quillbinder_Public/releases).
+
+0.80.0 is a new AppImage with a new Qt (6.12): add-ons with program code installed for earlier versions must be
+installed again in their new versions (the bundle on the Releases page, `media-all-formats.qbpkg`, or simply the
+full version). Program updates of 0.70.0 and earlier do not fit the new AppImage.
 
 To start, make the AppImage executable (right-click > Properties > Permissions > *Is executable*, or
 `chmod +x`) and double-click it; **Help > Add to Application Menu** puts it into the menu of the desktop.
@@ -58,9 +62,14 @@ is kept in the development repository only. Working with Claude Code: `CLAUDE.md
 
 ## Build (Ubuntu 24.04)
 
+Since 0.80.0 Quillbinder is built with The Qt Company's own build of Qt 6.12.0 (Ubuntu 24.04's Qt 6.4.2 is too old);
+`tools/get-qt.sh` installs it into `/opt/qt/6.12.0/gcc_64` with aqtinstall (`-DQB_QT_DIR=<folder>` names another
+place):
+
 ```
-sudo apt install build-essential cmake qt6-base-dev qt6-base-private-dev qt6-svg-dev qt6-pdf-dev \
-     qt6-wayland qt6-xdgdesktopportal-platformtheme libhunspell-dev zlib1g-dev
+sudo apt install build-essential cmake python3-pip libhunspell-dev zlib1g-dev libgl-dev libegl-dev \
+     libxkbcommon-dev libfontconfig1-dev libxcb-cursor0
+sudo tools/get-qt.sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
 ./build/quillbinder
@@ -164,12 +173,12 @@ installed and switched on (`plugins/media/MediaEngine.*`). Without it, a file in
 decode gets a message naming its formats and the add-on (`plugins/media/impl/QtPlayer.cpp`). The program only knows the interface
 `src/media/MediaApi.h` and draws the controls (`src/ui/MediaPlayback.*`, `MediaView`, `MainWindowMedia.cpp`);
 the add-on brings two libraries from `plugins/media` (a small plugin the program loads at start, and the
-player built on Qt Multimedia, loaded with the first audio or video file) plus Qt Multimedia 6.4.2 of
-Ubuntu 24.04 and an FFmpeg 6.1.1 that decodes only. To build the add-on:
+player built on Qt Multimedia, loaded with the first audio or video file) plus Qt Multimedia 6.12.0 (with the
+Qt Quick and Qt QML libraries its FFmpeg backend needs) and an FFmpeg 9.0.2 that decodes only. To build the add-on:
 
 ```
-sudo apt install qt6-multimedia-dev nasm          # build time only; the program does not link Qt Multimedia
-tools/get-ffmpeg.sh                                # Ubuntu's FFmpeg 6.1.1 source -> tools/build-ffmpeg.sh -> build/ffmpeg
+sudo apt install nasm                              # build time only; Qt Multimedia comes with tools/get-qt.sh
+tools/get-ffmpeg.sh                                # FFmpeg 9.0.2 source (Ubuntu's copy) -> tools/build-ffmpeg.sh -> build/ffmpeg
                                                    # (set "base") and build/ffmpeg-full (set "full"); applies
                                                    # tools/ffmpeg-patches, about 10 minutes for both on 2 cores
 packaging/build-addons.sh build build/addons-dist  # addons/media-*/stage.sh copy the libraries in
@@ -177,8 +186,8 @@ packaging/build-addons.sh build build/addons-dist  # addons/media-*/stage.sh cop
 
 Why the parts are as they are (details in `plugins/media/MediaEngine.h` and `tools/build-ffmpeg.sh`):
 the add-on's libraries are loaded by their full path before Qt Multimedia, so the system's FFmpeg or Qt do
-not matter; FFmpeg is loaded only for the built-in decoding (the system's GStreamer has its own);
-two FFmpeg decoders are left out because Qt 6.4.2's backend crashes on them; one FFmpeg patch gives
+not matter; Qt 6.12's own build has no GStreamer backend, so since 0.80.0 the built-in FFmpeg is the only way;
+two FFmpeg decoders are left out because Qt 6.4.2's backend crashed on them (kept so in 0.80.0); one FFmpeg patch gives
 Matroska streams a duration (else no seeking in .mkv / .webm); without a sound device the player gets no
 audio output (Qt 6.4.2's FFmpeg backend crashes otherwise). The test run needs a sound server; a null
 sink is enough: `pulseaudio -D --exit-idle-time=-1`, then `PULSE_SERVER=unix:/tmp/pulse-*/native`.
@@ -198,7 +207,7 @@ built into `build/tool-plugins/` and delivered as add-ons:
   `build/plugins/importers/qb_doc_dump file.doc` prints what the reader makes of a file.
 - `plugins/importers/web` → add-on "Web Page Import" (`addons/import-web`): fetching with Qt Network, a forgiving
   HTML parser (`Html.*`), the article finder (`Article.*`, the approach of "readability" tools) and the window.
-  The add-on brings Qt's TLS plugin of Ubuntu 24.04 (`addons/import-web/stage.sh`), because the AppImage has none;
+  The add-on brings Qt's TLS plugin of Qt 6.12.0 (`addons/import-web/stage.sh`), because the AppImage has none;
   OpenSSL 3 comes from the system. `build/plugins/importers/qb_web_extract page.html [address]` prints what the
   article finder makes of a saved page.
 
@@ -247,8 +256,10 @@ format editor). Style overrides, replacements, transformations and the contents 
 
 ## License
 
-Quillbinder is under the Zero-Clause BSD license (0BSD, `LICENSE`): anyone may use, copy, change and
-pass it on, with or without fee, without conditions. The parts of other projects it uses, and their
+Quillbinder is under the Apache License 2.0 (`LICENSE`), since 0.80.0: anyone may use, copy, change and
+pass it on, with or without fee, keeping the license and the `NOTICE` file, which names the project and its
+source. Versions up to 0.70.0 were published under the Zero-Clause BSD license (0BSD); copies of those
+versions stay under it. The parts of other projects it uses, and their
 licenses, are listed in `THIRD-PARTY.md`; their full license texts are in `resources/licenses` and in
 the program under Help > Third-Party Licenses (made by `tools/collect-licenses.py`).
 

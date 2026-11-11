@@ -416,12 +416,12 @@ int main(int argc, char **argv)
             QStringList log;
             QString e;
             bool restart = false;
-            if (!info.isValid() || info.manifest.minApp != QLatin1String("0.13.0") || !addons::install(pkg, &log, &e, &restart))
+            if (!info.isValid() || info.manifest.minApp != QLatin1String(QB_RUNTIME_SINCE) || !addons::install(pkg, &log, &e, &restart))
                 problems << id + QLatin1String(": ") + info.error + e + QLatin1String(" minApp ") + info.manifest.minApp;
             if (QFileInfo(pkg).size() > 30 * 1024 * 1024)
                 problems << id + QLatin1String(" is larger than 30 MiB");
         }
-        check(problems.isEmpty(), QStringLiteral("the two add-on packages are valid, need 0.13.0 and install"), problems.join(QLatin1String("; ")));
+        check(problems.isEmpty(), QStringLiteral("the two add-on packages are valid, need " QB_RUNTIME_SINCE " (their runtime's first version) and install"), problems.join(QLatin1String("; ")));
         bool tlsPlugin = false;
         for (const QString &d : addons::contentDirs(QStringLiteral("qtplugins")))
             tlsPlugin = tlsPlugin || QFileInfo::exists(d + QStringLiteral("/tls/libqopensslbackend.so"));

@@ -1,3 +1,4 @@
+#include <QDate>
 #include "ui/CrashDialogs.h"
 #include "ui/Ask.h"
 #include "AppInfo.h"
@@ -402,7 +403,22 @@ QString text(const Project *project)
 #endif
     t << QStringLiteral("Program");
     t << QStringLiteral("  %1").arg(version);
-    t << QStringLiteral("  Runtime: %1").arg(QLatin1String(QB_RUNTIME_ID));
+    {
+        // the runtime's age (0.80.0, audit X-7): its Qt was released on QB_RUNTIME_DATE
+        const QDate made = QDate::fromString(QLatin1String(QB_RUNTIME_DATE), Qt::ISODate);
+        QString age;
+        if (made.isValid()) {
+            const QDate today = QDate::currentDate();
+            int months = (today.year() - made.year()) * 12 + today.month() - made.month();
+            if (today.day() < made.day())
+                --months;
+            age = QStringLiteral(" (Qt %1, released %2, %3 month(s) ago%4)")
+                      .arg(QLatin1String(QT_VERSION_STR), made.toString(Qt::ISODate)).arg(qMax(0, months))
+                      .arg(months >= 18 ? QStringLiteral("; an old runtime: a newer AppImage may bring security fixes")
+                                        : QString());
+        }
+        t << QStringLiteral("  Runtime: %1%2").arg(QLatin1String(QB_RUNTIME_ID), age);
+    }
     const QString bid = crash::buildId();
     t << QStringLiteral("  Program file: %1%2").arg(home(QCoreApplication::applicationFilePath()),
                                                     bid.isEmpty() ? QString() : QStringLiteral(" (build ID %1)").arg(bid));

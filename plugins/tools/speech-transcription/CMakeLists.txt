@@ -16,6 +16,7 @@ endif()
 if(Qt6Multimedia_FOUND AND EXISTS "${QB_WHISPER_DIR}/include/whisper.h")
   add_library(qb-speech-impl MODULE impl/SpeechEngine.cpp SpeechLogic.cpp SpeechLogic.h SpeechApi.h)
   target_include_directories(qb-speech-impl SYSTEM PRIVATE "${QB_WHISPER_DIR}/include")
+  target_include_directories(qb-speech-impl PRIVATE ${CMAKE_SOURCE_DIR}/src) # core/AudioBackend.h (header-only)
   target_link_libraries(qb-speech-impl PRIVATE Qt6::Core Qt6::Multimedia ${CMAKE_DL_LIBS}
     "${QB_WHISPER_DIR}/lib/libwhisper.so" "${QB_WHISPER_DIR}/lib/libggml.so" "${QB_WHISPER_DIR}/lib/libggml-base.so")
   set_target_properties(qb-speech-impl PROPERTIES

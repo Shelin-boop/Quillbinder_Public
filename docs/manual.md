@@ -668,11 +668,11 @@ The commands act on the file you opened or used last (in either editor, a copyho
 
 **Where it was.** When you open an audio or video file again, it continues where you paused it (switch this off under **File > Options > Behaviors > Playback**). Showing another document in the editor stops the file.
 
-**What plays.** The add-on *Media Playback* (1.1) plays formats that are free to use: MP3, Ogg Vorbis, Opus, FLAC, ALAC, WAV, AIFF and WavPack audio; WebM, MKV and Ogg video with VP8, VP9 or Theora pictures (also MJPEG and other free formats). The add-on brings everything it needs.
+**What plays.** The add-on *Media Playback* (2.0) plays formats that are free to use: MP3, Ogg Vorbis, Opus, FLAC, ALAC, WAV, AIFF and WavPack audio; WebM, MKV and Ogg video with VP8, VP9 or Theora pictures (also MJPEG and other free formats). The add-on brings everything it needs.
 
 **More formats.** H.264, H.265 (HEVC), AAC (M4A), AC-3, E-AC-3, DTS, MPEG-1/2/4 video, VC-1 and WMV, WMA and AMR are licensed under patents in some countries; they come with the separate add-on **Extra Video and Audio Formats**. The simplest way to get every format is the one package **media-all-formats.qbpkg** on the Releases page: installed like every add-on (section 17), it installs *Media Playback* and *Extra Video and Audio Formats* together. Both then show in **Help > Add-on Manager**, where the extra formats can be switched off or removed on their own. Whether a patent license is needed to use these formats depends on the country. While it is installed and switched on, *Media Playback* uses it, and MP4/M4V/MOV, AVI, MPEG, WMV, FLV and 3GP files play as well (not WMA Pro and WMV 9). Without it, such a file shows a message under the player that names its formats and this add-on; everything else works as before. AV1 video does not play with the built-in decoding.
 
-**File > Options > Behaviors > Playback > Decoding** can switch to the **GStreamer** of the system instead, which plays what the codec packages of your system play (restart {{APP}} after changing it).
+Since 0.80.0 the player always decodes with its own FFmpeg: the Qt that {{APP}} uses since then (The Qt Company's own build of Qt 6.12) has no way to play through the **GStreamer** of the system, so **File > Options > Behaviors > Playback > Decoding** shows that choice as not available.
 
 ### Bookmarks
 
@@ -1403,6 +1403,8 @@ If a program update fails to start twice in a row, {{APP}} switches it off by it
 
 Program updates run on the libraries inside your AppImage. From time to time a larger update needs a new AppImage; the install window tells you when a package does not fit yours. Replace the old AppImage file with the new one; your settings, add-ons, and projects stay as they are.
 
+0.80.0 is such a version: its AppImage carries a new Qt (The Qt Company's own build of Qt 6.12 instead of Ubuntu's Qt 6.4.2). Add-ons with program code (*Media Playback*, *Extra Video and Audio Formats*, *Speech Transcription*, the writing tools and the importers) must be installed again in their versions for 0.80.0 (the bundle and **media-all-formats.qbpkg** on the Releases page bring them all); until then, the Add-on Manager marks the old ones as built for an older program, and their code is not loaded. The full version of 0.80.0 brings every add-on.
+
 A new AppImage also brings a new program version of its own (for example the AppImage 0.20.0). It starts that version, even if you installed updates into the old AppImage before: older updates are switched off and stay listed under **Help > Add-on Manager…**, where you can remove them. If the new file has another name or lies in another folder than the old one, choose **Help > Add to Application Menu** once, so that the menu entry and double-clicked projects use the new file.
 
 ---
@@ -1513,7 +1515,7 @@ This section is for a technically minded friend who helps you set things up.
 
 ### Media engines
 
-Audio and video are played by a plugin of the add-on *Media Playback* that implements `src/media/MediaApi.h` of the source (Qt Multimedia 6.4.2 with a decoding-only FFmpeg 6.1.1, see `addons/media-playback` and `tools/build-ffmpeg.sh`). The add-on keeps its libraries in its own folder (`media/lib`); FFmpeg is loaded only for the built-in decoding, so the system's GStreamer keeps its own FFmpeg. Its FFmpeg decodes free formats only; the add-on *Extra Video and Audio Formats* brings a full FFmpeg of the same version in `media-extra/lib`, which *Media Playback* loads instead while that add-on is installed and switched on. **File > Options > Plugins** lists the engine.
+Audio and video are played by a plugin of the add-on *Media Playback* that implements `src/media/MediaApi.h` of the source (Qt Multimedia 6.12 with a decoding-only FFmpeg 9.0.2, see `addons/media-playback` and `tools/build-ffmpeg.sh`). The add-on keeps its libraries in its own folder (`media/lib`), with the parts of Qt its decoding needs that the AppImage does not carry (Qt Quick and Qt QML). Its FFmpeg decodes free formats only; the add-on *Extra Video and Audio Formats* brings a full FFmpeg of the same version in `media-extra/lib`, which *Media Playback* loads instead while that add-on is installed and switched on. **File > Options > Plugins** lists the engine.
 
 ### Adding compile formats
 
@@ -1608,7 +1610,7 @@ If {{APP}} ends because of an error, it writes a **crash report** on your comput
 
 - **Help > Crash Reports…** lists the crash and freeze reports with their date and kind of error ("freeze (recovered)" when {{APP}} went on working). **Copy to Clipboard** copies the selected one, so you can paste it into a message to whoever looks after {{APP}} for you; **Open Folder** shows the files; **Delete** and **Delete All…** remove them. The newest 20 reports are kept (**File > Options > Extras > Crash Reports** changes the number).
 - **File > Options > General > Warnings > Show Internal Log Console** shows the messages of the program and of Qt since it was started (the last 1000), with new ones as they come; useful when something does not work and no message says why.
-- **Help > System Information…** shows the same snapshot of the program and the computer that a report carries. It starts with **Things to look at**: what may cause trouble soon, such as a nearly full or read-only drive, a project on a network folder, a backup drive with less free space than the project needs, little free memory, a long automatic-save time, automatic backups switched off, or recent crash and freeze reports. Then come the program version and installed updates and add-ons, the operating system, desktop, screens, processor and memory, the folders with their free space, the settings for saving and backups, and the open project. Use **Copy to Clipboard** or **Save As…** when you report a problem that is not a crash.
+- **Help > System Information…** shows the same snapshot of the program and the computer that a report carries. It starts with **Things to look at**: what may cause trouble soon, such as a nearly full or read-only drive, a project on a network folder, a backup drive with less free space than the project needs, little free memory, a long automatic-save time, automatic backups switched off, or recent crash and freeze reports. Then come the program version, the runtime (the set of libraries inside the AppImage, with the release day of its Qt and how old it is: an old runtime means a newer AppImage may bring security fixes) and installed updates and add-ons, the operating system, desktop, screens, processor and memory, the folders with their free space, the settings for saving and backups, and the open project. Use **Copy to Clipboard** or **Save As…** when you report a problem that is not a crash.
 
 A report names files, folders and documents, and the commands and keys used shortly before the error (typed letters are only counted, never recorded). It holds no text of your documents. Your home folder is written as **~**.
 
@@ -1652,9 +1654,9 @@ If {{APP}} was stopped from outside or the computer was switched off without clo
 
 **A video plays but there is no sound, or an audio file says "No sound output was found".** {{APP}} plays sound through the desktop's sound server (PipeWire or PulseAudio). Check that sound works in other programs and that the right output is chosen in the desktop's audio settings; {{APP}} follows a change of the output at once.
 
-**"This file cannot be played here: it uses H.264 and AAC ..."** The file is in a format licensed under patents, which *Media Playback* leaves out. Install the add-on **Extra Video and Audio Formats**, or the package **media-all-formats.qbpkg**, which brings it with *Media Playback* (both on the Releases page of the project page, section 1), and restart {{APP}}; or choose **GStreamer** as below.
+**"This file cannot be played here: it uses H.264 and AAC ..."** The file is in a format licensed under patents, which *Media Playback* leaves out. Install the add-on **Extra Video and Audio Formats**, or the package **media-all-formats.qbpkg**, which brings it with *Media Playback* (both on the Releases page of the project page, section 1), and restart {{APP}}.
 
-**A file does not play, or plays without picture.** Some kinds are not part of the built-in decoding (AV1 video, WMA Pro, WMV 9). Choose **GStreamer** under **File > Options > Behaviors > Playback > Decoding**, install the codec packages of the system (for example *gstreamer1.0-libav* and *gstreamer1.0-plugins-good*) and restart {{APP}}, or open the file with another program (right-click the player: **Open with Default Application**).
+**A file does not play, or plays without picture.** Some kinds are not part of the built-in decoding (AV1 video, WMA Pro, WMV 9). Open the file with another program (right-click the player: **Open with Default Application**), or convert it into another format.
 
 **A .doc file is added as a file, not as text.** The add-on **Word 97–2003 Import** is not installed or is switched off (**Help > Add-on Manager**); after installing it, restart {{APP}}. A message after the import names what the add-on left out. Word 6.0 and 95 files need LibreOffice (`sudo apt install libreoffice-writer`).
 
@@ -1678,7 +1680,7 @@ If {{APP}} was stopped from outside or the computer was switched off without clo
 
 - Main Developer: Claude.AI w. Opus 5.5 Extra
 
-{{APP}} is free software under the Zero-Clause BSD license (0BSD): anyone may use, copy, change, and pass it on, with or without fee, without conditions and without warranty. The About window (in the Help menu) shows the version and the license.
+{{APP}} is free software under the Apache License 2.0: anyone may use, copy, change, and pass it on, with or without fee, keeping the license and the NOTICE file, which names the project and its source; without warranty. Versions up to 0.70.0 were published under the Zero-Clause BSD license (0BSD). The About window (in the Help menu) shows the version and the license.
 
 {{APP}} uses parts of other projects (Qt, Hunspell, ICU, the Breeze icons, and the other libraries inside the AppImage), each under its own license. **Help > Third-Party Licenses…** (also a button of the About window) lists them with their full license texts; the same texts are inside the AppImage, in *usr/share/doc/quillbinder/licenses*. The source code of each, exactly in the version used, is in the release **Third-party source code** of the project page (https://github.com/Shelin-boop/Quillbinder_Public/releases/tag/third-party-sources); the window names the file for each library, and the license notes of the add-ons do the same for theirs.
 

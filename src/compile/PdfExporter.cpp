@@ -788,9 +788,15 @@ bool addPdfNavigationEx(const QString &path, double pageHeightPt, const QList<Pd
     if (!info.isEmpty() && infoId > 0) {
         QByteArray inf = objs.value(infoId);
         inf.chop(inf.endsWith(">>") ? 2 : 0);
-        for (auto it = info.cbegin(); it != info.cend(); ++it)
-            if (!it.value().isEmpty() && !inf.contains("/" + it.key().toLatin1() + " "))
-                inf += "\n/" + it.key().toLatin1() + ' ' + pdfText(it.value());
+        for (auto it = info.cbegin(); it != info.cend(); ++it) {
+            if (it.value().isEmpty())
+                continue;
+            // Qt 6.12 (0.80.0) writes some keys itself, also empty ("/Author ()" or a hex string): ours replaces it
+            const QRegularExpression existing(QStringLiteral("/%1\\s*(\\((?:[^()\\\\]|\\\\.)*\\)|<[0-9A-Fa-f\\s]*>)")
+                                                  .arg(it.key()));
+            inf = QString::fromLatin1(inf).remove(existing).toLatin1();
+            inf += "\n/" + it.key().toLatin1() + ' ' + pdfText(it.value());
+        }
         inf += "\n>>";
         out.insert(infoId, inf);
     }

@@ -185,7 +185,7 @@ int main(int argc, char **argv)
                               QStringLiteral("German (Germany, Austria, Switzerland) spelling dictionaries"), QStringLiteral("PDFium (in Qt PDF)")};
     const bool other = names.join(QLatin1Char('\n')).contains(QLatin1String("qt6-base"));
 #else
-    const QStringList want = {QStringLiteral("qt6-base"), QStringLiteral("hunspell")};
+    const QStringList want = {QStringLiteral("Qt " QT_VERSION_STR), QStringLiteral("hunspell")};
     const bool other = names.join(QLatin1Char('\n')).contains(QLatin1String("Microsoft Visual C++"));
 #endif
     QStringList absent;

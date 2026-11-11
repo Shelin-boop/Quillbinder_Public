@@ -1756,7 +1756,7 @@
     <file alias="licenses/texts/qtpdf-pdfium.txt">licenses-windows/texts/qtpdf-pdfium.txt</file>
     <file alias="licenses/texts/qtpdf-the-chromium-project.txt">licenses-windows/texts/qtpdf-the-chromium-project.txt</file>
     <file alias="licenses/texts/qtpdf-zlib.txt">licenses-windows/texts/qtpdf-zlib.txt</file>
-    <file alias="licenses/texts/quillbinder-0BSD.txt">licenses-windows/texts/quillbinder-0BSD.txt</file>
+    <file alias="licenses/texts/quillbinder-Apache-2.0.txt">licenses-windows/texts/quillbinder-Apache-2.0.txt</file>
     <file alias="licenses/texts/zlib.txt">licenses-windows/texts/zlib.txt</file>
   </qresource>
 </RCC>

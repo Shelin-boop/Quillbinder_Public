@@ -241,7 +241,7 @@ int main(int argc, char **argv)
                   err + QLatin1String(" / ") + ids.join(QLatin1String(", ")) + QLatin1String(" / ") + log.join(QLatin1String("; ")));
             const QString root = addons::addonsRoot();
             check(QFileInfo::exists(root + QStringLiteral("/media-playback/plugins/libqb-media.so"))
-                      && QFileInfo::exists(root + QStringLiteral("/media-extra-formats/media-extra/lib/libavcodec.so.60"))
+                      && QFileInfo::exists(root + QStringLiteral("/media-extra-formats/media-extra/lib/libavcodec.so.63"))
                       && readAll(root + QStringLiteral("/media-extra-formats/media-extra/licenses/README.txt")).contains("LGPL"),
                   QStringLiteral("... with the player, the full FFmpeg the player then uses, and its license note"), root);
         }
@@ -289,7 +289,7 @@ int main(int argc, char **argv)
             QDir(addonsDir + QStringLiteral("/themes-extra")).removeRecursively();
             runIn(full, {QStringLiteral("--appimage-extract-and-run"), QStringLiteral("--version")}, env, &rc);
             check(rc == 0 && !QFileInfo::exists(addonsDir + QStringLiteral("/themes-extra"))
-                      && QFileInfo::exists(addonsDir + QStringLiteral("/media-extra-formats/media-extra/lib/libavcodec.so.60")),
+                      && QFileInfo::exists(addonsDir + QStringLiteral("/media-extra-formats/media-extra/lib/libavcodec.so.63")),
                   QStringLiteral("later starts install nothing again (an add-on removed by the writer stays removed)"));
             // what is inside: the packages and a text that says what the full version is
             const QString ex = work.path() + QStringLiteral("/x");

@@ -211,6 +211,7 @@ runx v0642 $B/tests/qb_v0642_tests $B/tests/qb_v0642_tests "$OUT/shots-v0642"
 runx v0650 $B/tests/qb_v0650_tests $B/tests/qb_v0650_tests "$OUT/shots-v0650"
 runx v0700 $B/tests/qb_v0700_tests $B/tests/qb_v0700_tests "$OUT/shots-v0700"
 runx audit1 $B/tests/qb_audit1_tests $B/tests/qb_audit1_tests "$OUT/shots-audit1"
+runx fuzz $B/tests/qb_fuzz_tests $B/tests/qb_fuzz_tests "$OUT/shots-fuzz"
 runx w2 $B/tests/qb_w2_tests $B/tests/qb_w2_tests "$OUT/shots-w2"
 runx w3 $B/tests/qb_w3_tests $B/tests/qb_w3_tests "$OUT/shots-w3"
 # a suite that was asked for and is not there at all (a name mistyped in QB_SUITES)

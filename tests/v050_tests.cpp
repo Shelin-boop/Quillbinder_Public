@@ -289,7 +289,7 @@ static int runBase()
         return failures;
     compile::PluginManager::instance().load();
     media::EngineInterface *e = playback::engine();
-    check(e && e->version() == QLatin1String("1.1"), QStringLiteral("the media engine of Media Playback 1.1 is loaded"),
+    check(e && e->version() == QLatin1String("2.0"), QStringLiteral("the media engine of Media Playback 2.0 is loaded"),
           e ? e->version() : QStringLiteral("none"));
     if (!e)
         return failures;
@@ -306,7 +306,7 @@ static int runBase()
         return failures + 1;
     QString d;
     check(plays(f, QStringLiteral("tone.mp3"), 0, 0, 0, false, &d), QStringLiteral("an MP3 file plays"), d);
-    check(e->isStarted() && mapsContain(QStringLiteral("/media/lib/libavcodec.so.60"))
+    check(e->isStarted() && mapsContain(QStringLiteral("/media/lib/libavcodec.so.63"))
               && !mapsContain(QStringLiteral("/media-extra/lib/")) && e->description().contains(QLatin1String("free formats")),
           QStringLiteral("the add-on's own FFmpeg (free formats) is the one loaded"), e->description());
     check(plays(f, QStringLiteral("tone.ogg"), 0, 0, 0, false, &d), QStringLiteral("an Ogg Vorbis file plays"), d);
@@ -314,9 +314,9 @@ static int runBase()
     const QString mp4 = message(f, QStringLiteral("red.mp4"));
     shot(f.w, QStringLiteral("v050_mp4_without_extra_formats"));
     check(mp4.contains(QLatin1String("H.264")) && mp4.contains(QLatin1String("AAC"))
-              && mp4.contains(QLatin1String("\"Extra Video and Audio Formats\"")) && mp4.contains(QLatin1String("GStreamer"))
-              && mp4.contains(QLatin1String("File > Options > Behaviors > Playback")),
-          QStringLiteral("an MP4 video (H.264, AAC) says which formats it uses, the add-on that plays them, and the GStreamer way"), mp4);
+              && mp4.contains(QLatin1String("\"Extra Video and Audio Formats\"")) && !mp4.contains(QLatin1String("GStreamer")),
+          QStringLiteral("an MP4 video (H.264, AAC) says which formats it uses and the add-on that plays them (0.80.0: no "
+                         "GStreamer way any more)"), mp4);
     {
         MediaView *v = f.pane0->media();
         v->play();
@@ -360,7 +360,7 @@ static int runExtra()
         return failures + 1;
     QString d;
     check(plays(f, QStringLiteral("red.mp4"), 255, 0, 0, true, &d), QStringLiteral("the MP4 video (H.264, AAC) plays: the picture is red"), d);
-    check(mapsContain(QStringLiteral("/media-extra/lib/libavcodec.so.60")) && !mapsContain(QStringLiteral("/media/lib/libavcodec.so.60"))
+    check(mapsContain(QStringLiteral("/media-extra/lib/libavcodec.so.63")) && !mapsContain(QStringLiteral("/media/lib/libavcodec.so.63"))
               && e->description().contains(QLatin1String("extra formats")),
           QStringLiteral("the full FFmpeg of \"Extra Video and Audio Formats\" is the one loaded"), e->description());
     check(plays(f, QStringLiteral("green.mkv"), 0, 128, 0, true, &d), QStringLiteral("the Matroska video (MPEG-4 Part 2) plays: the picture is green"), d);
@@ -386,7 +386,7 @@ static int runExtraGone(bool removed)
         return failures + 1;
     QString d;
     check(plays(f, QStringLiteral("tone.mp3"), 0, 0, 0, false, &d), QStringLiteral("an MP3 file plays"), d);
-    check(mapsContain(QStringLiteral("/media/lib/libavcodec.so.60")) && !mapsContain(QStringLiteral("/media-extra/lib/")),
+    check(mapsContain(QStringLiteral("/media/lib/libavcodec.so.63")) && !mapsContain(QStringLiteral("/media-extra/lib/")),
           QStringLiteral("Media Playback's own FFmpeg is loaded again"), e->description());
     const QString mp4 = message(f, QStringLiteral("red.mp4"));
     check(mp4.contains(QLatin1String("H.264")) && mp4.contains(QLatin1String("Extra Video and Audio Formats")),
@@ -486,7 +486,7 @@ int main(int argc, char **argv)
                     bad << c.value(QStringLiteral("name")).toString();
             }
         }
-        check(ubuntu >= 25 && runtimeParts == 6 && bad.isEmpty() && runtimeFile.startsWith(QLatin1String("appimage-type2-runtime-")),
+        check(ubuntu >= 10 && runtimeParts == 6 && bad.isEmpty() && runtimeFile.startsWith(QLatin1String("appimage-type2-runtime-")),
               QStringLiteral("every Ubuntu library and every part of the AppImage runtime names its file in the release of the "
                              "third-party source code"),
               QStringLiteral("%1 Ubuntu, %2 runtime parts, wrong: %3").arg(ubuntu).arg(runtimeParts).arg(bad.join(QLatin1String(", "))));
@@ -501,14 +501,14 @@ int main(int argc, char **argv)
         QLabel *intro = nullptr;
         if (dlg)
             for (QLabel *l : dlg->findChildren<QLabel *>())
-                if (l->text().contains(QLatin1String("Zero-Clause")))
+                if (l->text().contains(QLatin1String("Apache License 2.0")))
                     intro = l;
         auto *list = dlg ? dlg->findChild<QListWidget *>(QStringLiteral("licensesList")) : nullptr;
         auto *text = dlg ? dlg->findChild<QPlainTextEdit *>(QStringLiteral("licensesText")) : nullptr;
         QString qtText;
         if (list && text)
             for (int i = 0; i < list->count(); ++i)
-                if (list->item(i)->text().startsWith(QLatin1String("qt6-base "))) {
+                if (list->item(i)->text().startsWith(QLatin1String("Qt 6."))) {
                     list->setCurrentRow(i);
                     settle(100);
                     qtText = text->toPlainText();
@@ -520,9 +520,9 @@ int main(int argc, char **argv)
         check(intro && intro->openExternalLinks() && intro->text().contains(QLatin1String(QB_SOURCES_URL))
                   && intro->text().contains(QLatin1String("Third-party source code")),
               QStringLiteral("the licenses window links to the release \"Third-party source code\""), intro ? intro->text() : QString());
-        check(qtText.contains(QLatin1String("Source: " QB_SOURCES_URL ", file qt6-base_"))
-                  && qtText.contains(QLatin1String("apt-get source qt6-base=")),
-              QStringLiteral("Qt's entry names its source file in that release and the Ubuntu package"), qtText.left(600));
+        check(qtText.contains(QLatin1String("Source: " QB_SOURCES_URL ", file qt-everywhere-src-" QT_VERSION_STR ".tar.xz"))
+                  && qtText.contains(QLatin1String("download.qt.io")),
+              QStringLiteral("Qt's entry names its source file in that release and the Qt Project's download page"), qtText.left(600));
         if (dlg)
             dlg->close();
         settle(100);
@@ -542,13 +542,15 @@ int main(int argc, char **argv)
         }
         const QString ff = run(QStringLiteral("python3"), {QStringLiteral("-I"), tools + QStringLiteral("collect-sources.py"),
                                                            QStringLiteral("--name"), QStringLiteral("ffmpeg")}).trimmed();
-        check(rc == 0 && missing.isEmpty() && names.contains(ff) && ff.startsWith(QLatin1String("ffmpeg-6.1.1-quillbinder-")),
+        check(rc == 0 && missing.isEmpty() && names.contains(ff) && ff.startsWith(QLatin1String("ffmpeg-9.0.2-quillbinder-")),
               QStringLiteral("collect-sources.py lists a source file for every entry of the license list and for FFmpeg"),
               QStringLiteral("rc %1, missing %2, ffmpeg %3").arg(rc).arg(missing.join(QLatin1Char(' ')), ff));
-        bool multimedia = false;
-        for (const QString &n : names)
-            multimedia = multimedia || n.startsWith(QLatin1String("qt6-multimedia_"));
-        check(multimedia, QStringLiteral("... and for the libraries of the add-ons (Qt Multimedia)"), list.left(600));
+        // 0.80.0: the add-ons' Qt parts (Qt Multimedia, the TLS plugin) come from Qt's own build: its source release
+        const QString qtsrc = run(QStringLiteral("python3"), {QStringLiteral("-I"), tools + QStringLiteral("collect-sources.py"),
+                                                              QStringLiteral("--name"), QStringLiteral("qt")}).trimmed();
+        check(qtsrc == QLatin1String("qt-everywhere-src-") + QLatin1String(QT_VERSION_STR) + QLatin1String(".tar.xz") && names.contains(qtsrc),
+              QStringLiteral("... and for Qt's own build, which the AppImage and the add-ons carry (the Qt Project's source release)"),
+              list.left(600));
     }
     {
         // --refresh on a copy of the list: this system's versions are those the list names
@@ -572,10 +574,10 @@ int main(int argc, char **argv)
     {
         const addons::PackageInfo b = addons::inspect(base);
         const addons::PackageInfo x = addons::inspect(extra);
-        check(b.isValid() && b.manifest.version == QLatin1String("1.1") && x.isValid() && x.manifest.id == kExtraId
-                  && x.manifest.name == QLatin1String("Extra Video and Audio Formats") && x.manifest.version == QLatin1String("1.0")
+        check(b.isValid() && b.manifest.version == QLatin1String("2.0") && x.isValid() && x.manifest.id == kExtraId
+                  && x.manifest.name == QLatin1String("Extra Video and Audio Formats") && x.manifest.version == QLatin1String("2.0")
                   && QFileInfo(base).size() < 30LL * 1024 * 1024 && QFileInfo(extra).size() < 30LL * 1024 * 1024,
-              QStringLiteral("Media Playback 1.1 and Extra Video and Audio Formats 1.0 are valid packages below the 30 MiB delivery limit"),
+              QStringLiteral("Media Playback 2.0 and Extra Video and Audio Formats 2.0 are valid packages below the 30 MiB delivery limit"),
               QStringLiteral("%1 %2 / %3 %4, %5 and %6 bytes").arg(b.manifest.version, b.error, x.manifest.version, x.error)
                   .arg(QFileInfo(base).size()).arg(QFileInfo(extra).size()));
         QStringList xf;
@@ -584,9 +586,9 @@ int main(int argc, char **argv)
         bool noCode = true;
         for (const QString &p : xf)
             noCode = noCode && (p.startsWith(QLatin1String("media-extra/lib/")) || p.startsWith(QLatin1String("media-extra/licenses/")));
-        check(xf.contains(QStringLiteral("media-extra/lib/libavcodec.so.60")) && xf.contains(QStringLiteral("media-extra/lib/libavformat.so.60"))
-                  && xf.contains(QStringLiteral("media-extra/lib/libavutil.so.58")) && xf.contains(QStringLiteral("media-extra/lib/libswresample.so.4"))
-                  && xf.contains(QStringLiteral("media-extra/lib/libswscale.so.7")) && noCode,
+        check(xf.contains(QStringLiteral("media-extra/lib/libavcodec.so.63")) && xf.contains(QStringLiteral("media-extra/lib/libavformat.so.63"))
+                  && xf.contains(QStringLiteral("media-extra/lib/libavutil.so.61")) && xf.contains(QStringLiteral("media-extra/lib/libswresample.so.7"))
+                  && xf.contains(QStringLiteral("media-extra/lib/libswscale.so.10")) && noCode,
               QStringLiteral("the extra formats are the five FFmpeg libraries and their licence notes, nothing else"), xf.join(QLatin1String(", ")));
         const QString baseDec = zipEntry(base, QStringLiteral("payload/media/licenses/ffmpeg-decoders.txt"));
         const QString extraDec = zipEntry(extra, QStringLiteral("payload/media-extra/licenses/ffmpeg-decoders.txt"));
@@ -615,13 +617,13 @@ int main(int argc, char **argv)
                                                            QStringLiteral("--name"), QStringLiteral("ffmpeg")}).trimmed();
         const QString bReadme = zipEntry(base, QStringLiteral("payload/media/licenses/README.txt"));
         const QString xReadme = zipEntry(extra, QStringLiteral("payload/media-extra/licenses/README.txt"));
-        check(bReadme.contains(QLatin1String(QB_SOURCES_URL)) && bReadme.contains(ff) && bReadme.contains(QLatin1String("qt6-multimedia_"))
-                  && bReadme.contains(QLatin1String("libva_")) && bReadme.contains(QLatin1String("\"Media Playback\" 1.1"))
+        check(bReadme.contains(QLatin1String(QB_SOURCES_URL)) && bReadme.contains(ff) && bReadme.contains(QLatin1String("qt-everywhere-src-"))
+                  && !bReadme.contains(QLatin1String("libva")) && bReadme.contains(QLatin1String("\"Media Playback\" 2.0"))
                   && xReadme.contains(QLatin1String(QB_SOURCES_URL)) && xReadme.contains(ff) && xReadme.contains(QLatin1String("patents")),
               QStringLiteral("both add-ons' licence notes name the source files of their libraries"), bReadme.left(400) + QLatin1String(" | ") + xReadme.left(400));
         const QString web = kBuild + QStringLiteral("/addons-dist/import-web.qbpkg");
         const QString wReadme = zipEntry(web, QStringLiteral("payload/licenses/README.txt"));
-        check(wReadme.contains(QLatin1String(QB_SOURCES_URL)) && wReadme.contains(QLatin1String("qt6-base_")),
+        check(wReadme.contains(QLatin1String(QB_SOURCES_URL)) && wReadme.contains(QLatin1String("qt-everywhere-src-")),
               QStringLiteral("the web import add-on's licence note names the source file of Qt's TLS plugin"), wReadme.left(500));
     }
 
@@ -674,8 +676,8 @@ int main(int argc, char **argv)
         const QString article = QStringLiteral("aeiou").contains(label.left(1)) ? QStringLiteral("an") : QStringLiteral("a");
         check(rc == 0 && notes.contains(QStringLiteral("**This is %1 %2 version.**").arg(article, label)) && notes.contains(QLatin1String("Back Up Now"))
                   && notes.contains(QStringLiteral("Quillbinder-%1-%2-x86_64.AppImage").arg(v, label))
-                  && notes.contains(QLatin1String("Add-on \"Extra Video and Audio Formats\" 1.0"))
-                  && notes.contains(QLatin1String("Add-on \"Media Playback\" 1.1"))
+                  && notes.contains(QLatin1String("Add-on \"Extra Video and Audio Formats\" 2.0"))
+                  && notes.contains(QLatin1String("Add-on \"Media Playback\" 2.0"))
                   && notes.contains(QLatin1String("not made by or connected with Literature & Latte"))
                   && notes.contains(QLatin1String("releases/tag/third-party-sources")) && notes.contains(QStringLiteral("What is new in %1 %2").arg(v, label)),
               QStringLiteral("the release text: the label's note with backups, every file with what it is, non-affiliation, source code, what is new"),

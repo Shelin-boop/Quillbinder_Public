@@ -17,7 +17,7 @@
 //   media/libqb-media-impl.so             stage 2 (links Qt6Multimedia)
 //   media/lib/                            libQt6Multimedia.so.6, FFmpeg 6.1 (avutil, swresample, swscale, avcodec, avformat)
 //   media/lib/fallback/                   used only if the system has none: libpulse, libva
-//   media/qtplugins/multimedia/           Qt's two backends (ffmpeg, gstreamer)
+//   media/qtplugins/multimedia/           Qt's FFmpeg backend (Qt 6.12's own build has no GStreamer backend)
 // QB_MEDIA_DIR overrides the media/ folder (developers).
 //
 // Since 1.1 (program 0.50) this add-on's FFmpeg decodes free formats only. The add-on
@@ -40,7 +40,7 @@ class MediaEngine : public QObject, public qb::media::EngineInterface
 public:
     QString id() const override { return QStringLiteral("media-playback"); }
     QString name() const override { return tr("Media Playback"); }
-    QString version() const override { return QStringLiteral("1.1"); }
+    QString version() const override { return QStringLiteral("2.0"); } // the add-on's version (2.0: Qt 6.12, FFmpeg 9.0.2)
     QList<qb::media::Backend> backends() const override;
     bool start(const QString &backend, QString *error) override;
     bool isStarted() const override { return m_impl != nullptr; }

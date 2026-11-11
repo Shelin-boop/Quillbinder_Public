@@ -1,5 +1,6 @@
 #include "text/TextUtil.h"
 
+#include <QDomImplementation>
 #include <QRegularExpression>
 #include <QTextBlock>
 #include <QTextCursor>
@@ -416,6 +417,15 @@ QString safeFileName(const QString &title)
         s.truncate(80);
     return s;
 }
+
+// Qt 6.12 (0.80.0): QDom's default policy for characters XML does not allow became ReturnNullNode, so a text node
+// with a control character (a synopsis or note pasted from another program) was left out of the project file
+// without a word. As with Qt 6.4: QDom accepts them, and xmlSafeBytes takes them out of what is written. Set here,
+// in the file every XML writer of the program uses, before main() runs.
+[[maybe_unused]] static const bool s_domAcceptsAllText = [] {
+    QDomImplementation::setInvalidDataPolicy(QDomImplementation::AcceptInvalidChars);
+    return true;
+}();
 
 QByteArray xmlSafeBytes(const QByteArray &utf8, int *removed)
 {

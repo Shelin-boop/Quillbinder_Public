@@ -2,14 +2,16 @@
 # Puts the libraries of the add-on "Speech Transcription" (0.61) into a staged copy of the add-on.
 #   stage.sh <build dir> <stage dir>      (called by packaging/build-addons.sh)
 # Needs: the two libraries of plugins/tools/speech-transcription (built with the program), whisper.cpp
-# built by tools/get-whisper.sh into <build dir>/../build/whisper (or QB_WHISPER_DIR), Qt Multimedia
-# 6.4.2 and Qt's TLS plugin of Ubuntu 24.04 (the same Qt as the AppImage, which has neither).
+# built by tools/get-whisper.sh into <build dir>/../build/whisper (or QB_WHISPER_DIR), Qt Multimedia and Qt's TLS
+# plugin of The Qt Company's own build of the Qt the AppImage carries (0.80.0: Qt 6.12.0 in QB_QT_DIR; the
+# AppImage has neither).
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 BUILD=$1
 STAGE=$2
 W=${QB_WHISPER_DIR:-$ROOT/build/whisper}
-SYS=/usr/lib/x86_64-linux-gnu
+QT_VERSION=$(sed -n 's/^set(QB_QT_VERSION *"\(.*\)")/\1/p' "$ROOT/CMakeLists.txt")
+QT=${QB_QT_DIR:-/opt/qt/$QT_VERSION/gcc_64}
 P=$STAGE/payload
 if [ ! -f "$W/lib/libwhisper.so.1" ] || [ ! -f "$BUILD/tool-plugins/speech/libqb-speech-impl.so" ]; then
     echo "speech-transcription: whisper.cpp or the speech engine is missing (tools/get-whisper.sh, then build again)" >&2
@@ -25,14 +27,13 @@ done
 cp "$W"/lib/libggml-cpu-*.so "$P/speech/lib/"
 [ -f "$W/lib/libggml-vulkan.so" ] && cp "$W/lib/libggml-vulkan.so" "$P/speech/lib/"
 cp "$W/samples/jfk.wav" "$P/speech/samples/"
-cp -L "$SYS/libQt6Multimedia.so.6" "$P/speech/lib/"
-cp "$SYS/qt6/plugins/tls/libqopensslbackend.so" "$P/speech/qtplugins/tls/"
+cp -L "$QT/lib/libQt6Multimedia.so.6" "$QT/lib/libQt6Concurrent.so.6" "$P/speech/lib/"
+cp "$QT/plugins/tls/libqopensslbackend.so" "$P/speech/qtplugins/tls/"
 strip --strip-unneeded "$P"/plugins/*.so "$P"/speech/*.so "$P"/speech/lib/*.so* "$P"/speech/qtplugins/tls/*.so 2>/dev/null || true
 
 # the license notes, with the source of exactly these libraries
 SRC_URL="$(sed -n 's/^set(APP_HOMEPAGE *"\(.*\)")/\1/p' "$ROOT/CMakeLists.txt")/releases/tag/third-party-sources"
-read -r QTM_PKG QTM_VER QTM_FILE < <(python3 -I "$ROOT/tools/collect-sources.py" --name ubuntu "$SYS/libQt6Multimedia.so.6")
-read -r QT_PKG QT_VER QT_FILE < <(python3 -I "$ROOT/tools/collect-sources.py" --name ubuntu "$SYS/qt6/plugins/tls/libqopensslbackend.so")
+QT_FILE=$(python3 -I "$ROOT/tools/collect-sources.py" --name qt)
 VERSION=$(python3 -I -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$STAGE/manifest.json")
 WHISPER=$(cat "$W/version.txt")
 cp "$W/LICENSE-whisper.cpp.txt" "$P/speech/licenses/whisper.cpp-MIT.txt"
@@ -53,16 +54,17 @@ speech/samples/jfk.wav
     The test recording of the model check: from President John F. Kennedy's inaugural address
     (1961), a work of the United States government (public domain), as whisper.cpp ships it.
 
-speech/lib/libQt6Multimedia.so.6
-    Qt Multimedia 6.4.2 (the microphone), as built by Ubuntu 24.04 (source package $QTM_PKG $QTM_VER).
+speech/lib/libQt6Multimedia.so.6, libQt6Concurrent.so.6
+    Qt Multimedia $QT_VERSION (the microphone) and Qt Concurrent, which it needs: The Qt Company's own
+    build for Linux, unchanged; the same Qt as the AppImage.
     Licence: GNU LGPL 3.0 (Qt-LGPL-3.0.txt, which refers to GPL-3.0.txt).
-    Source: file $QTM_FILE of the release "Third-party source code" of the project page:
+    Source: file $QT_FILE of the release "Third-party source code" of the project page:
     $SRC_URL
-    (also from Ubuntu 24.04: apt-get source $QTM_PKG=$QTM_VER).
+    (also https://download.qt.io/official_releases/qt/).
 
 speech/qtplugins/tls/libqopensslbackend.so
-    Qt's TLS plugin for OpenSSL (Qt Network 6.4.2), as built by Ubuntu 24.04 (source package
-    $QT_PKG $QT_VER), for the download of a model over https. It uses the system's OpenSSL 3.
+    Qt's TLS plugin for OpenSSL (Qt Network $QT_VERSION), The Qt Company's own build for Linux, for the
+    download of a model over https. It uses the system's OpenSSL 3.
     Licence: GNU LGPL 3.0. Source: file $QT_FILE of the release named above.
 
 The models are not part of the add-on: the program downloads the one the writer chooses from

@@ -2,8 +2,8 @@
 
 Quillbinder is a writing program for Linux (binder, editor, corkboard, outliner,
 inspector, compile), for writers who know Scrivener; it reads and writes Scrivener's
-file formats but is an independent program (0BSD license). C++17 and Qt 6.4.2 as
-shipped by Ubuntu 24.04. Never copy text, pictures or code of Scrivener, Scapple or
+file formats but is an independent program (Apache License 2.0 since 0.80.0; 0BSD before). C++17 and Qt 6.12.0,
+The Qt Company's own build (since 0.80.0; Ubuntu 24.04's Qt 6.4.2 before), built on Ubuntu 24.04. Never copy text, pictures or code of Scrivener, Scapple or
 their manuals and tutorials into the source; describe functions in words of your own.
 
 `docs/CHANGES.md` lists what each version brought; the details of a new version go there. `docs/manual.md` is
@@ -34,12 +34,14 @@ changed and what was checked. Preferences:
   same version number. Audio and video for everyone: the add-on "Media Playback" (free formats), the add-on "Extra
   Video and Audio Formats" (formats licensed under patents), and the package `media-all-formats.qbpkg` that installs
   both in one step (built by `packaging/build-addons.sh`).
-- **Runtime**: the current AppImage is 0.70.0 beta (before it 0.65.0 alpha, 0.64.2 alpha, 0.64.1 alpha, 0.64.0 alpha, 0.63.0 alpha, 0.61.0 alpha, 0.60.0 alpha, 0.40.0 alpha / 0.50.0 alpha, 0.30.0 alpha, 0.20.0,
-  0.16.0 and 0.2.0, with the same libraries), runtime id `u2404-qt6.4-r1` (`APP_RUNTIME` in CMakeLists.txt; a new
-  AppImage with other libraries needs a new id). Program updates (.qbpkg) run on its libraries:
-  build on Ubuntu 24.04 with Ubuntu's Qt 6.4.2, use no Qt API newer than 6.4, and add
-  **no new library dependencies**. Something that needs a library goes into an add-on
-  (`addons/`, see the Media Playback add-on with its own FFmpeg).
+- **Runtime**: the current AppImage is 0.80.0 beta, runtime id `u2404-qt6.12-r1` (`APP_RUNTIME`, `QB_QT_VERSION`,
+  `APP_RUNTIME_SINCE`, `APP_RUNTIME_DATE` in CMakeLists.txt; a new AppImage with other libraries needs a new id).
+  The AppImages 0.2.0 to 0.70.0 had `u2404-qt6.4-r1` (Ubuntu's Qt 6.4.2). Program updates (.qbpkg) run on the
+  AppImage's libraries: build on Ubuntu 24.04 with Qt 6.12.0 of `tools/get-qt.sh` (`/opt/qt/6.12.0/gcc_64`; CMake
+  refuses another Qt version on Linux) and add **no new library dependencies**. Something that needs a library goes
+  into an add-on (`addons/`, see the Media Playback add-on with its own FFmpeg). Add-ons with Linux libraries name
+  the runtime in their manifest (`tools/make-package.py` adds it, and `minApp` = `APP_RUNTIME_SINCE`); the program
+  refuses to install or load one of another runtime (`addons::fitsRuntime`).
 - **Version**: `APP_VERSION` in CMakeLists.txt (numbers only: it is compared by the loader and
   the packages; a word such as "alpha" goes into `APP_VERSION_LABEL`, which is only shown);
   raise it for every delivery (fixes:
@@ -57,7 +59,7 @@ changed and what was checked. Preferences:
 
 ## Build
 
-    tools/cloud-setup.sh                  # once on a fresh Ubuntu 24.04 (as root)
+    tools/cloud-setup.sh                  # once on a fresh Ubuntu 24.04 (as root); fetches Qt 6.12.0 (tools/get-qt.sh)
     cmake -S . -B build -G Ninja -DQB_TEST_SWITCHES=ON   # the switches the suites need (off by default since 0.70.0)
     cmake --build build -j"$(nproc)"
 
@@ -185,6 +187,38 @@ changed and what was checked. Preferences:
    base AppImage, the update and the way back; older AppImages (`tools/e2e-old-version.sh`) only when asked.
    Add-ons are packed with `packaging/build-addons.sh`; an update and add-ons go to the user as one bundle
    (`tools/make-package.py bundle`).
+
+## The runtime step: Qt 6.12, FFmpeg 9.0.2, fuzz tests, Apache-2.0 (0.80.0 beta)
+
+- **Qt**: The Qt Company's own build of Qt 6.12.0 for Linux (aqtinstall 3.3.0, modules qtmultimedia qtimageformats
+  qtpdf). The cloud session cannot reach download.qt.io: `.github/workflows/qt-linux.yml` (private only, in
+  `tools/public-exclude.txt`) installs it on GitHub's runner for a pushed branch `qt/<version>` and puts a tarball on
+  the pre-release `qt-<version>-linux`; `tools/get-qt.sh` downloads it (SHA-256 pinned in the script) or, where
+  download.qt.io answers (GitHub's runners, the public release workflow), installs with aqtinstall. A new Qt version:
+  push `qt/<version>`, pin the new sum, change `QB_QT_VERSION`, `APP_RUNTIME`, `APP_RUNTIME_SINCE`, `APP_RUNTIME_DATE`.
+  Qt 6.12's Wayland plugin is one file (`libqwayland.so`); its FFmpeg backend links Qt Quick/QML/OpenGL (the media
+  add-on carries them in `media/lib`, found through the plugin's RUNPATH `$ORIGIN/../../lib`); there is no GStreamer
+  backend (the choice is listed as not available, a saved one falls back to FFmpeg).
+- **Licenses**: `tools/get-qt-licenses.sh` (sparse GitHub checkouts of qtbase, qtsvg, qtimageformats, qtmultimedia at
+  `v<version>`, qtwebengine-chromium at the commit of qtwebengine's tag or branch, ICU 73.2) then
+  `tools/collect-licenses.py --qt-licenses build/qt-licenses <AppDir> resources/licenses` writes the list: Ubuntu
+  packages as before, plus "Qt" (files of `/opt/qt`, `qtBuild`), "ICU (Qt's build)", every part of Qt's attribution
+  files but those in `QT_LEFT_OUT`, and Qt PDF's parts. Source: `qt-everywhere-src-<version>.tar.xz` (the Qt
+  Project's archive, `tools/collect-sources.py`, kind "qt").
+- **FFmpeg 9.0.2** (sonames avcodec/avformat 63, avutil 61, swresample 7, swscale 10: what Qt 6.12's plugin needs),
+  the original archive from Ubuntu's mirror (`tools/get-ffmpeg.sh`); `--disable-postproc` only where configure has it.
+- **Fuzz tests**: `qb_fuzz_tests` (11 checks, about 10 s) and the libFuzzer harness `tests/fuzz/` (`-DQB_FUZZ=ON`, clang).
+- **PDF metadata**: Qt 6.12's QPdfWriter writes an empty /Author itself; `addPdfNavigationEx` replaces existing
+  entries of the keys it sets.
+- **Qt 6.12 pitfalls** (found by the full run): QDom's default invalid-data policy is ReturnNullNode (a text node with
+  a control character was left out; `TextUtil.cpp` sets AcceptInvalidChars before `main()`, `xmlSafeBytes` cleans the
+  output); `QString::arg(char16_t)` writes the character, not a number (cast with `int(...)`); a dialog whose parent
+  is a `Qt::Tool` window gets the main window as transient parent (`InputWatch::aboveToolWindow` sets the tool
+  window at Show); `ItemsMimeData::retrieveData` must answer `QList<QUrl>`; line heights differ from Qt 6.4. Qt Multimedia 6.12 tries
+  PipeWire first and crashes when libpipewire is there without `client.conf` (this machine): `core/AudioBackend.h`
+  (`audiobackend::avoidUnconfiguredPipeWire`, called by both add-on engines) sets `QT_AUDIO_BACKEND=pulseaudio` then;
+  a file is read in the background (`QtPlayer::m_playWhenRead`). Qt 6.12's PulseAudio input keeps at most 1024 frames
+  in the server: v061 feeds its pipe source in 20 ms pieces (100 ms pieces lost two thirds of the sound).
 
 ## Crash and freeze reports (0.19)
 
@@ -733,12 +767,13 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
 - `src/text/FontFaces.*`: `fontfaces::install()` (called by `main.cpp` right after the application object; again
   when Qt reads its fonts anew) gives each design of a family that holds several (optical sizes such as Windows 11's
   Sitka, widths) a family of its own in Qt's font list ("Sitka Text" with only the Text faces), so that Bold and
-  Italic stay within the design. It works on Qt 6.4.2's private `QFontDatabasePrivate` (families, foundries, styles;
+  Italic stay within the design. It works on Qt's private `QFontDatabasePrivate` (families, foundries, styles;
   handles are `FontFile` = file + fontconfig index) and registers faces with `QPlatformFontDatabase::registerFont`.
   The faces of a variable font are read from the file's `fvar`/`name`/`OS/2` tables (read only), because Qt 6.4 files
   the font as a whole under a named face, or folds the faces of one weight into it, depending on fontconfig's order.
   The font files are never changed or copied (Windows fonts may not be modified or converted). `QB_KEEP_FONT_FAMILIES=1`
-  switches it off. A new Qt version needs a look at this file (the AppImage's Qt is fixed at 6.4.2).
+  switches it off. A new Qt version needs a look at this file (0.80.0, Qt 6.12: `registerFont` takes `colorFont`,
+  taken from the family; the separation works as on 6.4, `qb_v0401_tests` passes).
 - The Bold / Italic / Underline / Strikethrough buttons and commands work on the whole selection:
   `toggleStateOf` / `TextEditor::toggleState(byHand)` and `setBold` ... in `src/ui/TextEditor.*`; also
   `ObjectTextEdit::isOn` and the fonts window. `TextColumnView` refreshes the format bar on selection changes
@@ -773,7 +808,8 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
   No program change; the release workflow builds and checks it, and builds a release again when it lacks one.
 - `tools/publish-public.sh` (see "One source" above) and `tools/public-exclude.txt`. Never publish the history of
   the development repository: it holds texts that were taken out (the old tutorial, a pen name).
-- `tools/legal-check.py [--public] [tree]`: LICENSE is 0BSD without a person; README, AppStream text, About and the
+- `tools/legal-check.py [--public] [tree]`: LICENSE is the Apache License 2.0 and NOTICE names the project and its
+  source, no person (0.80.0; 0BSD before); README, AppStream text, About and the
   release text say Quillbinder is not made by or connected with Literature & Latte; no wording of a copy, a
   replacement or a link with Scrivener ("Scrivenings" only as the old settings keys); nothing of the old tutorial or
   the pen name; no Scrivener or Scapple files; every picture, sound, video, font and document file with a note on
@@ -796,7 +832,9 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
 - **Help > Third-Party Licenses** (`src/ui/LicensesDialog.*`) shows `resources/licenses` (made by
   `tools/collect-licenses.py` from the Ubuntu packages of the AppImage's libraries; `tools/licenses-extra.json` for
   the parts that are no Ubuntu package). `packaging/build-appimage.sh` fails when a library has no license text.
-- The license is 0BSD (`LICENSE`, no person named). Credits: "Main Developer: Claude.AI w. Opus 5.5 Extra" only.
+- The license is the Apache License 2.0 since 0.80.0 (`LICENSE` unchanged from Apache, `NOTICE` with "Copyright 2026
+  The Quillbinder project" and the link to the public source; no person named; 0BSD up to 0.70.0). Credits:
+  "Main Developer: Claude.AI w. Opus 5.5 Extra" only.
 - The view of several documents as one text is called **Combined Text** (`ViewMode::Combined`); the settings keys
   of older versions (`scriveningsTitles`, font `scriveningsTitle`) are still read. Do not use the word
   "Scrivenings" in the program or its texts; "Scrivener" only where the file format or the import is meant.

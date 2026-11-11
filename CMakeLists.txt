@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.16)
 # ---------------------------------------------------------------------------
 set(APP_NAME "Quillbinder")
 set(APP_ID   "quillbinder")
-set(APP_VERSION "0.70.0")
+set(APP_VERSION "0.80.0")
 # A word shown after the version number in Help > About, System Information and the
 # AppImage's file name ("alpha", "beta"; empty for a normal release). It is never part
 # of version comparisons: the program, the loader and the packages compare APP_VERSION only.
@@ -20,11 +20,21 @@ endif()
 # Identifies the set of libraries inside the AppImage. Program updates
 # (.qbpkg "core" packages) only run on the runtime they were built for;
 # change it whenever the bundled libraries change (new Qt, new modules).
-set(APP_RUNTIME "u2404-qt6.4-r1")
+set(APP_RUNTIME "u2404-qt6.12-r1")
+# the first program version of that runtime: add-ons with libraries built for it need it (tools/make-package.py)
+set(APP_RUNTIME_SINCE "0.80.0")
+# The Qt of the Linux build (0.80.0): The Qt Company's own binaries of this version (tools/get-qt.sh puts them
+# into /opt/qt/<version>/gcc_64; the release workflow installs the same with aqtinstall), no longer Ubuntu's
+# Qt 6.4.2. The runtime id above names it; change both together.
+set(QB_QT_VERSION "6.12.0")
+# The day that Qt version was released (its tag in qt/qtbase): Help > System Information shows the runtime's age
+# (the external audit of 2026-11-09, X-7).
+set(APP_RUNTIME_DATE "2026-09-30")
 if(WIN32)
   # Windows (port, W2): Qt 6.8.3 for MSVC with its DLLs in the program folder; program updates
   # for Windows must be built with the same Qt (.github/workflows/windows.yml pins it)
   set(APP_RUNTIME "win64-qt6.8.3-msvc-r1")
+  set(APP_RUNTIME_DATE "2025-03-26")
 endif()
 # The public project page (0.50): downloads, and the release "Third-party source code" with the
 # source of every library the AppImage and the add-ons carry (Help > Third-Party Licenses).
@@ -36,6 +46,16 @@ project(${APP_ID} VERSION ${APP_VERSION} LANGUAGES C CXX) # C: Monocypher (src/c
 # QB_SPEECH_SOURCE, QB_SPEECH_ACCEPT_CHANGED, QB_SPEECH_SKIP_TEST, QB_TEST_SIGNING_KEY, unsigned program
 # updates): 0.70.0 (audit A S-04) off unless asked for, so that a program built as the README says behaves
 # like a release (signatures required). The test runs build with -DQB_TEST_SWITCHES=ON.
+# Fuzzing (0.80.0, tests/fuzz/README.md): a build of its own with clang, every part instrumented for libFuzzer.
+option(QB_FUZZ "Build the libFuzzer harnesses of the readers (clang only)" OFF)
+if(QB_FUZZ)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message(FATAL_ERROR "QB_FUZZ needs clang (CC=clang CXX=clang++)")
+  endif()
+  add_compile_options(-fsanitize=fuzzer-no-link,address -g)
+  add_link_options(-fsanitize=address)
+endif()
+
 option(QB_TEST_SWITCHES "Honor the test switches that load plugins from other folders or skip checks (test builds only)" OFF)
 if(QB_TEST_SWITCHES)
   add_compile_definitions(QB_TEST_SWITCHES=1)
@@ -60,13 +80,31 @@ if(MSVC)
   add_link_options($<$<CONFIG:Release>:/DEBUG> $<$<CONFIG:Release>:/OPT:REF> $<$<CONFIG:Release>:/OPT:ICF>)
 endif()
 
+# Linux (0.80.0): build with the Qt named above. QB_QT_DIR (cache or environment) names another folder of the
+# same version; tools/get-qt.sh fetches it in a cloud session.
+if(NOT WIN32)
+  if(NOT QB_QT_DIR)
+    if(DEFINED ENV{QB_QT_DIR})
+      set(QB_QT_DIR "$ENV{QB_QT_DIR}")
+    else()
+      set(QB_QT_DIR "/opt/qt/${QB_QT_VERSION}/gcc_64")
+    endif()
+  endif()
+  set(QB_QT_DIR "${QB_QT_DIR}" CACHE PATH "Qt ${QB_QT_VERSION} for the Linux build (runtime ${APP_RUNTIME})")
+  list(PREPEND CMAKE_PREFIX_PATH "${QB_QT_DIR}")
+endif()
 # Network: local sockets between running instances (the AppImage has carried libQt6Network since 0.2.0).
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Xml Widgets Svg PrintSupport Pdf PdfWidgets Network)
 # Page view sets the page margins of a text layout through a private Qt class
-# (src/text/PageLayout.cpp): needs qt6-base-private-dev of the same Qt.
+# (src/text/PageLayout.cpp) and FontFaces.cpp: the private headers of the same Qt.
+set(QT_NO_PRIVATE_MODULE_WARNING ON) # (Qt 6.10 and later warn about private modules; used knowingly)
 find_package(Qt6 QUIET COMPONENTS GuiPrivate)
 if(NOT TARGET Qt6::GuiPrivate)
-  message(FATAL_ERROR "The private Qt GUI headers are missing (Ubuntu: qt6-base-private-dev).")
+  message(FATAL_ERROR "The private Qt GUI headers are missing (Qt ${QB_QT_VERSION}: tools/get-qt.sh).")
+endif()
+if(NOT WIN32 AND NOT Qt6_VERSION VERSION_EQUAL QB_QT_VERSION)
+  message(FATAL_ERROR "Qt ${Qt6_VERSION} found in ${Qt6_DIR}; the runtime ${APP_RUNTIME} needs Qt ${QB_QT_VERSION} "
+                      "(tools/get-qt.sh, or -DQB_QT_DIR=<folder of Qt ${QB_QT_VERSION}>)")
 endif()
 find_package(ZLIB REQUIRED)
 find_package(PkgConfig)
@@ -184,6 +222,9 @@ if(QB_BUILD_TESTS)
   else()
     add_subdirectory(tests)
   endif()
+endif()
+if(QB_FUZZ)
+  add_subdirectory(tests/fuzz)
 endif()
 
 # Developer tools (not installed)

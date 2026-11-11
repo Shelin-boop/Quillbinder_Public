@@ -283,6 +283,7 @@ int separate()
         QSet<QString> stays;              // lower-case designs the family keeps
         QHash<QString, QString> newName;  // lower-case design -> its new family
         bool fixedPitch;
+        bool colorFont;     // Qt 6.12 (0.80.0): registerFont takes it (color emoji fonts and the like)
         QSupportedWritingSystems ws;
     };
 
@@ -382,6 +383,7 @@ int separate()
         plan.family = fam->name;
         plan.faces = faces;
         plan.fixedPitch = fam->fixedPitch;
+        plan.colorFont = fam->colorFont;
         for (int w = 0; w < QFontDatabase::WritingSystemsCount; ++w)
             if (fam->writingSystems[w] & QtFontFamily::Supported)
                 plan.ws.setSupported(QFontDatabase::WritingSystem(w));
@@ -424,7 +426,7 @@ int separate()
             const QString design = f.parts.design.toLower();
             if (plan.stays.contains(design))
                 QPlatformFontDatabase::registerFont(plan.family, f.style, f.foundry, QFont::Weight(f.weight), f.slant,
-                                                    QFont::Stretch(f.stretch), f.antialiased, true, 0, plan.fixedPitch, plan.ws,
+                                                    QFont::Stretch(f.stretch), f.antialiased, true, 0, plan.fixedPitch, plan.colorFont, plan.ws,
                                                     new FontFile{f.file, f.index});
             const QString target = plan.newName.value(design);
             if (target.isEmpty())
@@ -432,7 +434,7 @@ int separate()
             const QString inDesign = f.parts.styleInDesign();
             const QString styleName = uses.value(design + QLatin1Char('|') + inDesign.toLower()) > 1 ? f.style : inDesign;
             QPlatformFontDatabase::registerFont(target, styleName, f.foundry, QFont::Weight(f.weight), f.slant,
-                                                QFont::Stretch(f.stretch), f.antialiased, true, 0, plan.fixedPitch, plan.ws,
+                                                QFont::Stretch(f.stretch), f.antialiased, true, 0, plan.fixedPitch, plan.colorFont, plan.ws,
                                                 new FontFile{f.file, f.index});
         }
         for (const QString &target : plan.newName) {

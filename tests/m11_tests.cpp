@@ -4,15 +4,17 @@
 // screenshots into the folder given as first argument. Exit code = number of
 // failed checks.
 //
-//   tools/build-ffmpeg.sh <ffmpeg-6.1.1 source> build/ffmpeg
+//   tools/build-ffmpeg.sh <ffmpeg-9.0.2 source> build/ffmpeg
 //   packaging/build-addons.sh build build/addons-dist
 //   pulseaudio -D --exit-idle-time=-1     (any sound server; a null sink is enough)
 //   QT_QPA_PLATFORM=offscreen ./qb_m11_tests /tmp/shots
 //
 // The run starts itself three more times (child runs, own output): without
-// the add-on, with GStreamer instead of FFmpeg, without a sound server.
+// the add-on, with a GStreamer choice saved before 0.80.0 (falls back to FFmpeg), without a sound server.
+#include "AppInfo.h"
 #include "compile/PluginManager.h"
 #include "core/Addons.h"
+#include "core/AudioBackend.h"
 #include "core/BinderModel.h"
 #include "core/DocumentStore.h"
 #include "core/Project.h"
@@ -277,10 +279,11 @@ static int runWithoutAddon()
     return failures;
 }
 
-// ==================================================================== child: GStreamer
+// ==================================================================== child: a saved GStreamer choice
+// 0.80.0: Qt 6.12's own build has no GStreamer backend; a writer who chose it before still gets playback
 static int runGStreamer()
 {
-    prefix = QStringLiteral("[GStreamer] ");
+    prefix = QStringLiteral("[GStreamer chosen before 0.80.0] ");
     AppSettings::instance().load();
     AppSettings::instance().mediaBackend = QStringLiteral("gstreamer");
     AppSettings::instance().save();
@@ -290,10 +293,15 @@ static int runGStreamer()
     MediaView *v = f.pane0->media();
     f.pane0->showItems({f.media.value(QStringLiteral("red.mp4"))});
     media::EngineInterface *e = playback::engine();
-    check(e && e->isStarted() && e->startedBackend() == QLatin1String("gstreamer") && e->description().contains(QLatin1String("GStreamer")),
-          QStringLiteral("the engine runs with GStreamer when the options say so"), e ? e->description() : QString());
-    check(!mapsContain(QStringLiteral("media/lib/libavcodec.so.60")) && !mapsContain(QStringLiteral("media-extra/lib/libavcodec.so.60")),
-          QStringLiteral("with GStreamer the add-ons' FFmpeg is not loaded (the system's gst-libav keeps its own)"));
+    QString gstNote;
+    if (e)
+        for (const media::Backend &b : e->backends())
+            if (b.id == QLatin1String("gstreamer") && !b.available)
+                gstNote = b.note;
+    check(!gstNote.isEmpty() && gstNote.contains(QLatin1String("0.80.0")),
+          QStringLiteral("GStreamer is listed as no longer available, with the reason"), gstNote);
+    check(e && e->isStarted() && e->startedBackend() == QLatin1String("ffmpeg"),
+          QStringLiteral("the saved choice gives way to the built-in FFmpeg"), e ? e->description() : QString());
     v->play();
     const bool moving = waitFor([&] { return v->position() > 700; }, 6000);
     QRgb c = 0;
@@ -301,7 +309,7 @@ static int runGStreamer()
         c = centerPixel(videoWidget(v));
         return near(c, 255, 0, 0);
     });
-    check(moving && v->hasVideo() && near(c, 255, 0, 0), QStringLiteral("GStreamer plays an MP4 video (H.264): position moves, the picture is red"),
+    check(moving && v->hasVideo() && near(c, 255, 0, 0), QStringLiteral("an MP4 video (H.264) plays: position moves, the picture is red"),
           QStringLiteral("position %1, pixel %2").arg(v->position()).arg(rgbText(c)));
     v->pause(false);
     f.w->close();
@@ -415,24 +423,58 @@ int main(int argc, char **argv)
         failures += runChild(QStringLiteral("--without-addon"), env);
     }
 
+    // ================================================================ PipeWire without its configuration (0.80.0)
+    // Qt 6.12 used PipeWire's client library although it could not read its configuration, and crashed at the first
+    // sound (this machine: libpipewire without its "common" package). The engines then tell Qt to use PulseAudio.
+    {
+        const QByteArray keepBackend = qgetenv("QT_AUDIO_BACKEND"), keepDir = qgetenv("PIPEWIRE_CONFIG_DIR");
+        const bool hadBackend = qEnvironmentVariableIsSet("QT_AUDIO_BACKEND"), hadDir = qEnvironmentVariableIsSet("PIPEWIRE_CONFIG_DIR");
+        QTemporaryDir conf;
+        qunsetenv("QT_AUDIO_BACKEND");
+        qputenv("PIPEWIRE_CONFIG_DIR", QFile::encodeName(conf.path()));
+        audiobackend::avoidUnconfiguredPipeWire();
+        const QByteArray without = qgetenv("QT_AUDIO_BACKEND");
+        qunsetenv("QT_AUDIO_BACKEND");
+        QFile c(conf.path() + QLatin1String("/client.conf"));
+        c.open(QIODevice::WriteOnly);
+        c.write("context.properties = { }\n");
+        c.close();
+        audiobackend::avoidUnconfiguredPipeWire();
+        const bool withConf = !qEnvironmentVariableIsSet("QT_AUDIO_BACKEND");
+        qputenv("QT_AUDIO_BACKEND", "pipewire");
+        QDir(conf.path()).removeRecursively();
+        audiobackend::avoidUnconfiguredPipeWire();
+        const QByteArray chosen = qgetenv("QT_AUDIO_BACKEND");
+        check(without == "pulseaudio" && withConf && chosen == "pipewire",
+              QStringLiteral("PipeWire without its client configuration: Qt is told to use PulseAudio; with it, or with a "
+                             "choice in the environment, nothing is changed"),
+              QString::fromLatin1(without + " / " + (withConf ? "kept" : "set") + " / " + chosen));
+        hadBackend ? qputenv("QT_AUDIO_BACKEND", keepBackend) : qunsetenv("QT_AUDIO_BACKEND");
+        hadDir ? qputenv("PIPEWIRE_CONFIG_DIR", keepDir) : qunsetenv("PIPEWIRE_CONFIG_DIR");
+    }
+
     // ================================================================ the add-on
     {
         const addons::PackageInfo info = addons::inspect(pkg);
         QStringList log;
         QString err;
         bool restart = false;
-        check(info.isValid() && info.manifest.minApp == QLatin1String("0.12.0") && QFileInfo(pkg).size() < 30LL * 1024 * 1024,
-              QStringLiteral("the add-on package is valid, needs program version 0.12.0 and is below the 30 MiB delivery limit"),
+        check(info.isValid() && info.manifest.minApp == QLatin1String(QB_RUNTIME_SINCE) && QFileInfo(pkg).size() < 30LL * 1024 * 1024,
+              QStringLiteral("the add-on package is valid, needs program version %1 (its runtime's first) and is below the 30 MiB delivery limit")
+                  .arg(QStringLiteral(QB_RUNTIME_SINCE)),
               QStringLiteral("%1, %2 bytes").arg(info.error).arg(QFileInfo(pkg).size()));
         check(addons::install(pkg, &log, &err, &restart), QStringLiteral("the add-on installs"), err);
         QStringList files;
         for (const addons::FileEntry &fe : info.manifest.files)
             files << fe.path;
         check(files.contains(QStringLiteral("plugins/libqb-media.so")) && files.contains(QStringLiteral("media/libqb-media-impl.so"))
-                  && files.contains(QStringLiteral("media/lib/libavcodec.so.60")) && files.contains(QStringLiteral("media/lib/libQt6Multimedia.so.6"))
+                  && files.contains(QStringLiteral("media/lib/libavcodec.so.63")) && files.contains(QStringLiteral("media/lib/libQt6Multimedia.so.6"))
+                  && files.contains(QStringLiteral("media/lib/libQt6Quick.so.6"))
                   && files.contains(QStringLiteral("media/qtplugins/multimedia/libffmpegmediaplugin.so"))
-                  && files.contains(QStringLiteral("media/lib/fallback/libva.so.2")) && files.contains(QStringLiteral("media/licenses/README.txt")),
-              QStringLiteral("the add-on brings its plugin, the player, Qt Multimedia, FFmpeg, the fallback libva and the licences"));
+                  && !files.contains(QStringLiteral("media/lib/fallback/libva.so.2")) && files.contains(QStringLiteral("media/licenses/README.txt"))
+                  && info.manifest.runtime == QLatin1String(QB_RUNTIME_ID),
+              QStringLiteral("the add-on brings its plugin, the player, Qt Multimedia 6.12 with Qt Quick, FFmpeg 9.0 and the licences, "
+                             "and names the runtime it was built for"));
         // 0.50: Media Playback decodes free formats only; this suite plays H.264, AAC and MPEG-4 too, so it
         // installs the separate add-on with the full FFmpeg as well (qb_v050_tests checks the free set alone)
         const QString extra = buildDir + QStringLiteral("/addons-dist/media-extra-formats.qbpkg");
@@ -446,8 +488,9 @@ int main(int argc, char **argv)
         return failures + 1;
     {
         const QList<media::Backend> b = engine->backends();
-        check(b.size() == 2 && b[0].id == QLatin1String("ffmpeg") && b[0].available && b[1].id == QLatin1String("gstreamer"),
-              QStringLiteral("two ways of decoding: the built-in FFmpeg (available) and GStreamer of the system"));
+        check(b.size() == 2 && b[0].id == QLatin1String("ffmpeg") && b[0].available && b[1].id == QLatin1String("gstreamer")
+                  && !b[1].available,
+              QStringLiteral("two ways of decoding listed: the built-in FFmpeg (available) and GStreamer (no longer available, 0.80.0)"));
         check(!engine->isStarted() && !mapsContain(QStringLiteral("libQt6Multimedia")),
               QStringLiteral("Qt Multimedia is not loaded before the first audio or video file"));
     }
@@ -529,10 +572,10 @@ int main(int argc, char **argv)
     check(loaded && engine->isStarted() && engine->startedBackend() == QLatin1String("ffmpeg"),
           QStringLiteral("selecting an MP3 starts the engine (FFmpeg) and loads the file into the editor's player"),
           engine->description() + QLatin1String(" / ") + v->playerError());
-    check(engine->description().contains(QLatin1String("FFmpeg 6.1.1")) && mapsContain(QStringLiteral("/media-extra/lib/libavcodec.so.60"))
-              && !mapsContain(QStringLiteral("/media/lib/libavcodec.so.60")) && mapsContain(QStringLiteral("/media/lib/libQt6Multimedia.so.6"))
+    check(engine->description().contains(QLatin1String("FFmpeg 9.0.2")) && mapsContain(QStringLiteral("/media-extra/lib/libavcodec.so.63"))
+              && !mapsContain(QStringLiteral("/media/lib/libavcodec.so.63")) && mapsContain(QStringLiteral("/media/lib/libQt6Multimedia.so.6"))
               && engine->description().contains(QLatin1String("extra formats")),
-          QStringLiteral("the add-on's own Qt Multimedia and the full FFmpeg 6.1.1 of \"Extra Video and Audio Formats\" are the ones loaded"),
+          QStringLiteral("the add-on's own Qt Multimedia and the full FFmpeg 9.0.2 of \"Extra Video and Audio Formats\" are the ones loaded"),
           engine->description());
     const bool sound = !engine->description().contains(QLatin1String("no sound output"));
     if (!sound)

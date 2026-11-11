@@ -101,7 +101,7 @@ QStringList summarize(const QList<FileEntry> &files)
     if (dicts)
         out << text::plural(dicts, tr("dictionary"), tr("dictionaries"));
     if (mediaExtra)
-        out << tr("video and audio formats licensed under patents (for Media Playback 1.1 or newer)");
+        out << tr("video and audio formats licensed under patents (for Media Playback 2.0 or newer)");
     if (tutorials)
         out << tr("the old interactive tutorial (no longer used; this add-on can be removed)");
     Q_UNUSED(other);
@@ -210,6 +210,13 @@ PackageInfo inspectData(const QByteArray &data, const QString &appVersion, int d
         }
         if (!m.minApp.isEmpty() && compareVersions(m.minApp, appVersion) > 0) {
             info.error = tr("This add-on needs program version %1 or newer (you have %2).").arg(m.minApp, appVersion);
+            return info;
+        }
+        if (!fitsRuntime(m)) {
+            info.error = tr("This add-on was built for the libraries of another program version (runtime \"%1\"; "
+                            "this program has \"%2\"). Download the add-on's version for this program from the "
+                            "release page of the project.")
+                             .arg(m.runtime.isEmpty() ? tr("before 0.80.0") : m.runtime, QLatin1String(QB_RUNTIME_ID));
             return info;
         }
         const Manifest old = readManifestFile(addonsRoot() + QLatin1Char('/') + m.id + QLatin1String("/manifest.json"));
@@ -702,6 +709,7 @@ QList<Installed> installedAddons()
         in.dir = fi.absoluteFilePath();
         in.enabled = !off.contains(in.manifest.id);
         in.provides = summarize(in.manifest.files);
+        in.otherRuntime = !fitsRuntime(in.manifest);
         out << in;
     }
     return out;
@@ -741,12 +749,29 @@ bool removeAddon(const QString &id, QString *error)
     return true;
 }
 
+bool fitsRuntime(const Manifest &m)
+{
+#ifdef Q_OS_WIN
+    Q_UNUSED(m)
+    return true; // the Windows add-ons name their system only (W2); one Qt so far
+#else
+    if (m.kind != QLatin1String("addon") || m.platform.startsWith(QLatin1String("windows")))
+        return true;
+    bool libs = false;
+    for (const FileEntry &fe : m.files)
+        libs = libs || fe.path.endsWith(QLatin1String(".so")) || fe.path.contains(QLatin1String(".so."));
+    return !libs || m.runtime == QLatin1String(QB_RUNTIME_ID);
+#endif
+}
+
 QStringList contentDirs(const QString &kind)
 {
     QStringList out;
     for (const Installed &in : installedAddons()) {
         if (!in.enabled)
             continue;
+        if (in.otherRuntime && kind == QLatin1String("plugins"))
+            continue; // 0.80.0: native code of another Qt is never loaded
         const QString d = in.dir + QLatin1Char('/') + kind;
         if (QDir(d).exists())
             out << d;

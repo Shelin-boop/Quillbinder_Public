@@ -317,7 +317,7 @@ static QString spanText(const QString &t)
         case '>': r += QLatin1String("&gt;"); break;
         case '"': r += QLatin1String("&quot;"); break;
         case '*': case '_': case '`': case '~': case '[': case ']': case '\\': case '#': case '!': case '|':
-            r += QStringLiteral("&#%1;").arg(ch.unicode());
+            r += QStringLiteral("&#%1;").arg(int(ch.unicode())); // a number: Qt 6.12 writes a char16_t as the character
             break;
         default: r += ch;
         }

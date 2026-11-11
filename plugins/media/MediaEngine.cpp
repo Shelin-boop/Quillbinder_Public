@@ -43,8 +43,9 @@ bool systemHas(const char *soname)
 // FFmpeg in the order its libraries need each other. Loaded only for Qt's
 // FFmpeg backend: with GStreamer they would stand in for the system's FFmpeg
 // of the same soname, which the system's gst-libav needs (Ubuntu 24.04).
-const char *const kFFmpeg[] = {"libavutil.so.58", "libswresample.so.4", "libswscale.so.7", "libavcodec.so.60",
-                               "libavformat.so.60"};
+// (0.80.0: FFmpeg 9.0, the version Qt 6.12's FFmpeg backend is built for)
+const char *const kFFmpeg[] = {"libavutil.so.61", "libswresample.so.7", "libswscale.so.10", "libavcodec.so.63",
+                               "libavformat.so.63"};
 // Taken from the add-on only if the system has none (client libraries that
 // talk to services of the system; the system's own fit them best).
 const char *const kFallback[] = {"libva.so.2"};
@@ -71,7 +72,7 @@ const char kExtraId[] = "media-extra-formats";
 
 bool hasFFmpeg(const QString &dir)
 {
-    return !dir.isEmpty() && QFileInfo::exists(dir + QLatin1String("/lib/libavcodec.so.60"));
+    return !dir.isEmpty() && QFileInfo::exists(dir + QLatin1String("/lib/libavcodec.so.63"));
 }
 
 } // namespace
@@ -131,11 +132,11 @@ QList<qb::media::Backend> MediaEngine::backends() const
 
     qb::media::Backend ff;
     ff.id = QStringLiteral("ffmpeg");
-    ff.name = tr("Built in (FFmpeg 6.1, comes with the add-on)");
-    const bool ffLibs = QFileInfo::exists(lib + QLatin1String("libavcodec.so.60")) || systemHas("libavcodec.so.60");
+    ff.name = tr("Built in (FFmpeg 9.0, comes with the add-on)");
+    const bool ffLibs = QFileInfo::exists(lib + QLatin1String("libavcodec.so.63")) || systemHas("libavcodec.so.63");
     QStringList missing = missingSystemLibs(false);
     if (!ffLibs)
-        missing << QStringLiteral("libavcodec.so.60");
+        missing << QStringLiteral("libavcodec.so.63");
     ff.available = missing.isEmpty();
     ff.note = !ff.available
                   ? tr("Missing on this system: %1").arg(missing.join(QStringLiteral(", ")))
@@ -149,12 +150,12 @@ QList<qb::media::Backend> MediaEngine::backends() const
     qb::media::Backend gst;
     gst.id = QStringLiteral("gstreamer");
     gst.name = tr("GStreamer of the system");
-    missing = missingSystemLibs(true);
-    gst.available = missing.isEmpty();
-    gst.note = gst.available
-                   ? tr("Uses the codecs installed on the system (packages gstreamer1.0-plugins-good, gstreamer1.0-libav ...).")
-                   : tr("Missing on this system: %1 (packages libgstreamer1.0-0, libgstreamer-plugins-base1.0-0, "
-                        "libgstreamer-gl1.0-0)").arg(missing.join(QStringLiteral(", ")));
+    // 0.80.0: The Qt Company's own build of Qt 6.12, which the program uses since then, has no GStreamer backend
+    // (only FFmpeg): the choice stays in the list, not available
+    gst.available = false;
+    gst.note = tr("Not available since %1 0.80.0: the Qt it uses (The Qt Company's own build of Qt 6.12) plays "
+                  "through FFmpeg only. The built-in way plays the same formats (H.264, H.265 and AAC with the add-on "
+                  "\"Extra Video and Audio Formats\").").arg(QStringLiteral("Quillbinder"));
     out << gst;
     return out;
 }
@@ -169,8 +170,9 @@ bool MediaEngine::preload(const QString &backend, QString *error)
     // The add-on's own copies are loaded by their full path; when Qt's backend
     // asks for "libavcodec.so.60" later, the dynamic linker takes the library
     // of that name that is already loaded (also on a system that has another
-    // FFmpeg or none). Qt Multimedia must be the add-on's (Qt 6.4.2, as the
-    // AppImage), whatever Qt the system has.
+    // FFmpeg or none). Qt Multimedia must be the add-on's (Qt 6.12.0, as the
+    // AppImage), whatever Qt the system has; the Qt libraries it needs and the AppImage
+    // lacks (Quick, Qml ...) lie beside it and are found through its search path.
     QList<const char *> names;
     if (backend == QLatin1String("ffmpeg"))
         for (const char *n : kFFmpeg)
@@ -213,6 +215,15 @@ bool MediaEngine::start(const QString &backend, QString *error)
     for (const qb::media::Backend &x : list)
         if (x.id == chosen)
             b = &x;
+    // 0.80.0: a saved choice that is no longer available (GStreamer, before 0.80.0) gives way to the first
+    // available one, so that a writer who chose it once still hears and sees the file
+    if (b && !b->available)
+        for (const qb::media::Backend &x : list)
+            if (x.available) {
+                b = &x;
+                chosen = x.id;
+                break;
+            }
     if (!b) {
         m_error = tr("Unknown way of playing \"%1\".").arg(chosen);
     } else if (!b->available) {

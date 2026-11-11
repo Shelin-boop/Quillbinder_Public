@@ -17,7 +17,7 @@ add-ons name these files.
     the .dsc, the original upstream archive and Ubuntu's changes, as "apt-get source" fetches them
     (needs deb-src lines in the apt sources);
   - the Ubuntu source packages of the libraries the add-ons bring (ADDON_LIBRARIES below);
-  - FFmpeg 6.1.1 of the media add-ons: the original archive plus tools/build-ffmpeg.sh,
+  - FFmpeg 9.0.2 of the media add-ons (0.80.0; before: 6.1.1): the original archive plus tools/build-ffmpeg.sh,
     tools/get-ffmpeg.sh and tools/ffmpeg-patches (the file name carries a hash of these, so a
     changed build gets a new file);
   - the AppImage runtime (type2-runtime) at the commit named in index.json, with the archives of
@@ -37,19 +37,25 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MULTIARCH = "/usr/lib/x86_64-linux-gnu"
-FFMPEG_ORIG = "ffmpeg_6.1.1.orig.tar.xz"
+FFMPEG_ORIG = "ffmpeg_9.0.2.orig.tar.xz"
 FFMPEG_URL = "http://archive.ubuntu.com/ubuntu/pool/universe/f/ffmpeg/" + FFMPEG_ORIG
-FFMPEG_SHA256 = "8684f4b00f94b85461884c3719382f1261f0d9eb3d59640a1f4ac0873616f968"
+FFMPEG_SHA256 = "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e"
 RUNTIME_REPO = "https://github.com/AppImage/type2-runtime"
 
-# library files of this system that add-ons carry (addons/*/stage.sh)
-ADDON_LIBRARIES = [
-    MULTIARCH + "/libQt6Multimedia.so.6",                              # Media Playback
-    MULTIARCH + "/qt6/plugins/multimedia/libffmpegmediaplugin.so",
-    MULTIARCH + "/qt6/plugins/multimedia/libgstreamermediaplugin.so",
-    MULTIARCH + "/libva.so.2",
-    MULTIARCH + "/qt6/plugins/tls/libqopensslbackend.so",              # Web Page Import
-]
+# library files of this system that add-ons carry (addons/*/stage.sh); since 0.80.0 the add-ons take Qt's parts
+# (Qt Multimedia, the TLS plugin) from Qt's own build, whose source is the Qt entry below
+ADDON_LIBRARIES = []
+QT_URL = "https://download.qt.io/official_releases/qt/%s/%s/single/%s"
+
+
+def qt_version():
+    with open(os.path.join(ROOT, "CMakeLists.txt"), encoding="utf-8") as f:
+        m = re.search(r'^set\(QB_QT_VERSION\s+"([^"]*)"\)', f.read(), re.M)
+    return m.group(1) if m else ""
+
+
+def qt_source_file():
+    return "qt-everywhere-src-%s.tar.xz" % qt_version()
 
 
 def sh(*args, cwd=None, check=False):
@@ -76,7 +82,7 @@ def ffmpeg_source_file():
         h.update(os.path.basename(f).encode() + b"\0")
         with open(f, "rb") as fh:
             h.update(fh.read())
-    return "ffmpeg-6.1.1-quillbinder-%s.src.tar" % h.hexdigest()[:8], files
+    return "ffmpeg-9.0.2-quillbinder-%s.src.tar" % h.hexdigest()[:8], files
 
 
 def package_of(path):
@@ -125,6 +131,9 @@ def wanted():
             for f in out:
                 if f[2].get("package") == src and f[2].get("version") == ver:
                     f[2]["for"] += ", add-ons: " + os.path.basename(lib)
+    if any(c.get("qtBuild") for c in index["components"]):
+        out.append((qt_source_file(), "qt", {"version": qt_version(),
+                                             "for": "the AppImage (Qt) and the add-ons Media Playback and Web Page Import"}))
     name, _files = ffmpeg_source_file()
     out.append((name, "ffmpeg", {"for": "the add-ons Media Playback and Extra Video and Audio Formats"}))
     rt = index.get("runtime")
@@ -150,6 +159,23 @@ def get_ubuntu(d, work):
         raise RuntimeError("apt-get source gave no .dsc for %s %s" % (d["package"], d["version"]))
 
 
+def get_qt(d, target):
+    ver = d["version"]
+    url = QT_URL % (ver.rsplit(".", 1)[0], ver, os.path.basename(target))
+    sh("curl", "-fsSL", "--retry", "10", "--retry-delay", "15", "--retry-all-errors", "-o", target + ".part", url, check=True)
+    # the Qt Project publishes a SHA-256 beside its archives
+    r = subprocess.run(["curl", "-fsSL", "--retry", "5", url + ".sha256"], capture_output=True, text=True)
+    if r.returncode == 0 and r.stdout.split():
+        h = hashlib.sha256()
+        with open(target + ".part", "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        if h.hexdigest() != r.stdout.split()[0].lower():
+            os.remove(target + ".part")
+            raise RuntimeError("%s does not have the SHA-256 the Qt Project publishes" % url)
+    os.replace(target + ".part", target)
+
+
 def get_ffmpeg(work):
     cached = os.path.join(ROOT, "build", "ffmpeg-src", FFMPEG_ORIG)
     dst = os.path.join(work, FFMPEG_ORIG)
@@ -168,7 +194,7 @@ def get_ffmpeg(work):
     with open(os.path.join(work, "README.txt"), "w") as f:
         f.write("FFmpeg 6.1.1 as built for the Quillbinder add-ons \"Media Playback\" (set \"base\") and\n"
                 "\"Extra Video and Audio Formats\" (set \"full\").\n\n"
-                "%s  the unchanged FFmpeg 6.1.1 source (Ubuntu 24.04's copy of ffmpeg.org's release)\n"
+                "%s  the unchanged FFmpeg 9.0.2 source (Ubuntu's copy of ffmpeg.org's release)\n"
                 "quillbinder-build/                 how it was built: get-ffmpeg.sh unpacks the archive and calls\n"
                 "                                   build-ffmpeg.sh, which applies ffmpeg-patches/ and configures\n"
                 "                                   each set (the options are in that script)\n" % FFMPEG_ORIG)
@@ -229,6 +255,9 @@ def main(argv):
     if len(argv) == 3 and argv[1] == "--name" and argv[2] == "ffmpeg":
         print(ffmpeg_source_file()[0])
         return 0
+    if len(argv) == 3 and argv[1] == "--name" and argv[2] == "qt":
+        print(qt_source_file())
+        return 0
     if len(argv) == 4 and argv[1] == "--name" and argv[2] == "ubuntu":
         r = ubuntu_of_file(argv[3])
         if not r:
@@ -250,12 +279,19 @@ def main(argv):
             if kind == "ubuntu":
                 what = "Ubuntu 24.04 source package %s %s (for %s)" % (d["package"], d["version"], d["for"])
             elif kind == "ffmpeg":
-                what = "FFmpeg 6.1.1 and the Quillbinder build of it (for %s)" % d["for"]
+                what = "FFmpeg 9.0.2 and the Quillbinder build of it (for %s)" % d["for"]
+            elif kind == "qt":
+                what = "Qt %s, the Qt Project's source release, unchanged (for %s)" % (d["version"], d["for"])
             else:
                 what = "AppImage runtime type2-runtime %s with its libraries (for %s)" % (d["commit"], d["for"])
             lines.append("%s\n    %s\n" % (name, what))
             if os.path.exists(target):
                 print("have %s" % name)
+                continue
+            if kind == "qt":
+                # the Qt Project's own archive, as it is (not packed again)
+                print("collecting %s" % name, flush=True)
+                get_qt(d, target)
                 continue
             work = os.path.join(tmp_root, name)
             os.makedirs(work)

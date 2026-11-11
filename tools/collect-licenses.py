@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Collects the license texts of everything an AppImage carries (0.40).
 
-    tools/collect-licenses.py <AppDir or extracted AppImage> <out dir>     # write
+    tools/collect-licenses.py [--qt-licenses <dir>] <AppDir> <out dir>     # write (0.80.0: Qt's own build
+                                                                           # needs tools/get-qt-licenses.sh)
     tools/collect-licenses.py --check <AppDir> <licenses dir>              # every library covered, same versions?
     tools/collect-licenses.py --refresh <licenses dir> [<runtime file>]    # versions of this system (0.50)
 
@@ -44,6 +45,15 @@ def cmake_var(name):
     return m.group(1) if m else ""
 
 
+def qt_version():
+    return cmake_var("QB_QT_VERSION")
+
+
+def qt_dir():
+    """The Qt Company's own Linux build the AppImage carries since 0.80.0 (tools/get-qt.sh)."""
+    return os.environ.get("QB_QT_DIR") or "/opt/qt/%s/gcc_64" % qt_version()
+
+
 def sources_url():
     """The release that holds the source files (same value as QB_SOURCES_URL of the program)."""
     return cmake_var("APP_HOMEPAGE") + "/releases/tag/third-party-sources"
@@ -77,10 +87,16 @@ def system_path(appdir, rel):
     """Where the file of the AppDir came from on the build system."""
     parts = rel.split("/")
     if rel.startswith("usr/plugins/"):
-        return os.path.join(MULTIARCH, "qt6/plugins", *parts[2:])
+        own = os.path.join(qt_dir(), "plugins", *parts[2:])   # Qt's own build (0.80.0)
+        return own if os.path.exists(own) else os.path.join(MULTIARCH, "qt6/plugins", *parts[2:])
     if rel.startswith("usr/lib/"):
-        return os.path.join(MULTIARCH, parts[-1])
+        own = os.path.join(qt_dir(), "lib", parts[-1])
+        return own if os.path.exists(own) else os.path.join(MULTIARCH, parts[-1])
     return None
+
+
+def from_qt(path):
+    return bool(path) and path.startswith(qt_dir().rstrip("/") + "/")
 
 
 def sha(path):
@@ -139,10 +155,14 @@ COMMON = re.compile(r"/usr/share/common-licenses/([A-Za-z0-9.+_-]+)")
 def collect(appdir):
     sources = {}  # source package -> entry
     problems = []
+    qt_files = []  # files of Qt's own build (0.80.0): listed from Qt's attribution files, not from Ubuntu
     for rel in libraries(appdir):
         sp = system_path(appdir, rel)
         if not sp or not os.path.exists(sp):
             problems.append("%s: not found on this system (%s)" % (rel, sp))
+            continue
+        if from_qt(sp):
+            qt_files.append(rel)
             continue
         # (not compared byte for byte: linuxdeploy strips the libraries and sets their search path)
         pkg = package_of(sp)
@@ -159,7 +179,7 @@ def collect(appdir):
             e["copyright"] = copyright_file(pkg)
             if not e["copyright"]:
                 problems.append("%s: package %s has no copyright file" % (rel, pkg))
-    return sources, problems
+    return sources, problems, qt_files
 
 
 # copyright files in the old free-form layout have no License: lines
@@ -195,23 +215,30 @@ def ubuntu_entry(src, version, files, license_summary, text_name):
                   % (sources_url(), sf, src, version, src, version)}
 
 
-def write(appdir, out):
-    sources, problems = collect(appdir)
+def write(appdir, out, qtlic=None):
+    sources, problems, qt_files = collect(appdir)
+    if qt_files and not qtlic:
+        problems.append("%d files of Qt's own build: give --qt-licenses <dir> (tools/get-qt-licenses.sh)" % len(qt_files))
     if problems:
         print("\n".join(problems), file=sys.stderr)
         return 1
     os.makedirs(os.path.join(out, "texts"), exist_ok=True)
     for f in os.listdir(os.path.join(out, "texts")):
         os.remove(os.path.join(out, "texts", f))
-    index = {"note": "Made by tools/collect-licenses.py from the Ubuntu 24.04 packages the AppImage carries.",
+    index = {"note": "Made by tools/collect-licenses.py from the Ubuntu 24.04 packages the AppImage carries and "
+                     "from the attribution files of Qt's own build (0.80.0).",
              "components": [], "commonLicenses": []}
     common = set()
     extra_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "licenses-extra.json")
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for x in json.load(open(extra_file)):
         name = x["file"]
-        with open(os.path.join(root, x["source"]), encoding="utf-8", errors="replace") as f:
-            text = f.read()
+        parts = x["source"] if isinstance(x["source"], list) else [x["source"]]
+        texts = []
+        for part in parts:  # several files: one after the other, each under its name (LICENSE, NOTICE)
+            with open(os.path.join(root, part), encoding="utf-8", errors="replace") as f:
+                texts.append(f.read() if len(parts) == 1 else "==== %s ====\n\n%s" % (part, f.read()))
+        text = "\n\n".join(texts)
         with open(os.path.join(out, "texts", name), "w", encoding="utf-8") as f:
             f.write(text)
         common.update(COMMON.findall(text))
@@ -222,6 +249,13 @@ def write(appdir, out):
             # parts of the AppImage runtime: their source is the runtime's (filled in by --refresh)
             entry["runtimePart"] = True
         index["components"].append(entry)
+    if qt_files:
+        for entry, name, text in qt_entries(qtlic, qt_files):
+            with open(os.path.join(out, "texts", name), "w", encoding="utf-8") as f:
+                f.write(text)
+            common.update(COMMON.findall(text))
+            index["components"].append(entry)
+        common.update(["LGPL-3", "GPL-3"])  # Qt's license and the GPL it refers to
     for src in sorted(sources, key=str.lower):
         e = sources[src]
         with open(e["copyright"], encoding="utf-8", errors="replace") as f:
@@ -260,6 +294,9 @@ def check(appdir, licdir):
     # the versions named (and the source files named) must be those of the libraries carried
     for rel in libraries(appdir):
         c = covered.get(os.path.basename(rel))
+        if c and c.get("qtBuild") and c["qtBuild"] != qt_version():
+            missing.append("%s: the list names Qt %s, the build uses Qt %s (run the write mode)"
+                           % (rel, c["qtBuild"], qt_version()))
         if not c or not c.get("package"):
             continue
         sp = system_path(appdir, rel)
@@ -287,6 +324,10 @@ def refresh(licdir, runtime_file=None):
     common = set()
     changes = []
     for c in index["components"]:
+        if c.get("qtBuild") and c["qtBuild"] != qt_version():
+            print("%s: the list names Qt %s, CMakeLists.txt Qt %s: make it anew (write mode with --qt-licenses)"
+                  % (c["name"], c["qtBuild"], qt_version()), file=sys.stderr)
+            return 1
         if not c.get("package"):
             if c.get("runtimePart") or c["name"] == "AppImage type2-runtime":
                 c["runtimePart"] = True
@@ -350,12 +391,152 @@ def refresh(licdir, runtime_file=None):
     return 0
 
 
+# ---------------------------------------------------------------- Qt's own build (0.80.0)
+# The AppImage carries The Qt Company's Linux binaries (tools/get-qt.sh), not Ubuntu's: their licenses come from
+# Qt's attribution files (qt_attribution.json) and the license files of Qt PDF's parts, checked out by
+# tools/get-qt-licenses.sh (as tools/collect-licenses-windows.py does for the Windows build).
+# Left out: parts of other systems (Android, macOS, Windows, WebAssembly), of the test library, of tools that are
+# not shipped (SQL drivers, the TIFF picture plugin) and ARM-only code.
+QT_LEFT_OUT = {
+    "android-gradle-wrapper", "android-native-style", "cocoa-platform-plugin", "qeventdispatcher_cf",
+    "d3d12memoryallocator", "rhi-miniengine-d3d12-mipmap", "wintab", "catch2", "cmake-runcmake-test-modules",
+    "sbom-test-child", "sbom-test-parent", "extra-cmake-modules", "linuxperf", "valgrind", "cycle", "sqlite",
+    "pixman", "libtiff",
+}
+
+
+def qt_read(path):
+    with open(path, encoding="utf-8", errors="replace") as f:
+        return f.read().replace("\r\n", "\n")
+
+
+def qt_attributions(qtlic):
+    out = {}
+    for repo in ("qtbase", "qtsvg", "qtimageformats"):
+        base = os.path.join(qtlic, repo)
+        for dirpath, _, files in os.walk(base):
+            if ".git" in dirpath or "qt_attribution.json" not in files:
+                continue
+            data = json.loads(qt_read(os.path.join(dirpath, "qt_attribution.json")), strict=False)
+            for item in data if isinstance(data, list) else [data]:
+                if item.get("Id"):
+                    item["_dir"], item["_repo"] = dirpath, base
+                    out[item["Id"]] = item
+    return out
+
+
+def qt_part_text(item):
+    lines = [item.get("Name", item["Id"])]
+    for key, label in (("Version", "Version: "), ("Homepage", "Homepage: ")):
+        if item.get(key):
+            lines.append(label + item[key])
+    if item.get("Description"):
+        lines.append(item["Description"].replace("\n", " "))
+    copyright = item.get("Copyright")
+    if isinstance(copyright, list):
+        copyright = "\n".join(copyright)
+    if copyright:
+        lines += ["", copyright]
+    if item.get("CopyrightFile"):
+        p = os.path.normpath(os.path.join(item["_dir"], item["CopyrightFile"]))
+        if os.path.exists(p):
+            lines += ["", qt_read(p)]
+    lines.append("")
+    files = item.get("LicenseFiles") or ([item["LicenseFile"]] if item.get("LicenseFile") else [])
+    found = False
+    for f in files:
+        p = os.path.normpath(os.path.join(item["_dir"], f))
+        if os.path.exists(p):
+            lines += [qt_read(p), ""]
+            found = True
+    if not found:
+        for spdx in [t for t in re.split(r"[\s()]+", item.get("LicenseId") or "") if t and t not in ("AND", "OR", "WITH")]:
+            p = os.path.join(item["_repo"], "LICENSES", spdx + ".txt")
+            if os.path.exists(p):
+                lines += [qt_read(p), ""]
+                found = True
+    if not found:
+        raise SystemExit("no license text for Qt's part %s (tools/get-qt-licenses.sh)" % item["Id"])
+    return "\n".join(lines)
+
+
+def qt_entries(qtlic, qt_files):
+    """[(entry, text file name, text)] of Qt's own build: Qt itself, ICU, Qt's parts, Qt PDF's parts."""
+    ver = qt_version()
+    qtsrc = "qt-everywhere-src-%s.tar.xz" % ver
+    src = ("%s, file %s (the Qt Project's source release; also https://download.qt.io/official_releases/qt/%s/%s/"
+           "single/ and the tag v%s of https://code.qt.io)" % (sources_url(), qtsrc, ver.rsplit(".", 1)[0], ver, ver))
+    icu = sorted(r for r in qt_files if os.path.basename(r).startswith("libicu"))
+    qt = sorted(r for r in qt_files if r not in icu)
+    out = []
+    lgpl = qt_read(os.path.join(qtlic, "qtbase", "LICENSES", "LGPL-3.0-only.txt"))
+    out.append(({"name": "Qt", "version": ver, "license": "LGPL-3.0-only",
+                 "where": ", ".join(sorted(os.path.basename(r) for r in qt)), "files": qt, "qtBuild": ver,
+                 "text": "qt.txt", "sourceFile": qtsrc, "source": src},
+                "qt.txt",
+                "Qt %s\nCopyright (C) The Qt Company Ltd. and other contributors.\nhttps://www.qt.io\n\n"
+                "The libraries and plugins are The Qt Company's own build of Qt %s for Linux (x86_64), unchanged; each "
+                "can be replaced by another build of the same version. Qt is used under the GNU Lesser General Public "
+                "License version 3 (below); the GNU General Public License version 3 it refers to is listed under the "
+                "full texts of common licenses (GPL-3).\n\n%s" % (ver, ver, lgpl)))
+    if icu:
+        out.append(({"name": "ICU (Qt's build)", "version": "73.2", "license": "Unicode-3.0 (ICU License)",
+                     "where": ", ".join(sorted(os.path.basename(r) for r in icu)), "files": icu, "qtBuild": ver,
+                     "text": "qt-icu.txt",
+                     "source": "https://github.com/unicode-org/icu, tag release-73-2 (a permissive license: the "
+                               "source is not required, and is named for convenience)"},
+                    "qt-icu.txt", qt_read(next(p for p in (os.path.join(qtlic, "icu", "LICENSE"),
+                                                         os.path.join(qtlic, "icu", "icu4c", "LICENSE"))
+                                               if os.path.exists(p)))))
+    attr = qt_attributions(qtlic)
+    for pid in sorted(attr):
+        if pid in QT_LEFT_OUT:
+            continue
+        item = attr[pid]
+        out.append(({"name": "%s (in Qt)" % item.get("Name", pid), "version": item.get("Version", ""),
+                     "license": item.get("License", item.get("LicenseId", "")), "where": "Qt",
+                     "text": "qt-%s.txt" % pid, "sourceFile": qtsrc, "source": "the Qt source, file %s" % qtsrc},
+                    "qt-%s.txt" % pid, qt_part_text(item)))
+    ch = os.path.join(qtlic, "chromium", "chromium")
+
+    def pdf(name, license, files=(), body=""):
+        text = body + "".join(qt_read(os.path.join(ch, f)) + "\n" for f in files)
+        key = "qtpdf-" + re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") + ".txt"
+        out.append(({"name": "%s (in Qt PDF)" % name, "version": "", "license": license,
+                     "where": "libQt6Pdf.so.6 (showing PDF files)", "text": key, "sourceFile": qtsrc,
+                     "source": "the Qt source, file %s" % qtsrc}, key, text))
+
+    pdf("PDFium", "BSD-3-Clause", ["third_party/pdfium/LICENSE"])
+    pdf("The Chromium Project", "BSD-3-Clause", ["LICENSE"])
+    pdf("Abseil", "Apache-2.0", ["third_party/abseil-cpp/LICENSE"])
+    pdf("FreeType", "FTL (FreeType License)", ["third_party/freetype/src/docs/FTL.TXT"])
+    pdf("ICU", "Unicode-3.0 (ICU License)", ["third_party/icu/LICENSE"])
+    pdf("libjpeg-turbo", "IJG, BSD-3-Clause, Zlib", ["third_party/libjpeg_turbo/LICENSE.md", "third_party/libjpeg_turbo/README.ijg"])
+    pdf("libpng", "Libpng-2.0, Libpng", ["third_party/libpng/LICENSE"])
+    pdf("zlib", "Zlib", ["third_party/zlib/LICENSE"])
+    opj = qt_read(os.path.join(ch, "third_party/pdfium/third_party/libopenjpeg/opj_includes.h")).split("*/")[0]
+    pdf("OpenJPEG", "BSD-2-Clause", body="\n".join(l[3:] if l.startswith(" * ") else l.lstrip(" *") for l in opj.split("\n")) + "\n")
+    lcms = qt_read(os.path.join(ch, "third_party/pdfium/third_party/lcms/src/cmscnvrt.c")).split(
+        "//---------------------------------------------------------------------------------")[1]
+    pdf("Little CMS", "MIT", body="\n".join(l[2:] for l in lcms.strip().split("\n")) + "\n")
+    agg = qt_read(os.path.join(ch, "third_party/pdfium/third_party/agg23/agg_basics.h")).split("#ifndef")[0]
+    pdf("Anti-Grain Geometry", "MIT-like (permission notice below)", body="\n".join(l[3:] for l in agg.strip().split("\n")) + "\n")
+    pdf("BigInt", "Public domain (notice below)", ["third_party/pdfium/third_party/bigint/LICENSE"])
+    pdf("FP16", "MIT", ["third_party/pdfium/third_party/fp16/LICENSE"])
+    return out
+
+
 if __name__ == "__main__":
     if len(sys.argv) in (3, 4) and sys.argv[1] == "--refresh":
         sys.exit(refresh(sys.argv[2], sys.argv[3] if len(sys.argv) == 4 else None))
     if len(sys.argv) == 4 and sys.argv[1] == "--check":
         sys.exit(check(sys.argv[2], sys.argv[3]))
-    if len(sys.argv) != 3:
+    args = sys.argv[1:]
+    qtlic = None
+    if len(args) == 4 and args[0] == "--qt-licenses":
+        qtlic = args[1]
+        args = args[2:]
+    if len(args) != 2:
         print(__doc__, file=sys.stderr)
         sys.exit(2)
-    sys.exit(write(sys.argv[1], sys.argv[2]))
+    sys.exit(write(args[0], args[1], qtlic))

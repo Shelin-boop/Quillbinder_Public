@@ -103,7 +103,13 @@ struct Installed {
     QString dir;
     bool enabled = true;
     QStringList provides;
+    // 0.80.0: an add-on with Linux libraries made for another runtime (the Qt 6.4 add-ons before 0.80.0): its
+    // plugins are not loaded (they would bring a Qt Multimedia or a plugin of another Qt into this program)
+    bool otherRuntime = false;
 };
+// 0.80.0: does an add-on's native code fit this program? Linux add-ons with libraries name the runtime they
+// were built for ("runtime" in manifest.json); one without it was made before 0.80.0 (Qt 6.4).
+bool fitsRuntime(const Manifest &m);
 QList<Installed> installedAddons();
 void setEnabled(const QString &id, bool on);
 bool removeAddon(const QString &id, QString *error);

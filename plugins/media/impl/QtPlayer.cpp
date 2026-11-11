@@ -3,6 +3,7 @@
 // libraries; its only entry point is qb_media_impl_create().
 
 #include "media/MediaApi.h"
+#include "core/AudioBackend.h"
 
 #include <QAudioDevice>
 #include <QAudioOutput>
@@ -151,20 +152,17 @@ QString undecodableMessage(const QStringList &formats)
         list = QStringList(formats.mid(0, formats.size() - 1)).join(QStringLiteral(", "))
                + QCoreApplication::translate("qbmedia", " and ") + formats.last();
     if (extraFormats())
-        return QCoreApplication::translate("qbmedia", "it uses %1, which the built-in decoding cannot play. Choose "
-                                                      "GStreamer of the system under File > Options > Behaviors > "
-                                                      "Playback.")
+        return QCoreApplication::translate("qbmedia", "it uses %1, which the built-in decoding cannot play. Convert "
+                                                      "the file into another format to play it here.")
             .arg(list);
     if (formats.size() > 1)
         return QCoreApplication::translate("qbmedia", "it uses %1, formats licensed under patents, which the add-on "
                                                       "\"Media Playback\" leaves out. Install the add-on \"Extra Video and "
-                                                      "Audio Formats\" (a separate download), or choose GStreamer of the "
-                                                      "system under File > Options > Behaviors > Playback.")
+                                                      "Audio Formats\" (a separate download).")
             .arg(list);
     return QCoreApplication::translate("qbmedia", "it uses %1, a format licensed under patents, which the add-on "
                                                   "\"Media Playback\" leaves out. Install the add-on \"Extra Video and "
-                                                  "Audio Formats\" (a separate download), or choose GStreamer of the "
-                                                  "system under File > Options > Behaviors > Playback.")
+                                                  "Audio Formats\" (a separate download).")
         .arg(list);
 }
 
@@ -237,6 +235,11 @@ public:
         connect(m_player, &QMediaPlayer::mediaStatusChanged, this, [this](QMediaPlayer::MediaStatus s) {
             if (s == QMediaPlayer::NoMedia)
                 m_video->clear();
+            if (m_playWhenRead && s != QMediaPlayer::LoadingMedia) {
+                m_playWhenRead = false;
+                if (m_player->hasVideo() && s != QMediaPlayer::InvalidMedia && s != QMediaPlayer::NoMedia)
+                    m_player->play();
+            }
             notifyState();
         });
         connect(m_player, &QMediaPlayer::hasVideoChanged, this, [this] { notifyState(); });
@@ -299,6 +302,7 @@ public:
     {
         m_error.clear();
         m_sourceError.clear();
+        m_playWhenRead = false;
         m_file = file;
         m_video->clear();
         // Qt 6.4's FFmpeg backend does not hand the player's speed to the
@@ -326,14 +330,27 @@ public:
         if (!m_sourceError.isEmpty())
             return; // stays as it is until another file is chosen
         m_error.clear();
-        if (m_noSound && !m_player->hasVideo())
-            return; // nothing to hear or see
+        if (m_noSound && !m_player->hasVideo()) {
+            // nothing to hear or see; Qt 6.12 reads a file in the background, so a video that is still being read
+            // is played once Qt knows it has a picture (0.80.0)
+            m_playWhenRead = m_player->mediaStatus() == QMediaPlayer::LoadingMedia;
+            return;
+        }
+        m_playWhenRead = false;
         if (m_player->mediaStatus() == QMediaPlayer::EndOfMedia)
             m_player->setPosition(0);
         m_player->play();
     }
-    void pause() override { m_player->pause(); }
-    void stop() override { m_player->stop(); }
+    void pause() override
+    {
+        m_playWhenRead = false;
+        m_player->pause();
+    }
+    void stop() override
+    {
+        m_playWhenRead = false;
+        m_player->stop();
+    }
     qb::media::State state() const override { return toState(m_player->playbackState()); }
 
     qb::media::Status status() const override
@@ -427,6 +444,7 @@ private:
     QString m_error;
     QString m_sourceError; // the file has a format that cannot be decoded (0.50)
     bool m_noSound = false;
+    bool m_playWhenRead = false; // play() came while a file was read without a sound output
 };
 
 QString ffmpegVersion()
@@ -499,7 +517,7 @@ public:
 #else
         if (m_backend == QLatin1String("ffmpeg")) {
             const QString v = ffmpegVersion();
-            s += QCoreApplication::translate("qbmedia", " with FFmpeg %1").arg(v.isEmpty() ? QStringLiteral("6.1") : v);
+            s += QCoreApplication::translate("qbmedia", " with FFmpeg %1").arg(v.isEmpty() ? QStringLiteral("9.0") : v);
             s += extraFormats() ? QCoreApplication::translate("qbmedia", " (with the extra formats)")
                                 : QCoreApplication::translate("qbmedia", " (free formats)");
         } else if (m_backend == QLatin1String("gstreamer")) {
@@ -522,5 +540,6 @@ private:
 
 extern "C" Q_DECL_EXPORT qb::media::EngineInterface *qb_media_impl_create()
 {
+    audiobackend::avoidUnconfiguredPipeWire(); // 0.80.0: before Qt Multimedia looks for sound devices
     return new qbmedia::QtEngine;
 }

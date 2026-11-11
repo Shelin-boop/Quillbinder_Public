@@ -290,7 +290,10 @@ int main(int argc, char **argv)
         }
         check(problems.isEmpty(), QStringLiteral("the three add-on packages install"), problems.join(QLatin1String("; ")));
         const addons::PackageInfo older = addons::inspect(buildDir + QStringLiteral("/addons-dist/tool-scratch-pad.qbpkg"));
-        check(older.manifest.minApp == QLatin1String("0.11.0"), QStringLiteral("the tool add-ons need program version 0.11.0"));
+        // 0.80.0: an add-on with program code needs the first version of the runtime it was built for
+        check(older.manifest.minApp == QLatin1String(QB_RUNTIME_SINCE) && older.manifest.runtime == QLatin1String(QB_RUNTIME_ID),
+              QStringLiteral("the tool add-ons need program version %1 and name the runtime %2").arg(QStringLiteral(QB_RUNTIME_SINCE), QStringLiteral(QB_RUNTIME_ID)),
+              older.manifest.minApp + QLatin1String(" / ") + older.manifest.runtime);
     }
     AppSettings &as = AppSettings::instance();
     as.load();

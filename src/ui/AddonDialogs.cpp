@@ -366,7 +366,8 @@ void AddonManagerDialog::refresh()
         it->setCheckState(0, in.enabled ? Qt::Checked : Qt::Unchecked);
         it->setText(0, in.manifest.name);
         it->setText(1, in.manifest.version);
-        it->setText(2, in.provides.join(QLatin1String(", ")));
+        it->setText(2, in.otherRuntime ? tr("Built for an older program: install its new version (its code is not loaded)")
+                                       : in.provides.join(QLatin1String(", ")));
         it->setData(0, Qt::UserRole, in.manifest.id);
         bool plugins = false;
         for (const FileEntry &fe : in.manifest.files)

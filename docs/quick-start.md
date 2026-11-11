@@ -88,4 +88,4 @@ The **full version** of the AppImage (*...-full-alpha-x86_64.AppImage*) has ever
 - **Help > Mind Map Help**: notes, lines, arrows, and shapes, with pictures and a practice board.
 - **Help > List of All Placeholders** and **Help > Keyboard Shortcuts…**
 - **Help > Third-Party Licenses…**: the licenses of the parts of other projects that {{APP}} uses.
-- **Help > About {{APP}}**: the version and the license. {{APP}} is free software under the Zero-Clause BSD license (0BSD).
+- **Help > About {{APP}}**: the version and the license. {{APP}} is free software under the Apache License 2.0.

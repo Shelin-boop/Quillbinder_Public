@@ -126,8 +126,8 @@ def main():
     os.makedirs(os.path.join(OUT, "texts"))
 
     # ---- the program itself and its icons (as in the Linux list)
-    comp("Quillbinder", "", "0BSD (Zero-Clause BSD)", "the program itself",
-         add_text("quillbinder-0BSD.txt", read(os.path.join(LINUX_TEXTS, "quillbinder-0BSD.txt"))),
+    comp("Quillbinder", "", "Apache-2.0 (Apache License 2.0)", "the program itself",
+         add_text("quillbinder-Apache-2.0.txt", read(os.path.join(LINUX_TEXTS, "quillbinder-Apache-2.0.txt"))),
          "https://github.com/Shelin-boop/Quillbinder_Public")
     comp("Breeze icons (a subset)", "", "LGPL-3.0-or-later", "icons of the menus and toolbars",
          add_text("breeze-icons.txt", read(os.path.join(LINUX_TEXTS, "breeze-icons.txt"))),

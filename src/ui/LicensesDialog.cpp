@@ -37,15 +37,16 @@ void showThirdPartyLicenses(QWidget *parent)
         win->resize(980, 700);
         auto *l = new QVBoxLayout(win);
         auto *intro = new QLabel(
-            QObject::tr("<p>%1 itself is under the <b>Zero-Clause BSD license (0BSD)</b>: anyone may use, copy, change and "
-                        "pass it on, without conditions. The AppImage also carries parts of other projects, each under its "
+            QObject::tr("<p>%1 itself is under the <b>Apache License 2.0</b>: anyone may use, copy, change and pass it on, "
+                        "keeping the license and the NOTICE file, which names the project and its source. The AppImage also carries parts of other projects, each under its "
                         "own license; they are listed here with their full license texts (the same texts are in the AppImage "
-                        "under <i>usr/share/doc/quillbinder/licenses</i>). The libraries are those of Ubuntu 24.04. The "
+                        "under <i>usr/share/doc/quillbinder/licenses</i>). Qt is The Qt Company's own build of Qt %3; the other "
+                        "libraries are those of Ubuntu 24.04. The "
                         "source code of each, exactly in the version used, is in the release <a href=\"%2\">Third-party "
                         "source code</a> of the project page, in the file named below its license (Ubuntu's archive has "
-                        "it as well). You may replace the libraries inside the AppImage with your own builds. Add-ons carry "
+                        "Ubuntu's as well). You may replace the libraries inside the AppImage with your own builds. Add-ons carry "
                         "their own license files.</p>")
-                .arg(QLatin1String(QB_APP_NAME), QLatin1String(QB_SOURCES_URL)),
+                .arg(QLatin1String(QB_APP_NAME), QLatin1String(QB_SOURCES_URL), QLatin1String(QT_VERSION_STR)),
             win);
         intro->setOpenExternalLinks(true);
         intro->setWordWrap(true);

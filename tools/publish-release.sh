@@ -34,8 +34,10 @@ Each file is a tar archive (\`tar xf <file>\`):
 
 - \`<package>_<version>.src.tar\`: an Ubuntu 24.04 source package as \`apt-get source\` fetches it
   (the original upstream archive, Ubuntu's changes and the .dsc file)
-- \`ffmpeg-6.1.1-quillbinder-<hash>.src.tar\`: FFmpeg 6.1.1 with the patch and the build scripts of
-  the media add-ons
+- \`qt-everywhere-src-<version>.tar.xz\`: the Qt Project's source release of the Qt the AppImage carries
+  (since 0.80.0; a compressed tar archive, \`tar xJf <file>\`)
+- \`ffmpeg-<version>-quillbinder-<hash>.src.tar\`: FFmpeg with the patch and the build scripts of the media
+  add-ons
 - \`appimage-type2-runtime-<commit>.src.tar\`: the AppImage runtime with the libraries it links in
 TEXT
     gh release create third-party-sources --title "Third-party source code" \

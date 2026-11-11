@@ -4,9 +4,9 @@
   {
    "name": "Quillbinder",
    "version": "",
-   "license": "0BSD (Zero-Clause BSD)",
+   "license": "Apache-2.0 (Apache License 2.0)",
    "where": "the program itself",
-   "text": "quillbinder-0BSD.txt",
+   "text": "quillbinder-Apache-2.0.txt",
    "source": "https://github.com/Shelin-boop/Quillbinder_Public"
   },
   {

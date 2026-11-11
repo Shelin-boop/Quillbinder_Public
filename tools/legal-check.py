@@ -73,11 +73,15 @@ def main(argv):
     def text(rel):
         return texts.get(rel, "")
 
-    # 1. Quillbinder's own license: 0BSD, no person named
+    # 1. Quillbinder's own license (0.80.0): the Apache License 2.0 text unchanged, and a NOTICE that names
+    #    the project and its source but no person
     lic = text("LICENSE")
-    report("Permission to use, copy, modify, and/or distribute this software for any" in lic
-           and "Quillbinder authors" in lic and "MIT" not in lic,
-           "LICENSE is the Zero-Clause BSD license and names no person")
+    notice = text("NOTICE")
+    report("Apache License" in lic and "Version 2.0, January 2004" in lic
+           and "TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION" in lic and "END OF TERMS AND CONDITIONS" in lic,
+           "LICENSE is the Apache License 2.0")
+    report("Copyright 2026 The Quillbinder project" in notice and "github.com/Shelin-boop/Quillbinder_Public" in notice,
+           "NOTICE names the project and its source and no person")
 
     # 2. the program says it is independent of Literature & Latte where it is presented
     places = ["README.md", "packaging/quillbinder.metainfo.xml", "src/ui/MainWindow.cpp", "tools/release-notes.py"]
@@ -188,8 +192,8 @@ def main(argv):
 
     # 9. THIRD-PARTY.md names Quillbinder's license and the main third-party parts
     third = text("THIRD-PARTY.md")
-    need = ["0BSD", "Qt", "FFmpeg", "Breeze", "third-party-sources"]
-    report(all(n in third for n in need), "THIRD-PARTY.md names 0BSD, Qt, FFmpeg, Breeze and the source release",
+    need = ["Apache License 2.0", "NOTICE", "Qt", "FFmpeg", "Breeze", "third-party-sources"]
+    report(all(n in third for n in need), "THIRD-PARTY.md names the Apache License 2.0, NOTICE, Qt, FFmpeg, Breeze and the source release",
            [n for n in need if n not in third])
 
     if public:

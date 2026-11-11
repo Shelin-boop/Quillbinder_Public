@@ -3,6 +3,48 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.80.0 beta (2026-11-11)
+
+A new AppImage with a new runtime (`u2404-qt6.12-r1`): program updates of 0.70.0 and earlier do not fit it, and the
+add-ons with program code come in new versions for it (Media Playback 2.0, Extra Video and Audio Formats 2.0, Speech
+Transcription 1.6, Scratch Pad 1.3, Text Statistics 1.1, Name Generator 1.1, Web Page Import 1.1, Word 97-2003
+Import 1.3). It does the "runtime step" the external audit of 2026-11-09 asked for (X-6, X-7, ST-4, ST-5) and changes
+the license.
+
+- **Qt 6.12 instead of Qt 6.4.2**. The AppImage carries The Qt Company's own build of Qt 6.12.0 (the current
+  long-term version, released 2026-09-30) instead of Ubuntu 24.04's Qt 6.4.2, which gets no fixes from Qt any
+  more. The program still runs on Ubuntu 24.04 and newer (the same minimum Linux). The separation of fonts with
+  several designs (Sitka) works on the new Qt's font list; Qt 6.12's PDF writer fills in the author itself, and
+  the program's author, subject and keywords now replace its empty entries.
+- **The runtime's age in Help > System Information**: the runtime line names its Qt, the day that Qt was released
+  and how many months ago that was, with a note when it is older than 18 months.
+- **FFmpeg 9.0.2 in the media add-ons** (before: 6.1.1, a release line FFmpeg no longer maintains), the version Qt
+  6.12's FFmpeg backend is made for. Qt 6.12's own build has no GStreamer backend, so the choice "GStreamer of the
+  system" is listed as no longer available; a writer who chose it before gets the built-in decoding.
+- **Add-ons are tied to the runtime**. Add-ons with program code name the runtime they were built for, and need
+  0.80.0 or newer. Old ones (built for Qt 6.4) stay installed but their code is not loaded, and the Add-on Manager
+  says to install the new version; the install window refuses an add-on of another runtime with that message.
+- **The readers are tested against damaged files** (`qb_fuzz_tests`, 11 checks): RTF, Markdown, XML, ZIP, DOCX,
+  ODT, Word 97 and .scrivx files damaged in many fixed ways must all come back without a crash, an exception or a
+  hang. `tests/fuzz/` has a harness for long runs with libFuzzer.
+- **License: Apache License 2.0** instead of the Zero-Clause BSD license. Quillbinder stays free; whoever passes it
+  on keeps the license and the new `NOTICE` file, which names the project and its source (no person). Versions up
+  to 0.70.0 stay under 0BSD for those who have them. About, Help > Third-Party Licenses, README, THIRD-PARTY.md and
+  the AppStream file say so.
+- **Help > Third-Party Licenses** lists Qt's own build with the parts Qt builds in (from Qt's attribution files),
+  Qt PDF's parts and the ICU that Qt ships; their source is the Qt Project's source release of Qt 6.12.0 in the
+  release "Third-party source code".
+- **What Qt 6.12 does differently, made right**. A title, synopsis or note with a control character in it (pasted
+  from another program) was left out of the project file by Qt 6.12's XML classes without a word; it is kept
+  again, with the character taken out as before. Characters such as `*` or `#` in a colored text of an object field
+  are written as numbered references again (Qt 6.12 wrote the character itself). A dialog started from the Styles
+  panel stays above the panel. A click or right-click on a line that the bottom edge of the view cuts through no
+  longer moves the text by a few pixels. Dragging documents from the binder hands other programs their links as
+  before. Qt 6.12 plays sound through PipeWire when PipeWire's library is installed; where the library is there
+  without its settings (a system that runs PulseAudio only), the first sound ended the program: Media Playback and
+  Speech Transcription then use PulseAudio. A video plays its picture also without a sound output again (Qt 6.12
+  reads a file in the background, and Play came before it knew the file had a picture).
+
 ## 0.70.0 beta (2026-11-10)
 
 A new AppImage and a program update for the AppImages of the same runtime (0.60.0 alpha and later); Scratch Pad 1.2,

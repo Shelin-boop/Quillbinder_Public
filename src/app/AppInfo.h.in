@@ -9,6 +9,9 @@
 // the label alone ("beta" since 0.70.0; "" without one)
 #define QB_APP_VERSION_LABEL "@APP_VERSION_LABEL@"
 #define QB_RUNTIME_ID  "@APP_RUNTIME@"
+// the release day of the runtime's Qt (0.80.0): System Information shows the runtime's age
+#define QB_RUNTIME_DATE "@APP_RUNTIME_DATE@"
+#define QB_RUNTIME_SINCE "@APP_RUNTIME_SINCE@" // the first version of this runtime: what add-ons with libraries need (Linux)
 // The public project page and its release with the third-party source code (0.50).
 #define QB_APP_HOMEPAGE "@APP_HOMEPAGE@"
 #define QB_SOURCES_URL  "@APP_HOMEPAGE@/releases/tag/third-party-sources"

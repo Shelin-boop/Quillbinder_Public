@@ -24,7 +24,7 @@ the key's signature of manifest.json (made with openssl). The release workflow s
 secret QB_SIGNING_KEY; without it packages are made unsigned (the program then warns, and refuses
 unsigned program updates). A bundle's parts carry their own signatures.
 """
-import argparse, base64, hashlib, json, os, subprocess, sys, tempfile, zipfile
+import argparse, base64, hashlib, json, os, re, subprocess, sys, tempfile, zipfile
 
 
 def file_entry(path, rel, executable=False):
@@ -70,6 +70,18 @@ def write_package(out, manifest, payload, packages=()):
     print(f"{out}  ({os.path.getsize(out) / 1e6:.2f} MB)")
 
 
+def cmake_var(name):
+    """The first set(<name> "...") of CMakeLists.txt (the Linux values come first)."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "CMakeLists.txt"), encoding="utf-8") as f:
+        m = re.search(r'^set\(%s\s+"([^"]*)"\)' % name, f.read(), re.M)
+    return m.group(1) if m else ""
+
+
+def version_key(v):
+    return [int(x) if x.isdigit() else 0 for x in v.split(".")]
+
+
 def cmd_addon(a):
     manifest = json.load(open(os.path.join(a.folder, "manifest.json"), encoding="utf-8"))
     manifest.setdefault("format", 1)
@@ -86,6 +98,14 @@ def cmd_addon(a):
             files.append(e)
             payload.append((rel, data))
     manifest["files"] = files
+    # 0.80.0: Linux add-ons with libraries are built for one runtime (the Qt inside the AppImage): they name it,
+    # and need the first program version that has it (older programs refuse them by that, newer ones by the runtime)
+    libs = any(f["path"].endswith(".so") or ".so." in f["path"] for f in files)
+    if libs and not (a.platform or "").startswith("windows"):
+        manifest["runtime"] = cmake_var("APP_RUNTIME")
+        since = cmake_var("APP_RUNTIME_SINCE")
+        if since and version_key(manifest.get("minApp", "0")) < version_key(since):
+            manifest["minApp"] = since
     write_package(a.out, manifest, payload)
 
 

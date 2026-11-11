@@ -12,3 +12,4 @@ tools/win-tests.sh
 tools/win-check-layout.sh
 tools/win-dictionaries.sh
 tools/win-dictionaries.sha256
+.github/workflows/qt-linux.yml

@@ -1,7 +1,7 @@
 # Translations
 
 `quillbinder_de.ts` holds the German texts of the program (0.70.0), written for Quillbinder and released with it
-under its license (0BSD). It also translates the few texts of Qt's own dialogs and buttons that the program shows;
+under its license (Apache License 2.0). It also translates the few texts of Qt's own dialogs and buttons that the program shows;
 those translations were written anew here (the source strings are Qt's, the German is this project's).
 
 - After texts in the source changed: `lupdate -locations none -no-obsolete -source-language en -target-language de src plugins

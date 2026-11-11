@@ -35,6 +35,7 @@ private:
     QStringList m_ids;
     mutable bool m_exported = false;
     mutable QByteArray m_uriList;
+    mutable QList<QUrl> m_urls;
 };
 
 class BinderModel : public QAbstractItemModel

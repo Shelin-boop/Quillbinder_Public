@@ -1,5 +1,5 @@
 # Checks per suite on X11, written by tools/run-all-tests.sh after a full X11 run.
-# 2026-11-10, APP_VERSION 0.70.0 (v020 and v062 from the run of the failed suites on 2026-11-11, where the full run crashed or hung; v0700 one check added after)
+# 2026-11-11, APP_VERSION 0.80.0
 qb_tests 395
 ui 181
 m6 53
@@ -7,7 +7,7 @@ m7 56
 m8 47
 m9 55
 m10 78
-m11 79
+m11 80
 m12 84
 m13 47
 m14 64
@@ -24,7 +24,7 @@ v0401 26
 v0402 89
 v0403 57
 v050 45
-v060 37
+v060 41
 v0601 49
 v0602 15
 v0603 36
@@ -39,5 +39,6 @@ v0642 46
 v0650 59
 v0700 60
 audit1 61
-w2 17
+fuzz 11
+w2 21
 w3 10

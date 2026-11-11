@@ -448,8 +448,9 @@ int main(int argc, char **argv)
         QString err;
         bool restart = false;
         const bool ok = info.isValid() && addons::install(pkg, &log, &err, &restart);
-        check(ok && info.manifest.minApp == QLatin1String("0.61.0"), QStringLiteral("the add-on package installs and needs 0.61.0"),
-              info.error + err);
+        check(ok && info.manifest.minApp == QLatin1String(QB_RUNTIME_SINCE),
+              QStringLiteral("the add-on package installs and needs " QB_RUNTIME_SINCE " (its runtime's first version)"),
+              info.error + err + QLatin1String(" minApp ") + info.manifest.minApp);
         const QString dir = addons::contentDirs(QStringLiteral("speech")).value(0);
         QStringList missing;
         for (const char *f : {"libqb-speech-impl.so", "lib/libwhisper.so.1", "lib/libggml.so.0", "lib/libggml-base.so.0",
@@ -1015,10 +1016,12 @@ int main(int argc, char **argv)
             QByteArray pcm(int(s.size()) * 2, Qt::Uninitialized);
             for (int i = 0; i < s.size(); ++i)
                 qToLittleEndian(qint16(qBound(-32767, int(s[i] * 32767), 32767)), pcm.data() + 2 * i);
-            for (int at = 0; at < pcm.size() && !stopFeed; at += 3200) { // 100 ms
-                f.write(pcm.mid(at, 3200));
+            // 20 ms at a time, as a sound card delivers: Qt 6.12's PulseAudio input keeps at most 1024 frames
+            // (64 ms) in the server, so the pipe source's 100 ms blocks lost two thirds of the sound (0.80.0)
+            for (int at = 0; at < pcm.size() && !stopFeed; at += 640) {
+                f.write(pcm.mid(at, 640));
                 f.flush();
-                QThread::msleep(100);
+                QThread::msleep(20);
             }
         });
         bool started = false;
@@ -1054,10 +1057,10 @@ int main(int argc, char **argv)
                 QByteArray pcm(int(audio.size()) * 2, Qt::Uninitialized);
                 for (int i = 0; i < audio.size(); ++i)
                     qToLittleEndian(qint16(qBound(-32767, int(audio[i] * 32767), 32767)), pcm.data() + 2 * i);
-                for (int at = 0; at < pcm.size() && !stop2; at += 3200) {
-                    f.write(pcm.mid(at, 3200));
+                for (int at = 0; at < pcm.size() && !stop2; at += 640) { // 20 ms, see above
+                    f.write(pcm.mid(at, 640));
                     f.flush();
-                    QThread::msleep(100);
+                    QThread::msleep(20);
                 }
             });
             bool rec = false;

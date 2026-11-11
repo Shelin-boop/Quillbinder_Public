@@ -1,7 +1,7 @@
 // Scripted run for version 0.40: the welcome project (made at the first start and by
 // Help > Welcome Project from resources/welcome, with its mind map, objects, links and
 // comments), Help > Quick Start Guide, Help > Third-Party Licenses and the About window
-// (0BSD, credits), the view "Combined Text" (the settings and themes of older versions
+// (Apache License 2.0 since 0.80.0, credits), the view "Combined Text" (the settings and themes of older versions
 // still read), nothing left of the interactive tutorial of 0.15 to 0.30, the menu places
 // the guide and the welcome project name, Help > List of All Placeholders, and two
 // corrections carried over from the suite of the old tutorial (an index card's picture
@@ -314,15 +314,19 @@ int main(int argc, char **argv)
           QStringLiteral("version 0.40.0 or newer, shown with its label (\"%1\")").arg(QStringLiteral(QB_APP_VERSION_SHOWN)),
           QStringLiteral(QB_APP_VERSION_SHOWN));
     {
+        // 0.80.0: the Apache License 2.0, unchanged, and NOTICE naming the project and its source, no person
         const QString lic = QString::fromUtf8(readAll(src + QLatin1String("/LICENSE")));
-        check(lic.startsWith(QLatin1String("Copyright (C) 2026 by the Quillbinder authors\n"))
-                  && lic.contains(QLatin1String("Permission to use, copy, modify, and/or distribute this software for any\npurpose with or "
-                                                "without fee is hereby granted."))
-                  && !lic.contains(QLatin1String("MIT")),
-              QStringLiteral("LICENSE is the Zero-Clause BSD license, with no person named"), lic.left(200));
+        const QString notice = QString::fromUtf8(readAll(src + QLatin1String("/NOTICE")));
+        check(lic.contains(QLatin1String("Apache License")) && lic.contains(QLatin1String("Version 2.0, January 2004"))
+                  && lic.contains(QLatin1String("END OF TERMS AND CONDITIONS"))
+                  && notice.contains(QLatin1String("Copyright 2026 The Quillbinder project"))
+                  && notice.contains(QLatin1String("https://github.com/Shelin-boop/Quillbinder_Public")),
+              QStringLiteral("LICENSE is the Apache License 2.0; NOTICE names the project and its source, no person"),
+              lic.left(200) + QLatin1String(" / ") + notice);
         const QString third = QString::fromUtf8(readAll(src + QLatin1String("/THIRD-PARTY.md")));
-        check(third.contains(QLatin1String("0BSD")) && third.contains(QLatin1String("Help > Third-Party Licenses")),
-              QStringLiteral("THIRD-PARTY.md names the 0BSD license and Help > Third-Party Licenses"));
+        check(third.contains(QLatin1String("Apache License 2.0")) && third.contains(QLatin1String("NOTICE"))
+                  && third.contains(QLatin1String("Help > Third-Party Licenses")),
+              QStringLiteral("THIRD-PARTY.md names the Apache License 2.0, NOTICE and Help > Third-Party Licenses"));
         // The pen name of earlier versions is in no file: it is looked for by the SHA-256 of three
         // words in a row, so that this test does not name it itself. The old tutorial: its files
         // are gone, and its command is named only in the development log.
@@ -439,11 +443,12 @@ int main(int argc, char **argv)
     // ============================================================ About and Help > Third-Party Licenses
     {
         const QString about = MainWindow::aboutText();
-        check(about.contains(QLatin1String("0BSD")) && about.contains(QLatin1String("Main Developer: Claude.AI w. Opus 5.5 Extra"))
+        check(about.contains(QLatin1String("Apache License 2.0")) && about.contains(QLatin1String("NOTICE"))
+                  && about.contains(QLatin1String("Main Developer: Claude.AI w. Opus 5.5 Extra"))
                   && !about.contains(QLatin1String("Project Manager"))
                   && !about.contains(QLatin1String("MIT")) && about.contains(QLatin1String("not made by or connected with Literature"))
                   && about.contains(QLatin1String(QB_APP_VERSION_SHOWN)),
-              QStringLiteral("About: version, the 0BSD license, Claude as the only credit, independent of Literature & Latte"), about);
+              QStringLiteral("About: version, the Apache License 2.0 and NOTICE, Claude as the only credit, independent of Literature & Latte"), about);
         bool button = false;
         withModal<QMessageBox>(500, [&](QMessageBox *b) {
             shot(b, QStringLiteral("v040-02-about"));
@@ -477,7 +482,7 @@ int main(int argc, char **argv)
             first = text->toPlainText();
             for (int i = 0; i < list->count(); ++i) {
                 names << list->item(i)->text();
-                if (list->item(i)->text().startsWith(QLatin1String("qt6-base"))) {
+                if (list->item(i)->text().startsWith(QLatin1String("Qt 6."))) {
                     list->setCurrentRow(i);
                     settle(100);
                     qt = text->toPlainText();
@@ -489,18 +494,19 @@ int main(int argc, char **argv)
                 }
             }
             for (int i = 0; i < list->count(); ++i)
-                if (list->item(i)->text().startsWith(QLatin1String("qt6-base")))
+                if (list->item(i)->text().startsWith(QLatin1String("Qt 6.")))
                     list->setCurrentRow(i);
             shot(lw, QStringLiteral("v040-03-third-party-licenses"));
         }
-        check(names.size() >= 40 && first.startsWith(appName) && first.contains(QLatin1String("0BSD"))
-                  && first.contains(QLatin1String("Permission to use, copy, modify")),
-              QStringLiteral("Third-Party Licenses: %1 entries, the first is %2 itself with its 0BSD text").arg(names.size()).arg(appName),
+        check(names.size() >= 40 && first.startsWith(appName) && first.contains(QLatin1String("Apache"))
+                  && first.contains(QLatin1String("TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION"))
+                  && first.contains(QLatin1String("Copyright 2026 The Quillbinder project")),
+              QStringLiteral("Third-Party Licenses: %1 entries, the first is %2 itself with its Apache License 2.0 text").arg(names.size()).arg(appName),
               names.join(QLatin1String(", ")));
         // (0.50: the source is named as a file of the release "Third-party source code", qb_v050_tests checks it)
-        check(qt.contains(QLatin1String("LGPL-3")) && qt.contains(QLatin1String("Ubuntu 24.04 source package qt6-base"))
+        check(qt.contains(QLatin1String("LGPL-3")) && qt.contains(QLatin1String("The Qt Company's own build of Qt " QT_VERSION_STR))
                   && qt.contains(QLatin1String("libQt6Core.so.6")),
-              QStringLiteral("... Qt: its libraries, its license, where its source code is, and Ubuntu's copyright file"), qt.left(600));
+              QStringLiteral("... Qt: its libraries, its license, where its source code is (0.80.0: The Qt Company's own build)"), qt.left(600));
         check(lgpl.contains(QLatin1String("GNU LESSER GENERAL PUBLIC LICENSE")) && lgpl.contains(QLatin1String("Version 3")),
               QStringLiteral("... the full text of the LGPL 3 is there"), lgpl.left(300));
         // every library the AppImage carries has its entry, and every text can be read
@@ -516,8 +522,8 @@ int main(int argc, char **argv)
         }
         const QString all = where.join(QLatin1String(", "));
         QStringList absent;
-        for (const char *lib : {"libQt6Core.so.6", "libQt6Widgets.so.6", "libhunspell-1.7.so.0", "libicuuc.so.74", "libpng16.so.16",
-                                "libqxcb.so", "libqwayland-generic.so", "libxkbcommon.so.0", "libgomp.so.1"})
+        for (const char *lib : {"libQt6Core.so.6", "libQt6Widgets.so.6", "libhunspell-1.7.so.0", "libicuuc.so.73", "libpng16.so.16",
+                                "libqxcb.so", "libqwayland.so", "libxkbcommon.so.0", "libxcb-cursor.so.0"})
             if (!all.contains(QLatin1String(lib)))
                 absent << QLatin1String(lib);
         check(absent.isEmpty() && unreadable.isEmpty() && all.contains(QLatin1String("AppImage runtime")),

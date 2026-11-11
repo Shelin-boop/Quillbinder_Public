@@ -385,11 +385,24 @@ QVariant ItemsMimeData::retrieveData(const QString &mimeType, QMetaType type) co
         m_exported = true; // also after a failure: do not try again on every request
         if (fileProvider && m_project) {
             QByteArray list;
-            for (const QUrl &u : fileProvider(m_project, m_ids))
+            m_urls = fileProvider(m_project, m_ids);
+            for (const QUrl &u : std::as_const(m_urls))
                 list += u.toEncoded() + "\r\n";
             m_uriList = list;
         }
     }
+    // the bytes for other programs; the URLs themselves for QMimeData::urls() (Qt 6.12 asks for a list and, unlike
+    // Qt 6.4, no longer turns bytes into one: 0.80.0)
+    if (type.id() == QMetaType::QVariantList) {
+        QVariantList l;
+        for (const QUrl &u : std::as_const(m_urls))
+            l << u;
+        return l;
+    }
+    if (type == QMetaType::fromType<QList<QUrl>>())
+        return QVariant::fromValue(m_urls);
+    if (type.id() == QMetaType::QUrl)
+        return m_urls.value(0);
     return m_uriList;
 }
 

@@ -140,6 +140,68 @@ int main(int argc, char **argv)
           a.error + QLatin1Char(' ') + log);
 #endif
 
+#ifndef Q_OS_WIN
+    // ---- 0.80.0: add-ons with Linux libraries are tied to the runtime (Qt 6.12 since 0.80.0)
+    {
+        check(a.manifest.runtime == QLatin1String(QB_RUNTIME_ID) && a.manifest.minApp == QLatin1String(QB_RUNTIME_SINCE),
+              QStringLiteral("make-package.py names the runtime of an add-on with a library and raises its minApp to %1")
+                  .arg(QStringLiteral(QB_RUNTIME_SINCE)),
+              a.manifest.runtime + QLatin1String(" / ") + a.manifest.minApp);
+        // the same package as an older version made it: no runtime (before 0.80.0), or another one
+        auto rewritten = [&](const QString &name, const QString &runtime) {
+            const QString out = dir + QLatin1Char('/') + name + QLatin1String(".qbpkg");
+            QProcess py;
+            py.setProcessChannelMode(QProcess::MergedChannels);
+            py.start(QStringLiteral("python3"),
+                     {QStringLiteral("-I"), QStringLiteral("-c"),
+                      QStringLiteral("import json,sys,zipfile\n"
+                                     "src,dst,rt=sys.argv[1:4]\n"
+                                     "zi=zipfile.ZipFile(src); zo=zipfile.ZipFile(dst,'w',zipfile.ZIP_DEFLATED)\n"
+                                     "for n in zi.namelist():\n"
+                                     "    d=zi.read(n)\n"
+                                     "    if n=='manifest.json':\n"
+                                     "        m=json.loads(d); m.pop('runtime',None); m['minApp']='0.12.0'\n"
+                                     "        if rt: m['runtime']=rt\n"
+                                     "        d=json.dumps(m).encode()\n"
+                                     "    zo.writestr(n,d)\n"
+                                     "zo.close()\n"),
+                      linuxOld, out, runtime});
+            py.waitForFinished(30000);
+            return out;
+        };
+        const addons::PackageInfo before = addons::inspect(rewritten(QStringLiteral("check-before-080"), QString()));
+        check(!before.isValid() && before.error.contains(QLatin1String("another program version"))
+                  && before.error.contains(QLatin1String("before 0.80.0")),
+              QStringLiteral("an add-on with a library made before 0.80.0 (no runtime named) is refused, with what to do"), before.error);
+        const addons::PackageInfo other = addons::inspect(rewritten(QStringLiteral("check-qt64"), QStringLiteral("u2404-qt6.4-r1")));
+        check(!other.isValid() && other.error.contains(QLatin1String("u2404-qt6.4-r1")) && other.error.contains(QLatin1String(QB_RUNTIME_ID)),
+              QStringLiteral("an add-on of another runtime is refused and both runtimes are named"), other.error);
+        // installed before the new AppImage came: kept, but its library is never loaded
+        QStringList ilog;
+        QString err;
+        bool restart = false;
+        const bool inst = addons::install(linuxOld, &ilog, &err, &restart);
+        const QString plugins = addons::addonsRoot() + QLatin1String("/check-linux-old/plugins");
+        const bool loadedNow = addons::contentDirs(QStringLiteral("plugins")).contains(plugins);
+        QFile mf(addons::addonsRoot() + QLatin1String("/check-linux-old/manifest.json"));
+        mf.open(QIODevice::ReadOnly);
+        QJsonObject m = QJsonDocument::fromJson(mf.readAll()).object();
+        mf.close();
+        m.remove(QStringLiteral("runtime")); // as an add-on of 0.70.0 or older
+        mf.open(QIODevice::WriteOnly | QIODevice::Truncate);
+        mf.write(QJsonDocument(m).toJson());
+        mf.close();
+        bool marked = false;
+        for (const addons::Installed &in : addons::installedAddons())
+            if (in.manifest.id == QLatin1String("check-linux-old"))
+                marked = in.otherRuntime;
+        check(inst && loadedNow && marked && !addons::contentDirs(QStringLiteral("plugins")).contains(plugins),
+              QStringLiteral("an installed add-on of the old runtime stays installed, marked, and its plugins are not loaded"),
+              QStringLiteral("installed %1, loaded before %2, marked %3; %4").arg(inst).arg(loadedNow).arg(marked).arg(err));
+        addons::removeAddon(QStringLiteral("check-linux-old"), &err);
+    }
+#endif
+
     const QString linuxNew = makeAddon(dir, QStringLiteral("check-linux-new"),
                                        {{QStringLiteral("plugins/libqb-check.so"), QByteArray("x")}}, QStringLiteral("linux-x86_64"), &log);
     const addons::PackageInfo b = addons::inspect(linuxNew);

@@ -3,7 +3,7 @@
 <component type="desktop-application">
   <id>io.github.shelin_boop.Quillbinder</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>0BSD</project_license>
+  <project_license>Apache-2.0</project_license>
   <name>Quillbinder</name>
   <summary>Write, organize and compile long texts</summary>
   <description>

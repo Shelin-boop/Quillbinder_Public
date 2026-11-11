@@ -1,10 +1,8 @@
 #!/bin/bash
-# Builds the AppImage on Ubuntu 24.04 LTS.
+# Builds the AppImage on Ubuntu 24.04 LTS, with The Qt Company's own build of the Qt version in CMakeLists.txt
+# (QB_QT_VERSION; since 0.80.0, runtime u2404-qt6.12-r1) in /opt/qt/<version>/gcc_64 or QB_QT_DIR.
 #
-#   sudo apt install build-essential cmake qt6-base-dev qt6-base-private-dev qt6-svg-dev qt6-pdf-dev \
-#        qt6-wayland libqt6svg6 qt6-xdgdesktopportal-platformtheme qt6-image-formats-plugins \
-#        libhunspell-dev zlib1g-dev file
-#   (or tools/cloud-setup.sh; a plugin that is not installed is left out of the AppImage with a note)
+#   tools/cloud-setup.sh                  (Ubuntu packages, and Qt through tools/get-qt.sh)
 #   packaging/build-appimage.sh
 #
 # Result: build-appimage/<Name>-<version>-x86_64.AppImage
@@ -19,7 +17,10 @@ APP_NAME=$(sed -n 's/^set(APP_NAME *"\(.*\)")/\1/p' "$ROOT/CMakeLists.txt")
 VERSION=$(sed -n 's/^set(APP_VERSION *"\(.*\)")/\1/p' "$ROOT/CMakeLists.txt")
 # "alpha", "beta" or empty: goes into the file name only (Quillbinder-0.30.0-alpha-x86_64.AppImage)
 LABEL=$(sed -n 's/^set(APP_VERSION_LABEL *"\(.*\)")/\1/p' "$ROOT/CMakeLists.txt")
-QTPLUGINS=${QTPLUGINS:-/usr/lib/x86_64-linux-gnu/qt6/plugins}
+QT_VERSION=$(sed -n 's/^set(QB_QT_VERSION *"\(.*\)")/\1/p' "$ROOT/CMakeLists.txt")
+export QB_QT_DIR=${QB_QT_DIR:-/opt/qt/$QT_VERSION/gcc_64}
+[ -x "$QB_QT_DIR/bin/qmake" ] || { echo "Qt $QT_VERSION is not in $QB_QT_DIR (tools/get-qt.sh)" >&2; exit 1; }
+QTPLUGINS=$QB_QT_DIR/plugins
 export APPIMAGE_EXTRACT_AND_RUN=1   # the tools also run without FUSE (containers)
 
 # ---------------------------------------------------------------- tools
@@ -61,11 +62,15 @@ fetch runtime-x86_64 \
 # ---------------------------------------------------------------- licenses (0.50)
 # The license list (Help > Third-Party Licenses) names the source of exactly the libraries
 # this system has and of this runtime; brought up to date before the program is built.
-python3 -I "$ROOT/tools/collect-licenses.py" --refresh "$ROOT/resources/licenses" "$TOOLS/runtime-x86_64"
+# QB_LICENSES_WRITE=1 (0.80.0, a new runtime): the list is made anew from the AppDir (Ubuntu's packages and Qt's
+# attribution files of tools/get-qt-licenses.sh), then the script starts again with it
+if [ "${QB_LICENSES_WRITE:-0}" != 1 ]; then
+    python3 -I "$ROOT/tools/collect-licenses.py" --refresh "$ROOT/resources/licenses" "$TOOLS/runtime-x86_64"
+fi
 python3 -I "$ROOT/tools/gen-resources.py" > /dev/null
 
 # ---------------------------------------------------------------- build
-cmake -S "$ROOT" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release -DQB_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/usr
+cmake -S "$ROOT" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release -DQB_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/usr -DQB_QT_DIR="$QB_QT_DIR"
 cmake --build "$BUILD" -j"$(nproc)"
 rm -rf "$APPDIR"
 DESTDIR="$APPDIR" cmake --install "$BUILD"
@@ -73,8 +78,11 @@ strip "$APPDIR/usr/bin/$APP_ID" "$APPDIR"/usr/lib/"$APP_ID"/plugins/*.so 2>/dev/
 
 # ---------------------------------------------------------------- Qt and libraries
 export PATH="$TOOLS:$PATH"
-export QMAKE=${QMAKE:-/usr/lib/qt6/bin/qmake}
-export EXTRA_PLATFORM_PLUGINS="libqwayland-egl.so;libqwayland-generic.so"
+export QMAKE=$QB_QT_DIR/bin/qmake
+# linuxdeploy finds the libraries of Qt's own build through the library path (0.80.0)
+export LD_LIBRARY_PATH="$QB_QT_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+# Qt 6.12: one Wayland platform plugin (libqwayland.so) instead of the -egl and -generic ones of Qt 6.4
+export EXTRA_PLATFORM_PLUGINS="libqwayland.so"
 export EXTRA_QT_MODULES="svg;waylandclient"
 export DISABLE_COPYRIGHT_FILES_DEPLOYMENT=1
 
@@ -149,6 +157,15 @@ missing=$(find "$APPDIR/usr" -type f \( -name '*.so*' -o -path '*/bin/*' \) | wh
     LD_LIBRARY_PATH="$APPDIR/usr/lib" ldd "$f" 2>/dev/null | grep 'not found' | sed "s|^|$f: |" || true; done)
 if [ -n "$missing" ]; then
     echo "Missing libraries:"; echo "$missing"; exit 1
+fi
+
+if [ "${QB_LICENSES_WRITE:-0}" = 1 ]; then
+    QTLIC=${QB_QT_LICENSES:-$ROOT/build/qt-licenses}
+    [ -d "$QTLIC/qtbase" ] || "$ROOT/tools/get-qt-licenses.sh" "$QTLIC"
+    python3 -I "$ROOT/tools/collect-licenses.py" --qt-licenses "$QTLIC" "$APPDIR" "$ROOT/resources/licenses"
+    python3 -I "$ROOT/tools/collect-licenses.py" --refresh "$ROOT/resources/licenses" "$TOOLS/runtime-x86_64"
+    echo "license list made anew: building again with it"
+    QB_LICENSES_WRITE=0 exec "$0" "$@"
 fi
 
 # ---------------------------------------------------------------- licenses (0.40)
