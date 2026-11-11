@@ -37,6 +37,9 @@ struct ReplaceResult {
     int documents = 0;   // documents with at least one replacement
     int snapshots = 0;
     QString error;       // bad regular expression, or a file that could not be written
+    // 0.81.1 (audit of 0.81.0, F-01): documents that may hold a match but were left as they are, because their file
+    // cannot be read (it is never written over)
+    QStringList skipped;
     int total() const { return titles + texts + notes + synopses + custom + comments; }
 };
 

@@ -3269,6 +3269,48 @@ Quelle: %1</translation>
             <source>its folder could not be made</source>
             <translation>sein Ordner konnte nicht angelegt werden</translation>
         </message>
+        <message>
+            <source>The last save of this project was cut off, and its journal (the list of the files that save was putting in place) cannot be read: %1. So it is not known which of its files were already in place; none of them was put in place or deleted now.</source>
+            <translation>Das letzte Speichern dieses Projekts wurde abgebrochen, und sein Protokoll (die Liste der Dateien, die dieses Speichern an ihren Platz bringen wollte) kann nicht gelesen werden: %1. Darum ist nicht bekannt, welche seiner Dateien schon an ihrem Platz waren; keine von ihnen wurde jetzt an ihren Platz gebracht oder gelöscht.</translation>
+        </message>
+        <message>
+            <source>The journal and the files of that save could not be moved aside; they are left in the project folder (their names end in .qbstage).</source>
+            <translation>Das Protokoll und die Dateien dieses Speicherns konnten nicht beiseitegelegt werden; sie bleiben im Projektordner (ihre Namen enden auf .qbstage).</translation>
+        </message>
+        <message numerus="yes">
+            <source>The journal and the %n file(s) that save had written beside their targets are kept in:
+%1</source>
+            <translation>
+            <numerusform>Das Protokoll und die %n Datei, die dieses Speichern neben ihr Ziel geschrieben hatte, sind aufbewahrt in:
+%1</numerusform>
+            <numerusform>Das Protokoll und die %n Dateien, die dieses Speichern neben ihre Ziele geschrieben hatte, sind aufbewahrt in:
+%1</numerusform>
+        </translation>
+        </message>
+        <message>
+            <source>The documents are as they are on disk: some may be from that save and some from the save before. Look at the documents you changed last; the kept files hold the texts of that save and open in a text editor.</source>
+            <translation>Die Dokumente sind so, wie sie auf dem Datenträger stehen: Manche können von diesem Speichern sein, manche vom Speichern davor. Sehen Sie sich die Dokumente an, die Sie zuletzt geändert haben; die aufbewahrten Dateien enthalten die Texte dieses Speicherns und lassen sich in einem Texteditor öffnen.</translation>
+        </message>
+        <message>
+            <source>Another computer</source>
+            <translation>Ein anderer Computer</translation>
+        </message>
+        <message>
+            <source>%1 began a save of this project at %2 that has not ended yet, or whose files are still arriving through the sync folder. Nothing of that save was changed here, and this computer does not save the project until that save is complete (it tries again by itself); your changes stay in memory meanwhile. If %1 stopped during that save, this computer finishes it 15 minutes after it began.</source>
+            <translation>%1 hat um %2 ein Speichern dieses Projekts begonnen, das noch nicht beendet ist oder dessen Dateien noch über den Synchronisationsordner ankommen. Von diesem Speichern wurde hier nichts verändert, und dieser Computer speichert das Projekt erst, wenn es vollständig ist (er versucht es von selbst wieder); Ihre Änderungen bleiben so lange im Speicher. Wenn %1 während dieses Speicherns stehen geblieben ist, schließt dieser Computer es 15 Minuten nach seinem Beginn ab.</translation>
+        </message>
+        <message>
+            <source>unreadable save journal %1</source>
+            <translation>unlesbares Speicherprotokoll %1</translation>
+        </message>
+        <message>
+            <source>it is not complete or damaged (%1)</source>
+            <translation>es ist unvollständig oder beschädigt (%1)</translation>
+        </message>
+        <message>
+            <source>it lists no files</source>
+            <translation>es nennt keine Dateien</translation>
+        </message>
     </context>
     <context>
         <name>RegionPicker</name>
@@ -5803,6 +5845,10 @@ Dies kann nicht als Ganzes rückgängig gemacht werden.%3</translation>
             <source>Stop</source>
             <translation>Stopp</translation>
         </message>
+        <message>
+            <source>Left as they are, because their file cannot be read (such a file is never written over): %1.</source>
+            <translation>Unverändert gelassen, weil ihre Datei nicht gelesen werden kann (eine solche Datei wird nie überschrieben): %1.</translation>
+        </message>
     </context>
     <context>
         <name>qb::Copyholder</name>
@@ -6089,6 +6135,42 @@ Dies kann nicht als Ganzes rückgängig gemacht werden.%3</translation>
         <message>
             <source>text</source>
             <translation>Text</translation>
+        </message>
+        <message>
+            <source>%1 (changed, not saved)</source>
+            <translation>%1 (geändert, nicht gespeichert)</translation>
+        </message>
+        <message>
+            <source>its file is damaged or was saved by another program in another character encoding</source>
+            <translation>seine Datei ist beschädigt oder wurde von einem anderen Programm in einer anderen Zeichenkodierung gespeichert</translation>
+        </message>
+        <message>
+            <source>its file has not arrived on this computer yet</source>
+            <translation>seine Datei ist noch nicht auf diesem Computer angekommen</translation>
+        </message>
+        <message>
+            <source>its file cannot be read</source>
+            <translation>seine Datei kann nicht gelesen werden</translation>
+        </message>
+        <message>
+            <source>&quot;%1&quot; cannot be changed here: %2, and its place is kept for it. Close the project and open it again once the sync program is done.</source>
+            <translation>„%1“ kann hier nicht geändert werden: %2, und sein Platz bleibt ihm vorbehalten. Schließen Sie das Projekt und öffnen Sie es wieder, wenn das Synchronisationsprogramm fertig ist.</translation>
+        </message>
+        <message>
+            <source>&quot;%1&quot; cannot be changed here: %2, and such a file is never written over. Check the file&apos;s permissions or the drive it is on, then close and reopen the project.</source>
+            <translation>„%1“ kann hier nicht geändert werden: %2, und eine solche Datei wird nie überschrieben. Prüfen Sie die Rechte der Datei oder das Laufwerk, auf dem sie liegt, und schließen und öffnen Sie das Projekt dann erneut.</translation>
+        </message>
+        <message>
+            <source>%1 notes (damaged)</source>
+            <translation>%1 Notizen (beschädigt)</translation>
+        </message>
+        <message>
+            <source>%1 text (damaged)</source>
+            <translation>%1 Text (beschädigt)</translation>
+        </message>
+        <message>
+            <source>The damaged file of &quot;%1&quot; could not be kept as a copy in %2, so it was not replaced. Check that the project folder is writable and the disk is not full.</source>
+            <translation>Die beschädigte Datei von „%1“ konnte nicht als Kopie in %2 aufbewahrt werden, darum wurde sie nicht ersetzt. Prüfen Sie, ob der Projektordner beschreibbar und der Datenträger nicht voll ist.</translation>
         </message>
     </context>
     <context>
@@ -8162,6 +8244,16 @@ Der aktuelle Text wurde nicht geändert.</translation>
         <message>
             <source>The snapshot&apos;s new title could not be stored: %1</source>
             <translation>Der neue Titel der Momentaufnahme konnte nicht gespeichert werden: %1</translation>
+        </message>
+        <message>
+            <source>The file of this text was damaged. It was kept as a copy:
+%1
+
+The text of the snapshot &quot;%2&quot; is now the document&apos;s text; it can be edited again and is saved with the next save.</source>
+            <translation>Die Datei dieses Textes war beschädigt. Sie wurde als Kopie aufbewahrt:
+%1
+
+Der Text des Schnappschusses „%2“ ist jetzt der Text des Dokuments; er kann wieder bearbeitet werden und wird beim nächsten Speichern gespeichert.</translation>
         </message>
     </context>
     <context>
@@ -11892,6 +11984,50 @@ Eine Momentaufnahme lässt sich auf der Registerkarte „Momentaufnahmen“ des 
         <message>
             <source>The last session was ended before its backup could be made (a shutdown or a kill command); the backup was made now: %1</source>
             <translation>Die letzte Sitzung wurde beendet, bevor ihre Sicherung erstellt werden konnte (Herunterfahren oder ein Befehl zum Beenden); die Sicherung wurde jetzt erstellt: %1</translation>
+        </message>
+        <message>
+            <source>The %1 of &quot;%2&quot; was changed, but it cannot be saved: its file cannot be read, and such a file is never written over. The change could not be kept as a copy either (is the disk full?); it exists only in this window. Copy the text into a new document to keep it.</source>
+            <translation>%1 von „%2“ wurde geändert, kann aber nicht gespeichert werden: Seine Datei kann nicht gelesen werden, und eine solche Datei wird nie überschrieben. Die Änderung konnte auch nicht als Kopie aufbewahrt werden (ist der Datenträger voll?); sie besteht nur in diesem Fenster. Kopieren Sie den Text in ein neues Dokument, um ihn zu behalten.</translation>
+        </message>
+        <message>
+            <source>The %1 of &quot;%2&quot; was changed, but it is not saved in its place: its file cannot be read, and such a file is never written over. The changed text was kept as a copy:
+%3
+
+Open it in a word processor, or repair the document (Roll Back to a snapshot in the inspector) and take the change over.</source>
+            <translation>%1 von „%2“ wurde geändert, aber nicht an seinem Platz gespeichert: Seine Datei kann nicht gelesen werden, und eine solche Datei wird nie überschrieben. Der geänderte Text wurde als Kopie aufbewahrt:
+%3
+
+Öffnen Sie sie in einer Textverarbeitung, oder reparieren Sie das Dokument (Zurücksetzen auf einen Schnappschuss im Inspektor) und übernehmen Sie die Änderung.</translation>
+        </message>
+        <message>
+            <source>Change Not Saved in Place</source>
+            <translation>Änderung nicht an ihrem Platz gespeichert</translation>
+        </message>
+        <message>
+            <source>&quot;%1&quot; cannot be split: %2, and such a file is never written over. Repair it first (Roll Back to a snapshot in the inspector, or repair the file in the program that wrote it).</source>
+            <translation>„%1“ kann nicht geteilt werden: %2, und eine solche Datei wird nie überschrieben. Reparieren Sie es zuerst (Zurücksetzen auf einen Schnappschuss im Inspektor, oder reparieren Sie die Datei in dem Programm, das sie geschrieben hat).</translation>
+        </message>
+        <message>
+            <source>&quot;%1&quot;: %2</source>
+            <translation>„%1“: %2</translation>
+        </message>
+        <message>
+            <source>&quot;%1&quot; (notes): %2</source>
+            <translation>„%1“ (Notizen): %2</translation>
+        </message>
+        <message>
+            <source>The documents were not merged. These cannot be changed, and their files are never written over:
+%1
+
+Repair them first (Roll Back to a snapshot in the inspector, or repair the file in the program that wrote it and open the project again), then merge.</source>
+            <translation>Die Dokumente wurden nicht zusammengeführt. Diese können nicht geändert werden, und ihre Dateien werden nie überschrieben:
+%1
+
+Reparieren Sie sie zuerst (Zurücksetzen auf einen Schnappschuss im Inspektor, oder reparieren Sie die Datei in dem Programm, das sie geschrieben hat, und öffnen Sie das Projekt erneut), und führen Sie sie dann zusammen.</translation>
+        </message>
+        <message>
+            <source>Not changed, because their file cannot be read (such a file is never written over): %1</source>
+            <translation>Nicht geändert, weil ihre Datei nicht gelesen werden kann (eine solche Datei wird nie überschrieben): %1</translation>
         </message>
     </context>
     <context>
@@ -16311,6 +16447,14 @@ Ihre zuletzt verwendeten Projekte, eigene Designs, Layouts, Symbolleisten und Ta
             <source>Status</source>
             <translation>Status</translation>
         </message>
+        <message>
+            <source>Not saved yet: %1 began a save of this project at %2, and that save is not complete here yet (its files may still be arriving through the sync folder). This computer saves once it is complete, at the latest 15 minutes after it began; it tries again by itself.</source>
+            <translation>Noch nicht gespeichert: %1 hat um %2 ein Speichern dieses Projekts begonnen, und dieses Speichern ist hier noch nicht vollständig (seine Dateien kommen vielleicht noch über den Synchronisationsordner an). Dieser Computer speichert, sobald es vollständig ist, spätestens 15 Minuten nach seinem Beginn; er versucht es von selbst wieder.</translation>
+        </message>
+        <message>
+            <source>another computer</source>
+            <translation>ein anderer Computer</translation>
+        </message>
     </context>
     <context>
         <name>qb::ProjectReplaceDialog</name>
@@ -16505,6 +16649,10 @@ Das lässt sich als Ganzes nicht rückgängig machen.%4</translation>
         <message>
             <source>Stop</source>
             <translation>Stopp</translation>
+        </message>
+        <message>
+            <source>Left as they are, because their file cannot be read (such a file is never written over): %1.</source>
+            <translation>Unverändert gelassen, weil ihre Datei nicht gelesen werden kann (eine solche Datei wird nie überschrieben): %1.</translation>
         </message>
     </context>
     <context>

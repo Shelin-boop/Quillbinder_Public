@@ -24,6 +24,7 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QProgressDialog>
+#include <QStatusBar>
 #include <QLocale>
 #include <QTextBlock>
 
@@ -222,6 +223,7 @@ bool MainWindow::commitStyles(const StyleSheet &sheet, const QHash<QString, QStr
     progress.setMinimumDuration(600);
     progress.setAutoClose(false);
     QString err;
+    (void)m_project->docs()->takeSkippedUnreadable(); // 0.81.1 (F-01): from here on, the ones this change leaves out
     const Formatting oldF = m_project->formatting;
     // a renamed style keeps its place in the chosen style list (0.40.3)
     for (auto it = renamed.cbegin(); it != renamed.cend(); ++it)
@@ -263,6 +265,12 @@ bool MainWindow::commitStyles(const StyleSheet &sheet, const QHash<QString, QStr
     progress.reset();
     if (!ok)
         QMessageBox::warning(styleUiParent(), tr("Styles"), tr("Some documents could not be updated:\n%1").arg(err));
+    // 0.81.1 (audit of 0.81.0, F-01): a document whose file cannot be read keeps the look it was read with (its file is
+    // never written over); the writer is told which
+    if (const QStringList left = m_project->docs()->takeSkippedUnreadable(); !left.isEmpty())
+        statusBar()->showMessage(tr("Not changed, because their file cannot be read (such a file is never written over): %1")
+                                     .arg(left.join(QLatin1String(", "))),
+                                 20000);
     refreshInspector();
     return ok;
 }

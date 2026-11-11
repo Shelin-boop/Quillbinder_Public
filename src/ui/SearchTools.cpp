@@ -189,10 +189,15 @@ void ProjectReplaceDialog::updateButtons()
 
 QString ProjectReplaceDialog::describe(const ReplaceResult &r, bool done)
 {
+    // 0.81.1 (audit of 0.81.0, F-01): documents left out because their file cannot be read are named
+    const QString skipped = r.skipped.isEmpty() ? QString()
+                                                : QLatin1Char('\n') + tr("Left as they are, because their file cannot be read "
+                                                                         "(such a file is never written over): %1.")
+                                                                          .arg(r.skipped.join(QLatin1String(", ")));
     if (!r.error.isEmpty() && r.total() == 0)
-        return r.error;
+        return r.error + skipped;
     if (r.total() == 0)
-        return tr("Nothing found.");
+        return tr("Nothing found.") + skipped;
     QStringList parts;
     auto add = [&parts](int n, const QString &where) {
         if (n > 0)
@@ -211,7 +216,7 @@ QString ProjectReplaceDialog::describe(const ReplaceResult &r, bool done)
         s += QLatin1Char(' ') + tr("Snapshots taken: %1.").arg(r.snapshots);
     if (!r.error.isEmpty())
         s += QLatin1Char('\n') + r.error;
-    return s;
+    return s + skipped;
 }
 
 QString ProjectReplaceDialog::resultText() const { return m_result->text(); }
@@ -412,10 +417,16 @@ void ConvertQuotesDialog::updateButtons()
 
 static QString describeQuotes(const ReplaceResult &r, bool done)
 {
+    // 0.81.1 (audit of 0.81.0, F-01): documents left out because their file cannot be read are named
+    const QString skipped = r.skipped.isEmpty() ? QString()
+                                                : QLatin1Char('\n') + ConvertQuotesDialog::tr("Left as they are, because their file "
+                                                                                              "cannot be read (such a file is never "
+                                                                                              "written over): %1.")
+                                                                          .arg(r.skipped.join(QLatin1String(", ")));
     if (!r.error.isEmpty() && r.total() == 0)
-        return r.error;
+        return r.error + skipped;
     if (r.total() == 0)
-        return ConvertQuotesDialog::tr("No quote marks to convert.");
+        return ConvertQuotesDialog::tr("No quote marks to convert.") + skipped;
     QStringList parts;
     auto add = [&parts](int n, const QString &where) {
         if (n > 0)
@@ -435,7 +446,7 @@ static QString describeQuotes(const ReplaceResult &r, bool done)
         s += QLatin1Char(' ') + ConvertQuotesDialog::tr("Snapshots taken: %1.").arg(r.snapshots);
     if (!r.error.isEmpty())
         s += QLatin1Char('\n') + r.error;
-    return s;
+    return s + skipped;
 }
 
 QString ConvertQuotesDialog::resultText() const { return m_result->text(); }

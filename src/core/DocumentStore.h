@@ -64,8 +64,9 @@ public:
     void setContent(const QString &id, const QTextDocument *source);
     void setNotesContent(const QString &id, const QTextDocument *source);
 
-    // Serialize / deserialize in the project storage format (snapshots)
-    QByteArray serialize(const QString &id, const QTextDocument *doc);
+    // Serialize / deserialize in the project storage format (snapshots). 0.81.1 (audit of 0.81.0, F-02): `notes` says
+    // whose pictures `doc` holds (the text's or the notes'), so that a picture written once is found again
+    QByteArray serialize(const QString &id, const QTextDocument *doc, bool notes = false);
     // 0.65.0 (audit F04): why the last serialize could not write a picture of the text ("" when it could)
     QString serializeError() const { return m_serializeError; }
     // the document's title and its place in the binder ("Draft / Part One"), for the save journal (0.65.0)
@@ -117,6 +118,16 @@ public:
     // 0.70.0: the file is there and was read, but it is damaged or in another character encoding: shown as read,
     // read-only, never written
     bool isDamaged(const QString &id, bool notes = false) const { return m_damaged.contains(keyFor(id, notes)); }
+    // 0.81.1 (audit of 0.81.0, F-01): why a command must not change the text (or notes) of this document, as a part
+    // of a sentence ("its file cannot be read"); "" when it may. Only documents read so far are known.
+    QString whyNotEditable(const QString &id, bool notes = false) const;
+    // 0.81.1 (F-01, Roll Back): a damaged text becomes editable again; its damaged file is kept as a copy in
+    // settings/conflicts first (*copy). False with a reason when the copy could not be made, or when the file was
+    // not read at all (cannot be read, has not arrived): such a text stays read-only.
+    bool releaseDamaged(const QString &id, bool notes, QString *copy, QString *error);
+    // 0.81.1 (F-01): the titles of the documents editStored and restyleAll left as they were because their file
+    // cannot be read, since the last call
+    QStringList takeSkippedUnreadable();
     // Documents the project file lists with text whose text file is not there (0.64; a project in
     // Scrivener format: none, its working copy is on this computer).
     QStringList textsNotArrived() const;
@@ -142,6 +153,12 @@ signals:
     void damagedFile(const QString &id, bool notes, const QString &path, const QString &why);
     // 0.70.0 (audit B F-4): the text holds control characters, which are left out when it is stored (once per document)
     void charactersLeftOut(const QString &id, bool notes, int count);
+    // 0.81.1 (audit of 0.81.0, F-01): a text that was read-only because its file was damaged can be edited again
+    void editableAgain(const QString &id, bool notes);
+    // 0.81.1 (F-01): a document whose file cannot be read was changed in memory all the same (by a command that does
+    // not ask first). Its file is not written over; the changed text was kept as an RTF file `copy` in
+    // settings/conflicts ("" when that failed too: then it stays unsaved).
+    void changeKeptAside(const QString &id, bool notes, const QString &copy);
 
 private:
     static QString decodeStored(const QByteArray &data, QString *damage);
@@ -174,6 +191,18 @@ private:
     QSet<QString> m_missing;    // ids of texts whose file has not arrived (0.64)
     QSet<QString> m_toldControl; // keys told about control characters left out (0.70.0)
     QSet<QString> m_damaged;    // keys of files read but damaged or in another encoding (0.70.0)
+    // 0.81.1 (audit of 0.81.0, F-01): an unreadable entry as it was read (written the way the store writes, with the
+    // formatting and storage of that moment): a text only shown is told from one a command changed
+    struct Shown {
+        QByteArray bytes;
+        Formatting formatting;
+        StorageFormat storage = StorageFormat::Markdown;
+    };
+    QByteArray shownBytes(const QTextDocument *doc, const Formatting &f, StorageFormat storage) const;
+    void noteSkipped(const QString &id, bool notes);
+    QHash<QString, Shown> m_shown;
+    QSet<QString> m_toldNotKept; // keys whose changed text could not be kept either (told once)
+    QStringList m_skippedUnreadable;
     QHash<QString, QString> m_plainCache;
     QSet<QString> m_countPending;
     QTimer m_countTimer;

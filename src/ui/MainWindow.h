@@ -104,6 +104,8 @@ public:
     QString lastEmergencyNotice() const { return m_lastEmergencyNotice; }
     // 0.65.0 (audit F19): what the opening found of an interrupted save (shown once; the last text for the tests)
     QString lastSaveRecoveryNotice() const { return m_lastSaveRecovery; }
+    // 0.81.1 (audit of 0.81.0, F-01): the last notice about a change kept aside (a document whose file cannot be read)
+    QString lastChangeKeptAside() const { return m_lastChangeKeptAside; }
     // 0.70.0 (audit A U-05): File > Back Up > Restore From Backup (a list of this project's backups); the file
     // restored and opened (the checks call restoreBackupFile; lastRestoredProject() names what was opened)
     void restoreBackup();
@@ -400,6 +402,7 @@ private:
     QString m_lastLockProblem;
     QString m_lastEmergencyNotice;
     QString m_lastSaveRecovery;
+    QString m_lastChangeKeptAside;
     QLabel *m_saveState = nullptr;
     QTimer *m_saveStateTimer = nullptr;
     QTimer *m_saveRetry = nullptr;

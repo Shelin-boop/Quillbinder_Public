@@ -1,6 +1,6 @@
 // The readers against damaged input (0.80.0; the external audit of 2026-11-09, ST-5): small valid inputs of each
 // format are damaged in fixed-seed ways (bits flipped, bytes changed, put in, taken out, cut off, pieces repeated)
-// and fed to the reader in this process. A reader passes when every damaged input comes back: no crash, no
+// and fed to the reader in this process (RTF: the writer too, since 0.81.1). A reader passes when every damaged input comes back: no crash, no
 // exception, and no input slower than the time limit. RTF, Markdown, XML, ZIP, DOCX and ODT (the whole file
 // damaged, and the XML inside damaged and packed again), the Word 97 reader (CFB) and Scrivener projects (.scrivx).
 //
@@ -316,10 +316,15 @@ int main(int argc, char **argv)
     const QString t = tmp.path();
     const Formatting f;
 
-    // RTF: the reader of Scrivener's documents, notes and synopses
-    report(fuzz(QStringLiteral("RTF"), {QByteArray(kRtf)}, rounds * 3, seed, [&](const QByteArray &in) {
+    // RTF: the reader of Scrivener's documents, notes and synopses, and (0.81.1, audit of 0.81.0, F-04) the writer on
+    // what the reader made of it: a damaged file once gave a table the writer did not return from. Seed inputs: a valid
+    // file, and the auditor's input of that finding (tests/fuzz/inputs).
+    const QByteArray auditInput = readFile(QStringLiteral(QB_TEST_SOURCE_DIR "/fuzz/inputs/rtf-figure-in-table-row.rtf"));
+    check(auditInput.size() == 2710, QStringLiteral("the RTF input of the audit of 0.81.0 (F-04) is in tests/fuzz/inputs"));
+    report(fuzz(QStringLiteral("RTF"), {QByteArray(kRtf), auditInput}, rounds * 3, seed, [&](const QByteArray &in) {
         QTextDocument doc;
         rtf::read(in, &doc, f);
+        (void)rtf::write(&doc, f);
         (void)rtf::toPlainText(in);
     }));
 

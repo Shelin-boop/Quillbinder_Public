@@ -28,7 +28,10 @@ bool remove(Project *p, const Snapshot &s);
 bool setTitle(Project *p, const Snapshot &s, const QString &title, QString *error = nullptr);
 // The text replaced with the snapshot; false with a reason (nothing replaced) when it cannot be read whole,
 // or when it holds no text while its file is not empty (0.65.0, audit F02)
-bool rollBack(Project *p, const Snapshot &s, QString *error = nullptr, bool allowEmpty = false);
+// 0.81.1 (audit of 0.81.0, F-01): a text whose file is damaged (shown read-only, never written) is repaired this way:
+// its damaged file is kept as a copy in settings/conflicts first (*keptCopy), then the snapshot's text replaces it and
+// is saved. A text whose file cannot be read at all, or has not arrived yet, is refused with a reason.
+bool rollBack(Project *p, const Snapshot &s, QString *error = nullptr, bool allowEmpty = false, QString *keptCopy = nullptr);
 
 // All snapshots of a project (also of documents in the Trash and of documents no longer there).
 struct Totals {

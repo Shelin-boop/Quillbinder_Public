@@ -211,6 +211,7 @@ ReplaceResult run(Project *p, const ReplaceOptions &o, const ChangeFinder &find,
             textFields.insert(f.id);
 
     DocumentStore *docs = p->docs();
+    (void)docs->takeSkippedUnreadable(); // 0.81.1 (F-01): from here on, the ones this run leaves out
     int done = 0;
     for (BinderItem *it : items) {
         if (progress && !progress(done, int(items.size())))
@@ -286,6 +287,7 @@ ReplaceResult run(Project *p, const ReplaceOptions &o, const ChangeFinder &find,
     }
     if (progress)
         progress(int(items.size()), int(items.size()));
+    r.skipped = docs->takeSkippedUnreadable();
     if (!countOnly && r.total() > 0)
         p->scheduleSave();
     return r;

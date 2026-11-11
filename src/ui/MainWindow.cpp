@@ -2864,6 +2864,29 @@ bool MainWindow::adoptProject(std::unique_ptr<Project> p, bool isNew)
                     showWithoutTakingKeys(box, box->button(QMessageBox::Ok));
                 });
             });
+    // 0.81.1 (audit of 0.81.0, F-01): a document whose file cannot be read was changed by a command all the same: its
+    // file is not written over, and the changed text was kept aside (or could not be)
+    connect(proj->docs(), &DocumentStore::changeKeptAside, this, [this](const QString &id, bool notes, const QString &copy) {
+        BinderItem *it = m_project ? m_project->item(id) : nullptr;
+        const QString title = it ? it->title : id;
+        const QString msg =
+            copy.isEmpty()
+                ? tr("The %1 of \"%2\" was changed, but it cannot be saved: its file cannot be read, and such a file is never "
+                     "written over. The change could not be kept as a copy either (is the disk full?); it exists only in "
+                     "this window. Copy the text into a new document to keep it.")
+                      .arg(notes ? tr("notes") : tr("text"), title)
+                : tr("The %1 of \"%2\" was changed, but it is not saved in its place: its file cannot be read, and such a "
+                     "file is never written over. The changed text was kept as a copy:\n%3\n\nOpen it in a word processor, or "
+                     "repair the document (Roll Back to a snapshot in the inspector) and take the change over.")
+                      .arg(notes ? tr("notes") : tr("text"), title, QDir::toNativeSeparators(copy));
+        m_lastChangeKeptAside = msg;
+        QTimer::singleShot(0, this, [this, msg] {
+            auto *box = new QMessageBox(QMessageBox::Warning, tr("Change Not Saved in Place"), msg, QMessageBox::Ok, this);
+            box->setObjectName(QStringLiteral("changeKeptAsideNotice"));
+            box->setAttribute(Qt::WA_DeleteOnClose);
+            showWithoutTakingKeys(box, box->button(QMessageBox::Ok));
+        });
+    });
     // 0.70.0 (audit B F-4): control characters (from pasted data) are left out when a text is stored
     connect(proj->docs(), &DocumentStore::charactersLeftOut, this, [this](const QString &id, bool notes, int count) {
         BinderItem *it = m_project ? m_project->item(id) : nullptr;
@@ -3594,6 +3617,18 @@ void MainWindow::splitDocument(bool selectionAsTitle)
         pos = c.selectionStart();
     }
     QTextDocument *doc = e->document();
+    // 0.81.1 (audit of 0.81.0, F-01): not a text whose file cannot be read (shown read-only, never written): the part
+    // split off would have stayed in the shown text too, and the change to it in memory only
+    if (const QString why = m_project->docs()->whyNotEditable(item->id); !why.isEmpty()) {
+        const QString msg = tr("\"%1\" cannot be split: %2, and such a file is never written over. Repair it first (Roll "
+                               "Back to a snapshot in the inspector, or repair the file in the program that wrote it).")
+                                .arg(item->title, why);
+        if (QB_TEST_ENV_SET("QB_NO_DIALOGS"))
+            statusBar()->showMessage(msg, 10000);
+        else
+            QMessageBox::information(this, tr("Split"), msg);
+        return;
+    }
     // 0.64.1: not inside a table or a figure. Qt widens a selection that leaves a frame to the whole
     // frame, so the split lost the table (or the figure) from both documents.
     {
@@ -3680,6 +3715,32 @@ void MainWindow::mergeDocuments()
             pb.prepend(x->row());
         return pa < pb;
     });
+    // 0.81.1 (audit of 0.81.0, F-01): not with a document whose text or notes cannot be read. Its file is never written,
+    // so the merged text would have existed only in memory while the others went to the Trash.
+    {
+        QStringList blocked;
+        for (BinderItem *it : std::as_const(items)) {
+            m_project->docs()->text(it->id);
+            m_project->docs()->notes(it->id);
+            const QString why = m_project->docs()->whyNotEditable(it->id);
+            const QString whyNotes = m_project->docs()->whyNotEditable(it->id, true);
+            if (!why.isEmpty())
+                blocked << tr("\"%1\": %2").arg(it->title, why);
+            else if (!whyNotes.isEmpty())
+                blocked << tr("\"%1\" (notes): %2").arg(it->title, whyNotes);
+        }
+        if (!blocked.isEmpty()) {
+            const QString msg = tr("The documents were not merged. These cannot be changed, and their files are never "
+                                   "written over:\n%1\n\nRepair them first (Roll Back to a snapshot in the inspector, or "
+                                   "repair the file in the program that wrote it and open the project again), then merge.")
+                                    .arg(blocked.join(QLatin1Char('\n')));
+            if (QB_TEST_ENV_SET("QB_NO_DIALOGS"))
+                statusBar()->showMessage(msg, 15000);
+            else
+                QMessageBox::information(this, tr("Merge Documents"), msg);
+            return;
+        }
+    }
     if (ask::question(this, tr("Merge Documents"),
                               tr("Merge %1 documents into \"%2\"? The others are moved to the Trash.")
                                   .arg(items.size())

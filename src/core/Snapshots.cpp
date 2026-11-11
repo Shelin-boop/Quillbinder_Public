@@ -220,7 +220,7 @@ bool setTitle(Project *, const Snapshot &s, const QString &title, QString *error
     return updateIndex(dir, [&](QJsonObject &idx) { idx.insert(QFileInfo(s.file).fileName(), title); }, error);
 }
 
-bool rollBack(Project *p, const Snapshot &s, QString *error, bool allowEmpty)
+bool rollBack(Project *p, const Snapshot &s, QString *error, bool allowEmpty, QString *keptCopy)
 {
     QTextDocument tmp;
     if (!load(p, s, &tmp, error))
@@ -231,6 +231,12 @@ bool rollBack(Project *p, const Snapshot &s, QString *error, bool allowEmpty)
             *error = QObject::tr("The snapshot holds no text (it may be damaged). The current text was kept.");
         return false;
     }
+    // 0.81.1 (audit of 0.81.0, F-01): before, the snapshot's text replaced a damaged text in memory only (such a text is
+    // never written), the roll back said it worked, and after reopening the damaged text was back. Now the damaged file
+    // is kept first and the text becomes editable, so the save writes the snapshot's text.
+    p->docs()->text(s.id); // read, so that the store knows whether its file can be read
+    if (p->docs()->isUnreadable(s.id) && !p->docs()->releaseDamaged(s.id, false, keptCopy, error))
+        return false;
     p->docs()->setContent(s.id, &tmp);
     return true;
 }

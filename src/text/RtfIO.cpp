@@ -437,10 +437,20 @@ private:
                     p.replace(0, int(qstrlen("\\pard\\plain")), "\\pard\\plain\\intbl");
                     paras << p;
                 };
+                // 0.81.1 (audit of 0.81.0, F-04): the walk stops where the cell ends and as soon as it does not move on.
+                // A table built from a damaged file held a cell that "ended" before it began; Qt's walk over it never
+                // reached its end, and the save (or the emergency copy, or Copy) froze the program.
+                int reached = -1;
                 for (QTextFrame::iterator it = cell.begin(); !it.atEnd(); ++it) {
-                    if (it.currentBlock().isValid()) {
-                        add(it.currentBlock());
-                    } else if (QTextFrame *inner = it.currentFrame()) {
+                    const QTextBlock cb = it.currentBlock();
+                    QTextFrame *const frame = cb.isValid() ? nullptr : it.currentFrame();
+                    const int at = cb.isValid() ? cb.position() : frame ? frame->firstPosition() : -1;
+                    if (at <= reached || at > cell.lastPosition())
+                        break;
+                    reached = frame ? frame->lastPosition() : at;
+                    if (cb.isValid()) {
+                        add(cb);
+                    } else if (QTextFrame *inner = frame) {
                         // 0.64.1 (system test C-28): a table or a figure inside a cell (pasted from a word
                         // processor) was left out, with its text; its paragraphs go into the cell, one after
                         // the other (as in Markdown storage)
@@ -1472,10 +1482,17 @@ private:
                 if (m_qbDataKind == QLatin1String("qbtable"))
                     m_rowDef.qbSpec = m_collect.trimmed();
                 else if (m_qbDataKind == QLatin1String("qbfigure")) {
-                    m_figureStart = m_cur.blockNumber();
-                    m_figureJson = m_collect.trimmed();
-                } else if (m_qbDataKind == QLatin1String("qbfigureend"))
-                    m_figureEnd = m_cur.blockNumber();
+                    // 0.81.1 (audit of 0.81.0, F-04): a figure begins only outside a table. This program never writes
+                    // one inside a table row; in a damaged file the two overlapped, the table was built from paragraphs
+                    // the figure had taken away, and the writer froze on it. Its paragraphs stay text.
+                    const bool inTable = !m_tableRows.isEmpty() || !m_rowCells.isEmpty() || ps().intbl;
+                    m_figureStart = inTable ? -1 : m_cur.blockNumber();
+                    m_figureEnd = -1;
+                    m_figureJson = inTable ? QString() : m_collect.trimmed();
+                } else if (m_qbDataKind == QLatin1String("qbfigureend")) {
+                    if (m_figureStart >= 0) // the end of a figure that began
+                        m_figureEnd = m_cur.blockNumber();
+                }
                 else if (m_qbDataKind == QLatin1String("qbalt"))
                     m_pendingAlt = m_collect.trimmed();
             }
@@ -1778,6 +1795,12 @@ private:
     // ------------------------------------------------------------ tables (0.62)
     void endCell()
     {
+        // 0.81.1 (audit of 0.81.0, F-04): a table cell inside a figure (never written by this program): the figure is
+        // dropped and its paragraphs stay text, so that the two never take the same paragraphs
+        if (m_figureStart >= 0) {
+            m_figureStart = m_figureEnd = -1;
+            m_figureJson.clear();
+        }
         flushParagraph(false);
         const int last = m_cur.blockNumber();
         m_rowCells << std::make_pair(m_cellFirstBlock >= 0 ? qMin(m_cellFirstBlock, last) : last, last);

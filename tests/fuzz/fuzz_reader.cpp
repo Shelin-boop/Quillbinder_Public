@@ -28,6 +28,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 #if QB_FUZZ_TARGET == 1
     QTextDocument doc;
     qb::rtf::read(in, &doc, f);
+    (void)qb::rtf::write(&doc, f); // 0.81.1 (audit of 0.81.0, F-04): the writer on what the reader made
     (void)qb::rtf::toPlainText(in);
 #elif QB_FUZZ_TARGET == 2
     QTextDocument doc;

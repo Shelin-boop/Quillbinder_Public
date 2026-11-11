@@ -305,8 +305,86 @@ QString Recovery::text() const
     if (dropped > 0 && finished.isEmpty() && kept.isEmpty() && lost.isEmpty())
         parts << QObject::tr("The last save of this project was cut off before it was complete. The project is as it was "
                              "at the save before; changes made after that save are not in it.");
+    // 0.81.1 (audit of 0.81.0, F-03): told by what was found
+    if (!unreadable.isEmpty()) {
+        QString s = QObject::tr("The last save of this project was cut off, and its journal (the list of the files that save "
+                                "was putting in place) cannot be read: %1. So it is not known which of its files were "
+                                "already in place; none of them was put in place or deleted now.")
+                        .arg(unreadable);
+        if (keptFailed)
+            s += QLatin1Char(' ') + QObject::tr("The journal and the files of that save could not be moved aside; they are "
+                                                "left in the project folder (their names end in .qbstage).");
+        else
+            s += QLatin1Char(' ') + QObject::tr("The journal and the %n file(s) that save had written beside their targets "
+                                                "are kept in:\n%1", nullptr, keptFiles)
+                                        .arg(QDir::toNativeSeparators(keptIn));
+        s += QStringLiteral("\n\n") + QObject::tr("The documents are as they are on disk: some may be from that save and some "
+                                                  "from the save before. Look at the documents you changed last; the kept "
+                                                  "files hold the texts of that save and open in a text editor.");
+        parts << s;
+    }
+    if (waiting()) {
+        const QString who = otherDevice.isEmpty() ? QObject::tr("Another computer") : otherDevice;
+        parts << QObject::tr("%1 began a save of this project at %2 that has not ended yet, or whose files are still "
+                             "arriving through the sync folder. Nothing of that save was changed here, and this computer "
+                             "does not save the project until that save is complete (it tries again by itself); your "
+                             "changes stay in memory meanwhile. If %1 stopped during that save, this computer finishes it "
+                             "15 minutes after it began.")
+                     .arg(who, otherSince);
+    }
     return parts.join(QStringLiteral("\n\n"));
 }
+
+namespace {
+
+// a file moved, or copied and removed (another file system); false when it is still where it was
+bool moveFile(const QString &from, const QString &to)
+{
+    QDir().mkpath(QFileInfo(to).absolutePath());
+    if (QFile::rename(from, to))
+        return true;
+    if (!QFile::copy(from, to))
+        return false;
+    if (QFile::remove(from))
+        return true;
+    QFile::remove(to);
+    return false;
+}
+
+// 0.81.1 (F-03): a journal that cannot be read is kept, with every staged file of the project (under its target's
+// name), in a folder of settings/conflicts; nothing is put in place and nothing is deleted
+void keepUnreadable(Recovery &r, const QString &folder, const QString &journal, const QString &settingsDir)
+{
+    const QString when = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH-mm-ss"));
+    const QString base = settingsDir + QStringLiteral("/conflicts/") + QObject::tr("unreadable save journal %1").arg(when);
+    QString dir = base;
+    for (int n = 2; QFileInfo::exists(dir); ++n)
+        dir = base + QStringLiteral(" %1").arg(n);
+    // the journal first: while it is there, its staged files are not taken for those of a save without a journal
+    if (!QDir().mkpath(dir) || !moveFile(journal, dir + QStringLiteral("/journal.json"))) {
+        r.keptFailed = true;
+        return;
+    }
+    r.keptIn = dir;
+    QStringList staged;
+    QDirIterator it(folder, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        const QString p = it.next();
+        if (isStaged(p) && !QDir::cleanPath(p).startsWith(QDir::cleanPath(dir) + QLatin1Char('/')))
+            staged << p;
+    }
+    for (const QString &p : std::as_const(staged)) {
+        QString rel = relativeTo(folder, p);
+        rel.chop(int(qstrlen(kStageSuffix)));
+        if (moveFile(p, dir + QLatin1Char('/') + rel))
+            ++r.keptFiles;
+        else
+            r.keptFailed = true;
+    }
+    syncFolder(QFileInfo(journal).absolutePath());
+}
+
+} // namespace
 
 Recovery recover(const QString &folder, const QString &journal, const QString &settingsDir)
 {
@@ -315,9 +393,43 @@ Recovery recover(const QString &folder, const QString &journal, const QString &s
     if (QFile::exists(journal)) {
         QFile f(journal);
         QJsonObject root;
-        if (f.open(QIODevice::ReadOnly))
-            root = QJsonDocument::fromJson(f.readAll()).object();
+        // 0.81.1 (audit of 0.81.0, F-03): a journal that cannot be read is not taken for an empty one (before, it was
+        // deleted with every staged file of its save, and the notice said the project was as at the save before)
+        QString unreadable;
+        if (!f.open(QIODevice::ReadOnly)) {
+            unreadable = f.errorString();
+        } else {
+            QJsonParseError pe;
+            const QJsonDocument d = QJsonDocument::fromJson(f.readAll(), &pe);
+            if (f.error() != QFileDevice::NoError)
+                unreadable = f.errorString();
+            else if (pe.error != QJsonParseError::NoError)
+                unreadable = QObject::tr("it is not complete or damaged (%1)").arg(pe.errorString());
+            else if (!d.isObject() || !d.object().value(QStringLiteral("files")).isArray())
+                unreadable = QObject::tr("it lists no files");
+            else
+                root = d.object();
+        }
         f.close();
+        if (!unreadable.isEmpty()) {
+            r.unreadable = unreadable;
+            keepUnreadable(r, folder, journal, settingsDir);
+            return r;
+        }
+        // 0.81.1 (F-03): the journal of another computer (seen through a sync folder) is left alone while its save may
+        // still be running there or its files arriving here; after kOtherSaveWait it is finished like one of this computer
+        const QString key = root.value(QStringLiteral("key")).toString();
+        const QString ours = syncsafe::machineKey();
+        if (!key.isEmpty() && !ours.isEmpty() && key != ours) {
+            QDateTime began = QDateTime::fromString(root.value(QStringLiteral("time")).toString(), Qt::ISODate);
+            if (!began.isValid())
+                began = QFileInfo(journal).lastModified();
+            if (began.secsTo(QDateTime::currentDateTimeUtc()) < kOtherSaveWait) { // also when that computer's clock is ahead
+                r.otherDevice = root.value(QStringLiteral("device")).toString();
+                r.otherSince = began.toLocalTime().toString(QStringLiteral("yyyy-MM-dd HH:mm"));
+                return r; // nothing touched, not even staged files without a journal: they may be that save's
+            }
+        }
         const QString when = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH-mm-ss"));
         for (const QJsonValue &v : root.value(QStringLiteral("files")).toArray()) {
             const QJsonObject o = v.toObject();

@@ -16,4 +16,6 @@ cmake --build build-fuzz --target qb_fuzz_rtf qb_fuzz_markdown qb_fuzz_xml qb_fu
 mkdir -p corpus-rtf && build-fuzz/tests/fuzz/qb_fuzz_rtf corpus-rtf -max_total_time=3600
 ```
 
-  A file libFuzzer reports (`crash-...`) goes into `qb_fuzz_tests` as a new seed input once the reader is fixed.
+  A file libFuzzer reports (`crash-...`, `timeout-...`) goes into `inputs/` and into `qb_fuzz_tests` as a new seed input
+  once the reader is fixed; `inputs/` is also a good starting corpus (`qb_fuzz_rtf corpus-rtf inputs`). The RTF harness
+  writes what it read as well (0.81.1).

@@ -34,7 +34,7 @@ changed and what was checked. Preferences:
   same version number. Audio and video for everyone: the add-on "Media Playback" (free formats), the add-on "Extra
   Video and Audio Formats" (formats licensed under patents), and the package `media-all-formats.qbpkg` that installs
   both in one step (built by `packaging/build-addons.sh`).
-- **Runtime**: the current AppImage is 0.81.0 beta (on the runtime of 0.80.0), runtime id `u2404-qt6.12-r1` (`APP_RUNTIME`, `QB_QT_VERSION`,
+- **Runtime**: the current AppImage is 0.81.1 beta (on the runtime of 0.80.0), runtime id `u2404-qt6.12-r1` (`APP_RUNTIME`, `QB_QT_VERSION`,
   `APP_RUNTIME_SINCE`, `APP_RUNTIME_DATE` in CMakeLists.txt; a new AppImage with other libraries needs a new id).
   The AppImages 0.2.0 to 0.70.0 had `u2404-qt6.4-r1` (Ubuntu's Qt 6.4.2). Program updates (.qbpkg) run on the
   AppImage's libraries: build on Ubuntu 24.04 with Qt 6.12.0 of `tools/get-qt.sh` (`/opt/qt/6.12.0/gcc_64`; CMake
@@ -150,6 +150,11 @@ changed and what was checked. Preferences:
   `qbfaultshim`), linked folders, snapshot titles, unchecked saves, Empty Trash, spare copies, storage conversion, the
   ui file's name, opening with old counts on a full disk, readable explanations, the failed-save notice, First Start,
   the missed backup of a signal, the release gate; `QB_V0810_ONLY=backups,saving,window,release` runs parts).
+- `qb_v0811_tests` (0.81.1 beta, the fixes of the audit of 0.81.0, part 1, the four findings at function level: a damaged
+  text and Roll Back (core and inspector, the damaged file kept), Merge and Split refused, Project Replace and a style
+  change leaving it out, a change kept aside, a text not arrived; pictures in notes written once; a save journal that
+  cannot be read and another computer's journal (young, then old); the auditor's RTF file in a child run with a time
+  limit; Roll Back shows the text at once).
 - `qb_audit1_tests` (0.64.1, the fixes of the external audit of 2026-11-09: ids of a project file and names in archives
   (`core/PathSafety.*`), damaged ZIP entries, a Word 97 file with a looping sector chain (compiles the plugin's `Cfb.cpp`),
   XML nested 20,000 deep, the keys a project may hold and the question of Load Options, the code warning of packages,
@@ -192,6 +197,33 @@ changed and what was checked. Preferences:
    base AppImage, the update and the way back; older AppImages (`tools/e2e-old-version.sh`) only when asked.
    Add-ons are packed with `packaging/build-addons.sh`; an update and add-ons go to the user as one bundle
    (`tools/make-package.py bundle`).
+
+## The audit of 0.81.0 (0.81.1 beta, 2026-11-11, part 1, the four findings at function level)
+
+- **Unreadable documents** (F-01, `core/DocumentStore.*`): `whyNotEditable(id, notes)` (the reason as part of a
+  sentence, "" when editable; only documents read so far are known: load them first), `releaseDamaged` (Roll Back: the
+  damaged file kept with `syncsafe::keepCopy`, the key out of `m_unreadable`/`m_damaged`, signal `editableAgain`, which
+  `TextEditor` follows; a file that cannot be read or has not arrived is refused), `snapshots::rollBack(..., keptCopy)`
+  (the inspector tells with `qbLastRollBackNote` under `QB_NO_DIALOGS`). `editStored` and `restyleAll` leave an
+  unreadable document alone and note its title (`takeSkippedUnreadable`: `ReplaceResult::skipped`, the status bar after
+  `commitStyles`); `convertStorage` and `applyFormatting` leave it as read. Merge (`mergeDocuments`) and Split
+  (`splitDocument`) refuse. Safety net in `writeEntry`: `m_shown` holds an unreadable entry as read (`shownBytes`: the
+  store's own writing, pictures by name, with the formatting and storage of that moment); a different text at the save
+  is written as RTF into `settings/conflicts` ("<title> (changed, not saved) <time>.rtf"), signal `changeKeptAside` ->
+  notice `changeKeptAsideNotice` (`MainWindow::lastChangeKeptAside`); the save is never failed for it (one failing
+  `writeEntry` drops the whole batch). `setContent`/`setNotesContent` call `markContentsDirty` over the whole text: under
+  Qt 6.12 an editor kept the old layout after a whole replacement and showed an empty page.
+- **Pictures in notes** (F-02): `serialize(id, doc, notes)` looks `savedImages` up under the entry's key (`n:<id>`).
+- **Save journal** (F-03, `core/SaveBatch.*`): `recover` keeps a journal that cannot be read (open, JSON, no `files`) with
+  every staged file under its target's name in `settings/conflicts/unreadable save journal <time>/` (`Recovery::unreadable`,
+  `keptIn`, `keptFiles`, `keptFailed`); a journal whose `key` is another computer's and whose `time` is younger than
+  `kOtherSaveWait` (15 min) is left alone with all staged files (`Recovery::waiting()`, `otherDevice`, `otherSince`), and
+  `Project::finishInterruptedSave` (`saveImpl`, `convertStorage`) then refuses to save with the reason (retried by the
+  window). Tests fake another computer's key with `QB_DEVICE_NAME`.
+- **RTF** (F-04, `text/RtfIO.cpp`): a `qbfigure` mark inside a table (rows pending or `intbl`) is ignored, and a cell that
+  ends inside an open figure drops the figure: the two never take the same block numbers. `Writer::table` walks a cell
+  only forward and inside `cell.lastPosition()`. `qb_fuzz_tests` and the libFuzzer RTF harness write what they read;
+  `tests/fuzz/inputs/` holds the auditor's file.
 
 ## The audit of 0.80.0 (0.81.0 beta, 2026-11-11, part 1 of 2)
 

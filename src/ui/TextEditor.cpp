@@ -213,6 +213,14 @@ void TextEditor::setProjectDocument(Project *project, BinderItem *item, QTextDoc
         setPlaceholderText(QString());
     }
     if (project) {
+        // 0.81.1 (audit of 0.81.0, F-01): a damaged text repaired by Roll Back can be edited again
+        connect(project->docs(), &DocumentStore::editableAgain, this, [this](const QString &id, bool notes) {
+            if (!m_item || m_item->id != id || m_isNotes != notes || !property("qbUnreadable").toBool())
+                return;
+            setReadOnly(false);
+            setProperty("qbUnreadable", false);
+            setPlaceholderText(QString());
+        });
         connect(project->docs(), &DocumentStore::zoomChanged, this, [this] { setFont(document()->defaultFont()); });
         // notes have a zoom of their own (the inspector's, 0.21)
         connect(project->docs(), &DocumentStore::notesZoomChanged, this, [this] { setFont(document()->defaultFont()); });

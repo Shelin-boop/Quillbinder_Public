@@ -3,6 +3,35 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.81.1 beta (2026-11-11)
+
+A new AppImage on the runtime of 0.80.0 (`u2404-qt6.12-r1`, the same libraries: the add-ons of 0.80.0 fit, and 0.80.0
+and 0.81.0 take the program update). It brings the fixes of the four findings at function level of the audit of
+0.81.0 (part 1).
+
+- **Documents whose file cannot be read** (F-01). Such a document (damaged, saved by another program in another
+  character encoding, or not arrived yet through a sync folder) is shown read-only and never written over. Commands
+  could still change it in memory, and the save then counted it as saved: a roll back seemed to repair it until the
+  project was opened again, and a merged text existed only in memory while the other documents went to the Trash. Now
+  Roll Back repairs a damaged document (its damaged file is kept as a copy in `settings/conflicts` first, then the
+  snapshot's text is saved in its place); Merge Documents and Split refuse with the reason; Project Replace, Convert
+  Quotes and style changes leave it as it is and name it. A change a command makes all the same is kept as an RTF file
+  in `settings/conflicts`, and a message says where.
+- **Pictures in notes** (F-02). A picture pasted into notes from a word processor was written as a new file with every
+  save of those notes; the project folder, the backups and the sync folder grew. It is written once now.
+- **An interrupted save whose journal cannot be read** (F-03). The journal and the files of that save were deleted, and
+  the notice said the project was as at the save before, though some of its documents could be from the newer save.
+  Now nothing is put in place or deleted: the journal and those files are kept in `settings/conflicts`, and the notice
+  says what was found. In a sync folder, the journal of the other computer's save is left alone for 15 minutes (that
+  save may still be running there or its files still arriving); this computer does not save the project meanwhile
+  and tries again by itself.
+- **A freeze on a damaged RTF file** (F-04). A damaged RTF file could give a table that a figure ran across; writing such
+  a text (a save in RTF storage, the emergency copy, Copy, Scrivener format) never ended, and the program had to be
+  stopped. The reader no longer lets a figure and a table row take the same paragraphs, and the writer stops at the end
+  of every table cell. The auditor's file is a fuzzing input of the tests now, and the fuzz tests write RTF as well.
+- **Roll Back showed an empty page** (found while checking F-01). After a roll back, the editor kept the old layout of
+  the text and showed an empty page until something made it lay the text out again; the text is shown at once now.
+
 ## 0.81.0 beta (2026-11-11)
 
 A new AppImage on the runtime of 0.80.0 (`u2404-qt6.12-r1`, the same libraries: the add-ons of 0.80.0 fit, and 0.80.0

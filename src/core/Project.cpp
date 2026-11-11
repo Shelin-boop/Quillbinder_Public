@@ -796,6 +796,26 @@ bool Project::writeUiState()
 
 QString Project::journalFile() const { return settingsDir() + QStringLiteral("/journal.json"); }
 
+bool Project::finishInterruptedSave(QString *error)
+{
+    if (!QFile::exists(journalFile()))
+        return true;
+    const savebatch::Recovery r = savebatch::recover(m_folder, journalFile(), settingsDir());
+    if (r.any())
+        m_saveRecovery = r.text();
+    // 0.81.1 (audit of 0.81.0, F-03): the journal of another computer's save that may still be running or arriving is
+    // not written over (this save's journal has the same name) and its files are not replaced: this save waits
+    if (r.waiting()) {
+        if (error)
+            *error = tr("Not saved yet: %1 began a save of this project at %2, and that save is not complete here yet (its "
+                        "files may still be arriving through the sync folder). This computer saves once it is complete, at "
+                        "the latest 15 minutes after it began; it tries again by itself.")
+                         .arg(r.otherDevice.isEmpty() ? tr("another computer") : r.otherDevice, r.otherSince);
+        return false;
+    }
+    return true;
+}
+
 QString Project::titleListFile() const { return m_folder + QStringLiteral("/contents-by-title.txt"); }
 
 QString Project::titleListText() const
@@ -994,10 +1014,9 @@ bool Project::saveImpl(QString *error, bool quick)
         return false;
     }
     // 0.65.0 (audit F19): a save of this session that could not put all its files in place is finished first
-    if (QFile::exists(journalFile())) {
-        const savebatch::Recovery r = savebatch::recover(m_folder, journalFile(), settingsDir());
-        if (r.any())
-            m_saveRecovery = r.text();
+    if (!finishInterruptedSave(error)) {
+        m_lastSaveFailed = true;
+        return false;
     }
     // 0.81.0 (S-12): a save with nothing of the writer's to write (new counts only) is told differently when it fails
     const bool writersChanges = hasUnsavedChanges();

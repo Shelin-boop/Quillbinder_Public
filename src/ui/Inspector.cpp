@@ -1135,8 +1135,19 @@ QWidget *Inspector::buildSnapshotsTab()
             tell(tr("A snapshot of the current text could not be taken, so nothing was rolled back:\n%1").arg(why));
             return;
         }
-        if (!snapshots::rollBack(m_project, s, &why, allowEmpty))
+        QString kept;
+        if (!snapshots::rollBack(m_project, s, &why, allowEmpty, &kept)) {
             tell(why);
+        } else if (!kept.isEmpty()) {
+            // 0.81.1 (audit of 0.81.0, F-01): the text's file was damaged; it was kept, and the snapshot's text is saved
+            const QString note = tr("The file of this text was damaged. It was kept as a copy:\n%1\n\nThe text of the snapshot "
+                                    "\"%2\" is now the document's text; it can be edited again and is saved with the next save.")
+                                     .arg(QDir::toNativeSeparators(kept), s.title);
+            if (QB_TEST_ENV_SET("QB_NO_DIALOGS"))
+                setProperty("qbLastRollBackNote", note);
+            else
+                QMessageBox::information(this, tr("Roll Back"), note);
+        }
         refreshSnapshots();
     });
     connect(m_snapList, &QListWidget::itemSelectionChanged, this, &Inspector::showSnapshot);

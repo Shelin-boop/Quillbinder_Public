@@ -92,11 +92,33 @@ struct Recovery {
     QStringList kept;     // the target had changed: the new version kept as a copy
     QStringList lost;     // listed in the journal, but the temporary file was not there
     int dropped = 0;      // temporary files of a save cut off before its journal
-    bool any() const { return !finished.isEmpty() || !kept.isEmpty() || !lost.isEmpty() || dropped > 0; }
+    // 0.81.1 (audit of 0.81.0, F-03): the journal could not be read (why): it is not known which files of its save
+    // were in place, so nothing was put in place or deleted; the journal and the files its save had staged were moved
+    // into keptIn (keptFiles of them), or left where they were (keptFailed)
+    QString unreadable;
+    QString keptIn;
+    int keptFiles = 0;
+    bool keptFailed = false;
+    // 0.81.1 (F-03): the journal of another computer's save that began less than kOtherSaveWait ago (it may still be
+    // running there, or its files still arriving through a sync folder): nothing was touched, and the project is not
+    // saved here until it is gone or old enough
+    QString otherDevice;
+    QString otherSince; // when it began, local time
+    bool waiting() const { return !otherSince.isEmpty(); }
+    bool any() const
+    {
+        return !finished.isEmpty() || !kept.isEmpty() || !lost.isEmpty() || dropped > 0 || !unreadable.isEmpty() || waiting();
+    }
     QString text() const; // for the writer
 };
 
-// At opening, before anything is read (also after a failed commit in this session)
+// 0.81.1 (F-03): how long the save journal of another computer is left alone (seconds; as a lock counts as fresh)
+constexpr qint64 kOtherSaveWait = 15 * 60;
+
+// At opening, before anything is read (also after a failed commit in this session). 0.81.1 (audit of 0.81.0, F-03):
+// a journal that cannot be read is kept with the files of its save (before, the journal and those files were deleted
+// and the notice said the project was as at the save before); a journal of another computer (its "key") is acted on
+// only once it is kOtherSaveWait old.
 Recovery recover(const QString &folder, const QString &journal, const QString &settingsDir);
 
 } // namespace savebatch

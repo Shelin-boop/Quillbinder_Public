@@ -98,6 +98,10 @@ public:
     QString settingsDir() const;
     // the journal of a save in progress (settings/journal.json, 0.65.0, audit F19)
     QString journalFile() const;
+    // A save that was cut off is finished first (savebatch::recover, when a journal is there). 0.81.1 (audit of 0.81.0,
+    // F-03): false with a reason while another computer's save may still be running or arriving (its journal is
+    // younger than savebatch::kOtherSaveWait): nothing may be saved over it meanwhile.
+    bool finishInterruptedSave(QString *error = nullptr);
     // what the opening found of a save that was cut off ("" = nothing), for a notice
     QString saveRecoveryText() const { return m_saveRecovery; }
     void clearSaveRecoveryText() { m_saveRecovery.clear(); }

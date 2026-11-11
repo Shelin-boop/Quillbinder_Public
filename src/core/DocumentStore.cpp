@@ -17,6 +17,7 @@
 #include "import/FileImporter.h"
 
 #include <QBuffer>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -252,6 +253,11 @@ QTextDocument *DocumentStore::load(const QString &id, bool notes)
             emit missingFile(id, path);
         }
     }
+    // 0.81.1 (audit of 0.81.0, F-01): a text that is never written is remembered as it was read, so that a change a
+    // command makes to it is told and kept aside, not dropped without a word at the next save
+    if (m_unreadable.contains(key))
+        m_shown.insert(key, Shown{shownBytes(doc, m_project->formatting, m_project->storage), m_project->formatting,
+                                  m_project->storage});
     m_entries.insert(key, e);
     connect(doc, &QTextDocument::contentsChanged, this, [this, key, id, notes] {
         auto it = m_entries.find(key);
@@ -291,12 +297,16 @@ QStringList DocumentStore::dirtyTitles(int max) const
     return out;
 }
 
-QByteArray DocumentStore::serialize(const QString &id, const QTextDocument *doc)
+QByteArray DocumentStore::serialize(const QString &id, const QTextDocument *doc, bool notes)
 {
     if (m_project->storage == StorageFormat::Rtf)
         return rtf::write(doc, m_project->formatting);
+    // 0.81.1 (audit of 0.81.0, F-02): the pictures already written are looked up under the entry's own key; notes are
+    // kept under "n:" + id, and the lookup by the id alone never found theirs, so a picture in notes whose name is not
+    // a file (pasted from a word processor) was written again with every save
+    const QString key = keyFor(id, notes);
     Entry *entry = nullptr;
-    auto it = m_entries.find(id);
+    auto it = m_entries.find(key);
     if (it != m_entries.end())
         entry = &it.value();
     const QString dir = m_project->contentDir(id);
@@ -329,7 +339,6 @@ QByteArray DocumentStore::serialize(const QString &id, const QTextDocument *doc)
                 m_serializeError = tr("A picture of %1 could not be converted for saving.").arg(titleOf(id));
             return rel;
         }
-        const QString key = id;
         if (!savebatch::put(QDir(dir).filePath(rel), png, &why, tr("picture in %1").arg(titleOf(id)), placeOf(id),
                             [this, key, name, rel] {
                                 auto e = m_entries.find(key);
@@ -369,6 +378,30 @@ bool DocumentStore::writeEntry(const QString &key, Entry &e, QString *error)
     if (m_unreadable.contains(key)) {
         // its file could not be read: what is shown is not its text, so it is not written
         e.dirty = false;
+        // 0.81.1 (audit of 0.81.0, F-01): a text only shown stays as it is. One that a command changed all the same is
+        // not lost without a word (before, the change was dropped and the save counted as done): the changed text is
+        // kept as an RTF file in settings/conflicts and the writer is told; the damaged file stays as it is
+        auto s = m_shown.find(key);
+        if (s != m_shown.end() && e.doc && shownBytes(e.doc, s->formatting, s->storage) != s->bytes) {
+            const QString title = notes ? tr("%1 (notes)").arg(titleOf(id)) : titleOf(id);
+            const QString keep = m_project->settingsDir() + QStringLiteral("/conflicts");
+            const QString base = text::safeFileName(tr("%1 (changed, not saved)").arg(title)) + QLatin1Char(' ')
+                                 + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH-mm-ss"));
+            QString copy = keep + QLatin1Char('/') + base + QStringLiteral(".rtf");
+            for (int n = 2; QFileInfo::exists(copy); ++n)
+                copy = keep + QLatin1Char('/') + base + QStringLiteral(" %1.rtf").arg(n);
+            if (QDir().mkpath(keep) && safesave::writeFile(copy, rtf::write(e.doc, m_project->formatting))) {
+                s->bytes = shownBytes(e.doc, s->formatting, s->storage); // told once per change
+                m_toldNotKept.remove(key);
+                emit changeKeptAside(id, notes, copy);
+            } else {
+                e.dirty = true; // nothing kept: it stays unsaved, and the close question names it
+                if (!m_toldNotKept.contains(key)) {
+                    m_toldNotKept.insert(key);
+                    emit changeKeptAside(id, notes, QString());
+                }
+            }
+        }
         return true;
     }
     const bool empty = e.doc->isEmpty();
@@ -392,7 +425,7 @@ bool DocumentStore::writeEntry(const QString &key, Entry &e, QString *error)
             emit charactersLeftOut(id, notes, count);
         }
     }
-    const QByteArray data = serialize(id, e.doc);
+    const QByteArray data = serialize(id, e.doc, notes);
     if (!m_serializeError.isEmpty()) {
         // 0.65.0 (audit F04): a text whose picture could not be written is not saved either; it stays unsaved
         if (error)
@@ -523,7 +556,84 @@ bool DocumentStore::unchangedSinceRead(const QString &id, const Entry &e, const 
     deserialize(id, e.read, &tmp, e.readRtf);
     if (e.readRtf && m_project->storage == StorageFormat::Markdown)
         display::normalizeDocument(&tmp, m_project->formatting);
-    return serialize(id, &tmp) == data;
+    return serialize(id, &tmp, e.isNotes) == data;
+}
+
+QByteArray DocumentStore::shownBytes(const QTextDocument *doc, const Formatting &f, StorageFormat storage) const
+{
+    if (storage == StorageFormat::Rtf)
+        return rtf::write(doc, f);
+    // the pictures by the names they have (nothing is written: this is only for comparing)
+    return md::write(doc, f, [](const QTextImageFormat &fmt) { return fmt.name(); }).toUtf8();
+}
+
+QString DocumentStore::whyNotEditable(const QString &id, bool notes) const
+{
+    const QString key = keyFor(id, notes);
+    if (!m_unreadable.contains(key))
+        return QString();
+    if (m_damaged.contains(key))
+        return tr("its file is damaged or was saved by another program in another character encoding");
+    if (!notes && m_missing.contains(id))
+        return tr("its file has not arrived on this computer yet");
+    return tr("its file cannot be read");
+}
+
+void DocumentStore::noteSkipped(const QString &id, bool notes)
+{
+    const QString t = notes ? tr("%1 (notes)").arg(titleOf(id)) : titleOf(id);
+    if (!m_skippedUnreadable.contains(t))
+        m_skippedUnreadable << t;
+}
+
+QStringList DocumentStore::takeSkippedUnreadable()
+{
+    QStringList out;
+    out.swap(m_skippedUnreadable);
+    return out;
+}
+
+bool DocumentStore::releaseDamaged(const QString &id, bool notes, QString *copy, QString *error)
+{
+    const QString key = keyFor(id, notes);
+    if (!m_unreadable.contains(key))
+        return true;
+    const QString title = notes ? tr("%1 (notes)").arg(titleOf(id)) : titleOf(id);
+    if (!m_damaged.contains(key)) {
+        if (error)
+            *error = (!notes && m_missing.contains(id))
+                         ? tr("\"%1\" cannot be changed here: %2, and its place is kept for it. Close the project and open "
+                              "it again once the sync program is done.")
+                               .arg(title, whyNotEditable(id, notes))
+                         : tr("\"%1\" cannot be changed here: %2, and such a file is never written over. Check the file's "
+                              "permissions or the drive it is on, then close and reopen the project.")
+                               .arg(title, whyNotEditable(id, notes));
+        return false;
+    }
+    // the file that was read: the one of the project's format, or the other one when only that is there
+    const QString base = m_project->contentDir(id) + (notes ? QLatin1String("/notes.") : QLatin1String("/text."));
+    QString path = base + extension();
+    if (!QFile::exists(path))
+        path = base + (m_project->storage == StorageFormat::Rtf ? QStringLiteral("md") : QStringLiteral("rtf"));
+    const QString kept = QFile::exists(path)
+                             ? syncsafe::keepCopy(path, m_project->settingsDir(),
+                                                  notes ? tr("%1 notes (damaged)").arg(titleOf(id)) : tr("%1 text (damaged)").arg(titleOf(id)))
+                             : QString();
+    if (kept.isEmpty()) {
+        if (error)
+            *error = tr("The damaged file of \"%1\" could not be kept as a copy in %2, so it was not replaced. Check that "
+                        "the project folder is writable and the disk is not full.")
+                         .arg(title, QDir::toNativeSeparators(m_project->settingsDir() + QStringLiteral("/conflicts")));
+        return false;
+    }
+    m_unreadable.remove(key);
+    m_damaged.remove(key);
+    m_shown.remove(key);
+    m_toldNotKept.remove(key);
+    if (copy)
+        *copy = kept;
+    emit editableAgain(id, notes);
+    return true;
 }
 
 bool DocumentStore::keepOtherVersion(const QString &id, bool notes, const QString &path)
@@ -726,6 +836,10 @@ void DocumentStore::setContent(const QString &id, const QTextDocument *source)
     first.setBlockFormat(source->begin().blockFormat());
     first.setBlockCharFormat(source->begin().charFormat());
     doc->setUndoRedoEnabled(true);
+    // 0.81.1 (found while checking audit F-01): the whole text is laid out anew. Under Qt 6.12, an editor showing the
+    // text after a whole replacement (Roll Back above all) kept the old layout of its first paragraph and showed an
+    // empty page until something else made it lay the text out again.
+    doc->markContentsDirty(0, doc->characterCount());
     auto it = m_entries.find(id);
     if (it != m_entries.end())
         it->dirty = true;
@@ -743,6 +857,7 @@ void DocumentStore::setNotesContent(const QString &id, const QTextDocument *sour
     c.select(QTextCursor::Document);
     c.insertFragment(QTextDocumentFragment(source));
     doc->setUndoRedoEnabled(true);
+    doc->markContentsDirty(0, doc->characterCount()); // 0.81.1: laid out anew, as in setContent
     auto it = m_entries.find(keyFor(id, true));
     if (it != m_entries.end())
         it->dirty = true;
@@ -843,10 +958,12 @@ void DocumentStore::setPageSetup(const PageSetup &s)
 
 void DocumentStore::applyFormatting()
 {
-    for (Entry &e : m_entries) {
+    for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
+        Entry &e = it.value();
         const bool wasDirty = e.dirty;
         e.doc->setDefaultFont(display::baseFont(m_project->formatting, zoomFor(e.isNotes)));
-        if (m_project->storage == StorageFormat::Markdown) {
+        // 0.81.1 (F-01): a text that is never written is left as it was read
+        if (m_project->storage == StorageFormat::Markdown && !m_unreadable.contains(it.key())) {
             const bool undo = e.doc->isUndoRedoEnabled();
             e.doc->setUndoRedoEnabled(false);
             display::normalizeDocument(e.doc, m_project->formatting);
@@ -860,6 +977,10 @@ bool DocumentStore::convertStorage(StorageFormat to, QString *error)
 {
     if (to == m_project->storage)
         return true;
+    // 0.81.1 (audit of 0.81.0, F-03): not over the save of another computer that may still be arriving (its journal has
+    // the name this batch's journal gets)
+    if (!m_project->finishInterruptedSave(error))
+        return false;
     QList<QString> ids;
     for (BinderItem *it : m_project->allItems())
         if (it->hasText())
@@ -883,6 +1004,10 @@ bool DocumentStore::convertStorage(StorageFormat to, QString *error)
         if (it == m_entries.end() || converted.contains(key))
             return true;
         converted.insert(key);
+        // 0.81.1 (audit of 0.81.0, F-01): a text whose file cannot be read stays in its file as it is (it is read from
+        // there in the old format, which the store still reads)
+        if (m_unreadable.contains(key))
+            return true;
         const bool empty = it->doc->isEmpty();
         const bool notes = it->isNotes;
         const QString id = notes ? it.key().mid(2) : it.key();
@@ -956,6 +1081,12 @@ bool DocumentStore::restyleAll(const Formatting &oldF, const Formatting &newF, c
 
     // documents in memory (shown in editors)
     for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
+        // 0.81.1 (audit of 0.81.0, F-01): a text whose file cannot be read is never written: it keeps the look it was
+        // read with, and the writer is told it was left out
+        if (m_unreadable.contains(it.key())) {
+            noteSkipped(it->isNotes ? it.key().mid(2) : it.key(), it->isNotes);
+            continue;
+        }
         const bool wasDirty = it->dirty;
         const bool undo = it->doc->isUndoRedoEnabled();
         it->doc->setUndoRedoEnabled(false);
@@ -995,6 +1126,10 @@ bool DocumentStore::restyleAll(const Formatting &oldF, const Formatting &newF, c
             doc.setUndoRedoEnabled(false);
             m_project->formatting = oldF;
             readFile(r.id, r.notes, &doc);
+            if (m_unreadable.contains(key)) { // 0.81.1 (F-01): never written, told as left out
+                noteSkipped(r.id, r.notes);
+                continue;
+            }
             if (styles::usedStyles(&doc).isEmpty())
                 continue;
             const bool names = styles::restyle(&doc, oldF, newF, changes);
@@ -1019,6 +1154,13 @@ int DocumentStore::editStored(const QString &id, bool notes, const std::function
 {
     const QString key = keyFor(id, notes);
     auto it = m_entries.find(key);
+    // 0.81.1 (audit of 0.81.0, F-01): a text whose file cannot be read is left as it is (it is never written, so a
+    // change would exist only in memory while the command counted it as done); the caller can name it
+    // (takeSkippedUnreadable)
+    if (it != m_entries.end() && m_unreadable.contains(key)) {
+        noteSkipped(id, notes);
+        return 0;
+    }
     if (it != m_entries.end())
         return op(it->doc); // contentsChanged marks it as changed and schedules the save
     const QString base = m_project->contentDir(id) + (notes ? QLatin1String("/notes.") : QLatin1String("/text."));
@@ -1029,6 +1171,10 @@ int DocumentStore::editStored(const QString &id, bool notes, const std::function
     doc.setBaseUrl(QUrl::fromLocalFile(m_project->contentDir(id) + QLatin1Char('/')));
     doc.setUndoRedoEnabled(false);
     readFile(id, notes, &doc);
+    if (m_unreadable.contains(key)) {
+        noteSkipped(id, notes);
+        return 0;
+    }
     doc.setModified(false);
     const int n = op(&doc);
     if (n <= 0 || !doc.isModified())
