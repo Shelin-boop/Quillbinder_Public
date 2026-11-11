@@ -1080,7 +1080,7 @@ static void buildAndRelease(const QString &W, const QString &src, const QString 
     const QString cmake = QString::fromUtf8(readAll(src + QStringLiteral("/CMakeLists.txt")));
     check(cmake.contains(QLatin1String("option(QB_TEST_SWITCHES \"Honor the test switches that load plugins from other folders or skip checks (test builds only)\" OFF)")),
           QStringLiteral("the test switches are off unless a build asks for them (a build as the README says behaves like a release)"));
-    // the release workflow: the key only in the two signing jobs, the tests before publishing
+    // the release workflow: the key only in the two signing jobs, the tests beside the release
     {
         const QString wf = QString::fromUtf8(readAll(src + QStringLiteral("/.github/workflows/release.yml")));
         const QStringList jobs = {QStringLiteral("version"), QStringLiteral("build"), QStringLiteral("tests"), QStringLiteral("sign-packages"),
@@ -1099,9 +1099,18 @@ static void buildAndRelease(const QString &W, const QString &src, const QString 
                                   && !body.value(QStringLiteral("sign-packages")).contains(QLatin1String("cloud-setup"))
                                   && !body.value(QStringLiteral("sign-checksums")).contains(QLatin1String("cloud-setup"));
         check(keyOnlyThere && noThirdParty, QStringLiteral("release workflow: the signing key reaches only the two signing jobs, which run no third-party code"));
-        check(body.value(QStringLiteral("tests")).contains(QLatin1String("run-all-tests.sh")) && body.value(QStringLiteral("publish")).contains(QLatin1String("tests"))
-                  && body.value(QStringLiteral("sign-checksums")).contains(QLatin1String("tests")),
-              QStringLiteral("release workflow: the full test suite runs, and nothing is signed or published before it passed"));
+        // (since 2026-11-11 the release does not wait for the tests: the writer's decision, so that the README's links
+        // work as soon as the release is built and signed; the suite runs beside it and reports)
+        const auto needs = [&](const QString &job) {
+            const QString b = body.value(job);
+            const qsizetype i = b.indexOf(QLatin1String("needs:"));
+            return i < 0 ? QString() : b.mid(i, b.indexOf(QLatin1Char('\n'), i) - i);
+        };
+        check(body.value(QStringLiteral("tests")).contains(QLatin1String("run-all-tests.sh")) && !needs(QStringLiteral("publish")).contains(QLatin1String("tests"))
+                  && !needs(QStringLiteral("sign-checksums")).contains(QLatin1String("tests"))
+                  && needs(QStringLiteral("publish")).contains(QLatin1String("sign-checksums")),
+              QStringLiteral("release workflow: the full test suite runs beside the release, which waits only for the signed files"),
+              needs(QStringLiteral("publish")) + QLatin1String(" / ") + needs(QStringLiteral("sign-checksums")));
     }
     // make-package.py sign, and what the program says about the signature
     {
