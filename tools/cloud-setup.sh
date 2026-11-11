@@ -13,14 +13,15 @@ set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 # build: hunspell, zlib and what The Qt Company's own build of Qt needs (0.80.0: Qt 6.12.0, runtime u2404-qt6.12-r1,
-# fetched by tools/get-qt.sh at the end of this script; Ubuntu's Qt 6.4.2 is no longer used)
+# fetched by tools/get-qt.sh at the end of this script; Ubuntu's Qt 6.4.2 is no longer used). libcups2t64: Qt's
+# print plugin (Ubuntu's Qt packages brought it along before; the first release run of 0.80.0 stopped without it)
 apt-get install -y -qq --no-install-recommends \
     build-essential cmake ninja-build pkg-config file python3-pip xz-utils \
     libxkbcommon-dev libxkbcommon-x11-0 libhunspell-dev hunspell-en-us zlib1g-dev nasm \
     libgl-dev libegl-dev libgl1 libegl1 libopengl0 libfontconfig1-dev libfreetype-dev libdbus-1-3 libglib2.0-0 \
     libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
     libxcb-xkb1 libxcb-randr0 libxcb-xfixes0 libxcb-sync1 libxcb-shm0 libxcb1 libx11-xcb1 \
-    libwayland-client0 libwayland-cursor0 libwayland-egl1 libssl3
+    libwayland-client0 libwayland-cursor0 libwayland-egl1 libssl3 libcups2t64
 # the add-on "Speech Transcription" (0.61): whisper.cpp's Vulkan module for graphics cards (tools/get-whisper.sh)
 apt-get install -y -qq --no-install-recommends git libvulkan-dev glslc spirv-headers
 # tests: X server, window tools, the fonts the tests ask for, PDF/EPUB checkers, sound, a Vulkan driver
