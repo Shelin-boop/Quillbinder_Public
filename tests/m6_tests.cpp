@@ -819,6 +819,10 @@ int main(int argc, char **argv)
         }
 
         // ---- a plain drop on the header bar loads the document, Alt+drop opens it in the copyholder
+        // (0.70.0: the window made wider first, so that the editor is wide (900 px or more) whatever the fonts of the
+        // machine make of the binder and the inspector; on GitHub's runner it was narrower at 1500 px)
+        w.resize(1880, 950);
+        settle(300);
         dropItems(header0, proj, {midDoc}, Qt::NoModifier);
         const bool loaded = pane0->items() == QList<BinderItem *>({midDoc}) && !pane0->hasCopyholder();
         dropItems(header0, proj, {longDoc}, Qt::NoModifier);
@@ -849,7 +853,8 @@ int main(int argc, char **argv)
         auto *holderSplit = pane0->findChild<QSplitter *>(QStringLiteral("copyholderSplit"));
         check(pane0->copyholderPlacement() == QLatin1String("right") && holderSplit->orientation() == Qt::Horizontal
                   && holderSplit->indexOf(holder) == 1 && holder->width() > 200 && holder->x() > pane0->textView()->x(),
-              QStringLiteral("in a wide editor the copyholder opens on the right"), pane0->copyholderPlacement());
+              QStringLiteral("in a wide editor the copyholder opens on the right"),
+              QStringLiteral("%1, editor %2 px").arg(pane0->copyholderPlacement()).arg(holderSplit ? holderSplit->width() : -1));
         shot(&w, QStringLiteral("m6-10-copyholder-right"));
 
         // ---- it is an editor: typing and formatting commands reach its text

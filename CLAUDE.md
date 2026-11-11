@@ -318,7 +318,12 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
   without it); the release workflow's jobs build (no key), tests (full suite but v060, one retry), sign-packages
   (`make-package.py sign`), assemble (the full version), sign-checksums, publish; the installer keeps
   `package-manifest.json`/`.sig`, and `launcher::coreOrigin` checks them before every start (Linux; unsigned only with
-  `QB_ALLOW_UNSIGNED_CORE`, which `tools/e2e-appimage.sh` sets).
+  `QB_ALLOW_UNSIGNED_CORE`, which `tools/e2e-appimage.sh` sets). The first run on GitHub's container failed for the
+  machine, not the program: no `unzip` (now in `tools/cloud-setup.sh`) and no sound server (PulseAudio refuses the job's
+  home folder, owned by another user; the runner now starts it with folders of its own, `-n` with a null sink only, log
+  `pulseaudio.log`, and prints "(sound server: ...)"). On a second failure the workflow prints the failed checks with
+  their details into the job's log, which the session can read (`gh api .../actions/jobs/<id>/logs`; the artifacts
+  are on a host the session cannot reach). `ZipWriter` counts progress and sees Cancel per megabyte of a file.
 - **German** (S-06): `ui/Language.*` (QTranslator from `:/translations/quillbinder_de.qm` and `qt_de.qm`, setting
   `app/language`, `QB_LANGUAGE`), `translations/README.md` for lupdate/lrelease. **Dark page** (S-07): in
   `theme::resolvedColors`, a dark theme with the standard own paper shows #1e1e1e with white text (or the theme's

@@ -1162,9 +1162,14 @@ int main(int argc, char **argv)
               QStringLiteral("Remove deletes the model"));
     }
     if (panel) {
+        // (0.70.0: after the tool's last job, which ran longer on GitHub's runner than here; the details say why not)
+        if (tool)
+            waitFor([tool] { return !callBool(tool, "isBusy"); }, 60000);
+        const QString shown = callString(panel, "currentFile");
         bool removed = false;
         QMetaObject::invokeMethod(panel, "remove", Qt::DirectConnection, Q_RETURN_ARG(bool, removed), Q_ARG(bool, false));
-        check(removed, QStringLiteral("a transcription can be moved to the trash"));
+        check(removed && !shown.isEmpty() && !QFileInfo::exists(shown), QStringLiteral("a transcription can be moved to the trash"),
+              QStringLiteral("file '%1', busy %2").arg(shown).arg(tool ? callBool(tool, "isBusy") : false));
     }
     delete wp;
     std::printf("%d failure(s)\n", failures);

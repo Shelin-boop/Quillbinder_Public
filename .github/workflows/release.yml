@@ -214,6 +214,11 @@ jobs:
             echo "once more: $failed"
             QB_SUITES="$failed" tools/run-all-tests.sh build/test-results-again x11 2>&1 | tee /tmp/tests-again.log
             if [ "${PIPESTATUS[0]}" != 0 ]; then
+              # the failed checks with their details in the job's log (the session reads the log, not the artifacts)
+              for s in $(sed -n 's/^failed: *//p' /tmp/tests-again.log | tail -1); do
+                echo "== $s"; grep -h -A3 'FAIL' "build/test-results-again/$s.x11.log" | cut -c1-400 | head -60
+              done
+              tail -n 20 build/test-results/pulseaudio.log build/test-results-again/pulseaudio.log 2>/dev/null
               echo "::error title=Test suites failed::$(tail -n 3 /tmp/tests-again.log | tr '\n' ' ')"
               exit 1
             fi

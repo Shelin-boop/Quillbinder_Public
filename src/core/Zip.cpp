@@ -223,6 +223,16 @@ bool ZipWriter::addFileFromDisk(const QString &name, const QString &path, bool c
             break;
         }
         crc = crc32(crc, reinterpret_cast<const Bytef *>(buf.constData()), uInt(n));
+        // 0.70.0: progress and Cancel per piece of a megabyte, so that one large file (a video, a recording) neither
+        // stops the progress bar nor keeps Cancel waiting until it is packed
+        if (m_bytes && n > 0)
+            m_bytes->fetch_add(n);
+        if (m_cancel && m_cancel->load()) {
+            m_cancelled = true;
+            m_error = QObject::tr("cancelled");
+            ok = false;
+            break;
+        }
         const bool last = n == 0 || in.atEnd();
         if (e.method == 0) {
             if (n > 0 && m_file.write(buf.constData(), n) != n) {
@@ -322,8 +332,8 @@ bool ZipWriter::addDirectory(const QString &diskDir, const QString &prefix)
         }
         if (!addFileFromDisk(prefix.isEmpty() ? rel : prefix + QLatin1Char('/') + rel, path, !packed.contains(suffix)))
             ok = false;
-        if (m_bytes)
-            m_bytes->fetch_add(QFileInfo(path).size());
+        if (m_cancelled)
+            return false;
     }
     return ok;
 }

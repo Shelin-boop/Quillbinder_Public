@@ -25,7 +25,7 @@ apt-get install -y -qq --no-install-recommends git libvulkan-dev glslc spirv-hea
 # that runs on the processor (lavapipe: the graphics-card path of the speech add-on without a card)
 # (gstreamer1.0-libav: the GStreamer run of qb_m11_tests plays H.264)
 apt-get install -y -qq --no-install-recommends \
-    xvfb xauth xdotool imagemagick poppler-utils qpdf python3 \
+    xvfb xauth xdotool imagemagick poppler-utils qpdf python3 unzip \
     fonts-dejavu fonts-crosextra-caladea fonts-crosextra-carlito fonts-freefont-ttf fonts-liberation \
     gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav pulseaudio pulseaudio-utils \
     mesa-vulkan-drivers

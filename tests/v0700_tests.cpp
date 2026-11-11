@@ -630,10 +630,12 @@ static void backups(const QString &W)
         }
         writeAll(a->folderPath() + QStringLiteral("/Files/noise.bin"), noise);
         int calls = 0;
+        // (Cancel at the first progress call: the 24 MB file is packed in pieces of a megabyte, and Cancel is seen
+        // within the file, wherever the file comes in the folder's order)
         backup::setProgressHandler([&calls](const QString &what, qint64, qint64, bool *stop) {
             if (!what.isEmpty()) {
                 ++calls;
-                if (calls == 2 && stop)
+                if (calls == 1 && stop)
                     *stop = true;
             }
         });
@@ -644,7 +646,7 @@ static void backups(const QString &W)
         bool parts = false;
         for (const QString &f : QDir(backup::projectFolder(a.get(), bdir)).entryList({QStringLiteral("*.part")}, QDir::Files))
             parts = parts || !f.isEmpty();
-        check(calls >= 2 && !ok && e2.contains(QLatin1String("cancelled")) && int(backup::backupsFor(a.get(), bdir).size()) == before && !parts,
+        check(calls >= 1 && !ok && e2.contains(QLatin1String("cancelled")) && int(backup::backupsFor(a.get(), bdir).size()) == before && !parts,
               QStringLiteral("a backup runs beside the window with progress, and Cancel leaves no backup behind"),
               QStringLiteral("calls %1, %2").arg(calls).arg(e2));
         QFile::remove(a->folderPath() + QStringLiteral("/Files/noise.bin"));

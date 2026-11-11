@@ -112,13 +112,29 @@ if [ -d "$QB_FFMPEG_DIR/lib" ]; then
 else
     echo "(no FFmpeg in $QB_FFMPEG_DIR: add-ons not built, the media checks of m11 may fail)"
 fi
-# a sound server for the media tests (a null sink is enough)
+# a sound server for the media tests (a null sink is enough). 0.70.0: started without the system's default.pa (-n),
+# with only a null sink and the local socket: in a container (GitHub's runner) a module of default.pa that cannot load
+# there could end the server, and the media checks failed; what the server says is kept in pulseaudio.log
+# The server gets a home and runtime folder of its own (made here, so owned by this user): it refuses folders owned by
+# another user, as the home folder of GitHub's container job may be.
+PULSE_DIR=
 if command -v pactl > /dev/null && ! pactl info > /dev/null 2>&1; then
-    pulseaudio -D --exit-idle-time=-1 --system=false > /dev/null 2>&1 || true
+    PULSE_DIR=$(mktemp -d /tmp/qbpulse.XXXX)
+    HOME=$PULSE_DIR XDG_CONFIG_HOME=$PULSE_DIR/config XDG_RUNTIME_DIR=$PULSE_DIR \
+        pulseaudio -n -D --exit-idle-time=-1 --system=false --log-target=stderr \
+        --load="module-null-sink sink_name=qbnull" --load="module-native-protocol-unix" > "$OUT/pulseaudio.log" 2>&1 \
+        || pulseaudio -D --exit-idle-time=-1 --system=false >> "$OUT/pulseaudio.log" 2>&1 || true
     sleep 2
 fi
-PS=$(ls -d /tmp/pulse-*/native 2>/dev/null | head -1)
+PS=$(ls -d ${PULSE_DIR:+"$PULSE_DIR"/pulse/native} /tmp/pulse-*/native "${XDG_RUNTIME_DIR:-/nonexistent}"/pulse/native 2>/dev/null | head -1)
 [ -n "$PS" ] && export PULSE_SERVER=unix:$PS
+if command -v pactl > /dev/null; then
+    if pactl info > /dev/null 2>&1; then
+        echo "(sound server: $(pactl info 2>/dev/null | sed -n 's/^Default Sink: //p'))"
+    else
+        echo "(no sound server: the media checks will fail; $(tail -n 3 "$OUT/pulseaudio.log" 2>/dev/null | tr '\n' ' '))"
+    fi
+fi
 run() {
     local name=$1; shift
     [ -n "$SELECTED" ] && [[ " $SELECTED " != *" $name "* ]] && return
