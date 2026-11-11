@@ -27,7 +27,6 @@ private:
     QCheckBox *m_backup;
     QSpinBox *m_keep;
     QLineEdit *m_folder;
-    QRadioButton *m_projectFirst, *m_programFirst;
 };
 
 } // namespace qb

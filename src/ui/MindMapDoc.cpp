@@ -1,4 +1,5 @@
 #include "ui/MindMapDoc.h"
+#include "core/TestSwitches.h"
 #include "core/BinderItem.h"
 #include "text/TextUtil.h"
 #include "core/SafeSave.h"
@@ -342,7 +343,7 @@ MindMapDoc *docFor(Project *project, const QString &itemId)
         const QString file = d->path();
         QTimer::singleShot(0, project, [title, why, file] {
             QWidget *parent = QApplication::activeWindow();
-            if (qEnvironmentVariableIsSet("QB_NO_DIALOGS")) {
+            if (QB_TEST_ENV_SET("QB_NO_DIALOGS")) {
                 if (parent)
                     parent->setProperty("qbLastBoardNotice", title);
                 return;

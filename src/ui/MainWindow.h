@@ -109,10 +109,14 @@ public:
     void restoreBackup();
     bool restoreBackupFile(const QString &zip);
     QString lastRestoredProject() const { return m_lastRestored; }
+    // the backup made at the opening because the last session was ended by a signal (0.81.0; tests)
+    QString lastDueBackup() const { return m_lastDueBackup; }
     // 0.70.0 (audit A S-01, B U-2, S-1): the state shown in the status bar ("Saved", "Not saved yet", "Not saved:
     // the last save failed at ..."); the time the saves began to fail (invalid: they work)
     QString saveStateText() const;
     QDateTime saveFailedSince() const { return m_saveFailedSince; }
+    // 0.81.0 (audit of 0.80.0, S-08): the reason of a failed save in plain words
+    static QString plainSaveReason(const QString &err);
     bool isClosing() const { return m_closing; }
     // Help > Welcome Project, About, List of All Placeholders (MainWindowHelp.cpp; 0.40)
     void openWelcomeProject(bool firstStart = false);
@@ -202,6 +206,8 @@ private:
     // 0.70.0 (audit A S-01): a failed save: the sign in the status bar and the title, a new attempt by timer, the
     // notice (not taking the keyboard; again after 5 min of failing); a save that works clears it
     void noteSaveFailed(const QString &err, bool notice = true);
+    // 0.81.0 (audit of 0.80.0, S-08): a notice put beside the text
+    void placeBesideText(QWidget *notice);
     void noteSaved();
     void updateSaveState();
     void retrySave();
@@ -402,6 +408,7 @@ private:
     QString m_lastSaveError;
     QPointer<QMessageBox> m_saveNotice;
     QString m_lastRestored;
+    QString m_lastDueBackup;
     QList<QAction *> m_toolActions;
     QHash<QString, QPointer<QMenu>> m_toolMenus;   // menus beside tool buttons, by command key (0.61)
 

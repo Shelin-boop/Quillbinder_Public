@@ -23,7 +23,8 @@ static const char *kRecent = "__recent";
 
 StartDialog::StartDialog(QWidget *parent, bool showRecentFirst) : QDialog(parent)
 {
-    setWindowTitle(tr("%1 — Projects").arg(QLatin1String(QB_APP_NAME)));
+    // 0.81.0 (audit of 0.80.0, S-07): Qt adds " — <program name>" to a title that does not end with it
+    setWindowTitle(tr("Projects"));
     resize(860, 560);
     m_all = templates::all();
 

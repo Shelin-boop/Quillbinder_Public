@@ -1,4 +1,5 @@
 #include "import/FileImporter.h"
+#include "core/TestSwitches.h"
 
 #include "compile/PluginManager.h"
 #include "import/ImportedContent.h"
@@ -810,7 +811,7 @@ bool readOdt(const QString &path, QTextDocument *doc, const Formatting &f, QStri
 static QString sofficeProgram()
 {
     // QB_SOFFICE: the program to use, or "none" (as for the add-on; tests)
-    const QString forced = qEnvironmentVariable("QB_SOFFICE");
+    const QString forced = QB_TEST_ENV("QB_SOFFICE");
     if (forced == QLatin1String("none"))
         return QString();
     if (!forced.isEmpty())

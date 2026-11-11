@@ -4,6 +4,7 @@
 // texts whose files have not arrived yet. Works on files only (core/SyncSafety.h), whatever
 // the sync program is.
 #include "ui/MainWindow.h"
+#include "core/TestSwitches.h"
 
 #include "core/DocumentStore.h"
 #include "core/Platform.h"
@@ -163,7 +164,7 @@ void MainWindow::lockNotWritten(const QString &file)
                            "folder is writable and the disk is not full.")
                             .arg(QDir::toNativeSeparators(file));
     statusBar()->showMessage(msg, 15000);
-    if (qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+    if (QB_TEST_ENV_SET("QB_NO_DIALOGS"))
         return;
     auto *box = new QMessageBox(QMessageBox::Warning, tr("Project Not Marked as Open"), msg, QMessageBox::Ok, this);
     box->setAttribute(Qt::WA_DeleteOnClose);

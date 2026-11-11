@@ -1,4 +1,5 @@
 #include "Word97Importer.h"
+#include "core/TestSwitches.h"
 
 #include "Cfb.h"
 #include "WordReader.h"
@@ -12,7 +13,7 @@
 
 QString Word97Importer::officeProgram()
 {
-    const QString forced = qEnvironmentVariable("QB_SOFFICE");
+    const QString forced = QB_TEST_ENV("QB_SOFFICE");
     if (!forced.isEmpty())
         return forced == QLatin1String("none") ? QString() : forced;
     for (const char *p : {"soffice", "libreoffice", "lowriter"}) {

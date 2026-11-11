@@ -1099,17 +1099,16 @@ static void buildAndRelease(const QString &W, const QString &src, const QString 
                                   && !body.value(QStringLiteral("sign-packages")).contains(QLatin1String("cloud-setup"))
                                   && !body.value(QStringLiteral("sign-checksums")).contains(QLatin1String("cloud-setup"));
         check(keyOnlyThere && noThirdParty, QStringLiteral("release workflow: the signing key reaches only the two signing jobs, which run no third-party code"));
-        // (since 2026-11-11 the release does not wait for the tests: the writer's decision, so that the README's links
-        // work as soon as the release is built and signed; the suite runs beside it and reports)
+        // (from 2026-11-11 to 0.81.0 the release did not wait for the tests; 0.81.0, audit of 0.80.0, S-02: it waits
+        // again, so a build that fails its own tests is never published)
         const auto needs = [&](const QString &job) {
             const QString b = body.value(job);
             const qsizetype i = b.indexOf(QLatin1String("needs:"));
             return i < 0 ? QString() : b.mid(i, b.indexOf(QLatin1Char('\n'), i) - i);
         };
-        check(body.value(QStringLiteral("tests")).contains(QLatin1String("run-all-tests.sh")) && !needs(QStringLiteral("publish")).contains(QLatin1String("tests"))
-                  && !needs(QStringLiteral("sign-checksums")).contains(QLatin1String("tests"))
+        check(body.value(QStringLiteral("tests")).contains(QLatin1String("run-all-tests.sh")) && needs(QStringLiteral("publish")).contains(QLatin1String("tests"))
                   && needs(QStringLiteral("publish")).contains(QLatin1String("sign-checksums")),
-              QStringLiteral("release workflow: the full test suite runs beside the release, which waits only for the signed files"),
+              QStringLiteral("release workflow: the release is published only after the full test suite has passed, with the signed files"),
               needs(QStringLiteral("publish")) + QLatin1String(" / ") + needs(QStringLiteral("sign-checksums")));
     }
     // make-package.py sign, and what the program says about the signature

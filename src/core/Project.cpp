@@ -29,6 +29,7 @@
 #include <QJsonObject>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include <QTimer>
 #include <QXmlStreamReader>
@@ -162,8 +163,9 @@ QString Project::resolveProjectFile(const QString &path)
     if (fi.suffix() == QLatin1String(QB_PROJECT_FILE_SUFFIX).mid(1)) {
         // 0.64.2: the spare copy in a project's settings folder names the project itself (opened as a project
         // of its own it showed every text empty, and a backup made then held only the settings folder)
-        if (fi.fileName() == QLatin1String("spare-copy") + QLatin1String(QB_PROJECT_FILE_SUFFIX)
-            && fi.absoluteDir().dirName() == QLatin1String("settings")) {
+        // (0.81.0: also the older copies, spare-copy-2 and spare-copy-3)
+        static const QRegularExpression spareName(QStringLiteral("^spare-copy(-[23])?\\") + QLatin1String(QB_PROJECT_FILE_SUFFIX) + QLatin1Char('$'));
+        if (spareName.match(fi.fileName()).hasMatch() && fi.absoluteDir().dirName() == QLatin1String("settings")) {
             QDir projectDir = fi.absoluteDir();
             projectDir.cdUp();
             const QStringList own = projectDir.entryList({QStringLiteral("*") + QLatin1String(QB_PROJECT_FILE_SUFFIX)}, QDir::Files);
@@ -249,6 +251,18 @@ std::unique_ptr<Project> Project::open(const QString &path, QString *error)
         QFile old(spareCopyOf(file));
         const bool same = old.open(QIODevice::ReadOnly) && old.readAll() == p->m_loadedIndex;
         old.close();
+        // 0.81.0 (audit of 0.80.0, U-02): the copies of the two openings before stay as spare-copy-2 and
+        // spare-copy-3, so that a project file that reads well but is wrong (an older version a sync program brought)
+        // does not take the only way back
+        if (!same && QFile::exists(spareCopyOf(file))) {
+            const QString base = QFileInfo(spareCopyOf(file)).absolutePath() + QLatin1String("/spare-copy");
+            const QString sfx = QLatin1String(QB_PROJECT_FILE_SUFFIX);
+            if (QFile::exists(base + QLatin1String("-2") + sfx)) {
+                QFile::remove(base + QLatin1String("-3") + sfx);
+                QFile::rename(base + QLatin1String("-2") + sfx, base + QLatin1String("-3") + sfx);
+            }
+            safesave::copyFile(spareCopyOf(file), base + QLatin1String("-2") + sfx);
+        }
         QSaveFile spare(spareCopyOf(file));
         if (!same && spare.open(QIODevice::WriteOnly) && safesave::write(spare, p->m_loadedIndex) == p->m_loadedIndex.size())
             safesave::commit(spare);
@@ -258,7 +272,10 @@ std::unique_ptr<Project> Project::open(const QString &path, QString *error)
     p->m_model = new BinderModel(p.get());
     // ui state (before the document store, which takes zoom and page view from it): this
     // computer's own file, else the one of versions before 0.64
-    QFile ui(QFileInfo::exists(p->uiStateFile()) ? p->uiStateFile() : QDir(p->settingsDir()).filePath(QStringLiteral("ui.json")));
+    // (0.81.0: by the computer's key; 0.64 to 0.80 by its name)
+    QFile ui(QFileInfo::exists(p->uiStateFile())      ? p->uiStateFile()
+             : QFileInfo::exists(p->oldUiStateFile()) ? p->oldUiStateFile()
+                                                       : QDir(p->settingsDir()).filePath(QStringLiteral("ui.json")));
     if (ui.open(QIODevice::ReadOnly))
         p->uiState = QJsonDocument::fromJson(ui.readAll()).toVariant().toMap();
     p->m_docs = new DocumentStore(p.get());
@@ -272,6 +289,11 @@ std::unique_ptr<Project> Project::open(const QString &path, QString *error)
     if (reset == QLatin1String("midnight") && p->targets.sessionStart.date() != QDate::currentDate())
         newSession = true;
     p->startSession(newSession);
+    // 0.81.0 (audit of 0.80.0, S-12): counts found different from the project file at the opening (after a session
+    // that ended without closing, the texts were saved but the project file's counts not yet) go with the next full
+    // save or a minute after the opening, like any new count; before, the first autosave wrote the project file at
+    // once, and on a full disk "Your latest changes could not be saved" appeared before the writer had done anything
+    p->m_lastIndexWrite.start();
     return p;
 }
 
@@ -736,6 +758,14 @@ void Project::scheduleSave()
 
 QString Project::uiStateFile() const
 {
+    // 0.81.0 (audit of 0.80.0, S-06): named by this computer's anonymous key, not by its name: the file goes into
+    // backups and is carried by sync programs
+    return QDir(settingsDir()).filePath(QStringLiteral("ui-%1.json").arg(syncsafe::machineKey()));
+}
+
+QString Project::oldUiStateFile() const
+{
+    // 0.64 to 0.80: named by the computer's name
     QString dev = syncsafe::deviceName();
     for (QChar &c : dev)
         if (!c.isLetterOrNumber() && c != QLatin1Char('-') && c != QLatin1Char('_') && c != QLatin1Char('.'))
@@ -755,8 +785,12 @@ bool Project::writeUiState()
     // 0.65.0 (audit F16): the mark is cleared only once the file is written, so a failed write is tried again
     QSaveFile ui(uiStateFile());
     const bool ok = ui.open(QIODevice::WriteOnly) && safesave::write(ui, data) == data.size() && safesave::commit(ui);
-    if (ok)
+    if (ok) {
         m_uiDirty = false;
+        // 0.81.0 (audit of 0.80.0, S-06): this computer's file of 0.64 to 0.80, which carries its name, goes
+        if (oldUiStateFile() != uiStateFile())
+            QFile::remove(oldUiStateFile());
+    }
     return ok;
 }
 
@@ -924,7 +958,19 @@ objects::Store *Project::objects()
 
 bool Project::autosave(QString *error) { return saveImpl(error, true); }
 
-bool Project::save(QString *error) { return saveImpl(error, false); }
+bool Project::save(QString *error)
+{
+    QString why;
+    const bool ok = saveImpl(&why, false);
+    if (error)
+        *error = why;
+    else if (!ok)
+        // 0.81.0 (audit of 0.80.0, F-06): a caller that does not look at the result (File > Compile, a project-wide
+        // replace, the boards ...): the failure goes the way of the autosave's (the window's sign, notice and retries);
+        // before, nothing was told and nothing tried again until the next change
+        emit saveFailed(why);
+    return ok;
+}
 
 bool Project::saveImpl(QString *error, bool quick)
 {
@@ -944,6 +990,7 @@ bool Project::saveImpl(QString *error, bool quick)
                                 .arg(QDir::toNativeSeparators(m_folder));
         if (error)
             *error = why;
+        m_lastSaveFailed = true;
         return false;
     }
     // 0.65.0 (audit F19): a save of this session that could not put all its files in place is finished first
@@ -952,6 +999,8 @@ bool Project::saveImpl(QString *error, bool quick)
         if (r.any())
             m_saveRecovery = r.text();
     }
+    // 0.81.0 (S-12): a save with nothing of the writer's to write (new counts only) is told differently when it fails
+    const bool writersChanges = hasUnsavedChanges();
     // 0.65.0 (audit F19): every file of this save lands together (see core/SaveBatch.h); a file that cannot be
     // written stops the whole save, and everything stays unsaved in memory for the next try
     bool ok = true;
@@ -967,7 +1016,9 @@ bool Project::saveImpl(QString *error, bool quick)
         // with the next full save or a minute after the last write at the latest (0.60.5)
         constexpr qint64 kCountsWait = 60000;
         const qint64 since = m_lastIndexWrite.isValid() ? m_lastIndexWrite.elapsed() : kCountsWait;
-        const bool countsDue = m_countsDirty && (!quick || since >= kCountsWait);
+        // (0.81.0: and after a save that failed, so that an autosave that leaves the counts out does not count as the
+        // save that worked again)
+        const bool countsDue = m_countsDirty && (!quick || since >= kCountsWait || m_lastSaveFailed);
         if (ok && (m_indexDirty || countsDue || !QFileInfo::exists(m_indexFile))) {
             const bool binderChanged = m_indexDirty || !QFileInfo::exists(m_indexFile);
             if (!saveIndex(error))
@@ -1002,6 +1053,8 @@ bool Project::saveImpl(QString *error, bool quick)
         ok = false;
     laps.lap("scrivener");
     laps.print(quick ? "autosave" : "save");
+    m_failedWithoutChanges = !ok && !writersChanges;
+    m_lastSaveFailed = !ok;
     if (ok)
         emit saved();
     return ok;

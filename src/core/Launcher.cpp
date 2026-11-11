@@ -1,4 +1,5 @@
 #include "core/Launcher.h"
+#include "core/TestSwitches.h"
 #include "core/Addons.h"
 #include "core/Paths.h"
 #include "core/Platform.h"
@@ -205,7 +206,7 @@ bool selfTest(const QString &dir, const QString &binaryName, QString *error)
     init();
     // QB_TEST_NO_SELFTEST: the test suites install program updates with a fake program file (on
     // Windows the program folder is always known, so the start would really happen; W3)
-    if (s_appDir.isEmpty() || qEnvironmentVariableIsSet("QB_TEST_NO_SELFTEST"))
+    if (s_appDir.isEmpty() || QB_TEST_ENV_SET("QB_TEST_NO_SELFTEST"))
         return true;
     writeQtConf(dir);
     const QString binary = dir + QLatin1Char('/') + binaryName;

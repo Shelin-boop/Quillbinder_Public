@@ -61,9 +61,10 @@ public:
     // with the next save into this computer's own file, without touching the project file, so
     // opening and closing a project on two computers does not make two versions of it.
     void markUiStateDirty() { m_uiDirty = true; }
-    // settings/ui-<computer>.json (before 0.64: settings/ui.json, still read when the computer
-    // has no file of its own yet)
+    // settings/ui-<computer key>.json (0.81.0; 0.64 to 0.80: ui-<computer name>.json, before 0.64: settings/ui.json,
+    // both still read when the computer has no file of its own yet)
     QString uiStateFile() const;
+    QString oldUiStateFile() const;
     // A message for the writer after opening (the project file was repaired ...); "" = none.
     QString openNotice;
     // The copy of the project file kept when the project last opened (settings/spare-copy.qbx).
@@ -76,6 +77,9 @@ public:
     // Returns how many; the folder's title goes into folderTitle.
     int recoverUnlistedDocuments(QString *folderTitle = nullptr);
     bool hasUnsavedChanges() const;
+    // 0.81.0 (audit of 0.80.0, S-12): the last save failed while nothing the writer did was waiting (only new word
+    // counts for the project file)
+    bool lastFailureWithoutChanges() const { return m_failedWithoutChanges; }
     // 0.70.0 (audit A U-01, A S-01): things the window keeps that are not saved (a mind map board whose save
     // failed or is due): counted by hasUnsavedChanges(), named by unsavedTitles(), written into the emergency
     // copy through emergencyExtra
@@ -256,7 +260,9 @@ private:
     QTimer m_saveTimer;
     QElapsedTimer m_dirtySince; // the first change not saved yet
     bool m_forcedSave = false;
-    int m_maxSaveWait = 30000;
+    bool m_failedWithoutChanges = false;
+    bool m_lastSaveFailed = false;
+    int m_maxSaveWait = 10000; // 0.81.0 (audit of 0.80.0, S-04): 10 s (30 s before)
     int m_saveDelay = 2000;
     QMap<QString, QString> m_unsavedExtra; // key -> title (0.70.0)
     QTimer m_gapTimer;          // a short gap in changes that keep coming (0.64)

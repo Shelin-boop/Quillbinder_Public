@@ -1,4 +1,5 @@
 #include "ui/LinkOpen.h"
+#include "core/TestSwitches.h"
 
 #include <QCoreApplication>
 #include <QDesktopServices>
@@ -32,7 +33,7 @@ QString tr(const char *s) { return QCoreApplication::translate("qb::links", s); 
 
 bool ask(QWidget *parent, const QString &title, const QString &text)
 {
-    if (qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+    if (QB_TEST_ENV_SET("QB_NO_DIALOGS"))
         return false; // nobody to ask: not opened
     QMessageBox box(QMessageBox::Question, title, text, QMessageBox::Open | QMessageBox::Cancel, parent);
     box.setObjectName(QStringLiteral("linkQuestion"));
@@ -42,7 +43,7 @@ bool ask(QWidget *parent, const QString &title, const QString &text)
 
 void refuse(QWidget *parent, const QString &text)
 {
-    if (qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+    if (QB_TEST_ENV_SET("QB_NO_DIALOGS"))
         return;
     QMessageBox box(QMessageBox::Warning, tr("Link Not Opened"), text, QMessageBox::Ok, parent);
     box.setObjectName(QStringLiteral("linkRefused"));

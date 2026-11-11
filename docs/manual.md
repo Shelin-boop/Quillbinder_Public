@@ -25,7 +25,7 @@ When {{APP}} starts without a project, the **start window** opens:
 
 {{APP}} reopens the last project when it starts (you can switch this off under **File > Options > General**).
 
-**The very first start** asks two things in a small window, everything already filled in (**OK** keeps it): whether a project is backed up when it is closed, how many backups to keep and where, and which settings come first, a project's own or always the program's (section 16, *Settings for one project*). All of it can be changed later in **File > Options**.
+**The very first start** asks about backups in a small window, everything already filled in (**OK** keeps it): whether a project is backed up when it is closed, how many backups to keep and where. All of it can be changed later in **File > Options**; there, under **General > Startup**, is also the choice which settings come first, a project's own or always the program's (section 16, *Settings for one project*; since 0.81 no longer asked at the first start).
 
 ### The welcome project and the Quick Start Guide
 
@@ -37,7 +37,7 @@ The welcome project is saved as "Welcome to {{APP}}" in your *Documents* folder.
 
 ### Saving
 
-You never need to save by hand. {{APP}} saves automatically a few seconds after you stop typing, when you switch to another program, and when you close the project. If you type on, it saves in the first short break (a breath between words) once 5 seconds have passed, and after 30 seconds at the latest even without any break. **Ctrl+S** saves immediately if you want to be sure.
+You never need to save by hand. {{APP}} saves automatically a few seconds after you stop typing, when you switch to another program, and when you close the project. If you type on, it saves in the first short break (a breath between words) once 5 seconds have passed, and after 10 seconds at the latest even without any break. **Ctrl+S** saves immediately if you want to be sure.
 
 Every file is written under a temporary name first and replaces the old one only when it was written whole and the computer has put it on the disk. If the disk is full or the drive fails while saving, the old file stays as it was and your changes stay in the window until saving works again.
 
@@ -1258,10 +1258,10 @@ Since 0.70 each project has a folder of its own inside the backup folder (*My No
 - With **Back up with each manual save** (**File > Options > Backup**), every **File > Save** (**Ctrl+S**) makes a backup as well. Two backups within the same second get a number ("... (2)").
 - **File > Back Up > Back Up Now** makes a backup immediately.
 - **Back Up To…** saves a backup wherever you choose, for example on a USB stick.
-- **Restore From Backup…** (0.70) lists the backups of the open project with their date, size and whether they are complete; choose one and **Restore and Open**: it is unpacked into a new folder beside the project, *… (restored 2026-11-10 14-03)*, its title says "(restored …)", and it opens there. The project you had open is not changed.
+- **Restore From Backup…** (0.70) lists the backups of the open project with their date, size and whether they are complete; choose one and **Restore and Open**: it is unpacked into a new folder beside the project, *… (restored 2026-11-10 14-03)*, its title says "(restored …)", and it opens there. The project you had open is not changed. Since 0.81 a restore of any size works (backups of 2 GB and more, files of more than 1 GB such as videos, more than 65,535 files), every file is checked as it is written, a restore that does not fit on the drive is not started, a progress window can cancel it, and when files cannot be restored the message names each of them with the reason (a full disk, a damaged entry).
 - **Show Backup Folder** opens the open project's backup folder (or the backup folder).
 
-A backup is written under a temporary name (*… .zip.part*), checked, and only then gets its real name, so a backup that was cut off never looks like a finished one. Large projects (more than 4 GB, for example with audio and video) are backed up correctly as well (since version 0.20). A file that cannot be read (for example because of its permissions, or a file of a synced folder that is not on this computer yet) is left out; the backup is still made, but it is named *… (incomplete).zip*, a message names the files that are missing (also for the automatic backups when a project opens or closes, 0.65), and no older backup is deleted for it: the number of backups to keep counts complete backups only. The project is saved before every backup; if that save fails (a full disk, a folder that cannot be written), no backup is made and a message says why, so a backup never lacks your latest changes without your knowing. The backup of a project in Scrivener format holds the *.scriv* and, beside it, the working copy of {{APP}} (*… - working copy of {{APP}}*), with the keywords, styles, objects, and other things that only {{APP}} knows.
+A backup is written under a temporary name (*… .zip.part*), checked, and only then gets its real name, so a backup that was cut off never looks like a finished one. Large projects (more than 4 GB, for example with audio and video) are backed up correctly as well (since version 0.20). A file that cannot be read (for example because of its permissions, or a file of a synced folder that is not on this computer yet) is left out; the backup is still made, but it is named *… (incomplete).zip*, a message names the files that are missing (also for the automatic backups when a project opens or closes, 0.65), and no older backup is deleted for it: the number of backups to keep counts complete backups only. Which backups are the oldest is told by the date and time in their names, so renaming the project changes nothing about which ones are kept (0.81; before, a new title that sorts before the old one made every new backup count as the oldest, and it was deleted at once). After the clean-up the program checks that the new backup is still there. Of incomplete backups, the newest ones up to the number to keep stay (0.81). A folder in the project that is a link to a folder elsewhere is backed up with its files (0.81); a link that points nowhere, or back into the project, makes the backup incomplete. If the program is ended by a signal (a shutdown that does not wait, a kill command) while **Make a backup when a project is closed** is on, there is no time for the backup; the next time the project opens, the backup is made and the status bar says so (0.81). The project is saved before every backup; if that save fails (a full disk, a folder that cannot be written), no backup is made and a message says why, so a backup never lacks your latest changes without your knowing. The backup of a project in Scrivener format holds the *.scriv* and, beside it, the working copy of {{APP}} (*… - working copy of {{APP}}*), with the keywords, styles, objects, and other things that only {{APP}} knows.
 
 **To restore a backup by hand** (for example on another computer): open the backup folder, unpack the ZIP file (right-click > Extract), and open the project in it with **File > Open Project**.
 
@@ -1271,7 +1271,7 @@ A backup is written under a temporary name (*… .zip.part*), checked, and only 
 
 **File > Options** (**Ctrl+,**) has a row of icons at the top for the sections, a list of pages (or tabs) on the left, the options on the right. Nothing changes until you click **OK** or **Apply**. At the bottom left, **Manage** saves all options into a file and loads them again (**Save Options to File...**, **Load Options from File...**, for example to take your settings to another computer; recent projects and window places are not in the file), saves the current look as a theme file, and lists the themes; **Defaults** sets every option back to the standard (your recent projects, your own themes, layouts, toolbars, and shortcuts stay).
 
-Since 0.70 the window opens for **All projects** (the program's settings); choose **This project** at the top to set something for the open project only. A project's own settings can make saving safer but never less safe: the shorter autosave delay counts, a backup the program makes stays on, the larger number of backups is kept, and the automatic quit is the program's alone. The latest save comes 30 seconds after a change at most, whatever the autosave delay.
+Since 0.70 the window opens for **All projects** (the program's settings); choose **This project** at the top to set something for the open project only. A project's own settings can make saving safer but never less safe: the shorter autosave delay counts, a backup the program makes stays on, the larger number of backups is kept, and the automatic quit is the program's alone. The latest save comes 10 seconds after a change at most, whatever the autosave delay.
 
 - **General**: **Startup** (reopen the last project, the desktop's file dialogs, the **Language**: English or Deutsch, from the next start; the manual and the welcome project stay in English); **Saving** (autosave interval, the number of recent projects, snapshots with each File > Save); **Author Information** (your name, address, phone, and email for title pages, used by the placeholders `<$author>`, `<$street>`, `<$city>`, `<$state>`, `<$zip>`, `<$country>`, `<$phone>`, `<$email>`, `<$address>`); the options of the writing tools (**Scratch Pad**); **Shared Templates** (a further folder of project templates, for example one synchronized between your computers; its templates appear in File > New Project); **Citations** (the program **Format > Bibliography/Citations...** starts, for example Zotero or JabRef); **Separators** (what goes between merged documents and between scratch pad notes added to a document: a single return, an empty line, a page break, nothing, or your own text); **Automatic Quit** (save and close after a number of minutes without key or mouse input); **Warnings** (**Show Internal Log Console** shows the program's messages of this session, **Reset All Warnings** asks again the questions answered with "Don't ask again").
 - **Editing**: **Options** (reload the editors' last zoom, the default text zoom of each area, centimeters or inches and the step of the ruler, the Insert key for overtype, a date format of your own for Insert > Current Date, what the live count shows, inline annotations without color, comments and footnotes that stop before punctuation, a block insertion point); **Formatting** (the formatting and styles of new projects); **Revisions** (the five colors of Format > Revision Mode, from the shared palette).
@@ -1593,6 +1593,7 @@ MyNovel{{SUFFIX}}/
   snapshots/<ID>/          snapshots of a document
   settings/                window layout and other preferences
   settings/spare-copy{{FILE}}  the project file as it was when the project was last opened
+  settings/spare-copy-2{{FILE}}, spare-copy-3{{FILE}}  the project file as it was at the two openings before (0.81)
   settings/look.json       the project's look: theme, colors, fonts, column width, border (0.40.2)
   settings/options.ini     the project's own options (File > Options, "This project"; 0.62)
   settings/settings-before-loading-<date>.qbsettings  the settings before Load Project Settings
@@ -1675,6 +1676,17 @@ If {{APP}} was stopped from outside or the computer was switched off without clo
 **The table of contents of a Word file has no page numbers.** The page numbers are filled in by the word processor when it updates the field; update it there.
 
 **Something went wrong with a document.** Look in the inspector's snapshot tab, or restore a backup (section 15).
+
+## Appendix: environment variables
+
+{{APP}} reads a few environment variables at its start. You never need them; they are listed so that nothing changes its behavior without being written down (0.81). Since 0.81 the switches that only the test suites use (for example to answer every warning window by itself, or to make two "computers" on one machine) are not part of the released program at all.
+
+- `QB_LANGUAGE=de` or `en`: the language of the interface for this start (instead of the one chosen in **File > Options**).
+- `QB_KEEP_FONT_FAMILIES=1`: font families with several designs (such as Sitka) are left as the system lists them.
+- `QB_NO_UPDATES=1`: the AppImage starts its own version, without an installed program update (a way back when an update does not start).
+- `QB_ALLOW_UNSIGNED_CORE=1`: an installed program update without a valid signature is started anyway. Only for checks of builds that were never signed; do not set it otherwise.
+- `QB_TIMING=1`, `QB_DEBUG_ENV=1`, `QB_DEBUG_LINK=1`, `QB_DEBUG_SHORTCUTS=1`, `QB_ZOOM_DEBUG=1`, `QB_MIRROR_DEBUG=1`, `QB_SPEECH_DEBUG=1`: messages for finding a fault, on the error output.
+- Set by the program itself for its own parts (never set them by hand): `QB_CORE_ACTIVE`, `QB_CORE_BASE`, `QB_CORE_APPDIR`, `QB_ORIG_PATH`, `QB_ORIG_LD_LIBRARY_PATH`, `QB_MEDIA_DIR`, `QB_MEDIA_EXTRA_DIR`, `QB_MEDIA_FFMPEG_SET`, `QB_SPEECH_DIR`, `QB_SPEECH_GGML_DIR`, `QB_TOOL_DATA`.
 
 ## Credits and license
 

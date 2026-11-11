@@ -8,31 +8,83 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QRegularExpression>
 #include <QSaveFile>
 #include <QTextDocument>
+#include <functional>
 #include <vector>
 
 namespace qb {
 namespace snapshots {
 
-static QJsonObject readIndex(const QString &dir)
+// 0.81.0 (audit of 0.80.0, F-04): a list of titles that is there but cannot be read is told from one that is missing.
+// Before, a damaged index.json counted as empty, and the next snapshot wrote a new list with only its own title:
+// the titles of all older snapshots were lost. Now the titles that can still be read are rescued from the damaged
+// file, the damaged file is kept beside it, and a list that cannot be written is reported.
+static QJsonObject readIndex(const QString &dir, bool *damaged = nullptr)
 {
+    if (damaged)
+        *damaged = false;
     QFile f(QDir(dir).filePath(QStringLiteral("index.json")));
-    if (!f.open(QIODevice::ReadOnly))
+    if (!f.exists())
         return QJsonObject();
-    return QJsonDocument::fromJson(f.readAll()).object();
+    QByteArray data;
+    if (f.open(QIODevice::ReadOnly))
+        data = f.readAll();
+    QJsonParseError pe{};
+    const QJsonDocument d = QJsonDocument::fromJson(data, &pe);
+    if (f.error() == QFileDevice::NoError && pe.error == QJsonParseError::NoError && d.isObject())
+        return d.object();
+    if (damaged)
+        *damaged = true;
+    // what can still be read: "<snapshot file>": "<title>" pairs
+    QJsonObject rescued;
+    static const QRegularExpression pair(QStringLiteral("\"(\\d{8}-\\d{6}\\.(?:md|rtf))\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\""));
+    QRegularExpressionMatchIterator it = pair.globalMatch(QString::fromUtf8(data));
+    while (it.hasNext()) {
+        const QRegularExpressionMatch m = it.next();
+        const QJsonDocument v = QJsonDocument::fromJson("[\"" + m.captured(2).toUtf8() + "\"]");
+        if (v.isArray() && v.array().size() == 1 && v.array().at(0).isString())
+            rescued.insert(m.captured(1), v.array().at(0).toString());
+    }
+    return rescued;
 }
 
-static void writeIndex(const QString &dir, const QJsonObject &o)
+static bool writeIndex(const QString &dir, const QJsonObject &o, QString *error)
 {
     QSaveFile f(QDir(dir).filePath(QStringLiteral("index.json")));
-    if (f.open(QIODevice::WriteOnly)) {
-        safesave::write(f, QJsonDocument(o).toJson());
-        safesave::commit(f);
+    const QByteArray data = QJsonDocument(o).toJson();
+    if (!f.open(QIODevice::WriteOnly) || safesave::write(f, data) != data.size() || !safesave::commit(f)) {
+        if (error)
+            *error = f.errorString().isEmpty() || f.errorString() == QLatin1String("Unknown error")
+                         ? QObject::tr("Cannot write %1").arg(QDir::toNativeSeparators(QDir(dir).filePath(QStringLiteral("index.json"))))
+                         : f.errorString();
+        return false;
     }
+    return true;
+}
+
+// reads the list, changes it and writes it back; a damaged list is first kept as "index.damaged-<time>.json"
+// (never overwritten without a copy)
+static bool updateIndex(const QString &dir, const std::function<void(QJsonObject &)> &change, QString *error)
+{
+    bool damaged = false;
+    QJsonObject idx = readIndex(dir, &damaged);
+    if (damaged) {
+        const QString copy = QDir(dir).filePath(QStringLiteral("index.damaged-%1.json")
+                                                    .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"))));
+        QString why;
+        if (!QFile::exists(copy) && !safesave::copyFile(QDir(dir).filePath(QStringLiteral("index.json")), copy, &why)) {
+            if (error)
+                *error = QObject::tr("The list of snapshot titles is damaged and could not be kept: %1").arg(why);
+            return false;
+        }
+    }
+    change(idx);
+    return writeIndex(dir, idx, error);
 }
 
 QList<Snapshot> list(Project *p, const QString &docId)
@@ -78,9 +130,11 @@ bool take(Project *p, const QString &docId, const QString &title, QString *error
                          : f.errorString();
         return false;
     }
-    QJsonObject idx = readIndex(dir);
-    idx.insert(name, title.isEmpty() ? QObject::tr("Untitled Snapshot") : title);
-    writeIndex(dir, idx);
+    QString why;
+    const QString shown = title.isEmpty() ? QObject::tr("Untitled Snapshot") : title;
+    // the snapshot is there even when its title could not be stored: true, with the problem in *error
+    if (!updateIndex(dir, [&](QJsonObject &idx) { idx.insert(name, shown); }, &why) && error)
+        *error = QObject::tr("The snapshot was taken, but its title could not be stored: %1").arg(why);
     it->hasSnapshots = true;
     p->notifyItemChanged(it, false);
     return true;
@@ -112,10 +166,9 @@ bool load(Project *p, const Snapshot &s, QTextDocument *into, QString *error)
 bool remove(Project *p, const Snapshot &s)
 {
     const QString dir = QFileInfo(s.file).absolutePath();
-    QJsonObject idx = readIndex(dir);
-    idx.remove(QFileInfo(s.file).fileName());
-    writeIndex(dir, idx);
     const bool ok = QFile::remove(s.file);
+    if (ok) // a title left in the list for a file that is gone does no harm
+        updateIndex(dir, [&](QJsonObject &idx) { idx.remove(QFileInfo(s.file).fileName()); }, nullptr);
     if (BinderItem *it = p->item(s.id)) {
         it->hasSnapshots = !list(p, s.id).isEmpty();
         p->notifyItemChanged(it, false);
@@ -161,13 +214,10 @@ int removeAll(Project *p, QString *error)
     return before.snapshots - totals(p).snapshots;
 }
 
-bool setTitle(Project *, const Snapshot &s, const QString &title)
+bool setTitle(Project *, const Snapshot &s, const QString &title, QString *error)
 {
     const QString dir = QFileInfo(s.file).absolutePath();
-    QJsonObject idx = readIndex(dir);
-    idx.insert(QFileInfo(s.file).fileName(), title);
-    writeIndex(dir, idx);
-    return true;
+    return updateIndex(dir, [&](QJsonObject &idx) { idx.insert(QFileInfo(s.file).fileName(), title); }, error);
 }
 
 bool rollBack(Project *p, const Snapshot &s, QString *error, bool allowEmpty)
@@ -284,7 +334,10 @@ static QList<DiffOp> myers(const QStringList &a, const QStringList &b)
             dFinal = d;
             break;
         }
-        if (d > 6000) // pathological input: give up with a coarse diff
+        // pathological input: give up with a coarse diff. 0.81.0 (audit of 0.80.0, U-04): at 2,500 steps (the table
+        // then holds about 6 million numbers, 25 MB; 6,000 steps before, about 144 MB for two long, very different
+        // paragraphs)
+        if (d > 2500)
             break;
     }
     if (dFinal < 0) {

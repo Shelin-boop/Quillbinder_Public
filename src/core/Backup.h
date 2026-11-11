@@ -34,6 +34,12 @@ QStringList backupsFor(const QString &projectTitle, const QString &dir);
 // *stop to cancel. The window shows a progress window with it.
 void setProgressHandler(std::function<void(const QString &what, qint64 done, qint64 total, bool *stop)> handler);
 
+// 0.81.0 (audit of 0.80.0, S-03): a backup that the closing would have made but the program was ended by a signal
+// (a kill command, a shutdown that does not wait): the project is noted in <data>/backups-due.txt, and the next
+// opening makes the backup and says so. takeDue: true when the project was noted (the note goes).
+void markDue(const QString &projectFile);
+bool takeDue(const QString &projectFile);
+
 // 0.70.0 (audit A U-05): unpacks a backup into a new folder "<name> (restored <date time>)" inside intoParent;
 // that folder, or "" on failure. *projectFile: what to open (the .qbx, or the .scriv folder).
 QString restore(const QString &zipFile, const QString &intoParent, QString *projectFile, QString *error);

@@ -13,6 +13,7 @@ namespace qb {
 
 BinderModel::BinderModel(Project *project) : QAbstractItemModel(project), m_project(project)
 {
+    connect(project, &Project::saved, this, &BinderModel::removePendingFiles);
     connect(project, &Project::itemChanged, this, &BinderModel::onItemChanged);
 }
 
@@ -657,12 +658,50 @@ void BinderModel::deletePermanently(BinderItem *item)
     m_project->markIndexDirty();
 }
 
-void BinderModel::emptyTrash()
+bool BinderModel::emptyTrash(QString *error)
 {
     BinderItem *t = m_project->trash();
-    while (!t->children.isEmpty())
-        deletePermanently(t->children.last());
+    if (t->children.isEmpty())
+        return true;
+    // 0.81.0 (audit of 0.80.0, F-08): before, the files went first and the project file was saved afterwards,
+    // unchecked; when that save failed, the project file on the disk listed documents whose files were gone
+    QStringList ids;
+    while (!t->children.isEmpty()) {
+        BinderItem *item = t->children.last();
+        const int row = item->row();
+        QList<BinderItem *> gone;
+        item->forEach([&gone](BinderItem *b) { gone << b; });
+        emit itemsAboutToBeDeleted(gone);
+        for (BinderItem *b : std::as_const(gone)) {
+            ids << b->id;
+            m_project->docs()->forgetDocument(b->id);
+        }
+        beginRemoveRows(indexFor(t), row, row);
+        t->children.removeAt(row);
+        m_project->unregisterItem(item);
+        endRemoveRows();
+        delete item;
+    }
     refresh(t);
+    m_project->markIndexDirty();
+    m_removeAfterSave << ids;
+    QString why;
+    const bool ok = m_project->save(&why); // a save that works removes the files (removePendingFiles)
+    if (!ok && error)
+        *error = why;
+    return ok;
+}
+
+void BinderModel::removePendingFiles()
+{
+    const QStringList ids = m_removeAfterSave;
+    m_removeAfterSave.clear();
+    for (const QString &id : ids) {
+        if (m_project->item(id))
+            continue; // (an id given anew meanwhile)
+        m_project->docs()->removeDocumentFiles(id);
+        pathsafety::removeTreeInside(m_project->snapshotsDir(id), m_project->folderPath());
+    }
 }
 
 void BinderModel::setItemType(BinderItem *item, ItemType type)

@@ -1,4 +1,5 @@
 #include "ScreenGrab.h"
+#include "core/TestSwitches.h"
 
 #include <QCursor>
 #include <QGuiApplication>
@@ -41,7 +42,7 @@ QImage ScreenGrab::grabScreen()
 void ScreenGrab::start(bool preferSpectacle)
 {
     const QString spectacle = QStandardPaths::findExecutable(QStringLiteral("spectacle"));
-    if (!preferSpectacle || spectacle.isEmpty() || qEnvironmentVariableIsSet("QB_NO_SPECTACLE")) {
+    if (!preferSpectacle || spectacle.isEmpty() || QB_TEST_ENV_SET("QB_NO_SPECTACLE")) {
         startQt();
         return;
     }

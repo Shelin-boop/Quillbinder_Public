@@ -3,6 +3,56 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.81.0 beta (2026-11-11)
+
+A new AppImage on the runtime of 0.80.0 (`u2404-qt6.12-r1`, the same libraries: the add-ons of 0.80.0 fit, and 0.80.0
+takes the program update). It brings the fixes of the audit of 0.80.0 (part 1 of 2: usability, performance,
+trustworthiness, stability, data protection, data security, robustness; 24 points).
+
+- **Backups after a new title** (F-01, critical). The age of a backup is read from the date in its name. Before, the
+  whole name was compared, title first: after the title changed to one that sorts earlier, every new backup counted
+  as the oldest and was deleted the moment it was made, while the program reported success. The backup just made is
+  never deleted now, and the program checks that it is still there after the clean-up.
+- **Restore of any size** (U-01, F-03). The ZIP reader knows ZIP64 and unpacks each file in pieces to the disk:
+  backups of 2 GB and more, files of more than 1 GB (a video, a recording) and more than 65,535 files come back.
+  Before, such a backup was called "not a complete ZIP file", and large files were left out.
+- **Restore onto a full disk** (F-02). Every restored file is written under a temporary name, synced and checked to
+  the end; a file that cannot be written is never left cut short or empty, and the message names each file that is
+  missing with the reason. A restore that needs more room than the drive has is not started; a restore shows its
+  progress and can be cancelled.
+- **Folders that are links** (F-05) are backed up with their files; a link that points nowhere or back into the
+  project makes the backup incomplete and is named. Of incomplete backups, the newest ones up to the number to keep
+  stay (before, they were never deleted).
+- **A backup missed at a shutdown** (S-03). When the program is ended by a signal (a shutdown that does not wait, a
+  kill command) with the backup at closing switched on, the next opening of the project makes the backup and says so.
+- **Snapshot titles** (F-04). A damaged list of titles is no longer taken for an empty one: the titles that can still
+  be read stay, the damaged file is kept beside it, and a list that cannot be written is reported.
+- **Saves nobody looked at** (F-06). A failed save started by File > Compile, Project Replace, Empty Trash, the boards
+  and other places is told like a failed autosave (the sign in the status bar, the notice, new attempts).
+- **Empty Trash** (F-08) asks with the number of snapshots that go with the documents, saves the project first and
+  removes the files only after a save that works.
+- **Safer copies**: the kept copy of a version changed elsewhere is synced to the disk (F-07); the project file of the
+  last three openings is kept (`settings/spare-copy`, `-2`, `-3`; U-02).
+- **Memory** (U-04): converting the storage format holds only the documents that are open; the comparison of
+  snapshots gives up on two long, very different paragraphs at 2,500 steps (about 25 MB, before up to 144 MB).
+- **Autosave at 10 seconds at the latest** (S-04; 30 s before) when typing goes on without any pause.
+- **Readable explanations** (S-01). The lines that explain options (File > Options, First Start, Compile, Format,
+  Crash Reports, Bookmarks) were drawn in the gray of unavailable controls (contrast 1.62:1); they are drawn in the
+  text color now, a little lighter, with a contrast of at least 4.5:1 in every look.
+- **First Start asks only about backups** (S-09); which settings come first stays in File > Options > General >
+  Startup. **Window titles** no longer repeat the program's name (S-07).
+- **The failed-save notice** (S-08) leads with the reason in plain words ("The disk is full.") and the documents,
+  keeps the paths in its details, and opens in the window's lower right corner instead of over the text.
+- **No computer name in the project** (S-06): the window-state file is named by the computer's anonymous key
+  (`settings/ui-<key>.json`); the file of earlier versions is read once and replaced.
+- **Test switches are out of the released program** (S-10): the 14 variables only the test suites use are not read
+  by a release build any more; the ones a release still reads are listed in the manual (appendix "Environment
+  variables").
+- **Release** (S-02, S-11): nothing is published before the full test suite has passed (from 2026-11-11 to 0.80.0 the
+  release did not wait for it), and a new job runs cppcheck over the saving, backup and update code
+  (`tools/code-check.sh`), which must find nothing.
+- Checks: `qb_v0810_tests` (new).
+
 ## 0.80.0 beta (2026-11-11)
 
 A new AppImage with a new runtime (`u2404-qt6.12-r1`): program updates of 0.70.0 and earlier do not fit it, and the

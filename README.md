@@ -12,11 +12,11 @@ between the programs. Scrivener and Scapple are names of products of Literature 
 
 ## Download
 
-**Quillbinder 0.80.0 beta for Linux (x86_64):**
+**Quillbinder 0.81.0 beta for Linux (x86_64):**
 
-- **[Quillbinder-0.80.0-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.80.0-beta/Quillbinder-0.80.0-beta-x86_64.AppImage)**: the program
-- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.80.0-beta/media-all-formats.qbpkg)**: audio and video in every format (an add-on; optional)
-- **[Quillbinder-0.80.0-full-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.80.0-beta/Quillbinder-0.80.0-full-beta-x86_64.AppImage)**:
+- **[Quillbinder-0.81.0-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.81.0-beta/Quillbinder-0.81.0-beta-x86_64.AppImage)**: the program
+- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.81.0-beta/media-all-formats.qbpkg)**: audio and video in every format (an add-on; optional)
+- **[Quillbinder-0.81.0-full-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.81.0-beta/Quillbinder-0.81.0-full-beta-x86_64.AppImage)**:
   **the full version**: the program with all add-ons and all the libraries they need included (audio and
   video in every format, extra themes, project templates, the scriptwriting pack, the writing tools with offline speech recognition, the
   importers of web pages and old Word files). They are installed at the first start: one download, nothing
@@ -24,9 +24,11 @@ between the programs. Scrivener and Scapple are names of products of Literature 
 - [All files of the newest version](https://github.com/Shelin-boop/Quillbinder_Public/releases/latest): the other
   add-ons, the program update and SHA-256 checksums. Earlier versions: [Releases](https://github.com/Shelin-boop/Quillbinder_Public/releases).
 
-0.80.0 is a new AppImage with a new Qt (6.12): add-ons with program code installed for earlier versions must be
-installed again in their new versions (the bundle on the Releases page, `media-all-formats.qbpkg`, or simply the
-full version). Program updates of 0.70.0 and earlier do not fit the new AppImage.
+0.81.0 brings the fixes of the audit of 0.80.0 (backups and restore above all). It is a new AppImage on the same
+libraries as 0.80.0: the add-ons of 0.80.0 fit it, and 0.80.0 can also take the program update (on the Releases
+page). Since 0.80.0 (a new Qt, 6.12), add-ons with program code installed for earlier versions must be installed
+again in their new versions (the bundle on the Releases page, `media-all-formats.qbpkg`, or simply the full
+version); program updates of 0.70.0 and earlier do not fit.
 
 To start, make the AppImage executable (right-click > Properties > Permissions > *Is executable*, or
 `chmod +x`) and double-click it; **Help > Add to Application Menu** puts it into the menu of the desktop.
@@ -34,8 +36,8 @@ Add-ons are installed with **File > Install Update or Add-on**. Everything on th
 GitHub from this source code (`.github/workflows/release.yml`). Since 0.65.0 every package and the checksum list
 (`SHA256SUMS.txt`, with its signature `SHA256SUMS.txt.sig`) are signed with the project's key
 (`packaging/quillbinder-signing-public.pem`); the program installs program updates only with that signature.
-Since 0.70.0 the release workflow runs the full test suite on every release (beside the publishing, which does not
-wait for it), and the signing key is used only in jobs of their own that run no third-party code.
+Since 0.70.0 the release workflow runs the full test suite on every release, and since 0.81.0 nothing is published
+before it has passed; the signing key is used only in jobs of their own that run no third-party code.
 How to check a download yourself: the user manual, section 17.
 
 **Quillbinder is beta software.** Keep backups of your projects (**File > Back Up > Back Up Now**; the

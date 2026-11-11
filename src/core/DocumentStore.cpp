@@ -609,6 +609,17 @@ QString DocumentStore::notesPlainText(const QString &id)
 
 void DocumentStore::removeDocument(const QString &id)
 {
+    forgetDocument(id);
+    removeDocumentFiles(id);
+}
+
+void DocumentStore::removeDocumentFiles(const QString &id)
+{
+    pathsafety::removeTreeInside(m_project->contentDir(id), m_project->folderPath()); // (0.64.1, audit S-1)
+}
+
+void DocumentStore::forgetDocument(const QString &id)
+{
     for (const QString &key : {id, keyFor(id, true)}) {
         auto it = m_entries.find(key);
         if (it != m_entries.end()) {
@@ -618,7 +629,6 @@ void DocumentStore::removeDocument(const QString &id)
         }
         m_plainCache.remove(key);
     }
-    pathsafety::removeTreeInside(m_project->contentDir(id), m_project->folderPath()); // (0.64.1, audit S-1)
 }
 
 // 0.65.0 (audit F06): every step checked; false with the file that failed
@@ -850,32 +860,36 @@ bool DocumentStore::convertStorage(StorageFormat to, QString *error)
 {
     if (to == m_project->storage)
         return true;
-    // load everything in the old format first
     QList<QString> ids;
     for (BinderItem *it : m_project->allItems())
         if (it->hasText())
             ids << it->id;
     ids << QStringLiteral("PROJECT");
-    for (const QString &id : ids) {
-        if (id != QStringLiteral("PROJECT"))
-            text(id);
-        notes(id);
-    }
+    // 0.81.0 (audit of 0.80.0, U-04): one document at a time, read in the old format and written in the new one;
+    // those that were not loaded before leave the memory once written (before, every text and note of the project
+    // was loaded first and kept)
+    QSet<QString> loadedBefore;
+    for (auto it = m_entries.cbegin(); it != m_entries.cend(); ++it)
+        loadedBefore.insert(it.key());
     const StorageFormat was = m_project->storage;
-    m_project->storage = to;
     bool ok = true;
     // 0.65.0 (audit F15): all texts and the project file in one save batch: either every text is in the new format
     // (and the old files are removed after that), or nothing changed on disk and the project keeps its format
     savebatch::Batch batch(m_project->folderPath(), m_project->journalFile());
     savebatch::Scope scope(&batch);
-    for (auto it = m_entries.begin(); it != m_entries.end() && ok; ++it) {
+    QSet<QString> converted;
+    auto convertOne = [&](const QString &key) {
+        auto it = m_entries.find(key);
+        if (it == m_entries.end() || converted.contains(key))
+            return true;
+        converted.insert(key);
         const bool empty = it->doc->isEmpty();
         const bool notes = it->isNotes;
         const QString id = notes ? it.key().mid(2) : it.key();
         const QString oldPath = m_project->contentDir(id) + (notes ? QLatin1String("/notes.") : QLatin1String("/text."))
                                 + (to == StorageFormat::Rtf ? QStringLiteral("md") : QStringLiteral("rtf"));
         if (empty && !QFile::exists(oldPath))
-            continue;
+            return true;
         if (to == StorageFormat::Markdown) {
             // paragraph formatting that differs from the project's becomes
             // formatting set by hand; the rest follows the project from now on
@@ -886,8 +900,28 @@ bool DocumentStore::convertStorage(StorageFormat to, QString *error)
             it->doc->setUndoRedoEnabled(undo);
         }
         it->dirty = true;
-        if (!writeEntry(it.key(), it.value(), error))
-            ok = false;
+        return writeEntry(it.key(), it.value(), error);
+    };
+    for (const QString &id : std::as_const(ids)) {
+        m_project->storage = was; // read in the old format
+        if (id != QStringLiteral("PROJECT"))
+            text(id);
+        notes(id);
+        m_project->storage = to;
+        ok = convertOne(id) && convertOne(keyFor(id, true));
+        if (!ok)
+            break;
+        if (!loadedBefore.contains(id) && !loadedBefore.contains(keyFor(id, true)))
+            forgetDocument(id); // its file is staged; the done step finds no entry and only removes the old file
+    }
+    // documents loaded before that are not among the texts (as before)
+    if (ok) {
+        const QStringList keys = m_entries.keys();
+        for (const QString &key : keys)
+            if (!convertOne(key)) {
+                ok = false;
+                break;
+            }
     }
     m_plainCache.clear();
     m_project->markIndexDirty();

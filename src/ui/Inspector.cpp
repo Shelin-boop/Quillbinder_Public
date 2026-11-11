@@ -1,4 +1,6 @@
 #include "ui/Inspector.h"
+#include "core/TestSwitches.h"
+#include "ui/HintLabel.h"
 #include "ui/Ask.h"
 #include "ui/LinkOpen.h"
 #include "ui/LookMenu.h"
@@ -664,8 +666,7 @@ QWidget *Inspector::buildBookmarksTab()
     zoom::attachFonts(w, QLatin1String(zoom::kInspBookmarks));
     zoom::mark(m_bookmarkPreview, QLatin1String(zoom::kInspPreview));
     auto *hint = new QLabel(tr("Drag documents, files or web links here; drag a bookmark to move it. Double-click to open."), w);
-    hint->setWordWrap(true);
-    hint->setEnabled(false);
+    hintlabel::style(hint); // 0.81.0 (audit of 0.80.0, S-01): readable, not gray
     l->addWidget(hint);
     return w;
 }
@@ -1102,7 +1103,7 @@ QWidget *Inspector::buildSnapshotsTab()
             return;
         const Snapshot s = m_snaps[r];
         auto tell = [this](const QString &msg) {
-            if (qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+            if (QB_TEST_ENV_SET("QB_NO_DIALOGS"))
                 setProperty("qbLastRollBackError", msg);
             else
                 QMessageBox::warning(this, tr("Roll Back"), msg);
@@ -1116,7 +1117,7 @@ QWidget *Inspector::buildSnapshotsTab()
         }
         bool allowEmpty = false;
         if (check.isEmpty()) {
-            if (!qEnvironmentVariableIsSet("QB_NO_DIALOGS")
+            if (!QB_TEST_ENV_SET("QB_NO_DIALOGS")
                 && QMessageBox::question(this, tr("Roll Back"),
                                          tr("The snapshot \"%1\" holds no text (it may be damaged). Replace the current "
                                             "text with an empty one?").arg(s.title),
@@ -1146,7 +1147,14 @@ QWidget *Inspector::buildSnapshotsTab()
         if (m_updating || r < 0 || r >= m_snaps.size())
             return;
         const QString t = li->text().section(QStringLiteral("  —  "), 0, 0);
-        snapshots::setTitle(m_project, m_snaps[r], t);
+        QString why;
+        if (!snapshots::setTitle(m_project, m_snaps[r], t, &why)) { // 0.81.0 (audit of 0.80.0, F-04)
+            if (QB_TEST_ENV_SET("QB_NO_DIALOGS"))
+                setProperty("qbLastSnapshotTitleError", why);
+            else
+                QMessageBox::warning(this, tr("Snapshot"), tr("The snapshot's new title could not be stored: %1").arg(why));
+            return;
+        }
         m_snaps[r].title = t;
     });
     return w;
@@ -1271,6 +1279,8 @@ void Inspector::takeSnapshot(bool askTitle)
     QString err;
     if (!snapshots::take(m_project, m_item->id, title, &err))
         QMessageBox::warning(this, tr("Snapshot"), tr("The snapshot could not be saved.\n%1").arg(err));
+    else if (!err.isEmpty()) // 0.81.0 (audit of 0.80.0, F-04): taken, but its title could not be stored
+        QMessageBox::warning(this, tr("Snapshot"), err);
     refreshSnapshots();
 }
 

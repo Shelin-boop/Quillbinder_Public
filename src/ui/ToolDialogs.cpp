@@ -1,4 +1,5 @@
 #include "ui/ToolDialogs.h"
+#include "core/TestSwitches.h"
 #include "ui/Ask.h"
 
 #include "import/FileImporter.h"
@@ -727,7 +728,7 @@ bool exportItems(Project *p, const QList<BinderItem *> &items, QWidget *parent)
     if (dlg.exec() != QDialog::Accepted)
         return false;
     const QString dir = dlg.run();
-    if (!qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+    if (!QB_TEST_ENV_SET("QB_NO_DIALOGS"))
         QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
     return true;
 }

@@ -1,4 +1,5 @@
 #include "ui/LicensesDialog.h"
+#include "core/TestSwitches.h"
 #include "ui/Ask.h"
 #include "ui/LinkOpen.h"
 #include "ui/MainWindow.h"
@@ -116,6 +117,7 @@
 #include <QProcess>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QScreen>
 #include <QSettings>
 #include <QSplitter>
 #include <QStandardItemModel>
@@ -520,7 +522,7 @@ MainWindow::MainWindow()
         }
         if (!since.isValid())
             since.start();
-        if (!dlg && since.elapsed() > 700 && !qEnvironmentVariableIsSet("QB_NO_DIALOGS")) {
+        if (!dlg && since.elapsed() > 700 && !QB_TEST_ENV_SET("QB_NO_DIALOGS")) {
             dlg = new QProgressDialog(what, MainWindow::tr("Cancel"), 0, 1000, self.data());
             dlg->setObjectName(QStringLiteral("backupProgress"));
             dlg->setWindowTitle(MainWindow::tr("Back Up"));
@@ -593,14 +595,22 @@ void MainWindow::noteSaveFailed(const QString &err, bool notice)
         return;
     m_saveNoticeShown = QDateTime::currentDateTime();
     const QStringList titles = m_project ? m_project->unsavedTitles(8) : QStringList();
-    QString text = tr("Your latest changes could not be saved:\n%1").arg(err);
+    // 0.81.0 (audit of 0.80.0, S-08): the plain reason and the documents first; the paths and the system's own words
+    // are in the details (before, the reason was hidden in two full paths and the name of a temporary file)
+    QString text = tr("Your latest changes could not be saved. %1").arg(plainSaveReason(err));
     if (!titles.isEmpty())
         text += QStringLiteral("\n\n") + tr("Not saved: %1.").arg(titles.join(QLatin1String(", ")));
+    // 0.81.0 (audit of 0.80.0, S-12): a save of new word counts only (found at the opening, or while typing)
+    if (m_project && m_project->lastFailureWithoutChanges() && titles.isEmpty())
+        text = tr("The project file could not be updated with the new word counts. %1 Nothing you wrote is lost: your "
+                  "texts are on the disk, only the counts in the project file are older.")
+                   .arg(plainSaveReason(err));
     text += QStringLiteral("\n\n")
             + tr("The program tries again by itself, and the status bar shows \"Not saved\" until a save works. Check "
                  "that the disk is not full and the project folder is writable, or save the texts into another folder.");
     auto *box = new QMessageBox(QMessageBox::Warning, tr("Saving Failed"), text, QMessageBox::NoButton, this);
     box->setObjectName(QStringLiteral("saveFailedNotice"));
+    box->setDetailedText(err);
     box->setAttribute(Qt::WA_DeleteOnClose);
     QPushButton *ok = box->addButton(QMessageBox::Ok);
     QPushButton *elsewhere = box->addButton(tr("Save Texts Elsewhere..."), QMessageBox::ActionRole);
@@ -610,9 +620,44 @@ void MainWindow::noteSaveFailed(const QString &err, bool notice)
     box->setEscapeButton(ok);
     connect(elsewhere, &QPushButton::clicked, this, &MainWindow::saveTextsElsewhere);
     m_saveNotice = box;
+    // 0.81.0 (audit of 0.80.0, S-08): in the window's lower right corner, not over the middle of the text
+    placeBesideText(box);
     // 0.70.0 (audit A S-01, B U-2): not modal and without taking the keyboard, so the next typed key goes
     // into the text and does not close the notice unread
     showWithoutTakingKeys(box, ok);
+    // (a message box takes its final size only when it is shown: placed again then)
+    QTimer::singleShot(0, box, [this, box] { placeBesideText(box); });
+}
+
+QString MainWindow::plainSaveReason(const QString &err)
+{
+    const QString e = err.toLower();
+    if (e.contains(QLatin1String("no space left")) || e.contains(QLatin1String("disk full")) || e.contains(QLatin1String("quota")))
+        return tr("The disk is full.");
+    if (e.contains(QLatin1String("read-only file system")))
+        return tr("The drive of the project can only be read (write-protected, or mounted for reading only).");
+    if (e.contains(QLatin1String("permission denied")) || e.contains(QLatin1String("access is denied")))
+        return tr("The program may not write into the project folder.");
+    if (e.contains(QLatin1String("input/output error")))
+        return tr("The drive reported an error: it may be failing, or it was removed.");
+    if (e.contains(QLatin1String("no longer at")))
+        return tr("The project folder is not there any more (renamed, moved, or its drive is not connected).");
+    return tr("The files could not be written.");
+}
+
+void MainWindow::placeBesideText(QWidget *notice)
+{
+    notice->ensurePolished();
+    notice->adjustSize();
+    const QRect g = frameGeometry();
+    const int bottom = g.bottom() - (statusBar() ? statusBar()->height() : 0) - 16;
+    QPoint at(g.right() - notice->frameGeometry().width() - 16, bottom - notice->frameGeometry().height());
+    if (QScreen *s = screen()) {
+        const QRect a = s->availableGeometry();
+        at.setX(qBound(a.left(), at.x(), qMax(a.left(), a.right() - notice->width())));
+        at.setY(qBound(a.top(), at.y(), qMax(a.top(), a.bottom() - notice->height())));
+    }
+    notice->move(at); // (a Wayland desktop may still place it as it likes)
 }
 
 void MainWindow::noteSaved()
@@ -1263,16 +1308,25 @@ void MainWindow::createActions()
             withProject([this] {
                 if (m_project->trash()->children.isEmpty())
                     return;
-                if (ask::question(this, tr("Empty Trash"),
-                                          tr("Delete %1 in the Trash forever? This cannot be undone.")
-                                              .arg(text::plural(int(m_project->trash()->descendants().size()),
-                                                                tr("document"), tr("documents"))), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Empty Trash"))
+                // 0.81.0 (audit of 0.80.0, F-08): the question names the snapshots that go with the documents
+                const QList<BinderItem *> inTrash = m_project->trash()->descendants();
+                int snaps = 0;
+                for (BinderItem *it : inTrash)
+                    if (it->hasSnapshots)
+                        snaps += int(snapshots::list(m_project.get(), it->id).size());
+                const QString docs = text::plural(int(inTrash.size()), tr("document"), tr("documents"));
+                const QString question = snaps == 0 ? tr("Delete %1 in the Trash forever? This cannot be undone.").arg(docs)
+                                                    : tr("Delete %1 in the Trash forever, together with their %n snapshot(s)? "
+                                                         "This cannot be undone.", nullptr, snaps)
+                                                          .arg(docs);
+                if (ask::question(this, tr("Empty Trash"), question, QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Empty Trash"))
                     != QMessageBox::Yes)
                     return;
                 for (EditorPane *p : m_panes)
                     p->showItems({}, false);
-                m_project->model()->emptyTrash();
-                m_project->save();
+                QString err;
+                if (!m_project->model()->emptyTrash(&err))
+                    noteSaveFailed(err); // the files stay until a save works (the project file still lists them)
             }));
     // Project > Delete Old Snapshots (0.61.1)
     connect(act(QStringLiteral("deleteSnapshots"), tr("Delete Old &Snapshots…"), QStringLiteral("edit-clear")), &QAction::triggered,
@@ -1367,13 +1421,15 @@ void MainWindow::createActions()
             &QAction::triggered, this, withProject([this] {
                 int n = 0;
                 QStringList failed;
-                QString firstError;
+                QString firstError, titleError;
                 for (BinderItem *it : actionItems()) {
                     if (!it->hasText())
                         continue;
                     QString err;
                     if (snapshots::take(m_project.get(), it->id, tr("Snapshot"), &err)) {
                         ++n;
+                        if (!err.isEmpty() && titleError.isEmpty()) // 0.81.0: taken, but its title not stored
+                            titleError = err;
                     } else {
                         failed << it->title;
                         if (firstError.isEmpty())
@@ -1387,6 +1443,8 @@ void MainWindow::createActions()
                     QMessageBox::warning(this, tr("Snapshot"),
                                          tr("The snapshot of %n document(s) could not be saved: %1\n%2", nullptr, int(failed.size()))
                                              .arg(failed.mid(0, 5).join(QLatin1String(", ")), firstError));
+                else if (!titleError.isEmpty())
+                    QMessageBox::warning(this, tr("Snapshot"), titleError);
                 statusBar();
                 QApplication::beep();
                 if (n)
@@ -2705,7 +2763,7 @@ bool MainWindow::openProject(const QString &path)
     // object files that could not be read (0.20): they stay as they are, the writer is told
     if (m_project && !m_project->objects()->warnings().isEmpty())
         notice += (notice.isEmpty() ? QString() : QStringLiteral("\n\n")) + m_project->objects()->warnings().join(QLatin1Char('\n'));
-    if (!notice.isEmpty() && !qEnvironmentVariableIsSet("QB_NO_DIALOGS")) {
+    if (!notice.isEmpty() && !QB_TEST_ENV_SET("QB_NO_DIALOGS")) {
         QMessageBox box(QMessageBox::Information, tr("Open Project"), notice, QMessageBox::Ok, this);
         box.setObjectName(QStringLiteral("openNotice"));
         box.exec();
@@ -2900,19 +2958,27 @@ bool MainWindow::adoptProject(std::unique_ptr<Project> p, bool isNew)
     if (!proj->saveRecoveryText().isEmpty()) {
         m_lastSaveRecovery = proj->saveRecoveryText();
         proj->clearSaveRecoveryText();
-        if (!qEnvironmentVariableIsSet("QB_NO_DIALOGS")) {
+        if (!QB_TEST_ENV_SET("QB_NO_DIALOGS")) {
             auto *box = new QMessageBox(QMessageBox::Information, tr("Interrupted Save"), m_lastSaveRecovery, QMessageBox::Ok, this);
             box->setAttribute(Qt::WA_DeleteOnClose);
             box->setObjectName(QStringLiteral("saveRecoveryNotice"));
             QTimer::singleShot(0, box, [box] { box->open(); });
         }
     }
-    if (AppSettings::instance().backupOnOpen) {
+    // 0.81.0 (audit of 0.80.0, S-03): the backup the closing would have made, when the program was ended by a signal
+    const bool due = backup::takeDue(proj->displayFile()) && AppSettings::instance().backupOnClose;
+    if (AppSettings::instance().backupOnOpen || due) {
         // 0.65.0 (found while checking audit F03): the result is told; before, even a backup that failed was not
         QString out, err;
         const bool ok = backup::backupProject(proj, AppSettings::instance().backupDir, AppSettings::instance().backupKeep, &out, &err);
         if (!ok || !err.isEmpty())
             QTimer::singleShot(0, this, [this, ok, err] { tellBackupProblem(ok, err, tr("when the project opened")); });
+        else if (due)
+            statusBar()->showMessage(tr("The last session was ended before its backup could be made (a shutdown or a kill "
+                                        "command); the backup was made now: %1")
+                                         .arg(QFileInfo(out).fileName()),
+                                     20000);
+        m_lastDueBackup = due && ok ? out : QString();
     }
     toolhost::host().notifyProjectChanged();
     return true;
@@ -2924,7 +2990,7 @@ void MainWindow::tellBackupProblem(bool made, const QString &why, const QString 
                              : tr("The automatic backup %1 failed.\n\n%2").arg(when, why);
     m_lastBackupProblem = msg;
     statusBar()->showMessage(made ? tr("The automatic backup is incomplete.") : tr("The automatic backup failed."), 15000);
-    if (!qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+    if (!QB_TEST_ENV_SET("QB_NO_DIALOGS"))
         QMessageBox::warning(this, tr("Backup"), msg);
 }
 
@@ -3250,6 +3316,9 @@ void MainWindow::saveForTermination()
                                      .arg(m_project->title(), err),
                                  dir);
         }
+        // 0.81.0 (audit of 0.80.0, S-03): no time for the backup of the closing here; the next opening makes it
+        if (projectSaved && AppSettings::instance().backupOnClose)
+            backup::markDue(m_project->displayFile());
         releaseLocks();
     }
     toolhost::host().shutdownTools(); // the writing tools save their work (scratch pad notes)
@@ -3284,7 +3353,7 @@ void MainWindow::showEmergencyNotice()
     if (text.isEmpty())
         return;
     m_lastEmergencyNotice = text;
-    if (qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+    if (QB_TEST_ENV_SET("QB_NO_DIALOGS"))
         return;
     auto *box = new QMessageBox(QMessageBox::Warning, tr("Not Saved Last Time"), text, QMessageBox::Ok, this);
     box->setAttribute(Qt::WA_DeleteOnClose);
@@ -3497,7 +3566,7 @@ void MainWindow::duplicateItems()
             m_project->model()->deletePermanently(it);
         m_project->markIndexDirty();
         const QString msg = tr("The duplicate could not be made, so nothing was added:\n%1").arg(copyError);
-        if (qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+        if (QB_TEST_ENV_SET("QB_NO_DIALOGS"))
             statusBar()->showMessage(msg, 10000);
         else
             QMessageBox::warning(this, tr("Duplicate"), msg);
@@ -3533,7 +3602,7 @@ void MainWindow::splitDocument(bool selectionAsTitle)
         if (at.currentFrame() != doc->rootFrame()) {
             const QString why = tr("A document cannot be split inside a table or a picture's caption. Put the cursor "
                                    "before or after the table or the picture, then split again.");
-            if (qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+            if (QB_TEST_ENV_SET("QB_NO_DIALOGS"))
                 statusBar()->showMessage(why, 10000);
             else
                 QMessageBox::information(this, tr("Split"), why);
@@ -4100,7 +4169,7 @@ bool MainWindow::restoreBackupFile(const QString &zip)
         }
     }
     const QString note = err.isEmpty() ? QString() : QStringLiteral("\n\n") + err;
-    if (qEnvironmentVariableIsSet("QB_NO_DIALOGS")) {
+    if (QB_TEST_ENV_SET("QB_NO_DIALOGS")) {
         if (closeProject())
             openProject(projectFile);
         return true;

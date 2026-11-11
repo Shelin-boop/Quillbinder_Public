@@ -55,6 +55,9 @@ public:
     QString notesPath(const QString &id) const;
     QString extension() const;
     void removeDocument(const QString &id);
+    // 0.81.0: the two halves of removeDocument: out of the memory (nothing written for it any more), and its files
+    void forgetDocument(const QString &id);
+    void removeDocumentFiles(const QString &id);
     // 0.65.0 (audit F06): false with a reason when the source could not be saved or its files not copied
     bool copyDocument(const QString &fromId, const QString &toId, QString *error = nullptr);
     // Replace the content of a document (import, templates, split/merge).

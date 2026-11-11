@@ -1,4 +1,5 @@
 #include "SpeechTool.h"
+#include "core/TestSwitches.h"
 #include "ui/Ask.h"
 
 #include "core/SafeSave.h"
@@ -64,7 +65,7 @@ QIcon themeIcon(const QString &name)
     return QIcon::fromTheme(name);
 }
 
-bool quiet() { return qEnvironmentVariableIsSet("QB_NO_DIALOGS"); }
+bool quiet() { return QB_TEST_ENV_SET("QB_NO_DIALOGS"); }
 
 // memory a model needs (bytes, estimate) to offer a graphics card for it
 qint64 memoryNeed(const QString &id)
@@ -261,7 +262,7 @@ QString SpeechTool::speechDir() const
 
 QString SpeechTool::samplePath() const
 {
-    const QString env = qEnvironmentVariable("QB_SPEECH_SAMPLE");
+    const QString env = QB_TEST_ENV("QB_SPEECH_SAMPLE");
     return env.isEmpty() ? speechDir() + QStringLiteral("/samples/jfk.wav") : env;
 }
 
@@ -1183,7 +1184,7 @@ bool TranscriptPanel::remove(bool ask)
 {
     if (m_file.isEmpty() || (m_file == m_recordingFile && m_tool->isBusy()))
         return false;
-    if (ask && !qEnvironmentVariableIsSet("QB_NO_DIALOGS")
+    if (ask && !QB_TEST_ENV_SET("QB_NO_DIALOGS")
         && qb::ask::question(this, tr("Speech Transcription"),
                                  tr("Move \"%1\" to the trash?").arg(QFileInfo(m_file).completeBaseName()), QMessageBox::Yes | QMessageBox::No, QMessageBox::No, tr("Move to Trash"))
                != QMessageBox::Yes)

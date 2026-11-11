@@ -34,7 +34,7 @@ changed and what was checked. Preferences:
   same version number. Audio and video for everyone: the add-on "Media Playback" (free formats), the add-on "Extra
   Video and Audio Formats" (formats licensed under patents), and the package `media-all-formats.qbpkg` that installs
   both in one step (built by `packaging/build-addons.sh`).
-- **Runtime**: the current AppImage is 0.80.0 beta, runtime id `u2404-qt6.12-r1` (`APP_RUNTIME`, `QB_QT_VERSION`,
+- **Runtime**: the current AppImage is 0.81.0 beta (on the runtime of 0.80.0), runtime id `u2404-qt6.12-r1` (`APP_RUNTIME`, `QB_QT_VERSION`,
   `APP_RUNTIME_SINCE`, `APP_RUNTIME_DATE` in CMakeLists.txt; a new AppImage with other libraries needs a new id).
   The AppImages 0.2.0 to 0.70.0 had `u2404-qt6.4-r1` (Ubuntu's Qt 6.4.2). Program updates (.qbpkg) run on the
   AppImage's libraries: build on Ubuntu 24.04 with Qt 6.12.0 of `tools/get-qt.sh` (`/opt/qt/6.12.0/gcc_64`; CMake
@@ -145,6 +145,11 @@ changed and what was checked. Preferences:
   counts, boards, Word 97 damaged copies (needs `plugins/importers/qb_doc_dump`), reading speed, the release
   workflow's jobs, `make-package.py sign`, `launcher::coreOrigin`, the self-test, German, the dark page).
   `QB_V0700_ONLY=markdown,rtf,damaged,saves,backups,pictures,dialogs,hostile,release,german` runs parts.
+- `qb_v0810_tests` (0.81.0 beta, the fixes of the audit of 0.80.0: backups after a title change, restore of any size
+  (a sparse 2.3 GB file, `QB_SKIP_BIG_BACKUP=1` leaves it out; 70,000 entries), onto a full disk (child runs with
+  `qbfaultshim`), linked folders, snapshot titles, unchecked saves, Empty Trash, spare copies, storage conversion, the
+  ui file's name, opening with old counts on a full disk, readable explanations, the failed-save notice, First Start,
+  the missed backup of a signal, the release gate; `QB_V0810_ONLY=backups,saving,window,release` runs parts).
 - `qb_audit1_tests` (0.64.1, the fixes of the external audit of 2026-11-09: ids of a project file and names in archives
   (`core/PathSafety.*`), damaged ZIP entries, a Word 97 file with a looping sector chain (compiles the plugin's `Cfb.cpp`),
   XML nested 20,000 deep, the keys a project may hold and the question of Load Options, the code warning of packages,
@@ -187,6 +192,41 @@ changed and what was checked. Preferences:
    base AppImage, the update and the way back; older AppImages (`tools/e2e-old-version.sh`) only when asked.
    Add-ons are packed with `packaging/build-addons.sh`; an update and add-ons go to the user as one bundle
    (`tools/make-package.py bundle`).
+
+## The audit of 0.80.0 (0.81.0 beta, 2026-11-11, part 1 of 2)
+
+- **Backups** (`core/Backup.cpp`): `ageKey` sorts by the date and number in the name, then the file time (F-01: the
+  whole name sorted a renamed project's new backups first, and the clean-up deleted them); the backup just made is
+  never deleted and must exist after the clean-up; incomplete backups are trimmed to `keep` too. `markDue`/`takeDue`
+  (`<data>/backups-due.txt`): `saveForTermination` notes the closing backup it has no time for, `adoptProject` makes
+  it (S-03, `MainWindow::lastDueBackup`). `restore` checks the free space first (`QStorageInfo`), unpacks in a
+  `QThread::create` worker with the progress handler and Cancel, and names the failed files (20, then "and n more").
+- **ZIP** (`core/Zip.*`): the reader knows ZIP64 (end record, extra field 0x0001; no 2 GiB limit), reads small archives
+  whole and large ones in pieces from the open file (no mapping any more), `fileData` stays in memory (1 GiB limit),
+  `extractFile`/`extractAll(dir, &failed)` stream each entry through a `QSaveFile` (flush checked before
+  `safesave::commit`, so a full disk gives its own reason), with progress and Cancel (`setProgress`). The writer's
+  `addDirectory` walks itself: folder links are followed; a loop or a dangling link is `skipped()` (F-05).
+- **Saving**: `Project::save()` without an error pointer emits `saveFailed` (F-06); `saveImpl` sets
+  `lastFailureWithoutChanges()` (only new counts failed: its own notice text, S-12) and retries the counts in the next
+  autosave after a failure; `Project::open` starts `m_lastIndexWrite` (counts found at the opening wait a minute);
+  `m_maxSaveWait` 10 s (S-04). `BinderModel::emptyTrash(&err)`: out of the binder (`DocumentStore::forgetDocument`),
+  saved, then `removeDocumentFiles` (after the next save that works, `removePendingFiles` on `Project::saved`).
+  Spare copies rotate to `spare-copy-2/-3` (U-02). `convertStorage` loads, writes and forgets one document at a time
+  (U-04). `uiStateFile()` = `ui-<machineKey>.json`, `oldUiStateFile()` read once and removed (S-06).
+  `syncsafe::keepCopy` uses `safesave::copyFile` (F-07). Snapshots: `updateIndex` keeps a damaged `index.json` as
+  `index.damaged-<time>.json` and rescues the readable pairs; `take` true with *error when only the title failed;
+  `setTitle(..., &error)` (F-04); the comparison stops at 2,500 steps.
+- **Window**: `ui/HintLabel.*` (`hintlabel::style`: explanation lines in the text color moved toward the background,
+  contrast >= 4.5:1, worked out again on palette changes; never `setEnabled(false)` for a label of explanation, S-01);
+  `noteSaveFailed`: `plainSaveReason`, details hold the system's text, `placeBesideText` (S-08); First Start without
+  the settings question (S-09); titles without the program name (Qt adds it, S-07).
+- **Test switches** (`core/TestSwitches.h`, S-10): `QB_TEST_ENV_SET` / `QB_TEST_ENV` / `QB_TEST_ENV_INT` /
+  `QB_TEST_ENV_BYTES` read a variable only in `QB_TEST_SWITCHES` builds (the name is not in a release binary;
+  audit1's X-10 list has them). Use them for every new test-only variable; the manual's appendix lists what a release
+  still reads.
+- **Release**: `publish` needs `tests` and `code-check` (S-02, S-11); `tools/code-check.sh` runs cppcheck 2.13 over the
+  saving, backup and update files and fails on error/warning/portability/performance findings not listed in
+  `tools/code-check-suppressions.txt`.
 
 ## The runtime step: Qt 6.12, FFmpeg 9.0.2, fuzz tests, Apache-2.0 (0.80.0 beta)
 
@@ -349,7 +389,7 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
   folder, else the newest, and `open()` tells about the others. Boards: ids, places and sizes bounded.
 - **Word 97** (A U-11): pieces bounded by the stream, character counts by the pieces (16 million at most).
 - **Build and release** (A S-04, S-03, S-02, U-07): `QB_TEST_SWITCHES` off by default (the runner refuses a build
-  without it); the release workflow's jobs build (no key), tests (full suite but v060, one retry; since 2026-11-11 the release does not wait for it, the writer's decision), sign-packages
+  without it); the release workflow's jobs build (no key), tests (full suite but v060, one retry; publish waits for it again since 0.81.0, audit of 0.80.0 S-02), code-check (cppcheck, 0.81.0), sign-packages
   (`make-package.py sign`), assemble (the full version), sign-checksums, publish; the installer keeps
   `package-manifest.json`/`.sig`, and `launcher::coreOrigin` checks them before every start (Linux; unsigned only with
   `QB_ALLOW_UNSIGNED_CORE`, which `tools/e2e-appimage.sh` sets). The first run on GitHub's container failed for the

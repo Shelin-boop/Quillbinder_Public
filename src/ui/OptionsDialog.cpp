@@ -1,4 +1,6 @@
 #include "ui/OptionsDialog.h"
+#include "core/TestSwitches.h"
+#include "ui/HintLabel.h"
 #include "ui/Language.h"
 #include "ui/Ask.h"
 #include "compile/PluginManager.h"
@@ -84,12 +86,11 @@ void setButtonColor(QPushButton *b, const QColor &c)
     b->setIconSize(pm.size());
 }
 
-// A grey line of explanation under an option.
+// A line of explanation under an option (0.81.0, audit of 0.80.0, S-01: readable, see ui/HintLabel.h; gray before).
 QLabel *hint(const QString &text, QWidget *parent)
 {
     auto *l = new QLabel(text, parent);
-    l->setWordWrap(true);
-    l->setEnabled(false);
+    hintlabel::style(l);
     return l;
 }
 
@@ -2645,7 +2646,7 @@ void OptionsDialog::apply()
         if (code != as.language) {
             as.language = code;
             as.save();
-            if (!qEnvironmentVariableIsSet("QB_NO_DIALOGS") && isVisible())
+            if (!QB_TEST_ENV_SET("QB_NO_DIALOGS") && isVisible())
                 QMessageBox::information(this, tr("Language"),
                                          tr("The program speaks %1 from its next start.").arg(language::displayName(code)));
         }

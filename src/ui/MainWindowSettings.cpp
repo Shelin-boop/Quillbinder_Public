@@ -2,6 +2,7 @@
 // core/SettingsFile.* writes and compares the sections, ui/SettingsTransfer.* asks per
 // section what to do, this file carries the choices out.
 #include "ui/MainWindow.h"
+#include "core/TestSwitches.h"
 #include "core/SafeSave.h"
 
 #include "core/DocumentStore.h"
@@ -136,7 +137,7 @@ bool MainWindow::importProjectSettings(const QString &fileIn)
         done += QStringLiteral("\n\n") + notes.join(QLatin1Char('\n'));
     QMessageBox box(QMessageBox::Information, tr("Load Project Settings"), done, QMessageBox::Ok, this);
     box.setObjectName(QStringLiteral("settingsLoadedNotice"));
-    if (!qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+    if (!QB_TEST_ENV_SET("QB_NO_DIALOGS"))
         box.exec();
     m_lastSettingsNotes = notes;
     return true;

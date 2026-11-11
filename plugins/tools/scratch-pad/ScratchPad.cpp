@@ -1,4 +1,5 @@
 #include "ScratchPad.h"
+#include "core/TestSwitches.h"
 #include "ui/Ask.h"
 #include "ScreenGrab.h"
 
@@ -567,7 +568,7 @@ void ScratchPadWindow::tellUnsaved(const QString &doing)
                            "not lost. Free some space or check the notes folder, or copy the text somewhere else.")
                             .arg(title, m_saveError, doing);
     m_status->setText(msg);
-    if (qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+    if (QB_TEST_ENV_SET("QB_NO_DIALOGS"))
         return;
     QMessageBox box(QMessageBox::Warning, tr("Note Not Saved"), msg, QMessageBox::NoButton, this);
     QPushButton *copy = box.addButton(tr("Copy Text"), QMessageBox::ActionRole);

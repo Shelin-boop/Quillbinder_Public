@@ -17,21 +17,19 @@ void settingsChecks()
         auto *backup = d.findChild<QCheckBox *>(QStringLiteral("firstBackup"));
         auto *keep = d.findChild<QSpinBox *>(QStringLiteral("firstBackupKeep"));
         auto *folder = d.findChild<QLineEdit *>(QStringLiteral("firstBackupFolder"));
-        auto *projectFirst = d.findChild<QRadioButton *>(QStringLiteral("firstProjectFirst"));
-        auto *programFirst = d.findChild<QRadioButton *>(QStringLiteral("firstProgramFirst"));
-        check(backup && keep && folder && projectFirst && programFirst && keep->value() == as.backupKeep
-                  && !folder->text().isEmpty() && projectFirst->isChecked(),
-              QStringLiteral("first start: backups and which settings come first, filled in with the values in use"));
+        // 0.81.0 (audit of 0.80.0, S-09): only the backups; which settings come first is no longer asked
+        check(backup && keep && folder && keep->value() == as.backupKeep && !folder->text().isEmpty()
+                  && !d.findChild<QRadioButton *>(QStringLiteral("firstProjectFirst")),
+              QStringLiteral("first start: the backups, filled in with the values in use (which settings come first is not asked)"));
         shot(&d, QStringLiteral("v062-first-start"));
         const QString dir = QDir::tempPath() + QStringLiteral("/qb-v062-backups-%1").arg(QCoreApplication::applicationPid());
-        if (backup && keep && folder && programFirst) {
+        if (backup && keep && folder) {
             backup->setChecked(true);
             keep->setValue(7);
             folder->setText(dir);
-            programFirst->setChecked(true);
         }
         d.take();
-        check(as.backupOnClose && as.backupKeep == 7 && as.backupDir == dir && QDir(dir).exists() && !settingslayer::projectFirst()
+        check(as.backupOnClose && as.backupKeep == 7 && as.backupDir == dir && QDir(dir).exists() && settingslayer::projectFirst()
                   && !FirstStartDialog::due() && programValue(QStringLiteral("backup/keep")).toInt() == 7,
               QStringLiteral("first start: the choices are taken over and the questions are not asked again"),
               QStringLiteral("%1 %2 %3").arg(as.backupKeep).arg(as.backupDir).arg(settingslayer::projectFirst()));

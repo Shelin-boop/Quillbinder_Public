@@ -165,8 +165,9 @@ jobs:
           if-no-files-found: ignore
 
   tests:
-    # 0.70.0 (audit A S-02): the full test suite of this commit; since 2026-11-11 publishing does not wait for it (the
-    # writer's decision): a failure here is reported after the release is out
+    # 0.70.0 (audit A S-02): the full test suite of this commit. 0.81.0 (audit of 0.80.0, S-02): publishing waits for
+    # it again (from 2026-11-11 08:00 to 0.81.0 it did not): a build that fails its own tests is never published or
+    # signed as a release
     needs: version
     if: needs.version.outputs.build == 'true'
     runs-on: ubuntu-24.04
@@ -234,6 +235,22 @@ jobs:
             build/test-results/*.log
             build/test-results-again/*.log
           if-no-files-found: ignore
+
+  code-check:
+    # 0.81.0 (audit of 0.80.0, S-11): a second look at the saving, backup and update code by another tool (cppcheck,
+    # tools/code-check.sh); nothing is published before it passes
+    needs: version
+    if: needs.version.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: cppcheck
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends cppcheck
+          tools/code-check.sh
 
   sign-packages:
     # 0.70.0 (audit A S-03): the key is only here and in "sign-checksums": no third-party code runs in either
@@ -434,8 +451,9 @@ jobs:
         run: rm -rf /tmp/qb-signing
 
   publish:
-    # the only job with write permission: it publishes what the jobs before it built, signed and checked
-    needs: [version, sign-checksums]
+    # the only job with write permission: it publishes what the jobs before it built, signed and checked, once the
+    # full test suite has passed (0.81.0, audit of 0.80.0, S-02)
+    needs: [version, sign-checksums, tests, code-check]
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:

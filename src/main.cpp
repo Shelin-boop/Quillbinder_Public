@@ -1,4 +1,5 @@
 #include "AppInfo.h"
+#include "core/TestSwitches.h"
 #include "ui/Zoom.h"
 #include "compile/PluginManager.h"
 #include "core/SettingsLayer.h"
@@ -216,7 +217,7 @@ int main(int argc, char **argv)
                 ? QStringLiteral("The command %1 needs the main window.").arg(toolKey)
                 : QStringLiteral("No writing tool with the command %1 is installed and switched on (Help > Add-on Manager).").arg(toolKey);
             std::fprintf(stderr, "%s\n", qPrintable(msg));
-            if (!qEnvironmentVariableIsSet("QB_NO_DIALOGS"))
+            if (!QB_TEST_ENV_SET("QB_NO_DIALOGS"))
                 QMessageBox::warning(nullptr, QStringLiteral(QB_APP_NAME), msg);
             return 2;
         }
@@ -330,7 +331,7 @@ int main(int argc, char **argv)
     QTimer::singleShot(0, &w, [&w, toOpen, toInstall, previous, reopening]() mutable {
         w.showStartNotice();
         w.showEmergencyNotice(); // 0.65.0 (audit F07): the last end could not save
-        if (!previous.isEmpty() && !qEnvironmentVariableIsSet("QB_NO_DIALOGS")
+        if (!previous.isEmpty() && !QB_TEST_ENV_SET("QB_NO_DIALOGS")
             && qb::showPreviousEnds(&w, previous, reopening))
             toOpen.clear(); // the last session ended right after the start: not the last project this time
         // 0.62: backups and which settings come first, once (also after an update from an older version)
@@ -362,7 +363,7 @@ int main(int argc, char **argv)
 #ifdef Q_OS_WIN
     // Checks of the crash guard on the Windows runner (tools/win-ci.sh; Linux sends signals instead).
     // Nothing happens without the variable: QB_TEST_CRASH=access|abort|freeze|quit.
-    const QByteArray crashTest = qgetenv("QB_TEST_CRASH");
+    const QByteArray crashTest = QB_TEST_ENV_BYTES("QB_TEST_CRASH");
     if (!crashTest.isEmpty())
         QTimer::singleShot(4000, &app, [crashTest] {
             qb::crash::note(QStringLiteral("check of the crash guard: %1").arg(QString::fromLatin1(crashTest)));

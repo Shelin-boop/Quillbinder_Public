@@ -9,11 +9,14 @@
 #endif
 #include "core/SaveBatch.h"
 #include "core/PathSafety.h"
+#include "core/SafeSave.h"
 
 #include <QDir>
 #include <limits>
 #include <QDirIterator>
 #include <QFileInfo>
+#include <QSaveFile>
+#include <QSet>
 #include <zlib.h>
 
 namespace qb {
@@ -41,6 +44,14 @@ static quint32 get32(const QByteArray &b, int pos)
            | (quint32(uchar(b[pos + 3])) << 24);
 }
 
+static quint64 get64(const QByteArray &b, int pos)
+{
+    quint64 v = 0;
+    for (int k = 0; k < 8; ++k)
+        v |= quint64(uchar(b[pos + k])) << (8 * k);
+    return v;
+}
+
 static QByteArray deflateRaw(const QByteArray &in)
 {
     z_stream zs{};
@@ -64,7 +75,7 @@ static QByteArray deflateRaw(const QByteArray &in)
 // 0.64.1 (audit ST-1): at most this much per entry (a declared size is not trusted further)
 static constexpr quint32 kMaxEntrySize = 1024u * 1024u * 1024u;
 
-static QByteArray inflateRaw(const QByteArray &in, quint32 size)
+static QByteArray inflateRaw(const QByteArray &in, quint64 size)
 {
     if (size > kMaxEntrySize)
         return QByteArray();
@@ -295,15 +306,48 @@ bool ZipWriter::addFileFromDisk(const QString &name, const QString &path, bool c
 bool ZipWriter::addDirectory(const QString &diskDir, const QString &prefix)
 {
     QDir base(diskDir);
-    QDirIterator it(diskDir, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+    // 0.81.0 (audit of 0.80.0, F-05): a folder that is a link to a folder elsewhere is followed and packed as a
+    // folder (before, the walk passed it over without a word, and the backup lacked its files without the
+    // "(incomplete)" mark); a link back to a folder already packed or to a folder around the project (a loop), and a
+    // link whose target is not there, are listed as skipped, so the backup says it is incomplete.
+    QStringList files;
+    {
+        const QString rootCanon = QFileInfo(diskDir).canonicalFilePath();
+        QSet<QString> visited{rootCanon};
+        QStringList pending{diskDir};
+        while (!pending.isEmpty()) {
+            const QString dir = pending.takeFirst();
+            const QFileInfoList list = QDir(dir).entryInfoList(QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot,
+                                                               QDir::Name);
+            for (const QFileInfo &fi : list) {
+                if (fi.isDir()) {
+                    const QString canon = fi.canonicalFilePath();
+                    if (fi.isSymLink()) {
+                        const bool loop = canon.isEmpty() || visited.contains(canon) || rootCanon == canon
+                                          || rootCanon.startsWith(canon + QLatin1Char('/'));
+                        if (loop) {
+                            m_skipped << fi.filePath();
+                            continue;
+                        }
+                    }
+                    visited.insert(canon);
+                    pending << fi.filePath();
+                } else if (fi.isFile()) {
+                    files << fi.filePath();
+                } else if (fi.isSymLink() && !fi.exists()) {
+                    m_skipped << fi.filePath(); // a link to something that is not there (a drive not attached)
+                }
+                // sockets, pipes and devices are no project data (reading a pipe would wait for ever)
+            }
+        }
+    }
     bool ok = true;
-    while (it.hasNext()) {
+    for (const QString &path : std::as_const(files)) {
         if (m_cancel && m_cancel->load()) {
             m_cancelled = true;
             m_error = QObject::tr("cancelled");
             return false;
         }
-        const QString path = it.next();
         const QString rel = base.relativeFilePath(path);
         if (savebatch::isStaged(path) || rel == QLatin1String("settings/journal.json"))
             continue; // a save in progress (0.65.0): not project data
@@ -465,15 +509,9 @@ qint64 ZipWriter::verify(const QString &path, QString *error)
         const QByteArray r = f.read(56);
         if (r.size() < 56 || get32(r, 0) != 0x06064b50)
             return fail(QStringLiteral("damaged Zip64 end record"));
-        auto get64 = [&r](int pos) {
-            quint64 v = 0;
-            for (int k = 0; k < 8; ++k)
-                v |= quint64(uchar(r.at(pos + k))) << (8 * k);
-            return v;
-        };
-        count = get64(32);
-        cdSize = get64(40);
-        cdStart = get64(48);
+        count = get64(r, 32);
+        cdSize = get64(r, 40);
+        cdStart = get64(r, 48);
     }
     if (cdStart + cdSize > quint64(n))
         return fail(QStringLiteral("the central directory lies outside the file"));
@@ -578,68 +616,132 @@ qint64 ZipWriter::verify(const QString &path, QString *error)
 
 ZipReader::ZipReader(const QString &path) : m_file(std::make_shared<QFile>(path))
 {
-    if (!m_file->open(QIODevice::ReadOnly))
+    if (!m_file->open(QIODevice::ReadOnly)) {
+        m_error = m_file->errorString();
+        m_file.reset();
         return;
-    const qint64 size = m_file->size();
-    // 0.65.0 (audit F17): this reader knows no ZIP64, and its positions are 32-bit: an archive of 2 GiB or more is
-    // not read (before, it was read whole into memory and then misread)
-    if (size >= qint64(std::numeric_limits<int>::max()))
-        return;
-    // a large archive (a book's Word file with many pictures, a package) is mapped page by page instead of being
-    // read whole; small ones are read (a mapped file that another program shortens could end the program)
-    constexpr qint64 kMapAbove = 64ll * 1024 * 1024;
-    if (size > kMapAbove) {
-        if (uchar *p = m_file->map(0, size)) {
-            m_data = QByteArray::fromRawData(reinterpret_cast<const char *>(p), qsizetype(size));
-            parse();
+    }
+    m_size = m_file->size();
+    // small archives are read whole and the file is closed (another program may change it afterwards); large ones
+    // stay open and are read in pieces where needed (0.81.0: of any size, ZIP64; 0.65.0 to 0.80.0 mapped them, and
+    // refused 2 GiB and more)
+    constexpr qint64 kReadWholeUpTo = 64ll * 1024 * 1024;
+    if (m_size <= kReadWholeUpTo) {
+        m_data = m_file->readAll();
+        m_file->close();
+        m_file.reset();
+        if (m_data.size() != m_size) {
+            m_error = QObject::tr("the file could not be read whole");
+            m_data.clear();
             return;
         }
     }
-    m_data = m_file->readAll();
-    m_file->close();
     parse();
 }
 
-ZipReader::ZipReader(const QByteArray &data) : m_data(data) { parse(); }
+ZipReader::ZipReader(const QByteArray &data) : m_data(data), m_size(data.size()) { parse(); }
+
+QByteArray ZipReader::readAt(qint64 pos, qint64 len) const
+{
+    if (pos < 0 || len <= 0 || pos > m_size || len > m_size - pos)
+        return QByteArray();
+    if (m_file) {
+        if (!m_file->seek(pos))
+            return QByteArray();
+        QByteArray b = m_file->read(len);
+        return b.size() == len ? b : QByteArray();
+    }
+    return m_data.mid(qsizetype(pos), qsizetype(len));
+}
 
 void ZipReader::parse()
 {
-    const int n = m_data.size();
+    m_valid = false;
+    const qint64 n = m_size;
+    auto bad = [this](const QString &why) {
+        m_entries.clear();
+        m_error = why;
+    };
     if (n < 22)
-        return;
+        return bad(QObject::tr("too short for a ZIP file"));
+    // the end record is in the last 64 KiB (its comment may be up to 65,535 bytes), the ZIP64 locator 20 bytes before it
+    const qint64 tailStart = qMax<qint64>(0, n - 65557 - 20);
+    const QByteArray tail = readAt(tailStart, n - tailStart);
+    if (tail.size() != n - tailStart)
+        return bad(QObject::tr("the file could not be read"));
     int eocd = -1;
-    for (int i = n - 22; i >= qMax(0, n - 65557); --i) {
-        if (get32(m_data, i) == 0x06054b50) {
+    for (int i = int(tail.size()) - 22; i >= 0; --i)
+        if (get32(tail, i) == 0x06054b50) {
             eocd = i;
             break;
         }
-    }
     if (eocd < 0)
-        return;
-    const int count = get16(m_data, eocd + 10);
-    // 0.64.1 (audit ST-1): offsets and lengths from the file are unsigned 32-bit numbers; every one is
-    // checked against the data's size with 64-bit arithmetic before it is used (an offset of 2 GiB or
-    // more became negative in an int, passed the check, and the reader read far outside the data)
-    qint64 pos = get32(m_data, eocd + 16);
-    for (int i = 0; i < count; ++i) {
-        if (pos < 0 || pos + 46 > n || get32(m_data, int(pos)) != 0x02014b50)
-            return;
+        return bad(QObject::tr("no end record: the file is cut off, or it is no ZIP file"));
+    quint64 count = get16(tail, eocd + 10);
+    quint64 cdSize = get32(tail, eocd + 12);
+    quint64 cdStart = get32(tail, eocd + 16);
+    if (eocd >= 20 && get32(tail, eocd - 20) == 0x07064b50) {
+        // ZIP64: the locator names the ZIP64 end record, which holds the 64-bit count, size and place
+        const quint64 z64 = get64(tail, eocd - 20 + 8);
+        const QByteArray r = z64 < quint64(n) ? readAt(qint64(z64), 56) : QByteArray();
+        if (r.size() < 56 || get32(r, 0) != 0x06064b50)
+            return bad(QObject::tr("damaged ZIP64 end record"));
+        count = get64(r, 32);
+        cdSize = get64(r, 40);
+        cdStart = get64(r, 48);
+    }
+    // 0.64.1 (audit ST-1): every offset and length from the file is checked against its size before it is used
+    if (cdStart > quint64(n) || cdSize > quint64(n) - cdStart)
+        return bad(QObject::tr("the table of contents lies outside the file"));
+    // the table of contents is read whole: at most 512 MiB (millions of entries)
+    if (cdSize > 512ull * 1024 * 1024 || count > cdSize / 46 + (cdSize == 0 ? 0 : 1))
+        return bad(QObject::tr("damaged table of contents"));
+    const QByteArray cd = cdSize == 0 ? QByteArray() : readAt(qint64(cdStart), qint64(cdSize));
+    if (quint64(cd.size()) != cdSize)
+        return bad(QObject::tr("the table of contents could not be read"));
+    m_entries.reserve(qsizetype(count));
+    qint64 pos = 0;
+    for (quint64 i = 0; i < count; ++i) {
+        if (pos + 46 > cd.size() || get32(cd, int(pos)) != 0x02014b50)
+            return bad(QObject::tr("damaged table of contents"));
         const int at = int(pos);
         Entry e;
-        e.method = get16(m_data, at + 10);
-        e.crc = get32(m_data, at + 16);
-        e.compSize = get32(m_data, at + 20);
-        e.size = get32(m_data, at + 24);
-        const int nameLen = get16(m_data, at + 28);
-        const int extraLen = get16(m_data, at + 30);
-        const int commentLen = get16(m_data, at + 32);
-        e.localOffset = get32(m_data, at + 42);
-        if (pos + 46 + nameLen > n)
-            return;
-        e.name = QString::fromUtf8(m_data.mid(at + 46, nameLen));
+        e.method = get16(cd, at + 10);
+        e.crc = get32(cd, at + 16);
+        e.compSize = get32(cd, at + 20);
+        e.size = get32(cd, at + 24);
+        const int nameLen = get16(cd, at + 28);
+        const int extraLen = get16(cd, at + 30);
+        const int commentLen = get16(cd, at + 32);
+        e.localOffset = get32(cd, at + 42);
+        if (pos + 46 + nameLen + extraLen > cd.size())
+            return bad(QObject::tr("damaged table of contents"));
+        e.name = QString::fromUtf8(cd.mid(at + 46, nameLen));
+        // ZIP64: the real values are in the extra field 0x0001, in this order, for each field that holds 0xFFFFFFFF
+        const int extraEnd = at + 46 + nameLen + extraLen;
+        for (int x = at + 46 + nameLen; x + 4 <= extraEnd;) {
+            const int id = get16(cd, x), len = get16(cd, x + 2);
+            if (x + 4 + len > extraEnd)
+                break;
+            if (id == 0x0001) {
+                int p = x + 4;
+                const int end = x + 4 + len;
+                auto take = [&](quint64 *v) {
+                    if (*v == 0xFFFFFFFFu && p + 8 <= end) {
+                        *v = get64(cd, p);
+                        p += 8;
+                    }
+                };
+                take(&e.size);
+                take(&e.compSize);
+                take(&e.localOffset);
+            }
+            x += 4 + len;
+        }
         m_entries.append(e);
         pos += qint64(46) + nameLen + extraLen + commentLen;
     }
+    m_error.clear();
     m_valid = true;
 }
 
@@ -651,6 +753,27 @@ QStringList ZipReader::fileNames() const
     return l;
 }
 
+quint64 ZipReader::totalSize() const
+{
+    quint64 n = 0;
+    for (const Entry &e : m_entries)
+        n += e.size;
+    return n;
+}
+
+qint64 ZipReader::dataStart(const Entry &e) const
+{
+    if (e.localOffset >= quint64(m_size))
+        return -1;
+    const QByteArray lh = readAt(qint64(e.localOffset), 30);
+    if (lh.size() < 30 || get32(lh, 0) != 0x04034b50)
+        return -1;
+    const qint64 start = qint64(e.localOffset) + 30 + get16(lh, 26) + get16(lh, 28);
+    if (start > m_size || e.compSize > quint64(m_size - start))
+        return -1; // cut off, or larger than the file
+    return start;
+}
+
 QByteArray ZipReader::fileData(const QString &name, bool *ok) const
 {
     if (ok)
@@ -658,16 +781,14 @@ QByteArray ZipReader::fileData(const QString &name, bool *ok) const
     for (const Entry &e : m_entries) {
         if (e.name != name)
             continue;
-        const qint64 n = m_data.size();
-        const qint64 lo = e.localOffset;
-        if (lo + 30 > n || get32(m_data, int(lo)) != 0x04034b50)
+        if (e.compSize > kMaxEntrySize || e.size > kMaxEntrySize)
+            return QByteArray(); // in memory at most 1 GiB: larger entries go to disk with extractFile
+        const qint64 start = dataStart(e);
+        if (start < 0)
             return QByteArray();
-        const int nameLen = get16(m_data, int(lo) + 26);
-        const int extraLen = get16(m_data, int(lo) + 28);
-        const qint64 start = lo + 30 + nameLen + extraLen;
-        if (start + qint64(e.compSize) > n || e.compSize > kMaxEntrySize)
-            return QByteArray(); // cut off, or larger than the file
-        const QByteArray comp = m_data.mid(qsizetype(start), qsizetype(e.compSize));
+        const QByteArray comp = readAt(start, qint64(e.compSize));
+        if (quint64(comp.size()) != e.compSize)
+            return QByteArray();
         QByteArray out;
         if (e.method == 0 && e.compSize == e.size)
             out = comp;
@@ -675,7 +796,7 @@ QByteArray ZipReader::fileData(const QString &name, bool *ok) const
             out = inflateRaw(comp, e.size);
         else
             return QByteArray();
-        if (out.size() != qsizetype(e.size))
+        if (quint64(out.size()) != e.size)
             return QByteArray(); // inflateRaw failed (it gives exactly the size or nothing)
         // 0.64.1 (audit ST-1): the contents must match the checksum the archive gives for them
         if (quint32(crc32(0L, reinterpret_cast<const Bytef *>(out.constData()), uInt(out.size()))) != e.crc)
@@ -687,36 +808,160 @@ QByteArray ZipReader::fileData(const QString &name, bool *ok) const
     return QByteArray();
 }
 
-bool ZipReader::extractAll(const QString &targetDir) const
+bool ZipReader::extractEntry(const Entry &e, const QString &path, QString *error) const
+{
+    auto fail = [&](const QString &why) {
+        if (error)
+            *error = why;
+        return false;
+    };
+    const qint64 start = dataStart(e);
+    if (start < 0)
+        return fail(QObject::tr("damaged in the archive"));
+    const bool deflated = e.method == 8;
+    if (!deflated && (e.method != 0 || e.compSize != e.size))
+        return fail(QObject::tr("packed in a way this program cannot unpack"));
+    // 0.81.0 (audit of 0.80.0, F-02): written under a temporary name, synced and checked to the end, then put in
+    // place (a plain QFile showed a full disk only at its unchecked close: the restore reported success with
+    // thousands of files cut short or empty)
+    QSaveFile out(path);
+    if (!out.open(QIODevice::WriteOnly))
+        return fail(out.errorString());
+    z_stream zs{};
+    if (deflated && inflateInit2(&zs, -MAX_WBITS) != Z_OK)
+        return fail(QStringLiteral("zlib"));
+    constexpr qint64 kChunk = 1 << 20;
+    QByteArray outBuf(int(kChunk), Qt::Uninitialized);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    quint64 left = e.compSize, produced = 0;
+    qint64 at = start;
+    int r = Z_OK;
+    bool damaged = false;
+    QString writeError;
+    auto put = [&](const char *d, qint64 len) {
+        if (len <= 0)
+            return true;
+        if (out.write(d, len) != len) {
+            writeError = out.errorString();
+            return false;
+        }
+        if (m_bytes)
+            m_bytes->fetch_add(len);
+        return true;
+    };
+    while (left > 0 && writeError.isEmpty() && !damaged) {
+        if (m_cancel && m_cancel->load()) {
+            m_cancelled = true;
+            break;
+        }
+        const QByteArray in = readAt(at, qMin<qint64>(kChunk, qint64(left)));
+        if (in.isEmpty()) {
+            damaged = true;
+            break;
+        }
+        at += in.size();
+        left -= quint64(in.size());
+        if (!deflated) {
+            crc = crc32(crc, reinterpret_cast<const Bytef *>(in.constData()), uInt(in.size()));
+            produced += quint64(in.size());
+            put(in.constData(), in.size());
+            continue;
+        }
+        zs.next_in = reinterpret_cast<Bytef *>(const_cast<char *>(in.constData()));
+        zs.avail_in = uInt(in.size());
+        do {
+            zs.next_out = reinterpret_cast<Bytef *>(outBuf.data());
+            zs.avail_out = uInt(outBuf.size());
+            r = inflate(&zs, Z_NO_FLUSH);
+            if (r != Z_OK && r != Z_STREAM_END && r != Z_BUF_ERROR) {
+                damaged = true;
+                break;
+            }
+            const uInt got = uInt(outBuf.size()) - zs.avail_out;
+            produced += got;
+            if (produced > e.size) { // more than the entry says it holds: damaged (the declared size is the limit)
+                damaged = true;
+                break;
+            }
+            crc = crc32(crc, reinterpret_cast<const Bytef *>(outBuf.constData()), got);
+            if (!put(outBuf.constData(), got))
+                break;
+        } while (r == Z_OK && zs.avail_out == 0);
+    }
+    if (deflated)
+        inflateEnd(&zs);
+    if (m_cancelled) {
+        out.cancelWriting();
+        return fail(QObject::tr("cancelled"));
+    }
+    if (!writeError.isEmpty()) {
+        out.cancelWriting();
+        return fail(writeError);
+    }
+    if (damaged || left != 0 || produced != e.size || quint32(crc) != e.crc || (deflated && r != Z_STREAM_END)) {
+        out.cancelWriting();
+        return fail(QObject::tr("damaged in the archive (its contents do not match its checksum)"));
+    }
+    // the last buffered bytes: a full disk shows here for a small file (commit() would report only that it cancelled)
+    if (!out.flush()) {
+        const QString why = out.errorString();
+        out.cancelWriting();
+        return fail(why.isEmpty() ? QObject::tr("could not be written to the disk") : why);
+    }
+    if (!safesave::commit(out)) {
+        const QString why = out.errorString();
+        return fail(why.isEmpty() || why == QLatin1String("Unknown error") ? QObject::tr("could not be written to the disk") : why);
+    }
+    return true;
+}
+
+bool ZipReader::extractFile(const QString &name, const QString &path, QString *error) const
+{
+    for (const Entry &e : m_entries)
+        if (e.name == name)
+            return extractEntry(e, path, error);
+    if (error)
+        *error = QObject::tr("not in the archive");
+    return false;
+}
+
+bool ZipReader::extractAll(const QString &targetDir, QStringList *failed) const
 {
     bool ok = true;
+    auto note = [&](const QString &name, const QString &why) {
+        ok = false;
+        if (failed)
+            *failed << QStringLiteral("%1: %2").arg(name, why);
+    };
     for (const Entry &e : m_entries) {
+        if (m_cancel && m_cancel->load()) {
+            m_cancelled = true;
+            return false;
+        }
         if (e.name.endsWith(QLatin1Char('/')))
             continue;
         // 0.64.1 (audit X-1): absolute names, drive letters, backslashes and "." or ".." parts are refused
         // (an absolute name was written exactly there, outside the target folder), and what is written
         // must lie inside the target folder
         if (!pathsafety::isSafeRelative(e.name)) {
-            ok = false;
+            note(e.name, QObject::tr("a name that is not allowed"));
             continue;
         }
         const QString path = QDir(targetDir).filePath(e.name);
         if (!pathsafety::isInside(path, targetDir)) {
-            ok = false;
+            note(e.name, QObject::tr("a name that is not allowed"));
+            continue;
+        }
+        if (!QDir().mkpath(QFileInfo(path).absolutePath())) {
+            note(e.name, QObject::tr("its folder could not be made"));
             continue;
         }
         // an entry that cannot be read whole and unchanged is not written (not even as an empty file)
-        bool read = false;
-        const QByteArray data = fileData(e.name, &read);
-        if (!read) {
-            ok = false;
-            continue;
-        }
-        QDir().mkpath(QFileInfo(path).absolutePath());
-        QFile f(path);
-        if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size()) {
-            ok = false;
-            continue;
+        QString why;
+        if (!extractEntry(e, path, &why)) {
+            if (m_cancelled)
+                return false;
+            note(e.name, why);
         }
     }
     return ok;

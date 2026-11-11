@@ -1,7 +1,7 @@
 // Scripted run for version 0.64:
 //  - the spelling menu: a right-click anywhere on an underlined word gives that word's menu
 //    (words with a straight apostrophe, "Kayel's" and "D'Nersun", found another word before);
-//  - the autosave while typing goes on: the first short gap after 5 s saves, at the latest 30 s;
+//  - the autosave while typing goes on: the first short gap after 5 s saves, at the latest 10 s (30 s before 0.81.0);
 //  - the corkboard's card size: a change by keys is kept when the settings are read again;
 //  - a project in a synced folder: the lock names the computer and is renewed, another computer's
 //    lock is shown before opening, a lock taken over while open is noticed, the other version of a
@@ -462,9 +462,10 @@ int main(int argc, char **argv)
         check(b.isEmpty(), QStringLiteral("a short pause before 5 s of typing does not save (the 2 s pause saves as before)"),
               QStringLiteral("saves at %1 ms").arg(joinMs(b)));
         settle(4000);
-        const QList<qint64> c = typeAndWatch(p, doc, 31500, 150);
-        check(c.size() == 1 && c.first() >= 29700 && c.first() <= 31000,
-              QStringLiteral("typing without any pause: saved after 30 s at the latest"), QStringLiteral("saves at %1 ms").arg(joinMs(c)));
+        // 0.81.0 (audit of 0.80.0, S-04): 10 s at the latest (30 s before)
+        const QList<qint64> c = typeAndWatch(p, doc, 11500, 150);
+        check(c.size() == 1 && c.first() >= 9700 && c.first() <= 11000,
+              QStringLiteral("typing without any pause: saved after 10 s at the latest"), QStringLiteral("saves at %1 ms").arg(joinMs(c)));
         settle(2500);
     }
 

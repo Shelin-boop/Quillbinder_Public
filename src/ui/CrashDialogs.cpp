@@ -1,5 +1,6 @@
 #include <QDate>
 #include "ui/CrashDialogs.h"
+#include "ui/HintLabel.h"
 #include "ui/Ask.h"
 #include "AppInfo.h"
 #include "core/Addons.h"
@@ -839,8 +840,7 @@ void showLogConsole(QWidget *parent)
                                                         "The program's messages since it was started (the last 1000). "
                                                         "They help to find out why something did not work."),
                             dlg);
-    note->setWordWrap(true);
-    note->setEnabled(false);
+    hintlabel::style(note); // 0.81.0 (audit of 0.80.0, S-01): readable, not gray
     l->addWidget(note);
     auto *bb = new QDialogButtonBox(QDialogButtonBox::Close, dlg);
     QPushButton *copy = bb->addButton(QCoreApplication::translate("LogConsole", "Copy All"), QDialogButtonBox::ActionRole);

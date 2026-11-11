@@ -228,6 +228,16 @@ target_compile_definitions(qb_v0650_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CU
 add_executable(qb_v0700_tests v0700_tests.cpp ${QB_RESOURCES_QRC} ${CMAKE_SOURCE_DIR}/translations/translations.qrc)
 target_link_libraries(qb_v0700_tests PRIVATE qbui Qt6::Test)
 target_compile_definitions(qb_v0700_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
+# The fixes of the audit of 0.80.0 (0.81.0 beta, 2026-11-11, part 1): backups and restore of any size, after a
+# title change, onto a full disk (child runs with qbfaultshim), linked folders, snapshot titles, saves nobody looked
+# at, Empty Trash, spare copies, readable explanations, the failed-save notice, First Start, the missed backup of a
+# session ended by a signal, the release gate (xvfb-run -a ./qb_v0810_tests /tmp/shots; QB_SKIP_BIG_BACKUP=1 leaves
+# out the 2.3 GB backup; tools/code-check.sh runs when cppcheck is installed)
+add_executable(qb_v0810_tests v0810_tests.cpp ${QB_RESOURCES_QRC} ${CMAKE_SOURCE_DIR}/translations/translations.qrc)
+target_link_libraries(qb_v0810_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_v0810_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}"
+                           QB_FAULT_SHIM="$<TARGET_FILE:qbfaultshim>")
+add_dependencies(qb_v0810_tests qbfaultshim)
 # The readers against damaged input (0.80.0, the external audit of 2026-11-09, ST-5): fixed-seed damage of small
 # valid inputs of RTF, Markdown, XML, ZIP, DOCX, ODT, Word 97 and .scrivx, each read in this process
 # (xvfb-run -a ./qb_fuzz_tests /tmp/shots; QB_FUZZ_SEED, QB_FUZZ_ROUNDS). tests/fuzz/README.md: longer runs.

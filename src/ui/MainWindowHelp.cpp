@@ -1,6 +1,7 @@
 // Help menu: the welcome project (made from the outline in resources/welcome
 // at the first start and by Help > Welcome Project), About, and the list of placeholders.
 #include "ui/MainWindow.h"
+#include "core/TestSwitches.h"
 
 #include "core/Addons.h"
 #include "core/BinderModel.h"
@@ -57,7 +58,7 @@ QString MainWindow::welcomeFolder()
 
 bool MainWindow::openWelcomeOnFirstStart()
 {
-    if (AppSettings::instance().welcomeShown || qEnvironmentVariableIsSet("QB_NO_WELCOME"))
+    if (AppSettings::instance().welcomeShown || QB_TEST_ENV_SET("QB_NO_WELCOME"))
         return false;
     openWelcomeProject(true);
     return m_project != nullptr;

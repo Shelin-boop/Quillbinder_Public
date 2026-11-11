@@ -1,4 +1,5 @@
 #include "core/SyncSafety.h"
+#include "core/TestSwitches.h"
 #include "core/SafeSave.h"
 
 #include "AppInfo.h"
@@ -32,7 +33,7 @@ void setDeviceName(const QString &name)
 
 QString deviceName()
 {
-    const QString env = qEnvironmentVariable("QB_DEVICE_NAME"); // tests: two "computers" on one machine
+    const QString env = QB_TEST_ENV("QB_DEVICE_NAME"); // tests: two "computers" on one machine
     if (!env.isEmpty())
         return env;
     if (!ownDeviceName().isEmpty())
@@ -46,7 +47,7 @@ QString machineKey()
     auto keyOf = [](const QByteArray &id) {
         return QString::fromLatin1(QCryptographicHash::hash("quillbinder-lock:" + id, QCryptographicHash::Sha256).toHex().left(16));
     };
-    const QString env = qEnvironmentVariable("QB_DEVICE_NAME"); // tests: two "computers" on one machine
+    const QString env = QB_TEST_ENV("QB_DEVICE_NAME"); // tests: two "computers" on one machine
     if (!env.isEmpty())
         return keyOf(env.toUtf8());
     static const QString key = [keyOf] {
@@ -112,7 +113,9 @@ QString keepCopy(const QString &file, const QString &settingsDir, const QString 
         if (!QFileInfo::exists(target))
             break;
     }
-    return QFile::copy(file, target) ? target : QString();
+    // 0.81.0 (audit of 0.80.0, F-07): copied through a synced temporary file (QFile::copy does not sync, so after a
+    // power failure the replacement could be on the disk while the kept copy was empty)
+    return safesave::copyFile(file, target) ? target : QString();
 }
 
 // ---------------------------------------------------------------- the lock
@@ -212,14 +215,14 @@ LockState judge(const LockInfo &l, qint64 staleAfterSecs, const std::function<bo
 int renewIntervalMs()
 {
     bool ok = false;
-    const int v = qEnvironmentVariableIntValue("QB_LOCK_RENEW_MS", &ok);
+    const int v = QB_TEST_ENV_INT("QB_LOCK_RENEW_MS", &ok);
     return ok && v > 0 ? v : 5 * 60 * 1000;
 }
 
 qint64 staleAfterSeconds()
 {
     bool ok = false;
-    const int v = qEnvironmentVariableIntValue("QB_LOCK_STALE_S", &ok);
+    const int v = QB_TEST_ENV_INT("QB_LOCK_STALE_S", &ok);
     return ok && v > 0 ? v : 15 * 60;
 }
 

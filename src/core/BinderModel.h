@@ -98,7 +98,10 @@ public:
     bool moveItems(const QList<BinderItem *> &items, BinderItem *newParent, int row);
     void moveToTrash(const QList<BinderItem *> &items);
     void deletePermanently(BinderItem *item);
-    void emptyTrash();
+    // 0.81.0 (audit of 0.80.0, F-08): the items leave the binder and the memory, the project is saved, and only then
+    // are their files and snapshots removed (after a failed save they are removed after the next save that works);
+    // false with *error when the save failed
+    bool emptyTrash(QString *error = nullptr);
     void setItemType(BinderItem *item, ItemType type);
     void refresh(BinderItem *item);
     void refreshAll();
@@ -125,6 +128,8 @@ signals:
 
 private:
     Project *m_project;
+    QStringList m_removeAfterSave; // ids whose files go after the next save (0.81.0)
+    void removePendingFiles();
     void onItemChanged(BinderItem *item);
 };
 

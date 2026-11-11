@@ -1,5 +1,6 @@
 // Edit Compile Format: the sections of a compile format, each a page of its own.
 #include "ui/CompileDialog.h"
+#include "ui/HintLabel.h"
 
 #include "compile/Compiler.h"
 #include "text/Styles.h"
@@ -696,8 +697,7 @@ FormatEditorDialog::FormatEditorDialog(const Format &f, Project *p, QWidget *par
     auto *phint = new QLabel(tr("<$p> = page number, <$pages> = number of pages (PDF), <$author>, <$surname>, <$shorttitle>, "
                                 "<$projecttitle>, <$date>"),
                              pw);
-    phint->setWordWrap(true);
-    phint->setEnabled(false);
+    hintlabel::style(phint); // 0.81.0 (audit of 0.80.0, S-01): readable, not gray
     pf->addRow(QString(), phint);
     connect(paper, qOverload<int>(&QComboBox::activated), this, [=](int i) {
         if (i <= 0)
@@ -736,8 +736,7 @@ FormatEditorDialog::FormatEditorDialog(const Format &f, Project *p, QWidget *par
     auto *nhint = new QLabel(tr("Word files always have their footnotes at the bottom of the page (Word can turn them into "
                                 "endnotes)."),
                              nw);
-    nhint->setWordWrap(true);
-    nhint->setEnabled(false);
+    hintlabel::style(nhint); // 0.81.0 (audit of 0.80.0, S-01): readable, not gray
     nf->addRow(QString(), nhint);
     nf->addRow(annot);
     nf->addRow(cmts);
@@ -858,8 +857,7 @@ FormatEditorDialog::FormatEditorDialog(const Format &f, Project *p, QWidget *par
                                 "E-books always have one in the reader's menu; title, author, cover and the like are set "
                                 "under Compile > Metadata."),
                              cw);
-    chint->setWordWrap(true);
-    chint->setEnabled(false);
+    hintlabel::style(chint); // 0.81.0 (audit of 0.80.0, S-01): readable, not gray
     cf->addRow(QString(), chint);
     addPage(tr("Contents, PDF and E-book"), cw);
 

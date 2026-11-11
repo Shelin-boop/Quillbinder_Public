@@ -2,6 +2,7 @@
 // through Qt Multimedia, pieces between pauses (SpeechLogic), whisper.cpp in a thread of its
 // own. Loaded by the writing tool (libqb-speech.so) when it is first needed; see SpeechApi.h.
 #include "../SpeechApi.h"
+#include "core/TestSwitches.h"
 #include "../SpeechLogic.h"
 #include "core/AudioBackend.h"
 
@@ -199,7 +200,7 @@ public slots:
         m_pieces = 0;
         // tests: QB_SPEECH_FAKE writes "Piece <n> (<seconds> s)" for each piece instead of running
         // the model (the pieces, the queue and the file can be checked without a real model)
-        if (qEnvironmentVariableIsSet("QB_SPEECH_FAKE")) {
+        if (QB_TEST_ENV_SET("QB_SPEECH_FAKE")) {
             m_fake = true;
             emit ready();
             return;
@@ -426,7 +427,7 @@ public:
             // a recording transcribed later: as fast as the model takes the pieces (feedFromFile
             // waits while pieces are queued); tests: faster than real time
             m_fileFast = s.fileAsFast;
-            m_feedTimer.setInterval(s.fileAsFast ? 0 : qEnvironmentVariableIsSet("QB_SPEECH_FAST") ? 5 : 100);
+            m_feedTimer.setInterval(s.fileAsFast ? 0 : QB_TEST_ENV_SET("QB_SPEECH_FAST") ? 5 : 100);
             m_feedTimer.start();
         } else if (!startAudio(s.audioInput, error)) {
             return false;
@@ -591,7 +592,7 @@ private:
             }
             m_filePos = 0;
             m_fileFast = false;
-            m_feedTimer.setInterval(qEnvironmentVariableIsSet("QB_SPEECH_FAST") ? 5 : 100);
+            m_feedTimer.setInterval(QB_TEST_ENV_SET("QB_SPEECH_FAST") ? 5 : 100);
             m_feedTimer.start();
         } else if (!startAudio(s.audioInput, error)) {
             m_writer->close();

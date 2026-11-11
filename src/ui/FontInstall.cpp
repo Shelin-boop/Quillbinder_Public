@@ -1,4 +1,5 @@
 #include "ui/FontInstall.h"
+#include "core/TestSwitches.h"
 #include "core/Zip.h"
 
 #include <QCryptographicHash>
@@ -215,7 +216,7 @@ QStringList fontManagerCommand()
         {QStringLiteral("font-manager")},
         {QStringLiteral("gnome-font-viewer")},
     };
-    const QString forced = qEnvironmentVariable("QB_FONT_MANAGER"); // tests
+    const QString forced = QB_TEST_ENV("QB_FONT_MANAGER"); // tests
     if (!forced.isEmpty())
         return forced == QLatin1String("none") ? QStringList() : forced.split(QLatin1Char(' '));
     for (const QStringList &c : candidates) {

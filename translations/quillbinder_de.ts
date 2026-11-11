@@ -528,10 +528,6 @@ Die Vornamen dieser Liste sind nicht in weiblich und männlich unterteilt.</tran
         </translation>
         </message>
         <message>
-            <source>%1 is not a complete ZIP file.</source>
-            <translation>%1 ist keine vollständige ZIP-Datei.</translation>
-        </message>
-        <message>
             <source>The backup holds no project folder.</source>
             <translation>Die Sicherung enthält keinen Projektordner.</translation>
         </message>
@@ -546,10 +542,6 @@ Die Vornamen dieser Liste sind nicht in weiblich und männlich unterteilt.</tran
         <message>
             <source>Cannot create %1</source>
             <translation>%1 kann nicht erstellt werden</translation>
-        </message>
-        <message>
-            <source>Not every file of the backup could be restored into %1.</source>
-            <translation>Nicht alle Dateien der Sicherung konnten in %1 wiederhergestellt werden.</translation>
         </message>
         <message>
             <source>Cannot read %1</source>
@@ -3171,6 +3163,111 @@ Quelle: %1</translation>
         <message>
             <source>very difficult</source>
             <translation>sehr schwer</translation>
+        </message>
+        <message>
+            <source>The new backup %1 is not there after older backups were cleaned up. No backup was made; please make one with File &gt; Back Up &gt; Back Up To...</source>
+            <translation>Die neue Sicherung %1 ist nach dem Aufräumen älterer Sicherungen nicht mehr da. Es wurde keine Sicherung erstellt; bitte erstellen Sie eine mit Datei &gt; Sichern &gt; Sichern nach...</translation>
+        </message>
+        <message>
+            <source>%1 could not be read as a ZIP file (%2). If the file is whole, an archive program of your system may still unpack it.</source>
+            <translation>%1 konnte nicht als ZIP-Datei gelesen werden (%2). Wenn die Datei vollständig ist, kann ein Archivprogramm Ihres Systems sie vielleicht trotzdem entpacken.</translation>
+        </message>
+        <message>
+            <source>Restoring &quot;%1&quot;...</source>
+            <translation>„%1“ wird wiederhergestellt...</translation>
+        </message>
+        <message>
+            <source>The restore was cancelled; the files written so far were removed.</source>
+            <translation>Die Wiederherstellung wurde abgebrochen; die bis dahin geschriebenen Dateien wurden entfernt.</translation>
+        </message>
+        <message numerus="yes">
+            <source>and %n more</source>
+            <translation>
+            <numerusform>und %n weitere</numerusform>
+            <numerusform>und %n weitere</numerusform>
+        </translation>
+        </message>
+        <message numerus="yes">
+            <source>Not every file of the backup could be restored into %1. Not restored (%n):
+%2</source>
+            <translation>
+            <numerusform>Nicht jede Datei der Sicherung konnte in %1 wiederhergestellt werden. Nicht wiederhergestellt (%n):
+%2</numerusform>
+            <numerusform>Nicht jede Datei der Sicherung konnte in %1 wiederhergestellt werden. Nicht wiederhergestellt (%n):
+%2</numerusform>
+        </translation>
+        </message>
+        <message>
+            <source>The backup needs %1 MB, but only %2 MB are free on the drive of %3. Nothing was restored.</source>
+            <translation>Die Sicherung braucht %1 MB, auf dem Laufwerk von %3 sind aber nur %2 MB frei. Es wurde nichts wiederhergestellt.</translation>
+        </message>
+        <message>
+            <source>The list of snapshot titles is damaged and could not be kept: %1</source>
+            <translation>Die Liste der Titel der Momentaufnahmen ist beschädigt und konnte nicht aufbewahrt werden: %1</translation>
+        </message>
+        <message>
+            <source>The snapshot was taken, but its title could not be stored: %1</source>
+            <translation>Die Momentaufnahme wurde erstellt, aber ihr Titel konnte nicht gespeichert werden: %1</translation>
+        </message>
+        <message>
+            <source>the file could not be read whole</source>
+            <translation>die Datei konnte nicht vollständig gelesen werden</translation>
+        </message>
+        <message>
+            <source>too short for a ZIP file</source>
+            <translation>zu kurz für eine ZIP-Datei</translation>
+        </message>
+        <message>
+            <source>the file could not be read</source>
+            <translation>die Datei konnte nicht gelesen werden</translation>
+        </message>
+        <message>
+            <source>no end record: the file is cut off, or it is no ZIP file</source>
+            <translation>kein Endeintrag: die Datei ist abgeschnitten oder keine ZIP-Datei</translation>
+        </message>
+        <message>
+            <source>damaged ZIP64 end record</source>
+            <translation>beschädigter ZIP64-Endeintrag</translation>
+        </message>
+        <message>
+            <source>the table of contents lies outside the file</source>
+            <translation>das Inhaltsverzeichnis liegt außerhalb der Datei</translation>
+        </message>
+        <message>
+            <source>damaged table of contents</source>
+            <translation>beschädigtes Inhaltsverzeichnis</translation>
+        </message>
+        <message>
+            <source>the table of contents could not be read</source>
+            <translation>das Inhaltsverzeichnis konnte nicht gelesen werden</translation>
+        </message>
+        <message>
+            <source>damaged in the archive</source>
+            <translation>im Archiv beschädigt</translation>
+        </message>
+        <message>
+            <source>packed in a way this program cannot unpack</source>
+            <translation>auf eine Weise gepackt, die dieses Programm nicht entpacken kann</translation>
+        </message>
+        <message>
+            <source>damaged in the archive (its contents do not match its checksum)</source>
+            <translation>im Archiv beschädigt (der Inhalt passt nicht zu seiner Prüfsumme)</translation>
+        </message>
+        <message>
+            <source>could not be written to the disk</source>
+            <translation>konnte nicht auf den Datenträger geschrieben werden</translation>
+        </message>
+        <message>
+            <source>not in the archive</source>
+            <translation>nicht im Archiv</translation>
+        </message>
+        <message>
+            <source>a name that is not allowed</source>
+            <translation>ein Name, der nicht erlaubt ist</translation>
+        </message>
+        <message>
+            <source>its folder could not be made</source>
+            <translation>sein Ordner konnte nicht angelegt werden</translation>
         </message>
     </context>
     <context>
@@ -6518,14 +6615,6 @@ Seiten (250 Wörter): %5</translation>
     <context>
         <name>qb::FirstStartDialog</name>
         <message>
-            <source>%1: First Start</source>
-            <translation>%1: Erster Start</translation>
-        </message>
-        <message>
-            <source>Two choices before you start. Everything is filled in already: OK keeps it as it is. You can change all of it later in File &gt; Options.</source>
-            <translation>Zwei Entscheidungen vor dem Start. Alles ist bereits ausgefüllt: Mit OK bleibt es, wie es ist. Sie können alles später unter Datei &gt; Einstellungen ändern.</translation>
-        </message>
-        <message>
             <source>Backups</source>
             <translation>Sicherungen</translation>
         </message>
@@ -6558,20 +6647,12 @@ Seiten (250 Wörter): %5</translation>
             <translation>Ordner für Sicherungen</translation>
         </message>
         <message>
-            <source>Settings of projects</source>
-            <translation>Einstellungen von Projekten</translation>
+            <source>First Start</source>
+            <translation>Erster Start</translation>
         </message>
         <message>
-            <source>A project&apos;s own settings come first; what a project does not set comes from the program&apos;s settings</source>
-            <translation>Die eigenen Einstellungen eines Projekts haben Vorrang; was ein Projekt nicht festlegt, kommt aus den Einstellungen des Programms</translation>
-        </message>
-        <message>
-            <source>The program&apos;s settings always (projects&apos; own settings are not used)</source>
-            <translation>Immer die Einstellungen des Programms (die eigenen Einstellungen der Projekte werden nicht verwendet)</translation>
-        </message>
-        <message>
-            <source>A project gets settings of its own in File &gt; Options with &quot;This project&quot; at the top.</source>
-            <translation>Ein Projekt erhält eigene Einstellungen unter Datei &gt; Einstellungen mit „Dieses Projekt“ ganz oben.</translation>
+            <source>Before you start: how your projects are backed up. Everything is filled in already: OK keeps it as it is. You can change all of it later in File &gt; Options.</source>
+            <translation>Bevor Sie beginnen: wie Ihre Projekte gesichert werden. Alles ist schon ausgefüllt: OK übernimmt es so. Sie können alles später unter Datei &gt; Einstellungen ändern.</translation>
         </message>
     </context>
     <context>
@@ -8078,6 +8159,10 @@ Der aktuelle Text wurde nicht geändert.</translation>
             <source>Ctrl + mouse wheel over a part changes the zoom of that part. Right-click: one zoom for the tabs Metadata and Comments, or one each.</source>
             <translation>Strg + Mausrad über einem Bereich ändert den Zoom dieses Bereichs. Rechtsklick: ein Zoom für die Reiter Metadaten und Kommentare oder je einer.</translation>
         </message>
+        <message>
+            <source>The snapshot&apos;s new title could not be stored: %1</source>
+            <translation>Der neue Titel der Momentaufnahme konnte nicht gespeichert werden: %1</translation>
+        </message>
     </context>
     <context>
         <name>qb::KeyboardPage</name>
@@ -8423,12 +8508,6 @@ Stattdessen „%4“ zuweisen? „%2“ hat dann kein Tastenkürzel mehr.</trans
         <message>
             <source>All changes are saved.</source>
             <translation>Alle Änderungen sind gespeichert.</translation>
-        </message>
-        <message>
-            <source>Your latest changes could not be saved:
-%1</source>
-            <translation>Ihre letzten Änderungen konnten nicht gespeichert werden:
-%1</translation>
         </message>
         <message>
             <source>Not saved: %1.</source>
@@ -11770,6 +11849,49 @@ Eine Momentaufnahme lässt sich auf der Registerkarte „Momentaufnahmen“ des 
         <message>
             <source>The note could not be imported.</source>
             <translation>Die Notiz konnte nicht importiert werden.</translation>
+        </message>
+        <message>
+            <source>Your latest changes could not be saved. %1</source>
+            <translation>Ihre letzten Änderungen konnten nicht gespeichert werden. %1</translation>
+        </message>
+        <message>
+            <source>The project file could not be updated with the new word counts. %1 Nothing you wrote is lost: your texts are on the disk, only the counts in the project file are older.</source>
+            <translation>Die Projektdatei konnte nicht mit den neuen Wortzahlen aktualisiert werden. %1 Nichts von dem, was Sie geschrieben haben, ist verloren: Ihre Texte sind auf dem Datenträger, nur die Zahlen in der Projektdatei sind älter.</translation>
+        </message>
+        <message>
+            <source>The disk is full.</source>
+            <translation>Der Datenträger ist voll.</translation>
+        </message>
+        <message>
+            <source>The drive of the project can only be read (write-protected, or mounted for reading only).</source>
+            <translation>Das Laufwerk des Projekts kann nur gelesen werden (schreibgeschützt oder nur zum Lesen eingebunden).</translation>
+        </message>
+        <message>
+            <source>The program may not write into the project folder.</source>
+            <translation>Das Programm darf nicht in den Projektordner schreiben.</translation>
+        </message>
+        <message>
+            <source>The drive reported an error: it may be failing, or it was removed.</source>
+            <translation>Das Laufwerk hat einen Fehler gemeldet: Es ist vielleicht defekt, oder es wurde entfernt.</translation>
+        </message>
+        <message>
+            <source>The project folder is not there any more (renamed, moved, or its drive is not connected).</source>
+            <translation>Der Projektordner ist nicht mehr da (umbenannt, verschoben, oder sein Laufwerk ist nicht verbunden).</translation>
+        </message>
+        <message>
+            <source>The files could not be written.</source>
+            <translation>Die Dateien konnten nicht geschrieben werden.</translation>
+        </message>
+        <message numerus="yes">
+            <source>Delete %1 in the Trash forever, together with their %n snapshot(s)? This cannot be undone.</source>
+            <translation>
+            <numerusform>%1 im Papierkorb endgültig löschen, zusammen mit ihrer %n Momentaufnahme? Das kann nicht rückgängig gemacht werden.</numerusform>
+            <numerusform>%1 im Papierkorb endgültig löschen, zusammen mit ihren %n Momentaufnahmen? Das kann nicht rückgängig gemacht werden.</numerusform>
+        </translation>
+        </message>
+        <message>
+            <source>The last session was ended before its backup could be made (a shutdown or a kill command); the backup was made now: %1</source>
+            <translation>Die letzte Sitzung wurde beendet, bevor ihre Sicherung erstellt werden konnte (Herunterfahren oder ein Befehl zum Beenden); die Sicherung wurde jetzt erstellt: %1</translation>
         </message>
     </context>
     <context>
@@ -17364,10 +17486,6 @@ Gespeichert %2 aus dem Projekt „%3“ von %4.</translation>
     <context>
         <name>qb::StartDialog</name>
         <message>
-            <source>%1 — Projects</source>
-            <translation>%1 — Projekte</translation>
-        </message>
-        <message>
             <source>Recent Projects</source>
             <translation>Zuletzt verwendete Projekte</translation>
         </message>
@@ -17434,6 +17552,10 @@ Gespeichert %2 aus dem Projekt „%3“ von %4.</translation>
         <message>
             <source>Open</source>
             <translation>Öffnen</translation>
+        </message>
+        <message>
+            <source>Projects</source>
+            <translation>Projekte</translation>
         </message>
     </context>
     <context>

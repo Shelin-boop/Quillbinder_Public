@@ -1,4 +1,5 @@
 #include "ui/CompileDialog.h"
+#include "ui/HintLabel.h"
 #include "ui/Ask.h"
 #include "compile/Compiler.h"
 #include "compile/PluginManager.h"
@@ -188,8 +189,7 @@ CompileDialog::CompileDialog(Project *p, QWidget *parent) : QDialog(parent), m_p
     auto *hint = new QLabel(tr("Placeholders such as <$W:chapter> (One, Two ...), <$n> (1, 2 ...), <$R> (I, II ...), "
                                "<$title>, <$projecttitle>, <$author>, <$wc100> can be used in text and titles."),
                             aw);
-    hint->setWordWrap(true);
-    hint->setEnabled(false);
+    hintlabel::style(hint); // 0.81.0 (audit of 0.80.0, S-01): readable, not gray
     al->addWidget(hint);
     split->addWidget(aw);
 
@@ -501,8 +501,7 @@ QWidget *CompileDialog::buildMetadataTab()
                                "Author Information. Placeholders such as <$projecttitle> work here too. The cover is a "
                                "picture of the binder."),
                             w);
-    hint->setWordWrap(true);
-    hint->setEnabled(false);
+    hintlabel::style(hint); // 0.81.0 (audit of 0.80.0, S-01): readable, not gray
     f->addRow(hint);
     return w;
 }
@@ -524,8 +523,7 @@ QWidget *CompileDialog::buildOptionsTab()
                                "styles, transformations, contents and e-book) belongs to the format: choose a format "
                                "of your own on the left and edit it."),
                             w);
-    note->setWordWrap(true);
-    note->setEnabled(false);
+    hintlabel::style(note); // 0.81.0 (audit of 0.80.0, S-01): readable, not gray
     v->addWidget(note);
     v->addStretch(1);
     return w;

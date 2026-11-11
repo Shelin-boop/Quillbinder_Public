@@ -963,8 +963,12 @@ int main(int argc, char **argv)
                 const QByteArray b = readAll(f);
                 QStringList found;
                 // the name as a string of the code ("\0NAME\0"), not inside a text such as the developer guide
+                // (0.81.0, audit of 0.80.0, S-10: the switches of core/TestSwitches.h too)
                 for (const char *sw : {"QB_PLUGIN_PATH", "QB_SPEECH_SOURCE", "QB_SPEECH_ACCEPT_CHANGED", "QB_SPEECH_SKIP_TEST",
-                                        "QB_REQUIRE_SIGNED", "QB_TEST_SIGNING_KEY", "QB_TEST_UNREADABLE"})
+                                        "QB_REQUIRE_SIGNED", "QB_TEST_SIGNING_KEY", "QB_TEST_UNREADABLE", "QB_NO_DIALOGS",
+                                        "QB_SKIP_FIRST_START", "QB_DEVICE_NAME", "QB_LOCK_STALE_S", "QB_LOCK_RENEW_MS",
+                                        "QB_SPEECH_FAKE", "QB_SPEECH_FAST", "QB_SPEECH_SAMPLE", "QB_TEST_CRASH",
+                                        "QB_TEST_NO_SELFTEST", "QB_NO_WELCOME", "QB_NO_SPECTACLE", "QB_FONT_MANAGER", "QB_SOFFICE"})
                     if (b.contains(QByteArray(1, '\0') + sw + QByteArray(1, '\0')))
                         found << QLatin1String(sw);
                 check(!b.isEmpty() && found.isEmpty(),
