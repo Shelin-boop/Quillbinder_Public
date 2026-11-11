@@ -35,8 +35,8 @@ German if you want it, and is the first beta.
 - **Damaged and hostile files**: a Word 97 file with wrong lengths, a binder nested thousands of levels deep, two
   items with one id, other XML named .qbx, huge counts in a project file or a board are handled without a crash or
   a loss; long formatted paragraphs and long screenplay dialogue are read much faster.
-- **Releases are tested and signed apart**: the release workflow runs the full test suite before anything is
-  published, and the signing key is used only in jobs that run no third-party code. An installed program update is
+- **Releases are tested and signed apart**: the release workflow runs the full test suite on every release (beside
+  the publishing, which does not wait for it), and the signing key is used only in jobs that run no third-party code. An installed program update is
   checked for the project's signature before every start, and a program built as the README says now behaves like
   a release (the test switches are off unless asked for).
 - **Deutsch**: File > Options > General > Startup > Language switches the menus, windows and messages to German

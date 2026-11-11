@@ -30,8 +30,8 @@ Add-ons are installed with **File > Install Update or Add-on**. Everything on th
 GitHub from this source code (`.github/workflows/release.yml`). Since 0.65.0 every package and the checksum list
 (`SHA256SUMS.txt`, with its signature `SHA256SUMS.txt.sig`) are signed with the project's key
 (`packaging/quillbinder-signing-public.pem`); the program installs program updates only with that signature.
-Since 0.70.0 the release workflow runs the full test suite before anything is published, and the signing key is
-used only in jobs of their own that run no third-party code.
+Since 0.70.0 the release workflow runs the full test suite on every release (beside the publishing, which does not
+wait for it), and the signing key is used only in jobs of their own that run no third-party code.
 How to check a download yourself: the user manual, section 17.
 
 **Quillbinder is beta software.** Keep backups of your projects (**File > Back Up > Back Up Now**; the

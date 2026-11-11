@@ -315,7 +315,7 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
   folder, else the newest, and `open()` tells about the others. Boards: ids, places and sizes bounded.
 - **Word 97** (A U-11): pieces bounded by the stream, character counts by the pieces (16 million at most).
 - **Build and release** (A S-04, S-03, S-02, U-07): `QB_TEST_SWITCHES` off by default (the runner refuses a build
-  without it); the release workflow's jobs build (no key), tests (full suite but v060, one retry), sign-packages
+  without it); the release workflow's jobs build (no key), tests (full suite but v060, one retry; since 2026-11-11 the release does not wait for it, the writer's decision), sign-packages
   (`make-package.py sign`), assemble (the full version), sign-checksums, publish; the installer keeps
   `package-manifest.json`/`.sig`, and `launcher::coreOrigin` checks them before every start (Linux; unsigned only with
   `QB_ALLOW_UNSIGNED_CORE`, which `tools/e2e-appimage.sh` sets). The first run on GitHub's container failed for the

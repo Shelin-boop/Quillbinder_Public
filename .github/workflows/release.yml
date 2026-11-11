@@ -165,7 +165,8 @@ jobs:
           if-no-files-found: ignore
 
   tests:
-    # 0.70.0 (audit A S-02): the full test suite of this commit; publishing waits for it
+    # 0.70.0 (audit A S-02): the full test suite of this commit; since 2026-11-11 publishing does not wait for it (the
+    # writer's decision): a failure here is reported after the release is out
     needs: version
     if: needs.version.outputs.build == 'true'
     runs-on: ubuntu-24.04
@@ -384,8 +385,10 @@ jobs:
           echo "::error title=Step $s failed::$msg"
 
   sign-checksums:
-    # the checksum list of every release file, signed (0.65.0, audit F12); waits for the test suites
-    needs: [version, assemble, tests]
+    # the checksum list of every release file, signed (0.65.0, audit F12). 0.70.0: does not wait for the test suites
+    # (the writer's decision of 2026-11-11: the release is published as soon as it is built, signed and checked end to
+    # end; the job "tests" runs beside it and reports)
+    needs: [version, assemble]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
@@ -431,8 +434,8 @@ jobs:
         run: rm -rf /tmp/qb-signing
 
   publish:
-    # the only job with write permission: it publishes what the jobs before it built, signed and tested
-    needs: [version, sign-checksums, tests]
+    # the only job with write permission: it publishes what the jobs before it built, signed and checked
+    needs: [version, sign-checksums]
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:
