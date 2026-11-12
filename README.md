@@ -15,10 +15,10 @@ between the programs. Scrivener and Scapple are names of products of Literature 
 **Quillbinder 0.81.1 beta for Linux (x86_64):**
 
 - **[Quillbinder-0.81.1-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.81.1-beta/Quillbinder-0.81.1-beta-x86_64.AppImage)**: the program
-- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.81.1-beta/media-all-formats.qbpkg)**: audio and video in every format (an add-on; optional)
+- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.81.1-beta/media-all-formats.qbpkg)**: the commonly used audio and video formats (an add-on; optional)
 - **[Quillbinder-0.81.1-full-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.81.1-beta/Quillbinder-0.81.1-full-beta-x86_64.AppImage)**:
-  **the full version**: the program with all add-ons and all the libraries they need included (audio and
-  video in every format, extra themes, project templates, the scriptwriting pack, the writing tools with offline speech recognition, the
+  **the full version**: the program with all add-ons and all the libraries they need included (the commonly
+  used audio and video formats, extra themes, project templates, the scriptwriting pack, the writing tools with offline speech recognition, the
   importers of web pages and old Word files). They are installed at the first start: one download, nothing
   else to install.
 - [All files of the newest version](https://github.com/Shelin-boop/Quillbinder_Public/releases/latest): the other
@@ -46,7 +46,7 @@ automatic backups are set under **File > Options > Backup**), and keep a copy of
 the program.
 
 Audio and video: download **`media-all-formats.qbpkg`** and install it with **File > Install Update or
-Add-on**: one package, every format. It installs the add-on "Media Playback" (free formats: MP3, Ogg Vorbis,
+Add-on**: one package for the commonly used formats. It installs the add-on "Media Playback" (free formats: MP3, Ogg Vorbis,
 Opus, FLAC, WAV, WebM with VP8 or VP9 ...) together with "Extra Video and Audio Formats" (H.264, H.265, AAC and
 the other formats licensed under patents). Who wants the free formats only installs `media-playback.qbpkg`
 alone. Whether a patent license is needed to use the other formats depends on the country.
