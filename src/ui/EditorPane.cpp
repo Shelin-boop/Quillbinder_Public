@@ -591,9 +591,9 @@ void EditorPane::buildFooter()
     cr->addWidget(m_cardSize);
     cr->addWidget(m_affectCork);
     m_footer->addWidget(cf);
-    connect(m_corkGrid, &QToolButton::clicked, this, [this] { setCorkMode(int(Corkboard::Mode::Grid)); });
-    connect(m_corkFree, &QToolButton::clicked, this, [this] { setCorkMode(int(Corkboard::Mode::Freeform)); });
-    connect(m_corkLabels, &QToolButton::clicked, this, [this] { setCorkMode(int(Corkboard::Mode::LabelThreads)); });
+    connect(m_corkGrid, &QToolButton::clicked, this, [this] { chooseCorkMode(int(Corkboard::Mode::Grid)); });
+    connect(m_corkFree, &QToolButton::clicked, this, [this] { chooseCorkMode(int(Corkboard::Mode::Freeform)); });
+    connect(m_corkLabels, &QToolButton::clicked, this, [this] { chooseCorkMode(int(Corkboard::Mode::LabelThreads)); });
     connect(m_corkCommit, &QToolButton::clicked, m_cork, &Corkboard::commitFreeformOrder);
     m_cardSize->setObjectName(QStringLiteral("cardSizeSlider"));
     connect(m_cardSize, &QSlider::valueChanged, this, [this](int v) {
@@ -765,6 +765,14 @@ void EditorPane::showItems(const QList<BinderItem *> &itemsIn, bool addToHistory
     }
     if (m_mode == ViewMode::Media && (items.size() != 1 || !isMediaType(items.first()->type)))
         m_mode = ViewMode::Single;
+    // 0.90.0: a container whose corkboard was arranged for it (here or in Scrivener) is shown so again
+    if (items.size() == 1 && items.first()->isContainer()) {
+        const QString arr = items.first()->corkArrangement;
+        if (arr == QLatin1String("freeform") && corkMode() != int(Corkboard::Mode::Freeform))
+            setCorkMode(int(Corkboard::Mode::Freeform));
+        else if (arr == QLatin1String("grid") && corkMode() == int(Corkboard::Mode::Freeform))
+            setCorkMode(int(Corkboard::Mode::Grid));
+    }
     applyMode();
     if (addToHistory)
         pushHistory();
@@ -834,6 +842,21 @@ void EditorPane::setCorkMode(int mode)
     m_corkLabels->setChecked(m == Corkboard::Mode::LabelThreads);
     m_corkCommit->setVisible(m == Corkboard::Mode::Freeform);
     emit viewChanged(this);
+}
+
+void EditorPane::chooseCorkMode(int mode)
+{
+    setCorkMode(mode);
+    // kept with the one container shown (label threads are this program's own: the container keeps its choice)
+    const auto m = Corkboard::Mode(qBound(0, mode, 2));
+    if (m_project && m_items.size() == 1 && m_items.first()->isContainer() && m != Corkboard::Mode::LabelThreads) {
+        BinderItem *it = m_items.first();
+        const QString want = m == Corkboard::Mode::Freeform ? QStringLiteral("freeform") : QStringLiteral("grid");
+        if (it->corkArrangement != want) {
+            it->corkArrangement = want;
+            m_project->markIndexDirty();
+        }
+    }
 }
 
 void EditorPane::setSelectionAffectsOther(bool on)

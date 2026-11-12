@@ -32,7 +32,13 @@ enum : int {
     ImageDescription,                      // char (image): QString, what the picture shows (alt text)
     // 0.64.1: block: bool, a paragraph of a table cell (never saved; set by tables::apply): it does not
     // take a justified body alignment (narrow cells spread their words), unless aligned by hand
-    InTableCell
+    InTableCell,
+    // 0.90.0: what a Scrivener text holds that this program does not show itself; kept and written back as read
+    RightOutdent,                          // block: int, twips, a right indent below zero (the line runs past the page's width)
+    ListIndents,                           // block: QString "level:left:first", a list paragraph's own indents in twips as read
+    FaceBold,                              // char: bool, bold comes from the font's face name; the file had the bold switch off
+    FaceItalic,                            // char: bool, the same for italic
+    LinkUnderline                          // char: bool, the text of a link is underlined in the file itself
 };
 } // namespace props
 

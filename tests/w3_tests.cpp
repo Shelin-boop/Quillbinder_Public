@@ -1,13 +1,13 @@
 // Checks of the Windows port, step W3 (2026-11-08). Runs on Linux and on the Windows runner
-// (tools/win-tests.sh); the Windows-only parts check what the Windows program does differently.
+// (packaging/windows/win-tests.sh); the Windows-only parts check what the Windows program does differently.
 //  - A bundle with a program update of the running version (the "update with all add-ons"):
 //    the program update is left out, the add-ons go in.
 //  - addons::installBundled (the full version for Windows): installs every package of a folder once
 //    per version and writes the marker; an empty folder does nothing.
 //  - The license list compiled into the program: every text it names is there; on Windows it is the
-//    list of the Windows program (Qt 6.8.3, Hunspell 1.7.5, the dictionaries), on Linux the Ubuntu one.
+//    list of the Windows program (Qt of the build, Hunspell 1.7.5, the dictionaries), on Linux the Linux one.
 //  - Spelling: with QB_TEST_DICTIONARIES=<folder> (Windows: also the dictionaries beside the test
-//    program, put there by tools/win-tests.sh) the five dictionaries load and know their words.
+//    program, put there by packaging/windows/win-tests.sh) the five dictionaries load and know their words.
 // Exit code = number of failed checks. Uses Qt's test folders (QStandardPaths test mode), not the
 // user's data.
 //
@@ -181,7 +181,7 @@ int main(int argc, char **argv)
     check(names.size() > 10 && missing.isEmpty(), QStringLiteral("every license text the list names is in the program (%1 parts)").arg(names.size()),
           missing.join(QLatin1String(", ")));
 #ifdef Q_OS_WIN
-    const QStringList want = {QStringLiteral("Qt 6.8.3"), QStringLiteral("Hunspell 1.7.5"), QStringLiteral("Microsoft Visual C++ Runtime"),
+    const QStringList want = {QStringLiteral("Qt " QT_VERSION_STR), QStringLiteral("Hunspell 1.7.5"), QStringLiteral("Microsoft Visual C++ Runtime"),
                               QStringLiteral("German (Germany, Austria, Switzerland) spelling dictionaries"), QStringLiteral("PDFium (in Qt PDF)")};
     const bool other = names.join(QLatin1Char('\n')).contains(QLatin1String("qt6-base"));
 #else

@@ -1071,7 +1071,7 @@ int main(int argc, char **argv)
     {
         const QString pkg = QStringLiteral(QB_TEST_PLUGIN_DIR "/../addons-dist/scriptwriting-pack.qbpkg");
         if (!QFile::exists(pkg)) {
-            std::printf("      (add-on packages not built; run packaging/build-addons.sh <build> <build>/addons-dist)\n");
+            std::printf("      (add-on packages not built; run packaging/linux/build-addons.sh <build> <build>/addons-dist)\n");
         } else {
             QStringList log;
             QString aerr;

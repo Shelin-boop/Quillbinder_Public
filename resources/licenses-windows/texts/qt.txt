@@ -1,4 +1,4 @@
-Qt 6.8.3
+Qt 6.12.0
 Copyright (C) The Qt Company Ltd. and other contributors.
 https://www.qt.io
 

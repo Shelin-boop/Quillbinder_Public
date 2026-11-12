@@ -1023,6 +1023,7 @@ BinderItem *addWebPage(Project *p, const importers::WebPage &page, BinderItem *p
         it = p->model()->createItem(parent, row, ItemType::WebPage, title);
         it->fileExt = QStringLiteral("html");
         it->originalFileName = QUrl(page.url).fileName();
+        it->sourceUrl = page.url; // 0.81.3: the page's address (Open Original Address, Scrivener's OriginalURL)
         const QString dir = p->contentDir(it->id);
         QDir().mkpath(dir);
         QFile::copy(page.htmlFile, p->mediaFilePath(it));

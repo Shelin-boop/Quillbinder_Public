@@ -155,6 +155,7 @@ private:
     QCheckBox *m_snapOnSave;
     QLineEdit *m_forename, *m_surname, *m_street, *m_city, *m_state, *m_zip, *m_country, *m_phone, *m_email;
     QLineEdit *m_deviceName = nullptr;
+    class PortableSetup *m_portableSetup = nullptr; // W4b: General > This Computer (the portable program)
     QLineEdit *m_sharedTemplates, *m_citations;
     QComboBox *m_sepMerge, *m_sepScratch;
     QLineEdit *m_sepMergeCustom, *m_sepScratchCustom;

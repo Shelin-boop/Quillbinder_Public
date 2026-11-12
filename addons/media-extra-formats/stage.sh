@@ -1,6 +1,6 @@
 #!/bin/bash
 # Puts the libraries of the add-on "Extra Video and Audio Formats" into a staged copy of the add-on.
-#   stage.sh <build dir> <stage dir>      (called by packaging/build-addons.sh)
+#   stage.sh <build dir> <stage dir>      (called by packaging/linux/build-addons.sh)
 # Needs: FFmpeg 9.0 set "full" built by tools/build-ffmpeg.sh into <build dir>/ffmpeg-full
 # (or QB_FFMPEG_FULL_DIR=<prefix>). No code of its own: the add-on "Media Playback" (2.0 or
 # newer) finds the libraries in media-extra/lib/ and loads them instead of its own (0.50).

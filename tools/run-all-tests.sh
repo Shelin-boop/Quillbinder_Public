@@ -105,7 +105,7 @@ if [ -d "$QB_FFMPEG_DIR/lib" ]; then
         fi
     done
     if [ $stale = 1 ]; then
-        packaging/build-addons.sh $B $B/addons-dist > "$OUT/addons.log" 2>&1 || { echo "add-ons failed"; tail "$OUT/addons.log"; }
+        packaging/linux/build-addons.sh $B $B/addons-dist > "$OUT/addons.log" 2>&1 || { echo "add-ons failed"; tail "$OUT/addons.log"; }
         # the template files in the repository are made anew with new time stamps: keep the committed ones
         git checkout -- addons/*/payload/templates/ 2>/dev/null
     fi
@@ -212,10 +212,15 @@ runx v0650 $B/tests/qb_v0650_tests $B/tests/qb_v0650_tests "$OUT/shots-v0650"
 runx v0700 $B/tests/qb_v0700_tests $B/tests/qb_v0700_tests "$OUT/shots-v0700"
 runx v0810 $B/tests/qb_v0810_tests $B/tests/qb_v0810_tests "$OUT/shots-v0810"
 runx v0811 $B/tests/qb_v0811_tests $B/tests/qb_v0811_tests "$OUT/shots-v0811"
+runx v0812 $B/tests/qb_v0812_tests $B/tests/qb_v0812_tests "$OUT/shots-v0812"
+runx v0813 $B/tests/qb_v0813_tests $B/tests/qb_v0813_tests "$OUT/shots-v0813"
+runx v0900 $B/tests/qb_v0900_tests $B/tests/qb_v0900_tests "$OUT/shots-v0900"
 runx audit1 $B/tests/qb_audit1_tests $B/tests/qb_audit1_tests "$OUT/shots-audit1"
 runx fuzz $B/tests/qb_fuzz_tests $B/tests/qb_fuzz_tests "$OUT/shots-fuzz"
 runx w2 $B/tests/qb_w2_tests $B/tests/qb_w2_tests "$OUT/shots-w2"
 runx w3 $B/tests/qb_w3_tests $B/tests/qb_w3_tests "$OUT/shots-w3"
+runx w4 $B/tests/qb_w4_tests $B/tests/qb_w4_tests "$OUT/shots-w4"
+runx w4c $B/tests/qb_w4c_tests $B/tests/qb_w4c_tests "$OUT/shots-w4c"
 # a suite that was asked for and is not there at all (a name mistyped in QB_SUITES)
 for n in $SELECTED; do
     [[ " $RAN $MISSING " == *" $n "* ]] || MISSING="$MISSING $n"

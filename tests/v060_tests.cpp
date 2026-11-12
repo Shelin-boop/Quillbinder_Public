@@ -8,7 +8,7 @@
 // Exit code = number of failed checks.
 //
 //   QT_QPA_PLATFORM=offscreen ./qb_v060_tests /tmp/shots
-//   (the media package checks need tools/get-ffmpeg.sh and packaging/build-addons.sh build build/addons-dist)
+//   (the media package checks need tools/get-ffmpeg.sh and packaging/linux/build-addons.sh build build/addons-dist)
 #include "core/Addons.h"
 #include "core/BinderModel.h"
 #include "core/DocumentStore.h"
@@ -213,14 +213,14 @@ int main(int argc, char **argv)
     {
         const QString all = kBuild + QStringLiteral("/addons-dist/media-all-formats.qbpkg");
         if (!QFile::exists(all)) {
-            info(QStringLiteral("(media packages not built: tools/get-ffmpeg.sh, then packaging/build-addons.sh <build> <build>/addons-dist)"));
+            info(QStringLiteral("(media packages not built: tools/get-ffmpeg.sh, then packaging/linux/build-addons.sh <build> <build>/addons-dist)"));
         } else {
             const addons::PackageInfo pi = addons::inspect(all);
             QStringList nested;
             for (const auto &n : pi.nested)
                 nested << n.manifest.id + QLatin1Char(' ') + n.manifest.version;
             check(pi.isValid() && pi.manifest.kind == QLatin1String("bundle") && pi.manifest.id == QLatin1String("media-all-formats")
-                      && pi.manifest.name == QLatin1String("Media Playback, All Formats")
+                      && pi.manifest.name == QLatin1String("Media Playback and Extra Formats")
                       && pi.manifest.packages == QStringList({QStringLiteral("media-playback.qbpkg"), QStringLiteral("media-extra-formats.qbpkg")}),
                   QStringLiteral("media-all-formats.qbpkg is one package holding Media Playback and Extra Video and Audio Formats"),
                   pi.error + QLatin1String(" / ") + nested.join(QLatin1String(", ")));
@@ -258,7 +258,7 @@ int main(int argc, char **argv)
             havePackages = havePackages && QFile::exists(dist + QLatin1Char('/') + id + QStringLiteral(".qbpkg"));
         if (!QFile::exists(appImage) || !havePackages
             || !QFile::exists(kSource + QStringLiteral("/packaging/tools/appimagetool-x86_64.AppImage"))) {
-            info(QStringLiteral("(full version not checked: needs %1 (packaging/build-appimage.sh) and the add-on packages)").arg(appImage));
+            info(QStringLiteral("(full version not checked: needs %1 (packaging/linux/build-appimage.sh) and the add-on packages)").arg(appImage));
         } else {
             QTemporaryDir work;
             const QString bdir = work.path() + QStringLiteral("/b");
@@ -266,7 +266,7 @@ int main(int argc, char **argv)
             QFile::copy(appImage, bdir + QLatin1Char('/') + QFileInfo(appImage).fileName());
             QFile::setPermissions(bdir + QLatin1Char('/') + QFileInfo(appImage).fileName(), QFile::permissions(appImage));
             int rc = 0;
-            const QString out = run(QStringLiteral("bash"), {kSource + QStringLiteral("/packaging/build-full-appimage.sh"), bdir, dist}, &rc);
+            const QString out = run(QStringLiteral("bash"), {kSource + QStringLiteral("/packaging/linux/build-full-appimage.sh"), bdir, dist}, &rc);
             const QString full = bdir + QStringLiteral("/Quillbinder-%1-full-%2-x86_64.AppImage")
                                             .arg(QLatin1String(QB_APP_VERSION), shown.mid(int(qstrlen(QB_APP_VERSION)) + 1));
             check(rc == 0 && QFile::exists(full) && out.contains(QStringLiteral("(%1 add-ons inside)").arg(ids.size()))
@@ -326,7 +326,7 @@ int main(int argc, char **argv)
         const int at = notes.indexOf(QLatin1String("| media-all-formats.qbpkg"));
         check(rc == 0 && notes.contains(QLatin1String("download **media-all-formats.qbpkg**")) && at > 0
                   && at < notes.indexOf(QLatin1String("| media-extra-formats.qbpkg")) && at < notes.indexOf(QLatin1String("| media-playback.qbpkg"))
-                  && notes.contains(QLatin1String("one package, every format"))
+                  && notes.contains(QLatin1String("one package for the commonly used formats"))
                   && notes.contains(QStringLiteral("| Quillbinder-%1-full-%2-x86_64.AppImage | **The full version**").arg(v, QStringLiteral(QB_APP_VERSION_LABEL)))
                   && notes.contains(QLatin1String("the full version, with all add-ons and the libraries they need included")),
               QStringLiteral("the release text names the one media package in the steps and first among the add-ons"), notes.left(2500));
@@ -365,6 +365,66 @@ int main(int argc, char **argv)
               QStringLiteral("tools/public-exclude.txt keeps the development log and the asset tool private"));
         check(QFileInfo::exists(kSource + QStringLiteral("/tests/media/README.txt")) && QFileInfo::exists(kSource + QStringLiteral("/docs/publishing.md")),
               QStringLiteral("the test media say where they come from; docs/publishing.md describes the method"));
+    }
+
+    // ================================================================ downloads sorted by system (2026-11-12)
+    {
+        QTemporaryDir dist;
+        const QString v = QStringLiteral(QB_APP_VERSION), label = QStringLiteral(QB_APP_VERSION_LABEL);
+        for (const QString &n : {QStringLiteral("Quillbinder-%1-%2-x86_64.AppImage").arg(v, label), QStringLiteral("Quillbinder-%1-full-%2-x86_64.AppImage").arg(v, label),
+                                 QStringLiteral("quillbinder-%1-update.qbpkg").arg(v), QStringLiteral("Quillbinder-%1-windows-x64.zip").arg(v),
+                                 QStringLiteral("Quillbinder-%1-full-windows-x64.zip").arg(v), QStringLiteral("quillbinder-%1-windows-update.qbpkg").arg(v),
+                                 QStringLiteral("SHA256SUMS.txt"), QStringLiteral("SHA256SUMS.txt.sig")})
+            writeFile(dist.path() + QLatin1Char('/') + n, QByteArray());
+        for (const QString &n : {QStringLiteral("media-all-formats.qbpkg"), QStringLiteral("themes-extra.qbpkg")}) {
+            const QString built = kBuild + QStringLiteral("/addons-dist/") + n;
+            if (!QFile::exists(built) || !QFile::copy(built, dist.path() + QLatin1Char('/') + n))
+                writeFile(dist.path() + QLatin1Char('/') + n, QByteArray());
+        }
+        int rc = 0;
+        const QString notes = run(QStringLiteral("python3"), {QStringLiteral("-I"), tools + QStringLiteral("release-notes.py"), dist.path()}, &rc);
+        const qsizetype atLinux = notes.indexOf(QLatin1String("\n## Linux\n")), atWindows = notes.indexOf(QLatin1String("\n## Windows\n")),
+                        atChecking = notes.indexOf(QLatin1String("\n## Checking the files"));
+        check(rc == 0 && atLinux > 0 && atWindows > atLinux && atChecking > atWindows
+                  && notes.indexOf(QStringLiteral("| Quillbinder-%1-full-windows-x64.zip | **The full version** for Windows").arg(v)) > atWindows
+                  && notes.indexOf(QStringLiteral("| quillbinder-%1-update.qbpkg").arg(v)) > atLinux
+                  && notes.indexOf(QStringLiteral("| quillbinder-%1-update.qbpkg").arg(v)) < atWindows
+                  && notes.indexOf(QLatin1String("| SHA256SUMS.txt.sig")) > atChecking && notes.contains(QLatin1String("Linux (x86_64) and Windows 11 (64-bit)"))
+                  && notes.contains(QLatin1String("(Apache License 2.0)")) && !notes.contains(QLatin1String("Zero-Clause")),
+              QStringLiteral("the release text lists the files under a short headline per system, then the files for checking; "
+                             "the license is the Apache License 2.0"),
+              notes.left(3000));
+        const QString test = run(QStringLiteral("python3"), {QStringLiteral("-I"), tools + QStringLiteral("release-notes.py"), dist.path(), QStringLiteral("--test")}, &rc);
+        check(rc == 0 && test.contains(QLatin1String("\n## Windows\n")) && !test.contains(QLatin1String("## Source code"))
+                  && !test.contains(QLatin1String("## What is new")),
+              QStringLiteral("a test build's text has the files only (tools/test-release.sh)"));
+        // the download page: one button per system for the full version, "comes later" for the others
+        QTemporaryDir site;
+        run(QStringLiteral("python3"), {QStringLiteral("-I"), tools + QStringLiteral("download-page.py"), dist.path(), QStringLiteral("v1.2.3-test"), site.path()}, &rc);
+        const QString page = QString::fromUtf8(readAll(site.path() + QStringLiteral("/index.html")));
+        check(rc == 0 && page.contains(QStringLiteral("releases/download/v1.2.3-test/Quillbinder-%1-full-%2-x86_64.AppImage").arg(v, label))
+                  && page.contains(QStringLiteral("releases/download/v1.2.3-test/Quillbinder-%1-full-windows-x64.zip").arg(v))
+                  && page.count(QLatin1String("class=\"button\"")) == 2 && page.count(QLatin1String("Comes later.")) == 1
+                  && page.contains(QLatin1String("not made by or connected with Literature &amp; Latte"))
+                  && page.contains(QLatin1String("data-system=\"android\"")),
+              QStringLiteral("the download page: a button for each system's full version in the release, \"Comes later\" for the others"),
+              page.left(1500));
+        const QString wf = QString::fromUtf8(readAll(kSource + QStringLiteral("/.github/workflows/release.yml")));
+        const qsizetype job = wf.indexOf(QLatin1String("\n  download-page:\n"));
+        const QString pageJob = job > 0 ? wf.mid(job) : QString();
+        check(pageJob.contains(QLatin1String("needs: [version, publish]")) && pageJob.contains(QLatin1String("pages: write"))
+                  && pageJob.contains(QLatin1String("tools/download-page.py")) && pageJob.contains(QLatin1String("actions/deploy-pages@"))
+                  && !pageJob.contains(QLatin1String("contents: write")) && !pageJob.contains(QLatin1String("QB_SIGNING_KEY")),
+              QStringLiteral("the release workflow puts the download page on GitHub Pages after publishing, without write access to the release"));
+        const QString excl = QString::fromUtf8(readAll(kSource + QStringLiteral("/tools/public-exclude.txt")));
+        check(excl.contains(QLatin1String("\n.github/workflows/test-release.yml\n")) && excl.contains(QLatin1String("\ntools/test-release.sh\n"))
+                  && QFileInfo(kSource + QStringLiteral("/tools/test-release.sh")).isExecutable(),
+              QStringLiteral("the private test releases stay private (workflow and script)"));
+        // the build scripts sorted by system (2026-11-12)
+        check(QFileInfo::exists(kSource + QStringLiteral("/packaging/linux/build-appimage.sh")) && QFileInfo::exists(kSource + QStringLiteral("/packaging/windows/win-ci.sh"))
+                  && QFileInfo::exists(kSource + QStringLiteral("/packaging/android/README.md")) && QFileInfo::exists(kSource + QStringLiteral("/packaging/README.md"))
+                  && !QFileInfo::exists(kSource + QStringLiteral("/packaging/build-appimage.sh")) && !QFileInfo::exists(kSource + QStringLiteral("/tools/win-ci.sh")),
+              QStringLiteral("the build scripts are in one folder per system (packaging/linux, packaging/windows, packaging/android)"));
     }
 
     // ================================================================ the legal check

@@ -33,8 +33,8 @@ changed and what was checked. Preferences:
 - **One line** (since 0.60.0 alpha, 2026-10-31): the private and the public versions are the same source and the
   same version number. Audio and video for everyone: the add-on "Media Playback" (free formats), the add-on "Extra
   Video and Audio Formats" (formats licensed under patents), and the package `media-all-formats.qbpkg` that installs
-  both in one step (built by `packaging/build-addons.sh`).
-- **Runtime**: the current AppImage is 0.81.1 beta (on the runtime of 0.80.0), runtime id `u2404-qt6.12-r1` (`APP_RUNTIME`, `QB_QT_VERSION`,
+  both in one step (built by `packaging/linux/build-addons.sh`).
+- **Runtime**: the current AppImage is 0.81.3 beta (on the runtime of 0.80.0), runtime id `u2404-qt6.12-r1` (`APP_RUNTIME`, `QB_QT_VERSION`,
   `APP_RUNTIME_SINCE`, `APP_RUNTIME_DATE` in CMakeLists.txt; a new AppImage with other libraries needs a new id).
   The AppImages 0.2.0 to 0.70.0 had `u2404-qt6.4-r1` (Ubuntu's Qt 6.4.2). Program updates (.qbpkg) run on the
   AppImage's libraries: build on Ubuntu 24.04 with Qt 6.12.0 of `tools/get-qt.sh` (`/opt/qt/6.12.0/gcc_64`; CMake
@@ -155,6 +155,26 @@ changed and what was checked. Preferences:
   change leaving it out, a change kept aside, a text not arrived; pictures in notes written once; a save journal that
   cannot be read and another computer's journal (young, then old); the auditor's RTF file in a child run with a time
   limit; Roll Back shows the text at once).
+- `qb_v0812_tests` (0.81.2 beta, keywords, custom metadata and collections in Scrivener format: a hand-made project in
+  Scrivener 3 for Windows' form read (ids, values, collections, inline notes kept as text), opened and saved unchanged,
+  changed and written (forms, ids, order), saved again unchanged, read again after changes elsewhere (made here kept,
+  deleted there not brought back), a working copy of an older version joined once; a Quillbinder project switched to
+  Scrivener format; the inspector's values. `QB_SCRIV_REAL=<folder.scriv>` adds checks on a copy of a real project
+  (never named in the repository); `QB_V0812_KEEP=<file>` keeps the project file written in that run).
+- `qb_v0813_tests` (0.81.3 beta, Scrivener compatibility part 2: a hand-made Windows-form project with styles.xml, Ps/Cs
+  marks, an inline footnote, a picture in Scrivener's `\shppict` form, a picture with notes, a saved .mht; read, saved
+  unchanged, the marks written in Scrivener's placement, a style made here added once, content.styles removed with the
+  last style; web archives packed, unpacked (quoted-printable, windows-1252, Content-ID, a hostile archive); the page view
+  and its two buttons (`links::setOpenerForTests`, the copy in the Downloads folder); a Quillbinder project switched to
+  Scrivener format (inline notes, notes of media, its web page as .mht) and read back; the repair of 0.81.1's stand-ins.
+  `QB_SCRIV_REAL=<folder.scriv>` opens and saves a copy unchanged (every file), writes every text anew and compares what
+  reads back; `QB_V0813_DUMP=<dir>` writes the texts that differ and the written copy).
+- `qb_v0900_tests` (0.90.0 beta, Scrivener compatibility part 3: list items with a style in Markdown and RTF; a hand-made
+  Windows-form project `Quay.scriv` (lists, links, face-named fonts, comments, footnotes, bookmarks, targets, the deadline,
+  the writing history, compile.xml, ui-common.xml, a saved search, a card picture): read, saved unchanged, every text
+  written anew; changes made here (freeform corkboard, bookmarks, targets, history, saved searches, card picture, compile
+  author) written and read back; the project file in English and German. `QB_SCRIV_REAL=<folder.scriv>` adds a real
+  project (counts only of what it holds; never named); `QB_V0900_KEEP=<file>`).
 - `qb_audit1_tests` (0.64.1, the fixes of the external audit of 2026-11-09: ids of a project file and names in archives
   (`core/PathSafety.*`), damaged ZIP entries, a Word 97 file with a looping sector chain (compiles the plugin's `Cfb.cpp`),
   XML nested 20,000 deep, the keys a project may hold and the question of Load Options, the code warning of packages,
@@ -189,14 +209,136 @@ changed and what was checked. Preferences:
 
 1. Raise `APP_VERSION`, update `docs/manual.md` and `docs/CHANGES.md`.
 2. Tests as the working rules say (see Tests above).
-3. Update package: `packaging/build-update.sh "What is new, line 1" "line 2"`
+3. Update package: `packaging/linux/build-update.sh "What is new, line 1" "line 2"`
    gives `dist/quillbinder-<version>-update.qbpkg` (separate build dir `build-update`).
-4. End-to-end with the real AppImage: `tools/e2e-appimage.sh <AppImage> <update.qbpkg>` (it also checks the first
+4. End-to-end with the real AppImage: `packaging/linux/e2e-appimage.sh <AppImage> <update.qbpkg>` (it also checks the first
    start with the welcome project and prints its first document; `-` instead of the package checks a new AppImage
    alone; give the work dir a short path: the instance socket's path may have at most 107 bytes). Only the current
-   base AppImage, the update and the way back; older AppImages (`tools/e2e-old-version.sh`) only when asked.
-   Add-ons are packed with `packaging/build-addons.sh`; an update and add-ons go to the user as one bundle
+   base AppImage, the update and the way back; older AppImages (`packaging/linux/e2e-old-version.sh`) only when asked.
+   Add-ons are packed with `packaging/linux/build-addons.sh`; an update and add-ons go to the user as one bundle
    (`tools/make-package.py bundle`).
+
+## Downloads and the repository's layout (2026-11-12, the writer's choices 1, 2, 4, 5, 6)
+
+- **Build scripts per system**: `packaging/linux/` (build-appimage, build-update, build-addons, build-full-appimage,
+  e2e-appimage, e2e-old-version, desktop/AppStream/MIME files, `licenses/` of the AppImage runtime),
+  `packaging/windows/` (win-ci, win-addons, win-check, win-check-layout, win-tests, win-dictionaries,
+  collect-licenses-windows.py), `packaging/android/` (planned); shared tools stay in `tools/`. Moved scripts find the
+  repository two folders up (`$(dirname "$0")/../..`). `packaging/README.md` and the developer guide (section 8) map it.
+- **Release text** (`tools/release-notes.py`): the files as before, sorted by system under a short headline each
+  (`## Linux`, `## Windows`, `## Android`, `## Add-ons for every system`, `## Checking the files`); add-ons are sorted by
+  their manifest (`platform`, `runtime`, `.so` files, or the packages inside a bundle). `--test` leaves out the source
+  and the news. The source note says Apache License 2.0 (it said Zero-Clause BSD until 2026-11-12).
+- **Download page** (`tools/download-page.py`, job `download-page` of `release.yml` after `publish`; GitHub Pages of the
+  public repository, https://shelin-boop.github.io/Quillbinder_Public/): a button per system for the full version, the
+  visitor's system first. Needs, once, Settings > Pages > Source "GitHub Actions" in the public repository (the writer).
+  The README's download part links it and is sorted by system too.
+
+## Scrivener format, part 3: the rest of a project (0.90.0 beta, 2026-11-12)
+
+- **Texts** (`rtf::WriteOptions::scrivener`, used by `scrivRtf`): lists with a `\listtable` and `\ls`/`\ilvl` plus
+  `{\listtext\t ... \t}` (`\levelnfc23` bullet, `\levelnfc0` decimal; the reader takes the type from the table:
+  `scanListTables`), `\ri` from `props::RightOutdent`, a list item's own indents (`props::ListIndents`), fonts named by a
+  face ("Cambria-BoldItalic") keep `\b0\i0` (`props::FaceBold` / `FaceItalic`), links underlined only when they were
+  (`props::LinkUnderline`), a picture inside a link, `敓2\'3F`. `DocumentStore::setContent` / `setNotesContent` keep
+  the first paragraph's format and list (`takeFirstParagraph`: `insertFragment` dropped them); `\plain` ends the paragraph
+  state (an empty last paragraph was dropped).
+- **Comments and footnotes**: `content.comments` (`<Comments Version="1.0"><Comment ID Footnote="Yes" ...>`) through
+  `commentsXml(notes, f, old)`, the file's own attributes kept.
+- **Project parts** (`buildScrivx(p, existing, identifier, data)`, `XmlCtx::data` = the .scriv's `Files/Data` listing):
+  bookmarks (`Bookmark BinderUUID` / `Destination`; per item before `Children`), `TextSettings/Target`, `ProjectTargets`
+  (deadline kept in the file's text, `IgnoreDeadline`, the session options), the corkboard (`CorkboardSettings/Arrangement`,
+  `FreeformCorkboardDocuments` with positions in card widths: `ScrivenerImporter::setCardWidth`, `AppSettings::cardWidth`;
+  `BinderItem::corkArrangement` "freeform"/"grid", set per folder by `EditorPane::chooseCorkMode`), card pictures
+  (`card-image.<ext>`, `ShowSynopsisImage` / `IndexCardImageFileExtension`; the switch is set to No only where the file has
+  a card image: Scrivener also sets it on pictures and media), default labels and statuses and their "No ..." names,
+  section types only when the file has them or an item uses one, saved searches (`Collection Type="SavedSearch"` with
+  `SearchSettings`: `scrivener::queryFromScrivener`, `writeSearchSettings`; Operator "Any" seen in a real project, the
+  others guessed), `Settings/compile.xml` ProjectSettings/MetaData (title, abbreviated title, Forename/Surname, language;
+  only values that differ), `Settings/ui-common.xml` (open folders, selection, collections shown), `Files/writing.history`
+  (`<Day dwc dcc [dtwc] owc occ [dtcc]>`; only in a full write and only when the .scriv has the file or is new; the
+  importer takes it as the history and sets the day's start counts, so an import is no writing day).
+- **Re-read** (`mergeFromOld`, `kMetaLevel` 2): a state below 2 joins once what the working copy has of bookmarks,
+  targets, the deadline, corkboard positions and arrangement, card pictures and search collections (`matchMeta(...,
+  joinSearches)`); the writing history is the union (the .scriv wins a date); compile metadata as an overlay.
+- **Markdown storage, list items with a style** (found by the system test): written as `{: style=<percent-encoded name>}`
+  before the list mark (`paragraphLine`), read in `parseBlock`; older versions ignore the key.
+- **The system test** is on `main` since 0.90.0 (`tests/crashsafe/`, `if(NOT WIN32)`); see the project documents
+  `claude/quillbinder-test-procedure-crashsafe.md` and its addendum `...-crashsafe-0.90.md`. `QB_CS_MONKEY_ALL=1` and
+  `QB_CS_MONKEY_N=<n>` (with `QB_CS_SEED`) find the step of S-E04 that breaks something.
+
+## Scrivener format, part 2: styles, inline notes, web pages (0.81.3 beta, 2026-11-12)
+
+- **Styles** (`ScrivStyles`, `insertStyleMarks` in `ScrivenerFormat.cpp`): a written text gets Scrivener's marks and its
+  `content.styles` (IDs comma-separated, capitals, no line end; removed when no style is used). Placement as Scrivener
+  3.1.6.0 for Windows writes it: one pair around paragraphs in a row with the same style; the opening mark at the
+  paragraph's start, or right after the previous paragraph's closing mark when that one has a style (before its
+  paragraph break); `<$Scr_Cs::n>` around character-style runs. `styles.xml`: a style is found by name ("Centered" =
+  "Centered Text", "Block Quote" = "Blockquote"/"Quote"); a style made here is added (new UUID, Type Para / Para+Char /
+  Char, FontChange Face/Size, Format = RTF of a one-paragraph sample); the file is written only when it changed. The
+  reader (`importStyles`, `stripMarkers`): Scrivener's styles without a style of that name become project styles
+  (`styles::capture` from the Format); Cs marks give `props::CharStyle`; a paragraph holding only marks keeps the style
+  it is in unless a style opens and closes in it (Scrivener puts openings at the end of the paragraph before).
+- **Inline notes** (`scrivRtf`): written in Windows' form (decision of 2026-11-12, replaces "1A"): `{\Scrv_fn=...\end_Scrv_fn}`,
+  `{\Scrv_annot \color={\R=..\G=..\B=..} \text=...\end_Scrv_annot}` (6 decimals) as text in the RTF; linked notes stay
+  `scrivcmt://` with `content.comments`.
+- **Pictures in texts**: Scrivener for Windows writes `{\*\shppict{\pict{\*\nisusfilename ...}...\pngblip hex}}`;
+  the RTF reader now skips starred groups inside `\pict` (their text went into the picture's hex: every such picture was
+  lost, also when the text was written back). A bare `\u65532` (a placeholder without data) is still dropped by the writer.
+- **Web pages** (`core/WebArchive.*`: `pack`, `unpack`, `addressOf`; MHTML, RFC 2557): `BinderItem::sourceUrl` (item
+  attribute `url`, Scrivener's `MediaSettings/OriginalURL`); this program's pages (HTML + folders) go into a .scriv as
+  `content.mht` (Type "WebArchive", `scrivExt`, `isArchived`), the old `content.html`/`page-files` and the stand-in
+  content.rtf removed. `unpack` names parts `part<i>.<ext>` (letters/digits, program endings -> `bin`), rewrites
+  src/href/background/poster and CSS `url()` (also inside style sheets), decodes the page's charset through
+  `QStringDecoder(name)` (ICU). `MediaView::showWebPage` (cache folder for a .mht), bar `webPageBar` with `webAddress`,
+  `webOpenSaved` (`openSavedPage`: a copy in Downloads/"Quillbinder web pages"/"<title> (<id8>)", opened with
+  `links::openFile`; Snap Firefox cannot read hidden folders or /tmp), `webOpenOriginal` (`openOriginalAddress`: sourceUrl,
+  else an http(s) bookmark, else the archive's address), note `webNote`.
+- **Notes of media** are written into the .scriv (the notes block runs for every item). **Repair**: a media or web page
+  item without text drops a stand-in `content.rtf` that names `Files/Data/<UUID>` (0.81.1 wrote those); the reader
+  already turned such Text items into Media / WebPage by their `content.<ext>`.
+- **docs.checksum** in the file's own form: Windows writes "UUID" lines (not for every document: kept, never added) and
+  "UUID/<file>=sha1" for content.rtf/.styles/.comments, notes.rtf, synopsis.txt, capitals, sorted; lower-case files keep
+  their form; a new .scriv gets Windows' form (before: every write lowered the keys and dropped the UUID lines).
+  `Files/binder.autosave` (Windows: a ZIP of the last .scrivx) is removed only when the .scrivx is written.
+
+## Scrivener format: keywords, custom metadata, collections (0.81.2 beta, 2026-11-12)
+
+- **Ids**: the reader keeps Scrivener's ids as this program's (keywords "1", "2" ...; custom fields their FieldID such
+  as "thisisacustommetadatatext"; arbitrary collections their UUID), unless one is empty or taken. Settings files match
+  by name, never by id, so this is safe. The writer (`prepareMeta` in `ScrivenerFormat.cpp`) maps ours to Scrivener's:
+  a number stays; another id (made here, or a working copy of an older version) is matched by title (and parent or
+  type) with the file's, else gets the next number (keywords) or a name made of the title's ASCII letters and digits
+  (fields; "1", "2" ... when there are none). List options are matched by text with the file's; new ones get the next
+  number. Matching by title keeps the ids of an unchanged file, so a save without a change leaves the .scrivx as it was.
+- **Values** (`scrivener::valueFromScrivener`, `valueToScrivener`): checkbox "Yes"/"No" <-> "1"/"0"; list: the option's
+  ID <-> its text, "-1" <-> ""; date "yyyy-MM-dd HH:mm:ss +zzzz" <-> "yyyy-MM-dd" (written at 00:00 local time); text as
+  is. A value that still means the same keeps the file's text (a date's zone). MetaDataItems are written sorted by
+  FieldID (Scrivener's order); an unchanged set of values leaves the element alone.
+- **Elements**: top-level `Keywords` after `Collections`, `CustomMetaDataSettings` after `StatusSettings` (`kTopOrder`);
+  an item's `Keywords` before `Bookmarks`/`CorkboardAndOutliner`/`Children`; `CustomMetaData` at the end of `MetaData`.
+  Each top-level element is built anew and put in only when it differs from the file's (`canonicalElement`, the same
+  comparison as `sameExceptStamps`). Arbitrary collections are updated in place, or put after the file's other
+  collections when added, removed or reordered; `BinderUUIDs` comma-separated; this program's search collections are
+  not written (`mergeFromOld` carries them over at every re-read).
+- **Re-read** (`mergeFromOld`, `matchMeta`): the .scriv's keywords, fields and collections count (`SyncState::meta` 1).
+  A state without `meta` (older versions) makes `open()` read the .scriv again once even when unchanged, and joins:
+  what only the working copy has is added (keywords by name and parent, fields by title and type, collections by
+  name, document keywords and values without one); `fresh.meta` stays 0 until a write puts them into the .scrivx.
+  Documents kept because they never reached the .scriv get their keywords and values mapped.
+- **Inline notes kept as text** (`ScrivenerImporter::convertInlineNotes`): `{\Scrv_fn=...\end_Scrv_fn}` and
+  `{\Scrv_annot \color={\R=..\G=..\B=..} \text=...\end_Scrv_annot}` (escaped braces in the RTF), in `readRtfFile`
+  (texts, notes, snapshots), in `mergeFromOld` for texts taken from the working copy, and in `removeLeftoverMarkers`.
+  Writing them back in that form is part 2 (they still become linked notes, decision "1A").
+  `ScrivenerImporter::fixOldCustomValues` (called by `MainWindow::adoptProject`, Quillbinder format only) puts checkbox
+  and date values an earlier import kept in Scrivener's form into this program's; list choices (option numbers) cannot
+  be mapped without the .scriv.
+- **Fixed on the way**: audio and video are written as Type "Media" with `FileExtension` and `MediaSettings`
+  (`typeFor`; they were text documents with a stand-in RTF, also those read from the .scriv); a web page Scrivener saved
+  (`.mht`, Type "WebArchive") keeps its type (`isScrivenerWebArchive`); `isPlaceholder(it)` replaces
+  `isPlaceholderType` (other files and this program's HTML pages only). A text's `FileExtension` "rtf"/"txt" stays;
+  project bookmarks keep the title text when the file has it. `Project` keeps a text field's `wrap` (attribute
+  `wrap="0"`; it was lost at every save).
 
 ## The audit of 0.81.0 (0.81.1 beta, 2026-11-11, part 1, the four findings at function level)
 
@@ -297,7 +439,7 @@ changed and what was checked. Preferences:
 The program writes reports into `~/.local/share/Quillbinder/CrashReports` (fatal signal, or the
 main thread silent for 30 s); the user copies them from **Help > Crash Reports**. When the user
 sends one, read it as described in `docs/developer-guide.md` section 10 ("Reading a crash or freeze
-report"); `packaging/build-update.sh` keeps `dist/quillbinder-<version>-symbols.xz` (unstripped
+report"); `packaging/linux/build-update.sh` keeps `dist/quillbinder-<version>-symbols.xz` (unstripped
 program, same build ID) for `addr2line`: keep it with the package (the release workflow publishes it with each release; in the development repository it goes on the branch `assets`).
 `src/core/CrashGuard.*` (handlers, watchdog, sessions) must stay async-signal-safe in the
 handlers: no allocation, no locks, no Qt there. Windows (W2): `CrashGuardWin.cpp`, the same rule for its writer thread and
@@ -380,7 +522,7 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
   whisper.cpp's list; Small's and Medium's checked against the files on Hugging Face on 2026-11-08), saved in
   `<data>/tools/speech-transcription/models`; `QB_SPEECH_SOURCE` points the official source elsewhere (tests).
 - The add-on brings Qt Multimedia (only `libQt6Multimedia.so.6`: the microphone needs no Qt Multimedia plugin) and Qt's TLS
-  plugin; `addons/speech-transcription/stage.sh` exits with 3 when whisper is not built, and `packaging/build-addons.sh`
+  plugin; `addons/speech-transcription/stage.sh` exits with 3 when whisper is not built, and `packaging/linux/build-addons.sh`
   then leaves the add-on out. Icons of the add-on are in the program's icon set (Breeze: microphone, record, list).
 
 ## The two external audits' fixes (0.70.0 beta, reports A and B of 2026-11-10)
@@ -424,7 +566,7 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
   without it); the release workflow's jobs build (no key), tests (full suite but v060, one retry; publish waits for it again since 0.81.0, audit of 0.80.0 S-02), code-check (cppcheck, 0.81.0), sign-packages
   (`make-package.py sign`), assemble (the full version), sign-checksums, publish; the installer keeps
   `package-manifest.json`/`.sig`, and `launcher::coreOrigin` checks them before every start (Linux; unsigned only with
-  `QB_ALLOW_UNSIGNED_CORE`, which `tools/e2e-appimage.sh` sets). The first run on GitHub's container failed for the
+  `QB_ALLOW_UNSIGNED_CORE`, which `packaging/linux/e2e-appimage.sh` sets). The first run on GitHub's container failed for the
   machine, not the program: no `unzip` (now in `tools/cloud-setup.sh`) and no sound server (PulseAudio refuses the job's
   home folder, owned by another user; the runner now starts it with folders of its own, `-n` with a null sink only, log
   `pulseaudio.log`, and prints "(sound server: ...)"). On a second failure the workflow prints the failed checks with
@@ -573,7 +715,7 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
   match; otherwise the question before reading), then `checkModelFile` (description, test transcription).
 - **Socket folder**: `toolhost::Host::linkDirSafe` (lstat: a folder of this user, closed to others), else
   `~/.cache/quillbinder/link`.
-- **Pipeline**: `packaging/build-appimage.sh` pins linuxdeploy 1-alpha-20251107-1, linuxdeploy-plugin-qt 1-alpha-20250213-1,
+- **Pipeline**: `packaging/linux/build-appimage.sh` pins linuxdeploy 1-alpha-20251107-1, linuxdeploy-plugin-qt 1-alpha-20250213-1,
   appimagetool 1.9.1 and type2-runtime 20251108 with SHA-256 (the 0.64.0 AppImage had the "continuous" runtime). The
   release workflow: `contents: read` for all, `publish` alone writes; actions pinned to commits (tags in comments).
 - Not changed (and why): the comments that name Scrivener's windows (L-3) describe where a layout came from; they stay
@@ -670,7 +812,7 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
   Settings files: section `Options` (`sf::Options`).
 - **First start** (`src/ui/FirstStartDialog.*`, from `main.cpp` before the desktop question): backups and the switch;
   `app/firstStartDone` in the program file. Skipped with `QB_NO_DIALOGS` or `QB_SKIP_FIRST_START` (the test runner sets it);
-  `tools/e2e-appimage.sh` answers it and checks it came.
+  `packaging/linux/e2e-appimage.sh` answers it and checks it came.
 - **Tables and figures in the text** (`src/text/Tables.*`, see the comment at its top): `tables::Spec` as JSON in
   `props::TableSpec`, `tables::apply` after every change; figures are `QTextFrame`s with `props::Figure`; the description
   is `props::ImageDescription`. Qt keeps a block before and after every frame; Qt 6.4 crashes when rows or columns under a
@@ -873,7 +1015,7 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
 - `README.md` starts with direct download links of the current version (`releases/download/v<version>-<label>/...`
   for the AppImage and `media-all-formats.qbpkg`): change them with every new version; `tools/publish-public.sh`
   refuses to publish otherwise. Releases are full releases marked "Latest" (`tools/publish-release.sh`).
-- **Full version** (0.60): `packaging/build-full-appimage.sh [AppImage build dir] [add-on packages dir]` makes
+- **Full version** (0.60): `packaging/linux/build-full-appimage.sh [AppImage build dir] [add-on packages dir]` makes
   `<Name>-<version>-full-<label>-x86_64.AppImage`: the AppImage extracted, every `addons/*` package in
   `usr/share/quillbinder/full-addons/`, and a start script (`AppRun`) that runs `quillbinder --install` for each at the
   first start of that version (marker `~/.local/share/Quillbinder/full-addons-installed-<version>`), then the program.
@@ -903,7 +1045,7 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
 - `docs/quick-start.md` is **Help > Quick Start Guide**; keep it in step with the manual.
 - **Help > Third-Party Licenses** (`src/ui/LicensesDialog.*`) shows `resources/licenses` (made by
   `tools/collect-licenses.py` from the Ubuntu packages of the AppImage's libraries; `tools/licenses-extra.json` for
-  the parts that are no Ubuntu package). `packaging/build-appimage.sh` fails when a library has no license text.
+  the parts that are no Ubuntu package). `packaging/linux/build-appimage.sh` fails when a library has no license text.
 - The license is the Apache License 2.0 since 0.80.0 (`LICENSE` unchanged from Apache, `NOTICE` with "Copyright 2026
   The Quillbinder project" and the link to the public source; no person named; 0BSD up to 0.70.0). Credits:
   "Main Developer: Claude.AI w. Opus 5.5 Extra" only.

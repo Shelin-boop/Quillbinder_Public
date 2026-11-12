@@ -1,5 +1,5 @@
 The Public Suffix List
-Version: 47264b57765919188b9f4144de8d95cf77e1b6dc, fetched on 2025-01-22
+Version: 2026-05-14_08-35-31_UTC
 Homepage: http://publicsuffix.org/
 The Public Suffix List is an initiative of Mozilla, but is maintained as a community resource. It is available for use in any software, but was originally created to meet the needs of browser manufacturers. It allows browsers to, for example:  - Avoid privacy-damaging "supercookies" being set for high-level domain name suffixes  - Highlight the most important part of a domain name in the user interface  - Accurately sort history entries by site
 

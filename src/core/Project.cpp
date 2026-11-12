@@ -1188,6 +1188,8 @@ static void writeItem(QDomDocument &dom, QDomElement &parent, const BinderItem *
         e.setAttribute(QStringLiteral("ext"), it->fileExt);
     if (!it->originalFileName.isEmpty())
         e.setAttribute(QStringLiteral("original"), it->originalFileName);
+    if (!it->sourceUrl.isEmpty())
+        e.setAttribute(QStringLiteral("url"), it->sourceUrl); // 0.81.3
     if (!it->synopsisImage.isEmpty())
         e.setAttribute(QStringLiteral("synopsisImage"), it->synopsisImage);
     if (it->target > 0) {
@@ -1203,6 +1205,8 @@ static void writeItem(QDomDocument &dom, QDomElement &parent, const BinderItem *
         e.setAttribute(QStringLiteral("autoTitle"), 1);
     if (!it->corkboardPos.isEmpty())
         e.setAttribute(QStringLiteral("cork"), it->corkboardPos);
+    if (!it->corkArrangement.isEmpty())
+        e.setAttribute(QStringLiteral("corkArrangement"), it->corkArrangement);
     e.setAttribute(QStringLiteral("words"), it->wordCount);
     e.setAttribute(QStringLiteral("chars"), it->charCount);
 
@@ -1304,6 +1308,7 @@ static BinderItem *readOneItem(const QDomElement &e, BinderItem *parent)
     it->icon = e.attribute(QStringLiteral("icon"));
     it->fileExt = e.attribute(QStringLiteral("ext"));
     it->originalFileName = e.attribute(QStringLiteral("original"));
+    it->sourceUrl = e.attribute(QStringLiteral("url"));
     it->synopsisImage = e.attribute(QStringLiteral("synopsisImage"));
     it->target = e.attribute(QStringLiteral("target"), QStringLiteral("0")).toInt();
     it->targetChars = e.attribute(QStringLiteral("targetChars")) == QLatin1String("1");
@@ -1311,6 +1316,9 @@ static BinderItem *readOneItem(const QDomElement &e, BinderItem *parent)
     it->scriptMode = e.attribute(QStringLiteral("script")) == QLatin1String("1");
     it->autoTitle = e.attribute(QStringLiteral("autoTitle")) == QLatin1String("1");
     it->corkboardPos = e.attribute(QStringLiteral("cork"));
+    it->corkArrangement = e.attribute(QStringLiteral("corkArrangement"));
+    if (it->corkArrangement != QLatin1String("freeform") && it->corkArrangement != QLatin1String("grid"))
+        it->corkArrangement.clear();
     // 0.70.0 (audit B L-1): counts from the file within sane bounds
     it->wordCount = qBound(0, e.attribute(QStringLiteral("words"), QStringLiteral("0")).toInt(), 100000000);
     it->charCount = qBound(0, e.attribute(QStringLiteral("chars"), QStringLiteral("0")).toInt(), 1000000000);
@@ -1404,6 +1412,8 @@ bool Project::saveIndex(QString *error)
         }
         fe.setAttribute(QStringLiteral("type"), QString::fromLatin1(t));
         fe.setAttribute(QStringLiteral("default"), f.defaultValue);
+        if (!f.wrap)
+            fe.setAttribute(QStringLiteral("wrap"), QStringLiteral("0")); // 0.81.2 (it was not kept before)
         for (const QString &o : f.options) {
             QDomElement oe = dom.createElement(QStringLiteral("Option"));
             oe.appendChild(dom.createTextNode(o));
@@ -1786,6 +1796,7 @@ bool Project::loadIndex(QString *error)
                   : t == QLatin1String("date")   ? CustomFieldType::Date
                                                  : CustomFieldType::Text;
         cf.defaultValue = fe.attribute(QStringLiteral("default"));
+        cf.wrap = fe.attribute(QStringLiteral("wrap")) != QLatin1String("0");
         for (QDomElement o = fe.firstChildElement(QStringLiteral("Option")); !o.isNull(); o = o.nextSiblingElement(QStringLiteral("Option")))
             cf.options << o.text();
         customFields.append(cf);

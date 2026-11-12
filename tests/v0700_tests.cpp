@@ -21,6 +21,7 @@
 #include "core/DocumentStore.h"
 #include "core/Launcher.h"
 #include "core/MindMap.h"
+#include "core/Portable.h"
 #include "core/Project.h"
 #include "core/SettingsLayer.h"
 #include "core/Addons.h"
@@ -91,6 +92,13 @@ static void check(bool ok, const QString &what, const QString &detail = QString(
         if (!detail.isEmpty())
             std::printf("      %s\n", qPrintable(detail.left(3000)));
     }
+    std::fflush(stdout);
+}
+
+// W4c: where a run stands (the Windows runner stopped v0700 here after its time; each line is flushed)
+[[maybe_unused]] static void trace(const QString &what)
+{
+    std::printf("      (step: %s)\n", qPrintable(what));
     std::fflush(stdout);
 }
 static void info(const QString &s)
@@ -547,16 +555,23 @@ static void failedSaves(const QString &W)
         QObject::disconnect(conn);
         check(!told.isEmpty() && p->hasUnsavedChanges() && p->unsavedTitles().join(QLatin1Char(' ')).contains(QLatin1String("Plot")),
               QStringLiteral("a board whose save fails is reported as a failed save and counted as not saved"), told);
+        trace("the emergency copy");
         const QString emergency = p->writeEmergencyCopy(W + QStringLiteral("/emergency"), &err);
+        trace("the emergency copy written: " + emergency);
         bool boardThere = false;
         QDirIterator it(emergency, QDir::Files);
+        // (next() on every turn: with the flag first the loop never ended once a hit came before the last file; Linux's
+        // file order put the board last, Windows' did not: W4c)
         while (it.hasNext())
-            boardThere = boardThere || readAll(it.next()).contains("Second note");
+            boardThere = readAll(it.next()).contains("Second note") || boardThere;
         check(boardThere, QStringLiteral("the board not saved goes into the emergency copy"), emergency);
         block.undo();
+        trace(QStringLiteral("the board's folder back: %1").arg(QFileInfo(p->contentDir(boardId)).isDir()));
         Q_UNUSED(boardFile);
     }
+    trace("closing the project");
     w.closeProject();
+    trace("closed");
     settle(300);
 
     // a damaged board file: read-only, never written (audit A U-02)
@@ -857,7 +872,9 @@ static void dialogsAndSettings(const QString &W, const QString &src)
         const AppSettings &s = AppSettings::instance();
         check(s.autosaveSeconds <= 2 && s.backupOnClose && s.backupKeep >= 5 && !s.autoQuit,
               QStringLiteral("a project folder cannot switch off autosave, backups or set the automatic quit"),
-              QStringLiteral("autosave %1, onClose %2, keep %3, autoQuit %4").arg(s.autosaveSeconds).arg(s.backupOnClose).arg(s.backupKeep).arg(s.autoQuit));
+              QStringLiteral("autosave %1, onClose %2, keep %3, autoQuit %4; the program's file %5 says onClose %6")
+                  .arg(s.autosaveSeconds).arg(s.backupOnClose).arg(s.backupKeep).arg(s.autoQuit)
+                  .arg(settingslayer::programFile(), settingslayer::programValues().value(QStringLiteral("backup/onClose")).toString()));
         // Options opens for all projects (audit A S-05)
         OptionsDialog dlg(&w);
         check(dlg.optionScope() == OptionsDialog::AllProjects, QStringLiteral("File > Options opens for all projects with a project open"));
@@ -1082,7 +1099,8 @@ static void buildAndRelease(const QString &W, const QString &src, const QString 
           QStringLiteral("the test switches are off unless a build asks for them (a build as the README says behaves like a release)"));
     // the release workflow: the key only in the two signing jobs, the tests beside the release
     {
-        const QString wf = QString::fromUtf8(readAll(src + QStringLiteral("/.github/workflows/release.yml")));
+        // (without carriage returns: Git on Windows checks the file out with CRLF; W4c)
+        const QString wf = QString::fromUtf8(readAll(src + QStringLiteral("/.github/workflows/release.yml"))).remove(QLatin1Char('\r'));
         const QStringList jobs = {QStringLiteral("version"), QStringLiteral("build"), QStringLiteral("tests"), QStringLiteral("sign-packages"),
                                   QStringLiteral("assemble"), QStringLiteral("sign-checksums"), QStringLiteral("publish")};
         QMap<QString, QString> body;
@@ -1286,6 +1304,12 @@ int main(int argc, char **argv)
     QDir().mkpath(home.path() + QLatin1String("/run"));
     QFile::setPermissions(home.path() + QLatin1String("/run"), QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
     qputenv("QB_NO_DIALOGS", "1");
+#ifdef Q_OS_WIN
+    // W4c: the settings in the suite's own data folder, as the portable program keeps them (HOME and XDG_* above mean
+    // nothing on Windows; the runner's AppData file held what other suites had saved, such as no closing backup)
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    portable::useProgramFolder();
+#endif
     QCoreApplication::setOrganizationName(QStringLiteral("Quillbinder"));
     QCoreApplication::setApplicationName(QStringLiteral("Quillbinder"));
     QApplication app(argc, argv);

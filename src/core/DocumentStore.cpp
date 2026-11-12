@@ -27,6 +27,7 @@
 #include <QStringDecoder>
 #include <QTextBlock>
 #include <QTextCursor>
+#include <QTextList>
 #include <QTextDocument>
 #include <QTextFrame>
 #include <QTextDocumentFragment>
@@ -818,6 +819,31 @@ static void copyImageResources(const QTextDocument *source, QTextDocument *doc)
     DocumentStore::carryPictures(source, source, doc);
 }
 
+// After a whole text was put into `doc` with insertFragment, which keeps the target's first block format: the first
+// paragraph's own format (format: texts; notes keep theirs, as before), and its place in a list.
+// 0.90.0: a first paragraph that is a list item. Its format names the source's list (an object of that document,
+// not of this one), so the paragraph was no list item here: a list that began with the first paragraph of a text
+// lost its first item at every import and Roll Back.
+static void takeFirstParagraph(QTextDocument *doc, const QTextDocument *source, bool format)
+{
+    QTextCursor first(doc);
+    const QTextList *srcList = source->isEmpty() ? nullptr : source->begin().textList();
+    if (format) {
+        QTextBlockFormat bf = source->begin().blockFormat();
+        bf.setObjectIndex(-1);
+        first.setBlockFormat(bf);
+        first.setBlockCharFormat(source->begin().charFormat());
+    }
+    if (!srcList || doc->begin().textList())
+        return;
+    const QTextBlock srcSecond = source->begin().next(), second = doc->begin().next();
+    QTextList *same = srcSecond.isValid() && srcSecond.textList() == srcList && second.isValid() ? second.textList() : nullptr;
+    if (same)
+        same->add(doc->begin());
+    else
+        first.createList(srcList->format());
+}
+
 void DocumentStore::setContent(const QString &id, const QTextDocument *source)
 {
     QTextDocument *doc = text(id);
@@ -831,10 +857,7 @@ void DocumentStore::setContent(const QString &id, const QTextDocument *source)
         c.removeSelectedText();
     else
         c.insertFragment(QTextDocumentFragment(source));
-    // insertFragment keeps the first block format of the target: fix it
-    QTextCursor first(doc);
-    first.setBlockFormat(source->begin().blockFormat());
-    first.setBlockCharFormat(source->begin().charFormat());
+    takeFirstParagraph(doc, source, true);
     doc->setUndoRedoEnabled(true);
     // 0.81.1 (found while checking audit F-01): the whole text is laid out anew. Under Qt 6.12, an editor showing the
     // text after a whole replacement (Roll Back above all) kept the old layout of its first paragraph and showed an
@@ -856,6 +879,7 @@ void DocumentStore::setNotesContent(const QString &id, const QTextDocument *sour
     QTextCursor c(doc);
     c.select(QTextCursor::Document);
     c.insertFragment(QTextDocumentFragment(source));
+    takeFirstParagraph(doc, source, false);
     doc->setUndoRedoEnabled(true);
     doc->markContentsDirty(0, doc->characterCount()); // 0.81.1: laid out anew, as in setContent
     auto it = m_entries.find(keyFor(id, true));

@@ -24,6 +24,7 @@
 #include "text/MarkdownIO.h"
 #include "AppInfo.h"
 #include "core/Backup.h"
+#include "core/Portable.h"
 #include "core/BinderModel.h"
 #include "core/DocumentStore.h"
 #include "core/ItemIcons.h"
@@ -61,6 +62,7 @@
 #include "core/Objects.h"
 #include "ui/Layouts.h"
 #include "ui/OptionsDialog.h"
+#include "ui/FirstStartDialog.h"
 #include "ui/ColorPalette.h"
 #include "ui/Zoom.h"
 #include "ui/PrintDialogs.h"
@@ -499,6 +501,18 @@ MainWindow::MainWindow()
     m_saveState->setObjectName(QStringLiteral("saveState"));
     m_saveState->setContentsMargins(6, 0, 6, 0);
     statusBar()->addPermanentWidget(m_saveState);
+    // W4b: the portable program makes no automatic backup until a folder is chosen; this says so
+    m_backupState = new QLabel(this);
+    m_backupState->setObjectName(QStringLiteral("backupState"));
+    m_backupState->setContentsMargins(6, 0, 6, 0);
+    m_backupState->setTextFormat(Qt::RichText);
+    connect(m_backupState, &QLabel::linkActivated, this, [this] {
+        OptionsDialog::run(this, [](OptionsDialog &dlg) { dlg.showSection(OptionsDialog::SBackup); });
+    });
+    statusBar()->addPermanentWidget(m_backupState);
+    connect(&AppSettings::instance(), &AppSettings::changed, this, &MainWindow::updateBackupState);
+    connect(&theme::Notifier::instance(), &theme::Notifier::changed, this, &MainWindow::updateBackupState); // its color
+    updateBackupState();
     m_saveStateTimer = new QTimer(this);
     m_saveStateTimer->setInterval(1000);
     connect(m_saveStateTimer, &QTimer::timeout, this, &MainWindow::updateSaveState);
@@ -905,6 +919,8 @@ void MainWindow::createActions()
     connect(act(QStringLiteral("backupTo"), tr("Back Up &To…")), &QAction::triggered, this,
             withProject([this] { backupNow(true); }));
     connect(act(QStringLiteral("showBackups"), tr("Show Backup Folder")), &QAction::triggered, this, [this] {
+        if (!backupFolderReady(AskFolder::Always, false))
+            return; // W4b: the portable program has no backup folder yet
         const QString d = AppSettings::instance().backupDir.isEmpty() ? backup::defaultDirectory() : AppSettings::instance().backupDir;
         // 0.70.0: the open project's own backup folder when it has one
         const QString own = m_project ? backup::projectFolder(m_project.get(), d) : QString();
@@ -1755,6 +1771,18 @@ void MainWindow::createActions()
     integrate->setVisible(false);
     integrate->setEnabled(false);
 #endif
+    // W4b: the portable program's guide again (where it keeps its files, backups, notes, Start menu, file types)
+    QAction *thisComputer = act(QStringLiteral("thisComputer"), tr("This &Computer…"), QStringLiteral("computer"));
+    thisComputer->setToolTip(tr("Where the program keeps its files, the backup folder, the place of notes and transcriptions, "
+                                "the Start menu entry and the project file types"));
+    connect(thisComputer, &QAction::triggered, this, [this] {
+        FirstStartDialog dlg(this, true);
+        if (dlg.exec() == QDialog::Accepted)
+            dlg.take();
+        updateBackupState();
+    });
+    thisComputer->setVisible(portable::active());
+    thisComputer->setEnabled(portable::active());
     connect(act(QStringLiteral("installPackage"), tr("Install &Update or Add-on…"), QStringLiteral("system-software-update")),
             &QAction::triggered, this, [this] {
                 const QString f = QFileDialog::getOpenFileName(
@@ -1810,12 +1838,12 @@ void MainWindow::createActions()
         QAction *free = act(QStringLiteral("corkFreeform"), tr("&Freeform"), QStringLiteral("games-config-board"));
         free->setCheckable(true);
         connect(free, &QAction::triggered, this, [this](bool on) {
-            m_active->setCorkMode(on ? int(Corkboard::Mode::Freeform) : int(Corkboard::Mode::Grid));
+            m_active->chooseCorkMode(on ? int(Corkboard::Mode::Freeform) : int(Corkboard::Mode::Grid));
         });
         QAction *threads = act(QStringLiteral("corkLabels"), tr("Arrange by &Label"), QStringLiteral("view-time-schedule-baselined"));
         threads->setCheckable(true);
         connect(threads, &QAction::triggered, this, [this](bool on) {
-            m_active->setCorkMode(on ? int(Corkboard::Mode::LabelThreads) : int(Corkboard::Mode::Grid));
+            m_active->chooseCorkMode(on ? int(Corkboard::Mode::LabelThreads) : int(Corkboard::Mode::Grid));
         });
         connect(act(QStringLiteral("corkCommit"), tr("&Commit Freeform Order")), &QAction::triggered, this,
                 [this] { m_active->corkboard()->commitFreeformOrder(); });
@@ -2797,6 +2825,8 @@ bool MainWindow::adoptProject(std::unique_ptr<Project> p, bool isNew)
                                      15000);
         });
     }
+    // 0.81.2: custom metadata values an earlier import kept in Scrivener's form (a box "Yes", a date with its time)
+    ScrivenerImporter::fixOldCustomValues(proj);
     // File > Options > Editing: the editors open with the zoom they had, or with the default text zoom (0.21)
     if (!AppSettings::instance().reloadZoom || !proj->uiState.contains(QStringLiteral("zoom")))
         proj->docs()->setZoom(zoom::defaultFactor(QLatin1String(zoom::kEditor)));
@@ -2990,7 +3020,7 @@ bool MainWindow::adoptProject(std::unique_ptr<Project> p, bool isNew)
     }
     // 0.81.0 (audit of 0.80.0, S-03): the backup the closing would have made, when the program was ended by a signal
     const bool due = backup::takeDue(proj->displayFile()) && AppSettings::instance().backupOnClose;
-    if (AppSettings::instance().backupOnOpen || due) {
+    if ((AppSettings::instance().backupOnOpen || due) && backupFolderReady(AskFolder::Once)) {
         // 0.65.0 (found while checking audit F03): the result is told; before, even a backup that failed was not
         QString out, err;
         const bool ok = backup::backupProject(proj, AppSettings::instance().backupDir, AppSettings::instance().backupKeep, &out, &err);
@@ -3091,7 +3121,7 @@ bool MainWindow::closeProject()
         }
     }
     mindmaps::closeAll(m_project.get(), discardBoards);
-    if (AppSettings::instance().backupOnClose) {
+    if (AppSettings::instance().backupOnClose && backupFolderReady(AskFolder::Once)) {
         QString out;
         const bool ok = backup::backupProject(m_project.get(), AppSettings::instance().backupDir,
                                               AppSettings::instance().backupKeep, &out, &err);
@@ -3340,7 +3370,7 @@ void MainWindow::saveForTermination()
                                  dir);
         }
         // 0.81.0 (audit of 0.80.0, S-03): no time for the backup of the closing here; the next opening makes it
-        if (projectSaved && AppSettings::instance().backupOnClose)
+        if (projectSaved && AppSettings::instance().backupOnClose && backupFolderReady(AskFolder::Never, false))
             backup::markDue(m_project->displayFile());
         releaseLocks();
     }
@@ -3564,6 +3594,7 @@ void MainWindow::duplicateItems()
         it->icon = src->icon;
         it->scriptMode = src->scriptMode;
         it->fileExt = src->fileExt;
+        it->sourceUrl = src->sourceUrl;
         it->includeInCompile = src->includeInCompile;
         it->sectionType = src->sectionType;
         it->target = src->target;
@@ -4125,6 +4156,8 @@ void MainWindow::importFiles()
 
 void MainWindow::backupNow(bool chooseLocation)
 {
+    if (!chooseLocation && !backupFolderReady(AskFolder::Always))
+        return;
     QString dir = AppSettings::instance().backupDir;
     if (chooseLocation) {
         dir = QFileDialog::getExistingDirectory(this, tr("Back Up To"), QDir::homePath());
@@ -4142,6 +4175,65 @@ void MainWindow::backupNow(bool chooseLocation)
         QMessageBox::information(this, tr("Back Up"), tr("Backup saved:\n%1").arg(out));
     else
         QMessageBox::warning(this, tr("Back Up"), err);
+}
+
+bool MainWindow::backupFolderReady(AskFolder ask, bool tell)
+{
+    AppSettings &s = AppSettings::instance();
+    if (!portable::active() || !s.backupDir.trimmed().isEmpty())
+        return true;
+    // (test runs: also not with QB_SKIP_FIRST_START, which the runners set; it is the first start's question again)
+    const bool dialogs = (!QB_TEST_ENV_SET("QB_NO_DIALOGS") && !QB_TEST_ENV_SET("QB_SKIP_FIRST_START"))
+                         || QB_TEST_ENV_SET("QB_TEST_ASK_BACKUP_FOLDER");
+    if (dialogs && (ask == AskFolder::Always || (ask == AskFolder::Once && !m_backupFolderAsked))) {
+        m_backupFolderAsked = true;
+        QMessageBox box(QMessageBox::Question, tr("Backups"),
+                        tr("No folder for backups has been chosen yet, so no backup is made. Choose one now?\n\nBest on "
+                           "another drive (a USB stick, a second disk, a folder your sync program copies): the backups "
+                           "should outlive a failing disk. You can change it later in File > Options > Backup."),
+                        QMessageBox::NoButton, this);
+        box.setObjectName(QStringLiteral("backupFolderQuestion"));
+        QPushButton *choose = box.addButton(tr("Choose Folder…"), QMessageBox::AcceptRole);
+        QPushButton *later = box.addButton(tr("Not Now"), QMessageBox::RejectRole);
+        box.setDefaultButton(choose);
+        box.setEscapeButton(later);
+        box.exec();
+        if (box.clickedButton() == choose) {
+            const QString d = QB_TEST_ENV_SET("QB_TEST_BACKUP_FOLDER")
+                                  ? QB_TEST_ENV("QB_TEST_BACKUP_FOLDER")
+                                  : QFileDialog::getExistingDirectory(this, tr("Folder for Backups"), QDir::homePath());
+            if (!d.isEmpty()) {
+                s.backupDir = QDir::fromNativeSeparators(d);
+                s.save();
+                updateBackupState();
+                return true;
+            }
+        }
+    }
+    if (tell)
+        statusBar()->showMessage(tr("No backup was made: no folder for backups has been chosen (File > Options > Backup)."),
+                                 15000);
+    return false;
+}
+
+void MainWindow::updateBackupState()
+{
+    if (!m_backupState)
+        return;
+    const AppSettings &s = AppSettings::instance();
+    const bool off = portable::active() && s.backupDir.trimmed().isEmpty()
+                     && (s.backupOnClose || s.backupOnOpen || s.backupOnManualSave);
+    m_backupState->setVisible(off);
+    if (off) {
+        // the text's own color, underlined: a link's blue is hard to read on a dark theme. Taken from the program's
+        // palette: the label's own palette may not have followed a change of theme yet when this runs (W4b run 6: black
+        // on the dark status bar)
+        m_backupState->setText(QStringLiteral("<a href=\"backup\" style=\"color:%1\">%2</a>")
+                                   .arg(QApplication::palette(m_backupState).color(QPalette::WindowText).name(),
+                                        tr("No backups").toHtmlEscaped()));
+        m_backupState->setToolTip(tr("Automatic backups are not made until a folder for them is chosen: click here, or "
+                                     "File > Options > Backup."));
+    }
 }
 
 void MainWindow::restoreBackup()
@@ -4576,7 +4668,7 @@ bool MainWindow::manualSave()
     }
     m_editedSinceSave.clear();
     // File > Options > Backup: a backup with each manual save
-    if (s.backupOnManualSave) {
+    if (s.backupOnManualSave && backupFolderReady(AskFolder::Once)) {
         QString out;
         const bool ok = backup::backupProject(m_project.get(), s.backupDir, s.backupKeep, &out, &err);
         if (!ok)

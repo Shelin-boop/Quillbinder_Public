@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.16)
 # ---------------------------------------------------------------------------
 set(APP_NAME "Quillbinder")
 set(APP_ID   "quillbinder")
-set(APP_VERSION "0.81.1")
+set(APP_VERSION "0.90.0")
 # A word shown after the version number in Help > About, System Information and the
 # AppImage's file name ("alpha", "beta"; empty for a normal release). It is never part
 # of version comparisons: the program, the loader and the packages compare APP_VERSION only.
@@ -31,10 +31,10 @@ set(QB_QT_VERSION "6.12.0")
 # (the external audit of 2026-11-09, X-7).
 set(APP_RUNTIME_DATE "2026-09-30")
 if(WIN32)
-  # Windows (port, W2): Qt 6.8.3 for MSVC with its DLLs in the program folder; program updates
-  # for Windows must be built with the same Qt (.github/workflows/windows.yml pins it)
-  set(APP_RUNTIME "win64-qt6.8.3-msvc-r1")
-  set(APP_RUNTIME_DATE "2025-03-26")
+  # Windows (port, W2; Qt 6.12.0 since W4a, 2026-11-11, the same Qt as Linux): The Qt Company's build of
+  # QB_QT_VERSION for MSVC with its DLLs in the program folder; program updates for Windows must be built with the
+  # same Qt (.github/workflows/windows.yml pins it). The test builds of 0.60.5 had win64-qt6.8.3-msvc-r1.
+  set(APP_RUNTIME "win64-qt6.12-msvc-r1")
 endif()
 # The public project page (0.50): downloads, and the release "Third-party source code" with the
 # source of every library the AppImage and the add-ons carry (Help > Third-Party Licenses).
@@ -102,7 +102,11 @@ find_package(Qt6 QUIET COMPONENTS GuiPrivate)
 if(NOT TARGET Qt6::GuiPrivate)
   message(FATAL_ERROR "The private Qt GUI headers are missing (Qt ${QB_QT_VERSION}: tools/get-qt.sh).")
 endif()
-if(NOT WIN32 AND NOT Qt6_VERSION VERSION_EQUAL QB_QT_VERSION)
+if(NOT Qt6_VERSION VERSION_EQUAL QB_QT_VERSION)
+  if(WIN32)
+    message(FATAL_ERROR "Qt ${Qt6_VERSION} found in ${Qt6_DIR}; the runtime ${APP_RUNTIME} needs Qt ${QB_QT_VERSION} "
+                        "(the Windows workflow installs it, .github/workflows/windows.yml)")
+  endif()
   message(FATAL_ERROR "Qt ${Qt6_VERSION} found in ${Qt6_DIR}; the runtime ${APP_RUNTIME} needs Qt ${QB_QT_VERSION} "
                       "(tools/get-qt.sh, or -DQB_QT_DIR=<folder of Qt ${QB_QT_VERSION}>)")
 endif()
@@ -164,6 +168,10 @@ add_executable(${APP_ID} src/main.cpp ${QB_RESOURCES_QRC} ${QB_TRANSLATIONS_QRC}
 target_link_libraries(${APP_ID} PRIVATE qbui)
 if(WIN32)
   set_target_properties(${APP_ID} PROPERTIES WIN32_EXECUTABLE ON) # no console window
+  # W4b: the program icon for Explorer, shortcuts and the Start menu; the Start menu entry, the desktop shortcut and the
+  # project file types (src/ui/WinShell.cpp) use Windows' shell (COM) and the registry
+  target_sources(${APP_ID} PRIVATE ${CMAKE_SOURCE_DIR}/resources/app/quillbinder.rc)
+  target_link_libraries(qbui PRIVATE ole32 uuid shell32)
 endif()
 if(QB_HUNSPELL_TARGET)
   target_link_libraries(qbcore PUBLIC ${QB_HUNSPELL_TARGET})
@@ -173,10 +181,10 @@ endif()
 set_target_properties(${APP_ID} PROPERTIES ENABLE_EXPORTS ON)
 
 install(TARGETS ${APP_ID} RUNTIME DESTINATION bin)
-install(FILES packaging/${APP_ID}.desktop DESTINATION share/applications)
+install(FILES packaging/linux/${APP_ID}.desktop DESTINATION share/applications)
 install(FILES resources/app/${APP_ID}.svg DESTINATION share/icons/hicolor/scalable/apps)
-install(FILES packaging/${APP_ID}-mime.xml DESTINATION share/mime/packages)
-install(FILES packaging/${APP_ID}.metainfo.xml DESTINATION share/metainfo RENAME io.github.shelin_boop.Quillbinder.metainfo.xml)
+install(FILES packaging/linux/${APP_ID}-mime.xml DESTINATION share/mime/packages)
+install(FILES packaging/linux/${APP_ID}.metainfo.xml DESTINATION share/metainfo RENAME io.github.shelin_boop.Quillbinder.metainfo.xml)
 install(DIRECTORY plugins/command/ DESTINATION share/${APP_ID}/plugins FILES_MATCHING PATTERN "*.json")
 # Make the command plugins available when running from the build folder.
 file(COPY plugins/command/ DESTINATION ${CMAKE_BINARY_DIR}/plugins FILES_MATCHING PATTERN "*.json")
@@ -189,7 +197,7 @@ endif()
 
 # Writing tools (tools/ToolApi.h). They are delivered as add-ons, not with the
 # program update: the libraries go to build/tool-plugins, from where
-# packaging/build-addons.sh puts them into the add-ons (addons/tool-*).
+# packaging/linux/build-addons.sh puts them into the add-ons (addons/tool-*).
 # Run from the build folder with QB_PLUGIN_PATH=build/tool-plugins QB_TOOL_DATA=addons/tool-name-generator/payload
 option(QB_BUILD_TOOL_PLUGINS "Build the writing tools" ON)
 if(QB_BUILD_TOOL_PLUGINS)
@@ -217,7 +225,7 @@ if(QB_BUILD_TESTS AND NOT QB_TEST_SWITCHES)
 endif()
 if(QB_BUILD_TESTS)
   if(WIN32)
-    # Windows (W3): only the suites tools/win-tests.sh names are built (cmake --build build --target ...)
+    # Windows (W3): only the suites packaging/windows/win-tests.sh names are built (cmake --build build --target ...)
     add_subdirectory(tests EXCLUDE_FROM_ALL)
   else()
     add_subdirectory(tests)

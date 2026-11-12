@@ -4,11 +4,11 @@
 # libraries); the runtime id in CMakeLists.txt (APP_RUNTIME) says which
 # AppImages can use the result.
 #
-#   packaging/build-update.sh "What is new, line 1" "line 2" ...
+#   packaging/linux/build-update.sh "What is new, line 1" "line 2" ...
 #
 # Result: dist/<id>-<version>-update.qbpkg
 set -euo pipefail
-ROOT=$(cd "$(dirname "$0")/.." && pwd)
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 BUILD=${BUILD:-$ROOT/build-update}
 OUT=${OUT:-$ROOT/dist}
 APP_ID=$(sed -n 's/^set(APP_ID *"\(.*\)")/\1/p' "$ROOT/CMakeLists.txt")

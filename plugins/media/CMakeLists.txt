@@ -1,7 +1,7 @@
 # Add-on "Media Playback": two libraries (see MediaEngine.h).
 #  - libqb-media.so       the plugin the program loads (QtCore only)  -> build/tool-plugins/
 #  - libqb-media-impl.so  the players, built against Qt Multimedia   -> build/tool-plugins/media/
-# packaging/build-addons.sh puts both into the add-on together with the libraries
+# packaging/linux/build-addons.sh puts both into the add-on together with the libraries
 # of addons/media-playback/stage.sh (Qt Multimedia, FFmpeg built by tools/build-ffmpeg.sh).
 # Windows (port, W2): its own engine (LoadLibrary, Qt's Windows backend; see MediaEngineWin.cpp)
 if(WIN32)

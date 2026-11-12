@@ -1450,7 +1450,7 @@ static void mindMapRangeChecks()
                               : QStringLiteral("exit %1").arg(WEXITSTATUS(status)));
 }
 
-// For tools/e2e-old-version.sh: a project with objects for an older version to open and save
+// For packaging/linux/e2e-old-version.sh: a project with objects for an older version to open and save
 // (--make-fixture <folder>), and the check that the objects are all there afterwards
 // (--check-fixture <project folder>).
 static int makeFixture(const QString &dir)

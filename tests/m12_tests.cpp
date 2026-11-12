@@ -5,7 +5,7 @@
 // Saves screenshots into the folder given as first argument. Exit code =
 // number of failed checks.
 //
-//   packaging/build-addons.sh build build/addons-dist
+//   packaging/linux/build-addons.sh build build/addons-dist
 //   QT_QPA_PLATFORM=offscreen ./qb_m12_tests /tmp/shots
 #include "AppInfo.h"
 #include "compile/PluginManager.h"

@@ -539,7 +539,7 @@ int main(int argc, char **argv)
     as.surname = QStringLiteral("Keeper");
     as.save();
     theme::apply();
-    // the add-ons of the build (packaging/build-addons.sh <build> <build>/addons-dist), so that their menu entries are audited too
+    // the add-ons of the build (packaging/linux/build-addons.sh <build> <build>/addons-dist), so that their menu entries are audited too
     {
         const QDir dist(QStringLiteral(QB_TEST_BUILD_DIR "/addons-dist"));
         QStringList installed, problems;

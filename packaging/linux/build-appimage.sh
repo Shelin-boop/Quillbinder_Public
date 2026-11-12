@@ -3,12 +3,12 @@
 # (QB_QT_VERSION; since 0.80.0, runtime u2404-qt6.12-r1) in /opt/qt/<version>/gcc_64 or QB_QT_DIR.
 #
 #   tools/cloud-setup.sh                  (Ubuntu packages, and Qt through tools/get-qt.sh)
-#   packaging/build-appimage.sh
+#   packaging/linux/build-appimage.sh
 #
 # Result: build-appimage/<Name>-<version>-x86_64.AppImage
 set -euo pipefail
 
-ROOT=$(cd "$(dirname "$0")/.." && pwd)
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 TOOLS=${TOOLS:-$ROOT/packaging/tools}
 BUILD=${BUILD:-$ROOT/build-appimage}
 APPDIR=$BUILD/AppDir
@@ -88,7 +88,7 @@ export DISABLE_COPYRIGHT_FILES_DEPLOYMENT=1
 
 "$TOOLS/linuxdeploy-x86_64.AppImage" --appdir "$APPDIR" \
     --executable "$APPDIR/usr/bin/$APP_ID" \
-    --desktop-file "$ROOT/packaging/$APP_ID.desktop" \
+    --desktop-file "$ROOT/packaging/linux/$APP_ID.desktop" \
     --icon-file "$ROOT/resources/app/$APP_ID.svg" \
     --plugin qt
 

@@ -3,6 +3,115 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.90.0 beta (2026-11-12)
+
+A new AppImage on the runtime of 0.80.0 (`u2404-qt6.12-r1`, the same libraries: the add-ons of 0.80.0 fit, and 0.80.0
+and later take the program update). The Linux version that completes the work on Scrivener compatibility: everything
+found in two projects of Scrivener 3 for Windows is read, shown where Quillbinder has it, and written back in
+Scrivener's own form.
+
+- **Texts written back as Scrivener wrote them**. Checked with every text of two real projects written anew and
+  measured by a reader of the checks' own: the same characters, bold and italic, colors, fonts, sizes, indents, tab
+  stops, lists, pictures and links. Before, a text changed in Quillbinder lost in Scrivener: right indents below zero
+  (lines that run past the page for a tab stop out there), the link of a picture linked to a file, the underlining of
+  links to web addresses, and the list table of bullet and numbered lists (numbered lists became bullets); and it gained
+  bold and italic switches on fonts that are named by their bold or italic face (as Scrivener for Windows names fonts).
+  The place of a picture whose data is missing stays in the text.
+- **Comments and footnotes keep what Scrivener keeps with them**: their IDs, whether the box is folded, the comment's
+  color and the formatting inside an unchanged note.
+- **Bookmarks**: the bookmarks of each document are read and written (they stayed in Quillbinder only), and bookmarks
+  of the project to web addresses or files stay in the Scrivener project (every write took them out).
+- **Targets**: a document's target, the deadline of the draft target (it was not read, and every write switched
+  Scrivener's deadline off), and whether only the draft counts and whether the session target follows the deadline.
+- **The writing history** (the words written each day) is read from the Scrivener project and written into it. Opening a project no longer counts its whole text as written that day.
+- **Compile**: the title, the author and the language of the compiled file are shared with Scrivener's compile settings
+  (Scrivener's compile formats stay its own).
+- **The binder as Scrivener left it**: the first opening shows the folders that were open in Scrivener and the documents
+  selected there.
+- **The corkboard**: cards placed freely in Scrivener keep their places in Quillbinder and back (Scrivener keeps them in
+  card widths: Quillbinder turns them into its own card size); each folder keeps its corkboard arrangement, freely
+  placed or in a grid, as it does in Scrivener.
+- **Labels and statuses**: the default label and status of new documents stay as set in Scrivener (every write set them
+  to none), and the names of "No Label" and "No Status" stay as the project has them (with the German interface they
+  were written in German).
+- **Saved searches**: Scrivener's saved searches are search collections in Quillbinder, and Quillbinder's search
+  collections go into the Scrivener project as saved searches (they stayed in Quillbinder only). Checked with a search
+  for any of the words; the other kinds were not seen in a real Scrivener project yet (see the manual).
+- **Index card pictures**: a card that shows a picture instead of its synopsis keeps it, in both directions.
+- **Found on the way, fixed**: a list that began with the first paragraph of a text lost its first item (at every
+  import of a Scrivener project, Roll Back and the like); an empty last paragraph of a text was dropped; a project file
+  without section types got Quillbinder's standard ones at the first write; keywords were put in another place among a
+  document's parts than Scrivener puts them.
+- **Found by the system test, fixed**: a list item with a paragraph style (a heading, a caption ...) lost its style at
+  the next opening in projects that keep their texts as Markdown (the list's mark took the place of the style's mark;
+  now written as `{: style=...}` before the mark, which earlier versions ignore).
+
+## 0.81.3 beta (2026-11-12)
+
+A new AppImage on the runtime of 0.80.0 (`u2404-qt6.12-r1`, the same libraries: the add-ons of 0.80.0 fit, and 0.80.0
+and later take the program update). Projects in Scrivener format, part 2 of complete Scrivener compatibility: styles,
+inline notes and web pages go into the Scrivener project in the form Scrivener 3 for Windows writes them.
+
+- **Styles in Scrivener format**. A text changed in Quillbinder lost its paragraph and character styles in Scrivener
+  (they stayed only as the look of the text). They are written as Scrivener keeps them now (marks in the text and the
+  list of styles each text uses), so Scrivener shows the same styles; a style made in Quillbinder is added to the
+  Scrivener project's styles. Scrivener's character styles and its styles that Quillbinder had no style of that name for
+  are read too (they became plain formatting before).
+- **Inline footnotes and annotations in Scrivener's own form**. A text changed in Quillbinder gave them to Scrivener as
+  linked notes on the word before them. They stay inline footnotes and annotations now, the annotations in their color.
+- **Pictures in the texts of Scrivener for Windows** (found while checking). Quillbinder did not show them, and a text
+  written by Quillbinder lost them in the Scrivener project. They show and stay now. A picture placeholder that
+  Scrivener keeps without the picture's data is not written back.
+- **Web pages**. A web page Scrivener saved showed as codes (it is one archive file, `.mht`). It shows as a page now,
+  with its address and two buttons above it: **Open Saved Page in Browser** shows the page as it was saved (a copy goes
+  into the Downloads folder, "Quillbinder web pages": a browser installed as a sandboxed package, such as Firefox on
+  Kubuntu, cannot read the program's own folders) and **Open Original Address** opens the page as it is today. Web pages
+  saved by Quillbinder keep their address and go into a Scrivener project as Scrivener's own saved web pages.
+- **Notes of pictures, PDFs, audio and video** go into the Scrivener project too (only the notes of texts did).
+- **Audio, video and web pages that earlier versions turned into text documents** in a Scrivener project (a text that
+  named the file) are put right at the next save: Scrivener's own audio, video or web page document again.
+- **The checksum file of Scrivener for Windows** (found while checking). Every write rebuilt it in another form: lines
+  Scrivener wrote were lost, and a text written by Quillbinder got a second line beside its old one. It keeps
+  Scrivener's form now. Scrivener's backup copy of the binder is removed only when Quillbinder writes the binder (it was
+  removed at every save, also without a change).
+
+Not yet written into a .scriv: Quillbinder's search collections (Scrivener's form of a saved search is not known yet).
+
+## 0.81.2 beta (2026-11-12)
+
+A new AppImage on the runtime of 0.80.0 (`u2404-qt6.12-r1`, the same libraries: the add-ons of 0.80.0 fit, and 0.80.0
+and later take the program update). Projects in Scrivener format: keywords, custom metadata and collections go into the
+Scrivener project now, in the form Scrivener 3 for Windows writes them (part 1 of complete Scrivener compatibility).
+
+- **Keywords, custom metadata and collections in Scrivener format**. They stayed in Quillbinder's working copy and
+  never reached the .scriv, so Scrivener did not see keywords, values or collections made in Quillbinder. They are
+  written into the .scriv now, under Scrivener's own numbers and names, so a keyword is the same in both programs. A
+  project opened and saved without a change stays as Scrivener wrote it.
+- **Nothing lost when the project was changed in Scrivener**. When Quillbinder read a project again after work in
+  Scrivener, its keywords, fields and collections could replace the ones made in Quillbinder, and things deleted in
+  Scrivener could come back. Everything comes from the .scriv now. The first time a working copy of an older version
+  opens, Quillbinder joins its keywords, fields, values and collections with the Scrivener project's once, so nothing
+  made in Quillbinder is lost.
+- **Custom metadata values from Scrivener**. Scrivener keeps a ticked box as "Yes", a list's choice as a number and a
+  date with its time; Quillbinder showed such boxes unticked, lists empty and dates as "none". They show as in
+  Scrivener now; in projects imported earlier, boxes and dates are put right when the project opens (a list's choice
+  cannot be: import the project again for it). A text field's wrap setting is kept with the project (it was lost at
+  the next save).
+- **Collections from Scrivener for Windows** opened empty (it lists their documents in one line). They show their
+  documents now.
+- **Inline notes from Scrivener for Windows** showed as codes in the text (`{\Scrv_fn=` ...). They are inline footnotes
+  and annotations now, the annotations in their color; projects imported earlier and working copies are put right when
+  they open.
+- **Audio, video and web pages became text documents** (found while checking). Every save into a .scriv turned
+  Scrivener's audio, video and saved web pages into text documents in Scrivener's binder. They keep their kind now,
+  and audio and video added in Quillbinder go in as Scrivener's own audio and video documents (before: a text that
+  named the file).
+- **A save without a change rewrote the binder** of a project of Scrivener for Windows (found while checking):
+  Quillbinder left out the file type of texts and the titles of project bookmarks. Both stay now.
+
+Not yet written into a .scriv (part 2): styles, inline notes in Scrivener's own form (a text changed in Quillbinder
+gives them to Scrivener as linked notes), Quillbinder's search collections, and web pages saved by Quillbinder.
+
 ## 0.81.1 beta (2026-11-11)
 
 A new AppImage on the runtime of 0.80.0 (`u2404-qt6.12-r1`, the same libraries: the add-ons of 0.80.0 fit, and 0.80.0

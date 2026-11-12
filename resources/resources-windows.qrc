@@ -1704,17 +1704,18 @@
     <file alias="licenses/texts/qt-d3d12memoryallocator.txt">licenses-windows/texts/qt-d3d12memoryallocator.txt</file>
     <file alias="licenses/texts/qt-doubleconversion.txt">licenses-windows/texts/qt-doubleconversion.txt</file>
     <file alias="licenses/texts/qt-easing.txt">licenses-windows/texts/qt-easing.txt</file>
+    <file alias="licenses/texts/qt-emoji-segmenter.txt">licenses-windows/texts/qt-emoji-segmenter.txt</file>
     <file alias="licenses/texts/qt-freetype-bdf.txt">licenses-windows/texts/qt-freetype-bdf.txt</file>
     <file alias="licenses/texts/qt-freetype-pcf.txt">licenses-windows/texts/qt-freetype-pcf.txt</file>
     <file alias="licenses/texts/qt-freetype-zlib.txt">licenses-windows/texts/qt-freetype-zlib.txt</file>
     <file alias="licenses/texts/qt-freetype.txt">licenses-windows/texts/qt-freetype.txt</file>
     <file alias="licenses/texts/qt-grayraster.txt">licenses-windows/texts/qt-grayraster.txt</file>
     <file alias="licenses/texts/qt-harfbuzz-ng.txt">licenses-windows/texts/qt-harfbuzz-ng.txt</file>
-    <file alias="licenses/texts/qt-iaccessible2.txt">licenses-windows/texts/qt-iaccessible2.txt</file>
     <file alias="licenses/texts/qt-icc-srgb-color-profile.txt">licenses-windows/texts/qt-icc-srgb-color-profile.txt</file>
     <file alias="licenses/texts/qt-libjpeg.txt">licenses-windows/texts/qt-libjpeg.txt</file>
     <file alias="licenses/texts/qt-libpng.txt">licenses-windows/texts/qt-libpng.txt</file>
     <file alias="licenses/texts/qt-libpsl.txt">licenses-windows/texts/qt-libpsl.txt</file>
+    <file alias="licenses/texts/qt-libwebp.txt">licenses-windows/texts/qt-libwebp.txt</file>
     <file alias="licenses/texts/qt-md4.txt">licenses-windows/texts/qt-md4.txt</file>
     <file alias="licenses/texts/qt-md4c.txt">licenses-windows/texts/qt-md4c.txt</file>
     <file alias="licenses/texts/qt-md5.txt">licenses-windows/texts/qt-md5.txt</file>
@@ -1732,6 +1733,7 @@
     <file alias="licenses/texts/qt-smooth-scaling-algorithm.txt">licenses-windows/texts/qt-smooth-scaling-algorithm.txt</file>
     <file alias="licenses/texts/qt-tika-mimetypes.txt">licenses-windows/texts/qt-tika-mimetypes.txt</file>
     <file alias="licenses/texts/qt-tinycbor.txt">licenses-windows/texts/qt-tinycbor.txt</file>
+    <file alias="licenses/texts/qt-tlexpected.txt">licenses-windows/texts/qt-tlexpected.txt</file>
     <file alias="licenses/texts/qt-unicode-character-database.txt">licenses-windows/texts/qt-unicode-character-database.txt</file>
     <file alias="licenses/texts/qt-unicode-cldr.txt">licenses-windows/texts/qt-unicode-cldr.txt</file>
     <file alias="licenses/texts/qt-vulkan-xml-spec.txt">licenses-windows/texts/qt-vulkan-xml-spec.txt</file>

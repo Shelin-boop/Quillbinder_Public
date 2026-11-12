@@ -23,7 +23,11 @@
 
 #include <atomic>
 #include <cmath>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#else
 #include <dlfcn.h>
+#endif
 
 #include "ggml-backend.h"
 #include "whisper.h"
@@ -34,15 +38,40 @@ namespace {
 
 using speech::EngineSettings;
 
-// the folder of the compute modules (libggml-cpu-*.so, libggml-vulkan.so): lib/ next to this library
+// A path as whisper.cpp and ggml take it: on Windows they read char paths as UTF-8 (whisper's model file, ggml's
+// folder of compute modules; W4c, 2026-11-12: a folder with letters such as "ü" in the writer's name); elsewhere
+// the file system's encoding, as before.
+QByteArray pathBytes(const QString &path)
+{
+#ifdef Q_OS_WIN
+    return QDir::toNativeSeparators(path).toUtf8();
+#else
+    return QFile::encodeName(path);
+#endif
+}
+
+// the folder of the compute modules (libggml-cpu-*.so, libggml-vulkan.so; on Windows ggml-cpu-*.dll): lib/ next to
+// this library
 QString moduleDir()
 {
-    const QByteArray env = qgetenv("QB_SPEECH_GGML_DIR");
+    const QString env = qEnvironmentVariable("QB_SPEECH_GGML_DIR");
     if (!env.isEmpty())
-        return QString::fromLocal8Bit(env);
+        return env;
+#ifdef Q_OS_WIN
+    HMODULE self = nullptr;
+    if (::GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                             reinterpret_cast<LPCWSTR>(&moduleDir), &self)) {
+        wchar_t buf[4096];
+        const DWORD n = ::GetModuleFileNameW(self, buf, DWORD(sizeof buf / sizeof buf[0]));
+        if (n > 0 && n < sizeof buf / sizeof buf[0])
+            return QFileInfo(QDir::fromNativeSeparators(QString::fromWCharArray(buf, int(n)))).absolutePath()
+                   + QStringLiteral("/lib");
+    }
+#else
     Dl_info info;
     if (dladdr(reinterpret_cast<void *>(&moduleDir), &info) && info.dli_fname)
         return QFileInfo(QString::fromLocal8Bit(info.dli_fname)).absolutePath() + QStringLiteral("/lib");
+#endif
     return QString();
 }
 
@@ -63,7 +92,7 @@ void loadBackends()
     ggml_log_set(quietLog, nullptr);
     const QString dir = moduleDir();
     if (!dir.isEmpty() && QFileInfo::exists(dir))
-        ggml_backend_load_all_from_path(QFile::encodeName(dir).constData());
+        ggml_backend_load_all_from_path(pathBytes(dir).constData());
     else
         ggml_backend_load_all();
 }
@@ -132,7 +161,7 @@ whisper_context *openModel(const EngineSettings &s, QString *error)
     cp.use_gpu = s.gpuIndex >= 0;
     cp.gpu_device = qMax(0, s.gpuIndex);
     cp.flash_attn = s.gpuIndex >= 0;
-    whisper_context *ctx = whisper_init_from_file_with_params(QFile::encodeName(s.modelFile).constData(), cp);
+    whisper_context *ctx = whisper_init_from_file_with_params(pathBytes(s.modelFile).constData(), cp);
     if (!ctx && error)
         *error = s.gpuIndex >= 0 ? QObject::tr("The model could not be loaded onto the graphics card. Choose the processor "
                                               "under Options > Speech > Processing, or a smaller model.")

@@ -196,7 +196,7 @@ namespace {
 class Writer
 {
 public:
-    Writer(const QTextDocument *doc, const Formatting &f) : m_doc(doc), m_f(f)
+    Writer(const QTextDocument *doc, const Formatting &f, const WriteOptions &opt = WriteOptions()) : m_doc(doc), m_f(f), m_opt(opt)
     {
         m_bodyFamily = display::resolvedFontFamily(f);
         m_fonts << m_bodyFamily;
@@ -275,7 +275,9 @@ public:
             else
                 out += "{\\s" + QByteArray::number(i + 1) + "\\snext0 " + escape(st[i].name) + ";}";
         }
-        out += "}\n{\\*\\qbformat 1}\n\\pard\\plain ";
+        out += "}\n";
+        out += listTables();
+        out += "{\\*\\qbformat 1}\n\\pard\\plain ";
         out += body;
         out += "}\n";
         return out;
@@ -284,7 +286,49 @@ public:
 private:
     const QTextDocument *m_doc;
     Formatting m_f;
+    WriteOptions m_opt;
+    // 0.90.0, Scrivener's form of lists: every list of the text with its number in the list table
+    struct ListOut { const QTextList *list; int level; bool numbered; };
+    QList<ListOut> m_lists;
     QList<Style> m_styles;
+
+    int listNumber(const QTextList *list, int level, bool numbered)
+    {
+        for (int i = 0; i < m_lists.size(); ++i)
+            if (m_lists[i].list == list)
+                return i + 1;
+        m_lists.append({list, level, numbered});
+        return m_lists.size();
+    }
+
+    // The list table and its override table as Scrivener 3.1.6.0 for Windows writes them (the bullet form is taken
+    // from a project of that version; the numbered form follows it with RTF's decimal level)
+    QByteArray listTables() const
+    {
+        if (!m_opt.scrivener || m_lists.isEmpty())
+            return QByteArray();
+        QByteArray table = "{\\*\\listtable", over = "{\\*\\listoverridetable";
+        for (int i = 0; i < m_lists.size(); ++i) {
+            const QByteArray n = QByteArray::number(i + 1);
+            table += "{\\list\\listtemplateid" + n + "\\listhybrid";
+            for (int lv = 0; lv <= m_lists[i].level; ++lv) {
+                const QByteArray left = QByteArray::number(720 * (lv + 1));
+                const QByteArray tid = QByteArray::number(i * 10 + lv + 1);
+                if (m_lists[i].numbered)
+                    table += "{\\listlevel\\levelnfc0\\levelnfcn0\\leveljc0\\leveljcn0\\levelfollow0\\levelstartat1\\levelspace360"
+                             "\\levelindent0{\\*\\levelmarker \\{decimal\\}.}{\\leveltext\\leveltemplateid" + tid + "\\'02\\'0"
+                             + QByteArray::number(lv) + ".;}{\\levelnumbers\\'01;}\\fi-500\\li" + left + "\\lin" + left + "}";
+                else
+                    table += "{\\listlevel\\levelnfc23\\levelnfcn23\\leveljc0\\leveljcn0\\levelfollow0\\levelstartat1\\levelspace360"
+                             "\\levelindent0{\\*\\levelmarker \\{disc\\}}{\\leveltext\\leveltemplateid" + tid
+                             + "\\'01\\uc1\\u8226\\'95;}{\\levelnumbers;}\\fi-500\\li" + left + "\\lin" + left + "}";
+            }
+            table += "{\\listname ;}\\listid" + n + "}";
+            over += "{\\listoverride\\listid" + n + "\\listoverridecount0\\ls" + n + "}";
+        }
+        return table + "}\n" + over + "}\n";
+    }
+
     QString m_bodyFamily;
     QStringList m_fonts;
     QList<QColor> m_colors;
@@ -343,8 +387,12 @@ private:
                 out += "\\line ";
             } else if (u == 0x00A0) {
                 out += "\\~";
-            } else if (u == 0x2029 || u == '\r' || u == 0xFFFC) {
+            } else if (u == 0x2029 || u == '\r') {
                 // skip
+            } else if (u == 0xFFFC && m_opt.scrivener) {
+                // 0.90.0: the place of a picture without its data (Scrivener for Windows keeps such a character
+                // where a picture is missing) stays in the text, written as Scrivener writes it; it was left out
+                out += "\\u65532\\'3F";
             } else if (u < 0x80) {
                 if (u >= 32)
                     out += char(u);
@@ -497,6 +545,13 @@ private:
                        || ls == QTextListFormat::ListUpperRoman;
             indent = -18;
             left += 36 * (level + 1);
+            // 0.90.0: the indents the paragraph had where it was read (Scrivener keeps them per paragraph; this
+            // program shows a list by its level), while it is still at that level
+            const QStringList own = bf.stringProperty(props::ListIndents).split(QLatin1Char(':'));
+            if (own.size() == 3 && own[0].toInt() == level) {
+                left = own[1].toInt() / 15.0;
+                indent = own[2].toInt() / 15.0;
+            }
         }
         if (qAbs(indent) > 0.01)
             out += "\\fi" + twips(indent);
@@ -504,6 +559,8 @@ private:
             out += "\\li" + twips(left);
         if (bf.rightMargin() > 0.01)
             out += "\\ri" + twips(bf.rightMargin());
+        else if (bf.intProperty(props::RightOutdent) < 0)
+            out += "\\ri" + QByteArray::number(bf.intProperty(props::RightOutdent)); // 0.90.0: kept as read
         if (bf.topMargin() > 0.01)
             out += "\\sb" + twips(bf.topMargin());
         if (bf.bottomMargin() > 0.01)
@@ -529,7 +586,15 @@ private:
         if ((bf.pageBreakPolicy() & QTextFormat::PageBreak_AlwaysBefore) || bf.property(props::PageBreak).toBool())
             out += "\\pagebb";
         out += ' ';
-        if (list) {
+        if (list && m_opt.scrivener) {
+            // 0.90.0: as Scrivener writes a list item: its list's number, its level, the marker as text
+            QTextCharFormat first = b.begin().atEnd() ? b.charFormat() : b.begin().fragment().charFormat();
+            if (first.isImageFormat())
+                first = b.charFormat();
+            out += "\\ls" + QByteArray::number(listNumber(list, level, numbered)) + "\\ilvl" + QByteArray::number(level)
+                   + "{\\listtext\t" + charCodes(first) + " "
+                   + (numbered ? QByteArray::number(list->itemNumber(b) + 1) + "." : QByteArray("\\uc0\\u8226 ")) + "\t}";
+        } else if (list) {
             out += "{\\*\\qblist " + QByteArray::number(level) + ' ' + (numbered ? "2" : "1") + "}";
             if (numbered)
                 out += "{\\pntext " + QByteArray::number(list->itemNumber(b) + 1) + ".\\tab}";
@@ -559,11 +624,22 @@ private:
             size = m_f.fontSize * factors[idx];
         }
         o += "\\fs" + QByteArray::number(qRound(size * 2));
-        if (cf.fontWeight() >= QFont::DemiBold)
+        // 0.90.0: a font given by a face name that says bold or italic ("Cambria-BoldItalic", as Scrivener for
+        // Windows names fonts) came without the switch; it is written without it again while the name still says so
+        bool faceBold = false, faceItalic = false;
+        if (cf.boolProperty(props::FaceBold) || cf.boolProperty(props::FaceItalic)) {
+            // text in the project's own font has no family of its own: that font's name counts
+            const fontfaces::Resolved face = fontfaces::resolve(fam.isEmpty() ? m_bodyFamily : fam);
+            faceBold = face.bold && cf.boolProperty(props::FaceBold);
+            faceItalic = face.italic && cf.boolProperty(props::FaceItalic);
+        }
+        if (cf.fontWeight() >= QFont::DemiBold && !faceBold)
             o += "\\b";
-        if (cf.fontItalic())
+        if (cf.fontItalic() && !faceItalic)
             o += "\\i";
-        if (cf.fontUnderline() && !cf.isAnchor())
+        // a link is shown underlined by this program; in the file only where the file had it so (0.90.0: Scrivener
+        // underlines some links in the text itself, which was dropped)
+        if (cf.fontUnderline() && (!cf.isAnchor() || cf.boolProperty(props::LinkUnderline)))
             o += "\\ul";
         if (cf.fontStrikeOut())
             o += "\\strike";
@@ -753,6 +829,7 @@ struct ParState {
     int listLevel = -1;
     int listType = 0;
     bool hasLs = false;
+    int ls = 0;        // 0.90.0: the list's number in the override table
     QList<QTextOption::Tab> tabs;
     int tabKind = 0; // alignment of the next \tx: 0 left 1 right 2 centre 3 decimal
     int own = 0;     // direct::ParaBit set of a Quillbinder file
@@ -801,6 +878,77 @@ public:
         : m_data(data), m_doc(doc), m_f(f), m_opt(opt), m_cur(doc)
     {
         m_bodyFamily = display::resolvedFontFamily(f);
+        scanListTables();
+    }
+
+    // 0.90.0: the kinds of the lists of a list table. A paragraph names its list by a number (\ls) that the
+    // override table maps to a list, whose levels say what they are (\levelnfc: 23 a bullet, 0 a number ...).
+    // The tables themselves are skipped by the parser; before this every such list was read as a bullet list.
+    static QByteArray groupAt(const QByteArray &d, qsizetype open)
+    {
+        int depth = 0;
+        for (qsizetype i = open; i >= 0 && i < d.size(); ++i) {
+            const char c = d.at(i);
+            if (c == '\\') {
+                ++i;
+                continue;
+            }
+            if (c == '{')
+                ++depth;
+            else if (c == '}' && --depth == 0)
+                return d.mid(open, i - open + 1);
+        }
+        return QByteArray();
+    }
+    // the number written right after a control word ("" when the word is not there or has none)
+    static QByteArray numberAfter(const QByteArray &g, const char *word, qsizetype from = 0, qsizetype *at = nullptr)
+    {
+        const qsizetype i = g.indexOf(word, from);
+        if (at)
+            *at = i;
+        if (i < 0)
+            return QByteArray();
+        qsizetype j = i + qsizetype(qstrlen(word));
+        const qsizetype start = j;
+        if (j < g.size() && g.at(j) == '-')
+            ++j;
+        while (j < g.size() && g.at(j) >= '0' && g.at(j) <= '9')
+            ++j;
+        return g.mid(start, j - start);
+    }
+    void scanListTables()
+    {
+        const QByteArray head = m_data.left(4 * 1024 * 1024);   // the tables stand before the text
+        const qsizetype t = head.indexOf("\\listtable"), o = head.indexOf("\\listoverridetable");
+        if (t < 0 || o < 0)
+            return;
+        const QByteArray table = groupAt(head, head.lastIndexOf('{', t));
+        const QByteArray over = groupAt(head, head.lastIndexOf('{', o));
+        QHash<QByteArray, QList<int>> byId;
+        for (qsizetype i = table.indexOf("{\\list", 1); i >= 0; i = table.indexOf("{\\list", i + 1)) {
+            if (i + 6 >= table.size() || table.at(i + 6) != '\\')
+                continue;   // "{\listlevel", "{\listname": parts of a list
+            const QByteArray g = groupAt(table, i);
+            QList<int> nfc;
+            qsizetype at = 0;
+            for (qsizetype k = 0; nfc.size() < 9; k = at + 1) {
+                const QByteArray n = numberAfter(g, "\\levelnfc", k, &at);
+                if (at < 0)
+                    break;
+                if (!n.isEmpty())   // "\levelnfcn" has no number right after these letters
+                    nfc << n.toInt();
+            }
+            const QByteArray id = numberAfter(g, "\\listid");
+            if (!id.isEmpty() && !nfc.isEmpty())
+                byId.insert(id, nfc);
+            i += qMax<qsizetype>(0, g.size() - 1);
+        }
+        for (qsizetype i = over.indexOf("{\\listoverride", 1); i >= 0; i = over.indexOf("{\\listoverride", i + 1)) {
+            const QByteArray g = groupAt(over, i);
+            const QByteArray id = numberAfter(g, "\\listid"), ls = numberAfter(g, "\\ls");
+            if (!id.isEmpty() && !ls.isEmpty() && byId.contains(id))
+                m_listNfc.insert(ls.toInt(), byId.value(id));
+        }
     }
 
     ReadResult run()
@@ -890,6 +1038,7 @@ private:
     // 0.70.0 (audit B F-1): Qt deletes a list when its last paragraph leaves it (a table cell, a \pard
     // that changes the paragraph); a guarded pointer turns null then instead of pointing at freed memory
     QMap<int, QPointer<QTextList>> m_lists;
+    QHash<int, QList<int>> m_listNfc;   // 0.90.0: \ls number -> the kind of each level (\levelnfc)
     QMap<int, int> m_listTypes;
     bool m_prevBlockList = false;
     QString m_qbNote;
@@ -1038,6 +1187,12 @@ private:
         if (dest == D_Skip)
             return;
         if (dest == D_Pict) {
+            // 0.81.3: an ignorable group inside the picture ({\*\nisusfilename Scrivener} of Scrivener for Windows,
+            // Word's {\*\blipuid ...}) is skipped: its text went into the picture's data, and the picture was lost
+            if (starred) {
+                dest = D_Skip;
+                return;
+            }
             pictWord(w, hasParam, p);
             return;
         }
@@ -1273,6 +1428,10 @@ private:
         CharState &c = cs();
         const bool on = !hasParam || p != 0;
         if (w == "plain") {
+            // 0.90.0: Scrivener for Windows starts a paragraph of the same format with \plain alone. An empty last
+            // paragraph written so ("\par\plain \f0\fs24}") was taken for the end of the text and dropped: a text
+            // that ended in empty lines lost one of them when it was written back.
+            m_afterPar = false;
             const CharState keep = c;
             c = CharState();
             c.uc = keep.uc;
@@ -1397,7 +1556,7 @@ private:
         if (w == "slmult") { q.slmult = p != 0; return; }
         if (w == "s") { q.style = p; return; }
         if (w == "pagebb") { q.pagebb = true; return; }
-        if (w == "ls") { q.hasLs = true; if (q.listType == 0) q.listType = 1; if (q.listLevel < 0) q.listLevel = 0; return; }
+        if (w == "ls") { q.hasLs = true; q.ls = p; if (q.listType == 0) q.listType = 1; if (q.listLevel < 0) q.listLevel = 0; return; }
         if (w == "ilvl") { q.listLevel = qBound(0, p, 8); return; } // 0.70.0: levels 0 to 8, as RTF has
     }
 
@@ -1681,10 +1840,15 @@ private:
             // a face name that says italic or bold ("Georgia-BoldItalic") without \i or \b (0.60.3); 0.64.2: also
             // when the formatting is not kept (a Markdown project keeps italic and bold, as it does for \i and \b)
             const fontfaces::Resolved face = c.f >= 0 ? m_fontFaces.value(c.f) : fontfaces::Resolved();
-            if (face.italic)
+            if (face.italic) {
                 f.setFontItalic(true);
-            if (face.bold && !c.b)
+                if (!c.i)
+                    f.setProperty(props::FaceItalic, true);   // 0.90.0: written back without the switch
+            }
+            if (face.bold && !c.b) {
                 f.setFontWeight(QFont::Bold);
+                f.setProperty(props::FaceBold, true);
+            }
         }
         if (m_opt.keepFormatting) {
             const QString fam = c.f >= 0 ? m_fonts.value(c.f) : QString();
@@ -1723,8 +1887,11 @@ private:
         }
         if (c.revision > 0)
             f.merge(text::revisionFormat(c.revision));
-        if (!c.href.isEmpty())
+        if (!c.href.isEmpty()) {
             f.merge(text::linkFormat(c.href));
+            if (c.ul)
+                f.setProperty(props::LinkUnderline, true);   // 0.90.0: underlined in the file itself
+        }
         NoteKind note = c.note;
         QString noteId = c.noteId;
         QColor noteColor = c.noteColor;
@@ -1765,6 +1932,12 @@ private:
             imf.setProperty(props::ImageDescription, m_pendingAlt);
             imf.setToolTip(m_pendingAlt);
             m_pendingAlt.clear();
+        }
+        // 0.90.0: a picture inside a link (Scrivener's picture linked to a file) keeps the link; it was dropped, so
+        // the file written back had the picture without it
+        if (!m_stack.isEmpty() && !cs().href.isEmpty()) {
+            imf.setAnchor(true);
+            imf.setAnchorHref(cs().href);
         }
         m_cur.insertImage(imf);
     }
@@ -2055,7 +2228,11 @@ private:
             }
             bf.setTextIndent(q.fi / 15.0);
             bf.setLeftMargin(q.li / 15.0);
-            bf.setRightMargin(q.ri / 15.0);
+            // 0.90.0: a right indent below zero (Scrivener writes one where a line may run past the page's width, for
+            // a tab stop out there) is not a margin this program can show; it is kept and written back
+            bf.setRightMargin(qMax(0.0, q.ri / 15.0));
+            if (q.ri < 0)
+                bf.setProperty(props::RightOutdent, q.ri);
             bf.setTopMargin(q.sb / 15.0);
             bf.setBottomMargin(q.sa / 15.0);
             if (q.sl != 0) {
@@ -2081,8 +2258,21 @@ private:
             bf.setProperty(props::PageBreak, true);
             m_pendingPageBreak = false;
         }
-        const bool isList = q.listType > 0 && q.listLevel >= 0;
+        // 0.90.0: the kind of a list of a list table (Scrivener, Word): numbered unless its level is a bullet
+        int listType = q.listType;
+        if (q.hasLs && listType == 1 && q.listLevel >= 0) {
+            const QList<int> nfc = m_listNfc.value(q.ls);
+            if (!nfc.isEmpty()) {
+                const int n = nfc.value(qMin(q.listLevel, int(nfc.size()) - 1));
+                if (n != 23 && n != 255)
+                    listType = 2;
+            }
+        }
+        const bool isList = listType > 0 && q.listLevel >= 0;
         if (isList) {
+            // the paragraph's own indents (Scrivener keeps them per list item): kept for the way back
+            if (m_opt.keepFormatting && (q.li || q.fi))
+                bf.setProperty(props::ListIndents, QStringLiteral("%1:%2:%3").arg(q.listLevel).arg(q.li).arg(q.fi));
             bf.setTextIndent(0);
             bf.setLeftMargin(0);
         }
@@ -2100,15 +2290,15 @@ private:
                     ++it;
             }
             QTextList *l = m_lists.value(q.listLevel).data();
-            if (l && m_listTypes.value(q.listLevel) == q.listType) {
+            if (l && m_listTypes.value(q.listLevel) == listType) {
                 l->add(m_cur.block());
             } else {
                 QTextListFormat lf;
-                lf.setStyle(q.listType == 2 ? QTextListFormat::ListDecimal : QTextListFormat::ListDisc);
+                lf.setStyle(listType == 2 ? QTextListFormat::ListDecimal : QTextListFormat::ListDisc);
                 lf.setIndent(q.listLevel + 1);
                 l = m_cur.createList(lf);
                 m_lists[q.listLevel] = l;
-                m_listTypes[q.listLevel] = q.listType;
+                m_listTypes[q.listLevel] = listType;
             }
             m_prevBlockList = true;
         } else {
@@ -2121,9 +2311,9 @@ private:
 
 // ======================================================================
 
-QByteArray write(const QTextDocument *doc, const Formatting &f)
+QByteArray write(const QTextDocument *doc, const Formatting &f, const WriteOptions &opt)
 {
-    Writer w(doc, f);
+    Writer w(doc, f, opt);
     return w.run();
 }
 

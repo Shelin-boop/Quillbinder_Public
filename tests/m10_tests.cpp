@@ -4,7 +4,7 @@
 // screenshots into the folder given as first argument. Exit code = number of
 // failed checks.
 //
-//   packaging/build-addons.sh build build/addons-dist
+//   packaging/linux/build-addons.sh build build/addons-dist
 //   QT_QPA_PLATFORM=offscreen ./qb_m10_tests /tmp/shots
 //   xvfb-run -a -s "-screen 0 1920x1080x24" ./qb_m10_tests /tmp/shots
 #include "AppInfo.h"

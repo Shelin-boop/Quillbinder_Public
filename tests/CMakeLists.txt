@@ -26,7 +26,7 @@ target_link_libraries(qb_m9_tests PRIVATE qbui Qt6::Test)
 target_compile_definitions(qb_m9_tests PRIVATE QB_TEST_PLUGIN_DIR="${CMAKE_BINARY_DIR}/plugins")
 
 # Writing tools: name generator, scratch pad, text statistics (QT_QPA_PLATFORM=offscreen ./qb_m10_tests <dir>).
-# Installs the add-on packages from <build>/addons-dist (packaging/build-addons.sh <build> <build>/addons-dist)
+# Installs the add-on packages from <build>/addons-dist (packaging/linux/build-addons.sh <build> <build>/addons-dist)
 # and also compiles the counting parts of two tools for direct checks.
 find_package(Qt6 REQUIRED COMPONENTS Network)
 add_executable(qb_m10_tests m10_tests.cpp ${QB_RESOURCES_QRC}
@@ -37,14 +37,14 @@ target_link_libraries(qb_m10_tests PRIVATE qbui Qt6::Test Qt6::Network)
 target_compile_definitions(qb_m10_tests PRIVATE QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
 
 # Audio and video (QT_QPA_PLATFORM=offscreen ./qb_m11_tests /tmp/shots). Installs <build>/addons-dist/media-playback.qbpkg
-# (packaging/build-addons.sh <build> <build>/addons-dist, after tools/build-ffmpeg.sh <ffmpeg source> <build>/ffmpeg).
+# (packaging/linux/build-addons.sh <build> <build>/addons-dist, after tools/build-ffmpeg.sh <ffmpeg source> <build>/ffmpeg).
 # Needs a sound server for the audio checks (a null sink is enough: pulseaudio -D --exit-idle-time=-1, PULSE_SERVER=...).
 add_executable(qb_m11_tests m11_tests.cpp ${QB_RESOURCES_QRC})
 target_link_libraries(qb_m11_tests PRIVATE qbui Qt6::Test)
 target_compile_definitions(qb_m11_tests PRIVATE QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}" QB_TEST_MEDIA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/media")
 
 # Import and export (QT_QPA_PLATFORM=offscreen ./qb_m12_tests /tmp/shots): installs <build>/addons-dist/import-word97.qbpkg
-# and import-web.qbpkg (packaging/build-addons.sh <build> <build>/addons-dist); serves the test pages itself (HTTP and HTTPS).
+# and import-web.qbpkg (packaging/linux/build-addons.sh <build> <build>/addons-dist); serves the test pages itself (HTTP and HTTPS).
 add_executable(qb_m12_tests m12_tests.cpp ${QB_RESOURCES_QRC})
 target_link_libraries(qb_m12_tests PRIVATE qbui Qt6::Test Qt6::Network)
 target_compile_definitions(qb_m12_tests PRIVATE QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}" QB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/import")
@@ -157,7 +157,7 @@ target_compile_definitions(qb_v0604_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CU
 # 0.50: the release on the project page, the source files named in the license list, the media add-ons split into free
 # formats and "Extra Video and Audio Formats" (QT_QPA_PLATFORM=offscreen ./qb_v050_tests /tmp/shots). Installs
 # <build>/addons-dist/media-playback.qbpkg and media-extra-formats.qbpkg (tools/get-ffmpeg.sh, then
-# packaging/build-addons.sh <build> <build>/addons-dist); needs a sound server like qb_m11_tests.
+# packaging/linux/build-addons.sh <build> <build>/addons-dist); needs a sound server like qb_m11_tests.
 add_executable(qb_v050_tests v050_tests.cpp ${QB_RESOURCES_QRC})
 target_link_libraries(qb_v050_tests PRIVATE qbui Qt6::Test)
 target_compile_definitions(qb_v050_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
@@ -176,7 +176,7 @@ target_compile_definitions(qb_v0605_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CU
 
 # Version 0.61: tool interface 1.1, Undo and Redo on the toolbar, the add-on "Speech Transcription"
 # (xvfb-run -a ./qb_v061_tests /tmp/shots). Installs <build>/addons-dist/speech-transcription.qbpkg
-# (packaging/build-addons.sh, after tools/get-whisper.sh); a tool built for interface 1.0 (tool10/) is
+# (packaging/linux/build-addons.sh, after tools/get-whisper.sh); a tool built for interface 1.0 (tool10/) is
 # loaded from <build>/tests/tool10-plugins.
 add_library(qb-test-old-tool MODULE tool10/OldTool.cpp tool10/ToolApi10.h)
 target_link_libraries(qb-test-old-tool PRIVATE Qt6::Core)
@@ -245,6 +245,29 @@ add_dependencies(qb_v0810_tests qbfaultshim)
 add_executable(qb_v0811_tests v0811_tests.cpp ${QB_RESOURCES_QRC} ${CMAKE_SOURCE_DIR}/translations/translations.qrc)
 target_link_libraries(qb_v0811_tests PRIVATE qbui Qt6::Test)
 target_compile_definitions(qb_v0811_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
+
+# 0.81.2 beta: keywords, custom metadata and collections in Scrivener format (read and written in Scrivener 3 for Windows'
+# form), inline notes kept as text; QB_SCRIV_REAL=<folder.scriv> adds checks on a copy of a real project
+# (xvfb-run -a ./qb_v0812_tests /tmp/shots)
+add_executable(qb_v0812_tests v0812_tests.cpp ${QB_RESOURCES_QRC} ${CMAKE_SOURCE_DIR}/translations/translations.qrc)
+target_link_libraries(qb_v0812_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_v0812_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
+
+# 0.81.3 beta: Scrivener compatibility, part 2: styles (marks, content.styles, styles.xml), inline notes in Scrivener for
+# Windows' form, web pages as .mht (the archive, the view and its two buttons), notes of pictures and media, the repair
+# of what earlier versions wrote for audio, video and web pages (xvfb-run -a ./qb_v0813_tests /tmp/shots)
+add_executable(qb_v0813_tests v0813_tests.cpp ${QB_RESOURCES_QRC} ${CMAKE_SOURCE_DIR}/translations/translations.qrc)
+target_link_libraries(qb_v0813_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_v0813_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
+
+# 0.90.0 beta: what a Scrivener project keeps when this program writes it: every text really written anew and added
+# up by a reader of the test's own (bold and italic by switch or face name, colors, fonts, indents, lists, pictures,
+# links), the project file after a change (bookmarks to outside addresses, default label and status, the deadline,
+# the names of "No Label" under the German interface); QB_SCRIV_REAL=<folder.scriv> does the same with a copy of a
+# real project (xvfb-run -a ./qb_v0900_tests /tmp/shots)
+add_executable(qb_v0900_tests v0900_tests.cpp ${QB_RESOURCES_QRC} ${CMAKE_SOURCE_DIR}/translations/translations.qrc)
+target_link_libraries(qb_v0900_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_v0900_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
 # The readers against damaged input (0.80.0, the external audit of 2026-11-09, ST-5): fixed-seed damage of small
 # valid inputs of RTF, Markdown, XML, ZIP, DOCX, ODT, Word 97 and .scrivx, each read in this process
 # (xvfb-run -a ./qb_fuzz_tests /tmp/shots; QB_FUZZ_SEED, QB_FUZZ_ROUNDS). tests/fuzz/README.md: longer runs.
@@ -278,3 +301,42 @@ target_compile_definitions(qb_w2_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRE
 add_executable(qb_w3_tests w3_tests.cpp ${QB_RESOURCES_QRC})
 target_link_libraries(qb_w3_tests PRIVATE qbui)
 target_compile_definitions(qb_w3_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+# Windows port, step W4b (Linux with QB_TEST_PORTABLE, and the Windows runner): the portable program, the guide of the
+# first start, This Computer in Help and Options, no standard backup folder, the shell items (xvfb-run -a ./qb_w4_tests).
+add_executable(qb_w4_tests w4_tests.cpp ${QB_RESOURCES_QRC})
+target_link_libraries(qb_w4_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_w4_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+# Windows port, step W4c (Linux and the Windows runner): the add-on "Speech Transcription" installed and run, also from
+# folders named with letters outside ASCII; a real model with QB_SPEECH_MODEL_FILE (xvfb-run -a ./qb_w4c_tests).
+add_executable(qb_w4c_tests w4c_tests.cpp)
+target_link_libraries(qb_w4c_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_w4c_tests PRIVATE QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
+
+# The system test (crash safety and usability): only on the writer's request, started by tools/run-system-test.sh
+# (all cases) or tools/run-crashsafe.sh (some); not in tools/run-all-tests.sh or tests/check-counts.txt.
+# Specification: the project document claude/quillbinder-test-procedure-crashsafe.md. Linux only (0.90.0: in main).
+if(NOT WIN32)
+add_executable(qb_crashsafe_tests crashsafe_tests.cpp crashsafe/cs.h crashsafe/cs_common.cpp crashsafe/cs_tables.cpp
+               crashsafe/cs_cases.cpp crashsafe/cs_process.cpp crashsafe/cs_sync.cpp
+               crashsafe/cs_list.cpp crashsafe/cs_component.cpp crashsafe/cs_component2.cpp crashsafe/cs_component3.cpp
+               crashsafe/cs_sys_common.cpp crashsafe/cs_sys_projects.cpp crashsafe/cs_sys_writing.cpp
+               crashsafe/cs_sys_writing2.cpp crashsafe/cs_sys_views.cpp crashsafe/cs_sys_more.cpp
+               crashsafe/cs_sys_rest.cpp crashsafe/cs_usability.cpp
+               crashsafe/cs_faults.cpp crashsafe/cs_roundtrip.cpp crashsafe/cs_audit.cpp crashsafe/cs_new090.cpp
+               ${CMAKE_SOURCE_DIR}/plugins/tools/speech-transcription/SpeechLogic.cpp ${QB_RESOURCES_QRC}
+               ${CMAKE_SOURCE_DIR}/translations/translations.qrc)
+target_include_directories(qb_crashsafe_tests PRIVATE ${CMAKE_SOURCE_DIR}/plugins/tools)
+target_link_libraries(qb_crashsafe_tests PRIVATE qbui Qt6::Test Qt6::Network)
+# line numbers in the crash reports of the system test (addr2line); the program itself is unchanged
+target_compile_options(qb_crashsafe_tests PRIVATE -g1)
+target_compile_definitions(qb_crashsafe_tests PRIVATE QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}" QB_TEST_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
+# Fault injection for the system test (LD_PRELOAD; section 3.2 of the procedure): Linux only.
+if(UNIX AND NOT APPLE)
+  add_library(qbfault MODULE crashsafe/faultinject.cpp)
+  target_compile_options(qbfault PRIVATE -U_FORTIFY_SOURCE -fno-exceptions)
+  target_link_libraries(qbfault PRIVATE dl pthread)
+  set_target_properties(qbfault PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests PREFIX "lib")
+  add_dependencies(qb_crashsafe_tests qbfault)
+endif()
+endif()

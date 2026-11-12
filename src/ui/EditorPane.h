@@ -84,6 +84,9 @@ public:
     // Corkboard arrangement: 0 grid, 1 freeform, 2 label threads (Corkboard::Mode)
     int corkMode() const;
     void setCorkMode(int mode);
+    // The writer's choice (the buttons, View > Corkboard): also kept with the container shown, as Scrivener keeps it
+    // (0.90.0); the next time that container is shown its corkboard is arranged so again
+    void chooseCorkMode(int mode);
     // The view groups open in is remembered per editor in the project
     // ("groupMode" + suffix); the second editor falls back to the first one's.
     void setStateSuffix(const QString &suffix) { m_stateSuffix = suffix; }

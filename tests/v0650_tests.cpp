@@ -26,6 +26,7 @@
 #include "core/CrashGuard.h"
 #include "core/DocumentStore.h"
 #include "core/Objects.h"
+#include "core/Paths.h"
 #include "core/Project.h"
 #include "core/ProjectTemplates.h"
 #include "core/SafeSave.h"
@@ -87,6 +88,13 @@ static void check(bool ok, const QString &what, const QString &detail = QString(
         if (!detail.isEmpty())
             std::printf("      %s\n", qPrintable(detail.left(3000)));
     }
+    std::fflush(stdout);
+}
+
+// a line about a part that is not checked on this system (W4c)
+[[maybe_unused]] static void note(const QString &text)
+{
+    std::printf("      (%s)\n", qPrintable(text));
     std::fflush(stdout);
 }
 
@@ -276,10 +284,16 @@ int main(int argc, char **argv)
         const bool missing = !safesave::copyFile(W + QStringLiteral("/gone.txt"), W + QStringLiteral("/b.txt"));
         writeAll(W + QStringLiteral("/plain"), "a file, not a folder");
         const bool blocked = !safesave::copyFile(W + QStringLiteral("/a.txt"), W + QStringLiteral("/plain/b.txt"));
-        // a file that gives other bytes than its size (as a file of a sync folder that is not all there)
-        QFile::link(QStringLiteral("/proc/self/status"), W + QStringLiteral("/short.txt"));
+        // a file that gives other bytes than its size (as a file of a sync folder that is not all there); Linux's
+        // /proc gives such files (W4c: on Windows the part is left out, there is no such file to make)
         writeAll(W + QStringLiteral("/c.txt"), "kept");
+#ifdef Q_OS_LINUX
+        QFile::link(QStringLiteral("/proc/self/status"), W + QStringLiteral("/short.txt"));
         const bool shortRead = !safesave::copyFile(W + QStringLiteral("/short.txt"), W + QStringLiteral("/c.txt"));
+#else
+        const bool shortRead = true;
+        note(QStringLiteral("safe copy: the short read is checked on Linux only (a file of /proc)"));
+#endif
         check(over && readAll(W + QStringLiteral("/b.txt")) == "new content" && missing && blocked && shortRead
                   && readAll(W + QStringLiteral("/c.txt")) == "kept",
               QStringLiteral("safe copy: replaces the target whole; a missing source, a folder that cannot be written and a "
@@ -440,8 +454,9 @@ int main(int argc, char **argv)
               QStringLiteral("the next save writes the picture, and it is there when the project opens again"),
               QStringLiteral("saved=%1 pngs=%2 pictures=%3 %4 text=%5").arg(saved).arg(pngs.size()).arg(again ? picturesIn(again->docs()->text(id)) : -1)
                   .arg(e, QString::fromUtf8(readAll(QDir(folder).filePath(QStringLiteral("content/%1/text.md").arg(id)))).left(300)));
-        // a read cut short: shown empty, never written over (F23)
+        // a read cut short: shown empty, never written over (F23; a file of Linux's /proc, so Linux only)
         again.reset();
+#ifdef Q_OS_LINUX
         const QString tf = QDir(folder).filePath(QStringLiteral("content/%1/text.md").arg(id));
         QFile::remove(tf);
         QFile::link(QStringLiteral("/proc/self/status"), tf); // its size says 0, its read gives bytes
@@ -455,6 +470,9 @@ int main(int argc, char **argv)
         }
         check(unreadable && QFileInfo(tf).isSymLink(),
               QStringLiteral("a text that reads other bytes than its size counts as unreadable and is not saved over (audit F23)"));
+#else
+        note(QStringLiteral("a text that reads other bytes than its size: checked on Linux only (a file of /proc)"));
+#endif
     }
 
     // ================================================================ Roll Back (F02)
@@ -637,9 +655,16 @@ int main(int argc, char **argv)
 
     // ================================================================ command exporters (F11, F24)
     {
+#ifdef Q_OS_WIN
+        // W4c: a batch file (about 2 s: ping waits a second between its tries)
+        const QString script = W + QStringLiteral("/fake-converter.cmd");
+        writeAll(script, "@echo off\r\nrem %1: the input, %2: the output, %3: exit status\r\nping -n 3 127.0.0.1 > nul\r\n"
+                         "echo partial> \"%~2\"\r\nexit /b %3\r\n");
+#else
         const QString script = W + QStringLiteral("/fake-converter.sh");
         writeAll(script, "#!/bin/sh\n# $1: the input, $2: the output, $3: exit status\nsleep 1.5\necho partial > \"$2\"\nexit \"$3\"\n");
         QFile::setPermissions(script, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+#endif
         auto exporter = [&](int status) {
             QJsonObject def;
             def.insert(QStringLiteral("id"), QStringLiteral("fake"));
@@ -823,7 +848,13 @@ int main(int argc, char **argv)
     {
         QStringList problems;
         for (const QString &id : {QStringLiteral("tool-scratch-pad")}) {
-            const QString pkg = buildDir + QStringLiteral("/addons-dist/") + id + QStringLiteral(".qbpkg");
+            // W4c: on the Windows runner the add-ons of the run (QB_TEST_ADDONS_DIR, <id>-windows.qbpkg)
+            const QString addonsDir = qEnvironmentVariable("QB_TEST_ADDONS_DIR", buildDir + QStringLiteral("/addons-dist"));
+#ifdef Q_OS_WIN
+            const QString pkg = addonsDir + QLatin1Char('/') + id + QStringLiteral("-windows.qbpkg");
+#else
+            const QString pkg = addonsDir + QLatin1Char('/') + id + QStringLiteral(".qbpkg");
+#endif
             QStringList log;
             QString e;
             bool restart = false;
@@ -961,13 +992,15 @@ int main(int argc, char **argv)
         for (BinderItem *x : p->allItems())
             if (x->title == QLatin1String("Chapter Alpha"))
                 alpha = x;
-        QFile::link(QStringLiteral("/proc/self/status"), p->contentDir(alpha->id) + QStringLiteral("/attachment.bin"));
         const int count = int(p->allItems().size());
         auto *binder = w.findChild<BinderPanel *>();
         binder->select({alpha}, true);
         w.activateWindow();
         binder->tree()->setFocus();
         settle(200);
+#ifdef Q_OS_LINUX
+        // a file that cannot be copied whole: one of Linux's /proc (W4c: Linux only)
+        QFile::link(QStringLiteral("/proc/self/status"), p->contentDir(alpha->id) + QStringLiteral("/attachment.bin"));
         if (QAction *dup = w.findChild<QAction *>(QStringLiteral("duplicate")))
             dup->trigger();
         settle(300);
@@ -975,6 +1008,9 @@ int main(int argc, char **argv)
               QStringLiteral("Duplicate takes a copy that is not complete out again and says so (audit F06)"),
               w.statusBar()->currentMessage());
         QFile::remove(p->contentDir(alpha->id) + QStringLiteral("/attachment.bin"));
+#else
+        note(QStringLiteral("Duplicate with a file that cannot be copied whole: checked on Linux only (a file of /proc)"));
+#endif
         if (QAction *dup = w.findChild<QAction *>(QStringLiteral("duplicate")))
             dup->trigger();
         settle(300);
@@ -1003,11 +1039,11 @@ int main(int argc, char **argv)
               QStringLiteral("closing a project that cannot be saved: Keep Open is the default, and it stays open (audit F26)"),
               defaultText);
         w.saveForTermination();
-        const QString emergency = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/Quillbinder/Emergency");
+        const QString emergency = qb::dataDir() + QStringLiteral("/Emergency"); // W4c: on Windows inside the program's data folder
         bool rtf = false;
         QDirIterator it(emergency, {QStringLiteral("*.rtf")}, QDir::Files, QDirIterator::Subdirectories);
         while (it.hasNext())
-            rtf = rtf || readAll(it.next()).contains("typed before the disk failed");
+            rtf = readAll(it.next()).contains("typed before the disk failed") || rtf; // next() on every turn (W4c)
         const bool notice = QFile::exists(emergency + QStringLiteral("/notice.txt"));
         w.showEmergencyNotice();
         check(crash::terminationSaveFailed() && rtf && notice && w.lastEmergencyNotice().contains(QLatin1String("could not be saved"))

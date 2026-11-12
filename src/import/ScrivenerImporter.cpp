@@ -1,6 +1,7 @@
 #include "core/PathSafety.h"
 #include "core/SafeSave.h"
 #include "import/ScrivenerImporter.h"
+#include "import/ScrivenerFormat.h"
 #include "core/IconCatalog.h"
 #include "core/MindMap.h"
 #include "core/BinderModel.h"
@@ -23,6 +24,8 @@
 #include <QTextDocument>
 #include <QTextFragment>
 #include <QRegularExpression>
+#include <QUuid>
+#include <algorithm>
 
 namespace qb {
 
@@ -92,6 +95,8 @@ struct Ctx {
     QHash<QString, QString> sectionTypeMap; // scrivener id -> our id
     QHash<QString, QString> keywordMap;
     QHash<QString, QString> customFieldMap;
+    QHash<QString, CustomFieldType> fieldType;                 // our field id -> type (0.81.2)
+    QHash<QString, QHash<QString, QString>> fieldOptions;      // our field id -> option ID -> text (0.81.2)
     QHash<QString, int> fontUsage;
     QHash<int, int> sizeUsage;
     QHash<QString, QString> styleNames;            // Files/styles.xml: style id -> name
@@ -240,6 +245,49 @@ QStringList paragraphStylesOf(const QString &rtfPath, const QHash<QString, QStri
     return out;
 }
 
+// 0.81.3: Scrivener's styles that the project has no style of that name for become styles of the project, with the look
+// of their Format (an RTF paragraph in Files/styles.xml): paragraph styles ("Para", "Para+Char") and character styles
+// ("Char"). So the marks of a text keep their style, and a text written back keeps them.
+void importStyles(Ctx &c)
+{
+    QFile f(c.scrivDir + QLatin1String("/Files/styles.xml"));
+    if (!f.open(QIODevice::ReadOnly))
+        return;
+    QDomDocument dom;
+    if (!dom.setContent(&f))
+        return;
+    StyleSheet sheet = styles::sheet(c.p->formatting);
+    bool added = false;
+    const QDomNodeList list = dom.elementsByTagName(QStringLiteral("Style"));
+    for (int i = 0; i < list.size(); ++i) {
+        const QDomElement e = list.at(i).toElement();
+        const QString name = e.attribute(QStringLiteral("Name")).trimmed();
+        const QString type = e.attribute(QStringLiteral("Type"));
+        const bool character = type == QLatin1String("Char");
+        if (name.isEmpty() || !styles::validName(name) || styles::isFixedName(name) || sheet.indexOf(name) >= 0)
+            continue;
+        if (character ? styles::findChar(c.p->formatting, name) != nullptr
+                      : !ScrivenerImporter::scrivenerStyleName(c.p->formatting, name).isEmpty())
+            continue;
+        QTextDocument d;
+        rtf::ReadOptions o;
+        o.keepFormatting = true;
+        rtf::read(e.firstChildElement(QStringLiteral("Format")).text().toUtf8(), &d, c.p->formatting, o);
+        const QTextBlock b = d.begin();
+        const QTextCharFormat cf = b.begin() != b.end() ? b.begin().fragment().charFormat() : b.charFormat();
+        const QString change = e.attribute(QStringLiteral("FontChange"));
+        styles::CaptureOptions opt;
+        opt.character = character;
+        opt.withChars = character || type.contains(QLatin1String("Char"));
+        opt.withFamily = change.contains(QLatin1String("Face"));
+        opt.withSize = change.contains(QLatin1String("Size"));
+        sheet.styles.append(styles::capture(name, b.blockFormat(), cf, c.p->formatting, opt));
+        added = true;
+    }
+    if (added)
+        c.p->formatting = styles::withSheet(c.p->formatting, sheet);
+}
+
 bool readRtfFile(Ctx &c, const QString &path, QTextDocument *doc)
 {
     QFile f(path);
@@ -253,6 +301,7 @@ bool readRtfFile(Ctx &c, const QString &path, QTextDocument *doc)
     for (auto it = r.sizeUsage.cbegin(); it != r.sizeUsage.cend(); ++it)
         c.sizeUsage[it.key()] += it.value();
     ScrivenerImporter::stripMarkers(doc, c.p->formatting, paragraphStylesOf(path, c.styleNames));
+    ScrivenerImporter::convertInlineNotes(doc);
     if (c.p->storage == StorageFormat::Markdown)
         display::normalizeDocument(doc, c.p->formatting);
     return r.ok;
@@ -369,7 +418,9 @@ void importItem(Ctx &c, const QDomElement &e, BinderItem *parent)
              mi = mi.nextSiblingElement(QStringLiteral("MetaDataItem"))) {
             const QString fid = c.customFieldMap.value(childText(mi, QStringLiteral("FieldID")));
             if (!fid.isEmpty())
-                it->custom.insert(fid, childText(mi, QStringLiteral("Value")));
+                // 0.81.2: in this program's form ("Yes" -> "1", an option's ID -> its text, a date -> yyyy-MM-dd)
+                it->custom.insert(fid, scrivener::valueFromScrivener(c.fieldType.value(fid), childText(mi, QStringLiteral("Value")),
+                                                                     c.fieldOptions.value(fid)));
         }
     }
     const QDomElement kws = e.firstChildElement(QStringLiteral("Keywords"));
@@ -378,6 +429,30 @@ void importItem(Ctx &c, const QDomElement &e, BinderItem *parent)
         if (!kid.isEmpty() && !it->keywords.contains(kid))
             it->keywords << kid;
     }
+    // 0.90.0: the picture of an index card (Scrivener for Windows: "card-image.<ext>" beside the text's files, the switch
+    // ShowSynopsisImage and the ending in IndexCardImageFileExtension); a picture, PDF or media document's switch means
+    // something else there (its own file on the card) and is left alone
+    if (!scrivId.isEmpty() && c.v3 && (it->hasText() || type == ItemType::Folder)
+        && childText(meta, QStringLiteral("ShowSynopsisImage")).compare(QLatin1String("Yes"), Qt::CaseInsensitive) == 0) {
+        QString ext = childText(meta, QStringLiteral("IndexCardImageFileExtension")).trimmed().toLower();
+        QString src = contentBase(c, scrivId) + QLatin1String("card-image.") + ext;
+        if (ext.isEmpty() || !QFile::exists(src)) {
+            const QFileInfoList found = QDir(contentBase(c, scrivId)).entryInfoList({QStringLiteral("card-image.*")}, QDir::Files);
+            src = found.isEmpty() ? QString() : found.first().absoluteFilePath();
+            ext = found.isEmpty() ? QString() : found.first().suffix().toLower();
+        }
+        if (!src.isEmpty() && pathsafety::isSafeExtension(ext)) {
+            QDir().mkpath(p->contentDir(it->id));
+            const QString name = QStringLiteral("card.") + ext;
+            QFile::remove(p->contentDir(it->id) + QLatin1Char('/') + name);
+            if (QFile::copy(src, p->contentDir(it->id) + QLatin1Char('/') + name))
+                it->synopsisImage = name;
+        }
+    }
+    // 0.81.3: a web page's address (Scrivener for Windows keeps it with the page)
+    const QString originalUrl = childText(e.firstChildElement(QStringLiteral("MediaSettings")), QStringLiteral("OriginalURL")).trimmed();
+    if (!originalUrl.isEmpty())
+        it->sourceUrl = originalUrl;
 
     // --- a mind map of this program (0.17), kept beside Scrivener's files of the document
     if (!scrivId.isEmpty() && c.v3) {
@@ -579,7 +654,9 @@ void importKeywords(Ctx &c, const QDomElement &parentEl, const QString &parentId
     for (QDomElement k = parentEl.firstChildElement(QStringLiteral("Keyword")); !k.isNull();
          k = k.nextSiblingElement(QStringLiteral("Keyword"))) {
         Keyword kw;
-        kw.id = newId();
+        // 0.81.2: Scrivener's id is kept as ours, so the keyword is written back under it
+        const QString scrivId = k.attribute(QStringLiteral("ID")).trimmed();
+        kw.id = !scrivId.isEmpty() && !c.p->keywordById(scrivId) ? scrivId : newId();
         kw.name = k.firstChildElement(QStringLiteral("Title")).isNull() ? k.attribute(QStringLiteral("Title"), k.text())
                                                                           : childText(k, QStringLiteral("Title"));
         kw.color = parseScrivColor(k.firstChildElement(QStringLiteral("Color")).isNull()
@@ -662,6 +739,7 @@ std::unique_ptr<Project> ScrivenerImporter::importProject(const QString &path, c
     c.scrivDir = QFileInfo(scrivx).absolutePath();
     c.v3 = QDir(c.scrivDir + QLatin1String("/Files/Data")).exists();
     c.styleNames = readStyleNames(c.scrivDir);
+    importStyles(c);
     if (!c.v3 && !QDir(c.scrivDir + QLatin1String("/Files/Docs")).exists())
         report->warnings << QObject::tr("The content folder (Files/Data or Files/Docs) was not found; only the binder "
                                         "structure can be imported.");
@@ -712,17 +790,29 @@ std::unique_ptr<Project> ScrivenerImporter::importProject(const QString &path, c
     for (QDomElement mf = cms.firstChildElement(QStringLiteral("MetaDataField")); !mf.isNull();
          mf = mf.nextSiblingElement(QStringLiteral("MetaDataField"))) {
         CustomField cf;
-        cf.id = newId();
+        // 0.81.2: Scrivener's ID is kept as ours, so the field is written back under it
+        const QString scrivId = mf.attribute(QStringLiteral("ID")).trimmed();
+        cf.id = !scrivId.isEmpty() && !p->customFieldById(scrivId) ? scrivId : newId();
         cf.title = childText(mf, QStringLiteral("Title"));
         const QString type = mf.attribute(QStringLiteral("Type"));
         cf.type = type == QLatin1String("Checkbox") ? CustomFieldType::Checkbox
                   : type == QLatin1String("List")   ? CustomFieldType::List
                   : type == QLatin1String("Date")   ? CustomFieldType::Date
                                                     : CustomFieldType::Text;
+        QHash<QString, QString> optionText;
         const QDomElement opts = mf.firstChildElement(QStringLiteral("ListOptions"));
-        for (QDomElement o = opts.firstChildElement(); !o.isNull(); o = o.nextSiblingElement())
+        for (QDomElement o = opts.firstChildElement(); !o.isNull(); o = o.nextSiblingElement()) {
             cf.options << o.text();
-        c.customFieldMap.insert(mf.attribute(QStringLiteral("ID")), cf.id);
+            if (o.hasAttribute(QStringLiteral("ID")))
+                optionText.insert(o.attribute(QStringLiteral("ID")).trimmed(), o.text());
+        }
+        if (cf.type == CustomFieldType::Text && mf.hasAttribute(QStringLiteral("Wraps")))
+            cf.wrap = mf.attribute(QStringLiteral("Wraps")) == QLatin1String("Yes");
+        if (cf.type == CustomFieldType::Checkbox && mf.hasAttribute(QStringLiteral("Default")))
+            cf.defaultValue = scrivener::valueFromScrivener(cf.type, mf.attribute(QStringLiteral("Default")), {});
+        c.customFieldMap.insert(scrivId, cf.id);
+        c.fieldType.insert(cf.id, cf.type);
+        c.fieldOptions.insert(cf.id, optionText);
         p->customFields << cf;
     }
     // section types: SectionTypes/TypeDefinitions/Type ID="..." (Scrivener 3);
@@ -785,9 +875,46 @@ std::unique_ptr<Project> ScrivenerImporter::importProject(const QString &path, c
         const QDomElement dt = tg.firstChildElement(QStringLiteral("DraftTarget"));
         p->targets.draftTarget = dt.text().toInt();
         p->targets.draftChars = dt.attribute(QStringLiteral("Type")).startsWith(QLatin1String("Char"));
+        // 0.90.0: the deadline (it was never read, and the next write of the project file switched Scrivener's off)
+        if (dt.hasAttribute(QStringLiteral("Deadline"))
+            && dt.attribute(QStringLiteral("IgnoreDeadline")).compare(QLatin1String("Yes"), Qt::CaseInsensitive) != 0) {
+            const QDate day = QDate::fromString(dt.attribute(QStringLiteral("Deadline")).left(10), QStringLiteral("yyyy-MM-dd"));
+            if (day.isValid())
+                p->targets.deadline = day;
+        }
         const QDomElement st = tg.firstChildElement(QStringLiteral("SessionTarget"));
         p->targets.sessionTarget = st.text().toInt();
         p->targets.sessionChars = st.attribute(QStringLiteral("Type")).startsWith(QLatin1String("Char"));
+        // 0.90.0: two options of the session target: whether only the draft counts, and whether the target is worked
+        // out from the deadline (the other options of Scrivener stay in the file as they are)
+        if (st.hasAttribute(QStringLiteral("CountDraftOnly")))
+            p->targets.countAnywhere = st.attribute(QStringLiteral("CountDraftOnly")).compare(QLatin1String("Yes"), Qt::CaseInsensitive) != 0;
+        if (st.hasAttribute(QStringLiteral("DeterminedFromDeadline")))
+            p->targets.autoFromDeadline = st.attribute(QStringLiteral("DeterminedFromDeadline")).compare(QLatin1String("Yes"), Qt::CaseInsensitive) == 0;
+    }
+
+    // 0.90.0: the writing history (Files/writing.history: <Day dwc=".." dcc=".." owc=".." occ="..">yyyy-MM-dd</Day>, the
+    // words and characters written that day in the draft and elsewhere); taken over at the end, after the texts were
+    // read (reading them counts as writing them)
+    QList<WritingDay> fileHistory;
+    if (c.v3) {
+        QFile hf(c.scrivDir + QLatin1String("/Files/writing.history"));
+        QDomDocument hd;
+        if (hf.open(QIODevice::ReadOnly) && hd.setContent(hf.readAll())) {
+            QList<WritingDay> days;
+            for (QDomElement d = hd.documentElement().firstChildElement(QStringLiteral("Day")); !d.isNull(); d = d.nextSiblingElement(QStringLiteral("Day"))) {
+                WritingDay w;
+                w.date = QDate::fromString(d.text().trimmed(), QStringLiteral("yyyy-MM-dd"));
+                w.draftWords = d.attribute(QStringLiteral("dwc")).toInt();
+                w.draftChars = d.attribute(QStringLiteral("dcc")).toInt();
+                w.otherWords = d.attribute(QStringLiteral("owc")).toInt();
+                w.otherChars = d.attribute(QStringLiteral("occ")).toInt();
+                if (w.date.isValid() && std::none_of(days.cbegin(), days.cend(), [&](const WritingDay &x) { return x.date == w.date; }))
+                    days << w;
+            }
+            std::sort(days.begin(), days.end(), [](const WritingDay &a, const WritingDay &b) { return a.date < b.date; });
+            fileHistory = days;
+        }
     }
 
     // Sample some documents first to find the body font, so that text in
@@ -877,29 +1004,98 @@ std::unique_ptr<Project> ScrivenerImporter::importProject(const QString &path, c
     for (QDomElement ce = cols.firstChildElement(QStringLiteral("Collection")); !ce.isNull();
          ce = ce.nextSiblingElement(QStringLiteral("Collection"))) {
         const QString type = ce.attribute(QStringLiteral("Type"));
+        if (type == QLatin1String("SavedSearch")) {
+            // 0.90.0: a saved search (Collection Type="SavedSearch" with its SearchSettings) is a search collection here
+            Collection col;
+            const QString scrivId = ce.attribute(QStringLiteral("ID")).trimmed().toUpper();
+            const bool idFree = !scrivId.isEmpty()
+                                && std::none_of(p->collections.cbegin(), p->collections.cend(), [&](const Collection &x) { return x.id == scrivId; });
+            col.id = idFree ? scrivId : newId();
+            col.name = childText(ce, QStringLiteral("Title"));
+            col.color = parseScrivColor(ce.attribute(QStringLiteral("Color")));
+            col.isSearch = true;
+            col.query = scrivener::queryFromScrivener(ce.firstChildElement(QStringLiteral("SearchSettings")));
+            p->collections << col;
+            continue;
+        }
         if (type != QLatin1String("Arbitrary"))
             continue;
         Collection col;
-        col.id = newId();
+        // 0.81.2: Scrivener's ID is kept as ours, so the collection is written back under it
+        const QString scrivId = ce.attribute(QStringLiteral("ID")).trimmed().toUpper();
+        const bool idFree = !scrivId.isEmpty()
+                            && std::none_of(p->collections.cbegin(), p->collections.cend(), [&](const Collection &x) { return x.id == scrivId; });
+        col.id = idFree ? scrivId : newId();
         col.name = childText(ce, QStringLiteral("Title"));
         col.color = parseScrivColor(ce.attribute(QStringLiteral("Color")));
+        // Scrivener 3.1.6.0 for Windows lists the documents in one element, comma-separated (0.81.2); a list of
+        // BinderItem elements is read as before
+        QStringList uids;
+        const QDomElement list = ce.firstChildElement(QStringLiteral("BinderUUIDs"));
+        for (const QString &u : list.text().split(QLatin1Char(','), Qt::SkipEmptyParts))
+            uids << u.trimmed().toUpper();
         const QDomNodeList refs = ce.elementsByTagName(QStringLiteral("BinderItem"));
-        for (int i = 0; i < refs.size(); ++i) {
-            const QString uid = refs.at(i).toElement().attribute(QStringLiteral("UUID")).toUpper();
-            if (p->item(uid))
+        for (int i = 0; i < refs.size(); ++i)
+            uids << refs.at(i).toElement().attribute(QStringLiteral("UUID")).toUpper();
+        for (const QString &uid : std::as_const(uids))
+            if (p->item(uid) && !col.items.contains(uid))
                 col.items << uid;
-        }
-        if (!col.name.isEmpty())
-            p->collections << col;
+        p->collections << col;
     }
-    // project bookmarks (best effort: any UUID references)
-    const QDomElement bms = root.firstChildElement(QStringLiteral("ProjectBookmarks"));
-    const QDomNodeList bmRefs = bms.elementsByTagName(QStringLiteral("Bookmark"));
-    for (int i = 0; i < bmRefs.size(); ++i) {
-        const QDomElement b = bmRefs.at(i).toElement();
-        QString target = b.attribute(QStringLiteral("BinderUUID"), b.attribute(QStringLiteral("UUID"), b.text())).trimmed();
-        if (p->item(target.toUpper()))
-            p->projectBookmarks.append({p->item(target.toUpper())->title, QStringLiteral("qb://") + target.toUpper()});
+    // bookmarks. 0.90.0: every bookmark in its order, those to outside addresses too (Scrivener for Windows:
+    // <Bookmark BinderUUID="...">title</Bookmark> for a document, <Bookmark Destination="...">title</Bookmark> for
+    // anything else), for the project and for each document (those were never read)
+    auto readBookmarks = [&](const QDomElement &parent) {
+        QList<Bookmark> out;
+        for (QDomElement b = parent.firstChildElement(QStringLiteral("Bookmark")); !b.isNull(); b = b.nextSiblingElement(QStringLiteral("Bookmark"))) {
+            if (b.hasAttribute(QStringLiteral("Destination"))) {
+                const QString to = b.attribute(QStringLiteral("Destination")).trimmed();
+                if (!to.isEmpty())
+                    out.append({b.text().trimmed().isEmpty() ? to : b.text().trimmed(), to});
+                continue;
+            }
+            const QString target = b.attribute(QStringLiteral("BinderUUID"), b.attribute(QStringLiteral("UUID"), b.text())).trimmed().toUpper();
+            if (p->item(target))
+                out.append({p->item(target)->title, QStringLiteral("qb://") + target});
+        }
+        return out;
+    };
+    p->projectBookmarks.append(readBookmarks(root.firstChildElement(QStringLiteral("ProjectBookmarks"))));
+    {
+        // each document's bookmarks and its target, once every document is there to point at
+        const QDomNodeList all = binder.elementsByTagName(QStringLiteral("BinderItem"));
+        for (int i = 0; i < all.size(); ++i) {
+            const QDomElement e = all.at(i).toElement();
+            BinderItem *it = p->item(e.attribute(QStringLiteral("UUID"), e.attribute(QStringLiteral("ID"))).toUpper());
+            if (!it)
+                continue;
+            const QDomElement marks = e.firstChildElement(QStringLiteral("Bookmarks"));
+            if (!marks.isNull())
+                it->bookmarks = readBookmarks(marks);
+            const QDomElement t = e.firstChildElement(QStringLiteral("TextSettings")).firstChildElement(QStringLiteral("Target"));
+            if (!t.isNull() && t.text().trimmed().toInt() > 0) {
+                it->target = t.text().trimmed().toInt();
+                it->targetChars = t.attribute(QStringLiteral("Type")).startsWith(QLatin1String("Char"));
+            }
+            // the corkboard of a container: its arrangement, and the places of the cards on it when arranged freely
+            // (0.90.0; in card widths, see ScrivenerImporter::setCardWidth)
+            const QDomElement cs = e.firstChildElement(QStringLiteral("CorkboardAndOutliner")).firstChildElement(QStringLiteral("CorkboardSettings"));
+            const QString arrangement = cs.firstChildElement(QStringLiteral("Arrangement")).text().trimmed();
+            if (arrangement == QLatin1String("Freeform"))
+                it->corkArrangement = QStringLiteral("freeform");
+            else if (arrangement == QLatin1String("Linear"))
+                it->corkArrangement = QStringLiteral("grid");
+            const QDomElement cards = cs.firstChildElement(QStringLiteral("FreeformCorkboardDocuments"));
+            for (QDomElement card = cards.firstChildElement(QStringLiteral("IndexCardBinderUUID")); !card.isNull();
+                 card = card.nextSiblingElement(QStringLiteral("IndexCardBinderUUID"))) {
+                BinderItem *k = p->item(card.text().trimmed().toUpper());
+                const QStringList xy = card.attribute(QStringLiteral("Position")).split(QLatin1Char(','));
+                bool okX = false, okY = false;
+                const double x = xy.value(0).toDouble(&okX), y = xy.value(1).toDouble(&okY);
+                if (k && xy.size() == 2 && okX && okY && qAbs(x) < 1000 && qAbs(y) < 1000)
+                    k->corkboardPos = QStringLiteral("%1,%2").arg(qRound(x * cardWidth())).arg(qRound(y * cardWidth()));
+            }
+        }
     }
 
     {
@@ -914,6 +1110,66 @@ std::unique_ptr<Project> ScrivenerImporter::importProject(const QString &path, c
     p->docs()->recountAll();
     p->model()->customFieldsChanged();
     p->startSession(true);
+    {
+        // 0.90.0: reading the texts is no writing. The history is the project's own (before, an import added a day with
+        // the whole project as written that day), and today's counting goes on from what the project says of today.
+        p->history = fileHistory;
+        const QDate today = QDate::currentDate();
+        WritingDay done;
+        for (const WritingDay &w : std::as_const(fileHistory))
+            if (w.date == today)
+                done = w;
+        const int draftW = p->draftWordCount(), totalW = p->totalWordCount(), draftC = p->draftCharCount(), totalC = p->totalCharCount();
+        p->uiState[QStringLiteral("dayStartDate")] = today;
+        p->uiState[QStringLiteral("dayStartDraft")] = draftW - done.draftWords;
+        p->uiState[QStringLiteral("dayStartTotal")] = totalW - done.draftWords - done.otherWords;
+        p->uiState[QStringLiteral("dayStartDraftChars")] = draftC - done.draftChars;
+        p->uiState[QStringLiteral("dayStartTotalChars")] = totalC - done.draftChars - done.otherChars;
+    }
+    if (c.v3) {
+        // 0.90.0: the binder as Scrivener left it (Settings/ui-common.xml: its open folders, the selection, whether the
+        // collections show), read once: the project opens as it was closed in Scrivener. Never written back.
+        QFile uf(c.scrivDir + QLatin1String("/Settings/ui-common.xml"));
+        QDomDocument ud;
+        if (uf.open(QIODevice::ReadOnly) && ud.setContent(uf.readAll())) {
+            const QDomElement b = ud.documentElement().firstChildElement(QStringLiteral("Binder"));
+            auto ids = [&](const QDomElement &list) {
+                QStringList out;
+                for (QDomElement i = list.firstChildElement(QStringLiteral("ItemID")); !i.isNull(); i = i.nextSiblingElement(QStringLiteral("ItemID")))
+                    if (p->item(i.text().trimmed().toUpper()))
+                        out << i.text().trimmed().toUpper();
+                return out;
+            };
+            const QStringList open = ids(b.firstChildElement(QStringLiteral("ExpandedItems")));
+            const QStringList sel = ids(b.firstChildElement(QStringLiteral("Selection")));
+            if (!open.isEmpty())
+                p->uiState[QStringLiteral("expanded")] = open;
+            if (!sel.isEmpty())
+                p->uiState[QStringLiteral("binderSelection")] = sel;
+            const QString cols = b.firstChildElement(QStringLiteral("ShowCollections")).text().trimmed();
+            if (!cols.isEmpty())
+                p->uiState[QStringLiteral("collections")] = cols.compare(QLatin1String("Yes"), Qt::CaseInsensitive) == 0;
+        }
+        // the compile metadata of Scrivener's compile settings: the title and the author of the compiled file, its
+        // language (Settings/compile.xml, ProjectSettings/MetaData); the formats stay Scrivener's
+        QFile cf(c.scrivDir + QLatin1String("/Settings/compile.xml"));
+        QDomDocument cd;
+        if (cf.open(QIODevice::ReadOnly) && cd.setContent(cf.readAll())) {
+            const QDomElement md = cd.documentElement().firstChildElement(QStringLiteral("ProjectSettings")).firstChildElement(QStringLiteral("MetaData"));
+            if (!md.isNull()) {
+                const QString title = md.firstChildElement(QStringLiteral("ProjectTitle")).text().trimmed();
+                const QString author = (md.firstChildElement(QStringLiteral("Forename")).text().trimmed() + QLatin1Char(' ')
+                                        + md.firstChildElement(QStringLiteral("Surname")).text().trimmed()).trimmed();
+                const QString lang = md.firstChildElement(QStringLiteral("EbookLanguage")).text().trimmed();
+                if (!title.isEmpty() && !title.contains(QLatin1String("<$")) && title != p->title())
+                    p->compile.titleOverride = title;
+                if (!author.isEmpty() && !author.contains(QLatin1String("<$")))
+                    p->compile.authorOverride = author;
+                if (!lang.isEmpty())
+                    p->compile.language = lang;
+            }
+        }
+    }
     // reading texts, notes and comments counts as a change of the documents; the
     // dates stay those of Scrivener (otherwise the .scrivx of a project in
     // Scrivener format got new dates for untouched documents; 0.14.0 checks)
@@ -929,6 +1185,17 @@ void ScrivenerImporter::setNewProjectFormatting(const Formatting &f)
 {
     s_newFormatting = f;
     s_haveNewFormatting = true;
+}
+
+static int s_cardWidth = 210;
+void ScrivenerImporter::setCardWidth(int pixels)
+{
+    if (pixels >= 50 && pixels <= 2000)
+        s_cardWidth = pixels;
+}
+int ScrivenerImporter::cardWidth()
+{
+    return s_cardWidth;
 }
 
 void ScrivenerImporter::clearNewProjectFormatting()
@@ -956,6 +1223,92 @@ QString ScrivenerImporter::scrivenerStyleName(const Formatting &f, const QString
     return QString();
 }
 
+int ScrivenerImporter::fixOldCustomValues(Project *p)
+{
+    if (!p || !p->scrivenerPath.isEmpty())
+        return 0;
+    int changed = 0;
+    for (BinderItem *it : p->allItems()) {
+        bool any = false;
+        for (auto v = it->custom.begin(); v != it->custom.end(); ++v) {
+            const CustomField *f = p->customFieldById(v.key());
+            if (!f || (f->type != CustomFieldType::Checkbox && f->type != CustomFieldType::Date))
+                continue;
+            const QString now = scrivener::valueFromScrivener(f->type, v.value(), {});
+            if (now != v.value()) {
+                v.value() = now;
+                any = true;
+            }
+        }
+        if (any)
+            ++changed;
+    }
+    if (changed > 0)
+        p->markIndexDirty();
+    return changed;
+}
+
+int ScrivenerImporter::convertInlineNotes(QTextDocument *doc)
+{
+    if (!doc)
+        return 0;
+    static const QString fnStart = QStringLiteral("{\\Scrv_fn="), fnEnd = QStringLiteral("\\end_Scrv_fn}");
+    static const QString anStart = QStringLiteral("{\\Scrv_annot"), anEnd = QStringLiteral("\\end_Scrv_annot}");
+    static const QString textMark = QStringLiteral("\\text=");
+    static const QRegularExpression rgb(QStringLiteral("\\\\R=([0-9.]+)\\\\G=([0-9.]+)\\\\B=([0-9.]+)"));
+    if (!doc->toRawText().contains(QLatin1String("Scrv_")))
+        return 0;
+    int found = 0;
+    int pos = 0;
+    for (;;) {
+        const QTextCursor fn = doc->find(fnStart, pos, QTextDocument::FindCaseSensitively);
+        const QTextCursor an = doc->find(anStart, pos, QTextDocument::FindCaseSensitively);
+        if (fn.isNull() && an.isNull())
+            break;
+        const bool footnote = !fn.isNull() && (an.isNull() || fn.selectionStart() < an.selectionStart());
+        const QTextCursor start = footnote ? fn : an;
+        const QTextCursor end = doc->find(footnote ? fnEnd : anEnd, start.selectionEnd(), QTextDocument::FindCaseSensitively);
+        if (end.isNull())
+            break;   // no end mark: left as it is
+        int headEnd = start.selectionEnd();
+        QColor color;
+        if (!footnote) {
+            // the head: " \color={\R=..\G=..\B=..} \text=" up to the text
+            const QTextCursor t = doc->find(textMark, start.selectionEnd(), QTextDocument::FindCaseSensitively);
+            if (!t.isNull() && t.selectionEnd() <= end.selectionStart()) {
+                QTextCursor head(doc);
+                head.setPosition(start.selectionEnd());
+                head.setPosition(t.selectionStart(), QTextCursor::KeepAnchor);
+                const QRegularExpressionMatch m = rgb.match(head.selectedText());
+                if (m.hasMatch())
+                    color = QColor::fromRgbF(float(m.captured(1).toDouble()), float(m.captured(2).toDouble()),
+                                             float(m.captured(3).toDouble()));
+                headEnd = t.selectionEnd();
+            }
+        }
+        const int bodyStart = headEnd, bodyEnd = end.selectionStart();
+        // the note's format over its text, then the marks out (the end first: positions before it stay)
+        if (bodyEnd > bodyStart) {
+            QTextCursor body(doc);
+            body.setPosition(bodyStart);
+            body.setPosition(bodyEnd, QTextCursor::KeepAnchor);
+            body.mergeCharFormat(text::noteFormat(footnote ? NoteKind::InlineFootnote : NoteKind::InlineAnnotation,
+                                                  QUuid::createUuid().toString(QUuid::WithoutBraces), QString(), color));
+        }
+        QTextCursor e(doc);
+        e.setPosition(end.selectionStart());
+        e.setPosition(end.selectionEnd(), QTextCursor::KeepAnchor);
+        e.removeSelectedText();
+        QTextCursor h(doc);
+        h.setPosition(start.selectionStart());
+        h.setPosition(headEnd, QTextCursor::KeepAnchor);
+        h.removeSelectedText();
+        pos = start.selectionStart() + qMax(0, bodyEnd - bodyStart);
+        ++found;
+    }
+    return found;
+}
+
 int ScrivenerImporter::stripMarkers(QTextDocument *doc, const Formatting &f, const QStringList &paragraphStyles)
 {
     if (!doc || !doc->toPlainText().contains(QLatin1String("$Scr")))
@@ -963,14 +1316,57 @@ int ScrivenerImporter::stripMarkers(QTextDocument *doc, const Formatting &f, con
     // <$Scr_H::1>, <!$Scr_H::1>, <$Scr_Ps::0>, <!$Scr_Ps::0>, <$Scr_Cs::0>, <$ScrKeepWithNext> ...
     static const QRegularExpression re(QStringLiteral("<(!?)\\$Scr([A-Za-z_]*)(?:::([0-9]+))?>"));
     int removed = 0;
+    // character styles (0.81.3; before, their marks were only taken out): the text between "<$Scr_Cs::n>" and
+    // "<!$Scr_Cs::n>" gets the project's character style of that name (its look stays as the RTF has it)
+    {
+        static const QRegularExpression open(QStringLiteral("<\\$Scr_Cs::([0-9]+)>"));
+        int pos = 0;
+        for (;;) {
+            const QTextCursor o = doc->find(open, pos);
+            if (o.isNull())
+                break;
+            const QString n = open.match(o.selectedText()).captured(1);
+            const int start = o.selectionStart();
+            const int markLen = o.selectionEnd() - o.selectionStart();
+            const QTextCursor cl = doc->find(QStringLiteral("<!$Scr_Cs::%1>").arg(n), o.selectionEnd(), QTextDocument::FindCaseSensitively);
+            int bodyEnd = -1;
+            if (!cl.isNull()) {
+                bodyEnd = cl.selectionStart() - markLen;
+                QTextCursor c2(doc);
+                c2.setPosition(cl.selectionStart());
+                c2.setPosition(cl.selectionEnd(), QTextCursor::KeepAnchor);
+                c2.removeSelectedText();
+                ++removed;
+            }
+            QTextCursor c1(doc);
+            c1.setPosition(start);
+            c1.setPosition(start + markLen, QTextCursor::KeepAnchor);
+            c1.removeSelectedText();
+            ++removed;
+            const int idx = n.toInt();
+            if (bodyEnd > start && idx < paragraphStyles.size())
+                if (const Style *cs = styles::findChar(f, paragraphStyles.at(idx).trimmed())) {
+                    QTextCursor b(doc);
+                    b.setPosition(start);
+                    b.setPosition(bodyEnd, QTextCursor::KeepAnchor);
+                    QTextCharFormat cf;
+                    cf.setProperty(props::CharStyle, cs->name);
+                    b.mergeCharFormat(cf);
+                }
+            pos = start;
+        }
+    }
     int openHeading = 0;  // a heading mark open at the end of the paragraph before
     int openStyle = -1;   // a paragraph style mark open ...
     for (QTextBlock b = doc->begin(); b.isValid(); b = b.next()) {
         const QString t = b.text();
         int heading = openHeading;   // what this paragraph is in
         int style = openStyle;
+        const int carried = openStyle;
+        int pairHere = -1;           // a paragraph style opened and closed in this paragraph
         bool headingHere = false, styleHere = false; // opened in this paragraph
         QList<QPair<int, int>> spans;
+        bool visibleAny = false;
         if (t.contains(QLatin1String("$Scr"))) {
             auto it = re.globalMatch(t);
             int visibleBefore = 0; // characters of text (not marks, not spaces) before the mark
@@ -1003,6 +1399,8 @@ int ScrivenerImporter::stripMarkers(QTextDocument *doc, const Formatting &f, con
                             styleHere = true;
                         }
                     } else {
+                        if (styleHere)
+                            pairHere = style;
                         if (!styleHere && visibleBefore == 0)
                             style = -1;
                         openStyle = -1;
@@ -1010,6 +1408,13 @@ int ScrivenerImporter::stripMarkers(QTextDocument *doc, const Formatting &f, con
                 }
                 spans.append({m.capturedStart(), m.capturedLength()});
             }
+            visibleAny = visibleBefore > 0 || !t.mid(last).trimmed().isEmpty();
+            // 0.81.3: a paragraph that holds only marks. Scrivener for Windows puts the opening mark of a paragraph style
+            // at the end of the paragraph before (here: before an empty one) and closes it at the end of the last
+            // paragraph (here: in an empty one): such a paragraph keeps the style it is in, unless a style is opened
+            // and closed in it
+            if (!visibleAny)
+                style = pairHere >= 0 ? pairHere : carried;
         }
         for (int i = int(spans.size()) - 1; i >= 0; --i) {
             QTextCursor cur(doc);
@@ -1058,13 +1463,14 @@ int ScrivenerImporter::removeLeftoverMarkers(Project *p, QString *error)
                 continue;
             const QByteArray data = f.readAll();
             f.close();
-            // also as Markdown writes them ("\<$Scr\_Ps::0\>")
-            if (!data.contains("$Scr") && !data.contains("Scr_") && !data.contains("Scr\\_"))
+            // also as Markdown writes them ("\<$Scr\_Ps::0\>"); 0.81.2: inline notes as Scrivener for Windows keeps them
+            if (!data.contains("$Scr") && !data.contains("Scr_") && !data.contains("Scr\\_") && !data.contains("Scrv_")
+                && !data.contains("Scrv\\_"))
                 continue;
             const int n = p->docs()->editStored(
                 it->id, notes,
                 [p](QTextDocument *d) {
-                    const int k = stripMarkers(d, p->formatting);
+                    const int k = stripMarkers(d, p->formatting) + convertInlineNotes(d);
                     if (k > 0 && p->storage == StorageFormat::Markdown)
                         display::normalizeDocument(d, p->formatting);
                     return k;

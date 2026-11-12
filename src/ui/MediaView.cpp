@@ -1,5 +1,6 @@
 #include "ui/MediaView.h"
 #include "ui/LinkOpen.h"
+#include "core/WebArchive.h"
 #include "ui/ViewMemory.h"
 #include <QTimer>
 #include "core/BinderItem.h"
@@ -10,6 +11,11 @@
 #include "ui/MediaPlayback.h"
 
 #include <QDesktopServices>
+#include <QDir>
+#include <QDirIterator>
+#include <QHBoxLayout>
+#include <QRegularExpression>
+#include <QStandardPaths>
 #include <QEvent>
 #include <QFile>
 #include <QFileInfo>
@@ -93,7 +99,40 @@ MediaView::MediaView(QWidget *parent) : QWidget(parent)
             rememberMediaPlace();
     });
 
-    m_html = new QTextBrowser(m_stack);
+    // a web page (0.81.3): its address and two buttons above the page; this view shows a page only roughly (no scripts,
+    // little layout), the browser shows it as it was saved, or as it is today
+    m_webPage = new QWidget(m_stack);
+    m_webPage->setObjectName(QStringLiteral("webPage"));
+    auto *wl = new QVBoxLayout(m_webPage);
+    wl->setContentsMargins(0, 0, 0, 0);
+    wl->setSpacing(0);
+    auto *bar = new QWidget(m_webPage);
+    bar->setObjectName(QStringLiteral("webPageBar"));
+    auto *bl = new QHBoxLayout(bar);
+    bl->setContentsMargins(8, 4, 8, 4);
+    m_webAddress = new QLabel(bar);
+    m_webAddress->setObjectName(QStringLiteral("webAddress"));
+    m_webAddress->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_webAddress->setMinimumWidth(40);
+    m_webAddress->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    bl->addWidget(m_webAddress, 1);
+    m_webOpenSaved = new QPushButton(tr("Open Saved Page in Browser"), bar);
+    m_webOpenSaved->setObjectName(QStringLiteral("webOpenSaved"));
+    m_webOpenSaved->setToolTip(tr("Shows the page as it was saved, in your web browser. A copy of it is put into your "
+                                  "Downloads folder for that."));
+    bl->addWidget(m_webOpenSaved);
+    m_webOpenOriginal = new QPushButton(tr("Open Original Address"), bar);
+    m_webOpenOriginal->setObjectName(QStringLiteral("webOpenOriginal"));
+    m_webOpenOriginal->setToolTip(tr("Opens the page's address in your web browser: the page as it is today."));
+    bl->addWidget(m_webOpenOriginal);
+    wl->addWidget(bar);
+    m_webNote = new QLabel(m_webPage);
+    m_webNote->setObjectName(QStringLiteral("webNote"));
+    m_webNote->setWordWrap(true);
+    m_webNote->setContentsMargins(8, 0, 8, 4);
+    m_webNote->hide();
+    wl->addWidget(m_webNote);
+    m_html = new QTextBrowser(m_webPage);
     // 0.64.1: links of an imported web page go through links::open (web and mail at once, others asked)
     m_html->setOpenLinks(false);
     connect(m_html, &QTextBrowser::anchorClicked, this, [this](const QUrl &url) {
@@ -102,7 +141,16 @@ MediaView::MediaView(QWidget *parent) : QWidget(parent)
         else
             links::open(this, url.toString());
     });
-    m_stack->addWidget(m_html);
+    wl->addWidget(m_html, 1);
+    m_stack->addWidget(m_webPage);
+    connect(m_webOpenSaved, &QPushButton::clicked, this, [this] {
+        QString err;
+        const QString page = openSavedPage(&err);
+        m_webNote->setText(page.isEmpty() ? tr("The page could not be opened: %1").arg(err)
+                                          : tr("Opened in your browser from %1").arg(QDir::toNativeSeparators(page)));
+        m_webNote->show();
+    });
+    connect(m_webOpenOriginal, &QPushButton::clicked, this, [this] { openOriginalAddress(); });
 
     m_other = new QWidget(m_stack);
     auto *ol = new QVBoxLayout(m_other);
@@ -247,14 +295,9 @@ void MediaView::showItem(BinderItem *item)
         m_stack->setCurrentWidget(m_pdfView);
         restoreMediaPlace();
         break;
-    case ItemType::WebPage: {
-        QFile f(path);
-        f.open(QIODevice::ReadOnly);
-        m_html->setSearchPaths({QFileInfo(path).absolutePath()});
-        m_html->setHtml(QString::fromUtf8(f.readAll()));
-        m_stack->setCurrentWidget(m_html);
+    case ItemType::WebPage:
+        showWebPage(item, path);
         break;
-    }
     default:
         if (av)
             showPlayer(item, path);
@@ -264,6 +307,130 @@ void MediaView::showItem(BinderItem *item)
     }
     emit infoChanged();
     emit playbackChanged();
+}
+
+// Scrivener's saved page (one .mht file) or this program's (an HTML file with folders beside it)
+static bool isArchive(const BinderItem *item)
+{
+    const QString e = item->fileExt.toLower();
+    return e == QLatin1String("mht") || e == QLatin1String("mhtml");
+}
+
+QString MediaView::webAddressOf(BinderItem *item, const QString &path) const
+{
+    if (!item->sourceUrl.isEmpty())
+        return item->sourceUrl;
+    // pages imported before 0.81.3: the address is the page's bookmark
+    for (const Bookmark &b : item->bookmarks)
+        if (!b.isInternal() && (b.target.startsWith(QLatin1String("http://")) || b.target.startsWith(QLatin1String("https://"))))
+            return b.target;
+    if (isArchive(item)) {
+        QFile f(path);
+        if (f.open(QIODevice::ReadOnly)) {
+            const QString a = webarchive::addressOf(f.readAll());
+            if (a.startsWith(QLatin1String("http://")) || a.startsWith(QLatin1String("https://")))
+                return a;
+        }
+    }
+    return QString();
+}
+
+void MediaView::showWebPage(BinderItem *item, const QString &path)
+{
+    m_webNote->hide();
+    QString shown = path;
+    if (isArchive(item)) {
+        // unpacked into the cache to be shown here
+        const QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QLatin1String("/web pages/") + item->id;
+        QDir(dir).removeRecursively();
+        QFile f(path);
+        QString page, err;
+        if (f.open(QIODevice::ReadOnly) && webarchive::unpack(f.readAll(), dir, &page, nullptr, &err))
+            shown = page;
+        else
+            shown.clear();
+    }
+    QFile f(shown);
+    if (!shown.isEmpty() && f.open(QIODevice::ReadOnly)) {
+        m_html->setSearchPaths({QFileInfo(shown).absolutePath()});
+        m_html->setHtml(QString::fromUtf8(f.readAll()));
+    } else {
+        m_html->setPlainText(tr("The saved page cannot be read."));
+    }
+    const QString url = webAddressOf(item, path);
+    m_webAddress->setText(url.isEmpty() ? tr("No address") : url);
+    m_webAddress->setToolTip(url);
+    m_webOpenOriginal->setEnabled(!url.isEmpty());
+    m_webOpenSaved->setEnabled(QFileInfo::exists(path));
+    m_stack->setCurrentWidget(m_webPage);
+}
+
+QString MediaView::openSavedPage(QString *error)
+{
+    if (!m_project || !m_item || m_item->type != ItemType::WebPage)
+        return QString();
+    const QString path = m_project->mediaFilePath(m_item);
+    QString title = m_item->title;
+    title.replace(QRegularExpression(QStringLiteral("[/\\\\:*?\"<>|\\x00-\\x1f]")), QStringLiteral("_"));
+    title = title.trimmed().left(60);
+    if (title.isEmpty())
+        title = tr("Web Page");
+    QString downloads = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    if (downloads.isEmpty())
+        downloads = QDir::homePath();
+    const QString dir = downloads + QLatin1Char('/') + tr("Quillbinder web pages") + QLatin1Char('/') + title + QStringLiteral(" (")
+                        + m_item->id.left(8) + QLatin1Char(')');
+    QDir(dir).removeRecursively();
+    if (!QDir().mkpath(dir)) {
+        if (error)
+            *error = tr("Cannot make the folder %1.").arg(QDir::toNativeSeparators(dir));
+        return QString();
+    }
+    QString page;
+    if (isArchive(m_item)) {
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly)) {
+            if (error)
+                *error = tr("Cannot read %1.").arg(QDir::toNativeSeparators(path));
+            return QString();
+        }
+        if (!webarchive::unpack(f.readAll(), dir, &page, nullptr, error))
+            return QString();
+    } else {
+        // the page and the folders beside it (its pictures)
+        page = dir + QLatin1String("/index.html");
+        if (!QFile::copy(path, page)) {
+            if (error)
+                *error = tr("Cannot copy %1.").arg(QDir::toNativeSeparators(path));
+            return QString();
+        }
+        const QDir src = QFileInfo(path).dir();
+        for (const QFileInfo &sub : src.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+            QDirIterator it(sub.absoluteFilePath(), QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                const QString from = it.next();
+                const QString to = dir + QLatin1Char('/') + src.relativeFilePath(from);
+                QDir().mkpath(QFileInfo(to).absolutePath());
+                QFile::copy(from, to);
+            }
+        }
+    }
+    if (!links::openFile(this, page)) {
+        if (error)
+            *error = tr("No program opened %1.").arg(QDir::toNativeSeparators(page));
+        return QString();
+    }
+    return page;
+}
+
+bool MediaView::openOriginalAddress()
+{
+    if (!m_project || !m_item || m_item->type != ItemType::WebPage)
+        return false;
+    const QString url = webAddressOf(m_item, m_project->mediaFilePath(m_item));
+    if (url.isEmpty())
+        return false;
+    return links::open(this, url);
 }
 
 void MediaView::showOther(BinderItem *item, const QString &path)

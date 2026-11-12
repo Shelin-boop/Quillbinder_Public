@@ -147,8 +147,16 @@ void MainWindow::installFonts()
     const fontinstall::Result r = fontinstall::install(files);
     QString msg;
     if (!r.families.isEmpty())
+#ifdef Q_OS_WIN
+        // W4b (portable): the fonts stay in the program's folder and are this program's only
+        msg = tr("Installed for Quillbinder (in %1):\n%2\n\nThe fonts can be used at once. They stay in the program's folder: "
+                 "other programs do not see them (to use them elsewhere too, install them with Windows: right-click the "
+                 "font file > Install).")
+                  .arg(QDir::toNativeSeparators(fontinstall::userFontDir()), r.families.join(QStringLiteral(", ")));
+#else
         msg = tr("Installed for you (in %1):\n%2\n\nThe fonts can be used at once; other programs see them after their next start.")
                   .arg(fontinstall::userFontDir(), r.families.join(QStringLiteral(", ")));
+#endif
     else if (!r.installed.isEmpty())
         msg = tr("The files are in %1; no new font families came with them (they were installed already).").arg(fontinstall::userFontDir());
     if (!r.skipped.isEmpty())

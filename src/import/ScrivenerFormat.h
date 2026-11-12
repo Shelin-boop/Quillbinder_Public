@@ -19,10 +19,21 @@
 // Files/Data/<UUID>/content.rtf, notes.rtf, synopsis.txt, content.<ext>;
 // Files/Data/docs.checksum; Files/search.indexes; Snapshots/<UUID>.snapshots/.
 // Linked comments and footnotes: HYPERLINK "scrivcmt://<ID>" fields plus
-// Files/Data/<UUID>/content.comments (documented by others, not seen in the
-// sample). Not written (no verified example): keywords, custom metadata,
-// arbitrary collections, styles; they are kept in the working copy, and
-// whatever a .scriv already has of them is left in its .scrivx untouched.
+// Files/Data/<UUID>/content.comments (as Scrivener 3.1.6 for Windows writes them).
+// Keywords, custom metadata and collections (0.81.2), as Scrivener 3.1.6.0 for
+// Windows writes them: the .scrivx's Keywords (Keyword ID,
+// Title, Color, Children), CustomMetaDataSettings (MetaDataField Type, ID, Title,
+// ListOptions with Option ID), each BinderItem's Keywords/KeywordID and
+// MetaData/CustomMetaData/MetaDataItem (FieldID, Value), and arbitrary collections
+// (Collection Type="Arbitrary", Title, BinderUUIDs as a comma-separated list).
+// The ids of the file are kept: this program uses Scrivener's ids as its own for
+// what it reads; what is made here gets an id in Scrivener's form when written.
+// Not written (no verified example): styles, inline notes as Scrivener keeps them
+// (they become linked notes), this program's search collections.
+
+#include "core/ProjectTypes.h"
+
+#include <QDomElement>
 
 #include <QDateTime>
 #include <QHash>
@@ -35,6 +46,19 @@ namespace qb {
 class Project;
 
 namespace scrivener {
+
+// Custom metadata values (0.81.2). Scrivener writes a checkbox as "Yes" / "No", a list as the ID of
+// the option ("-1" = none), a date as "2026-03-14 00:00:00 +0100" and text as typed. This program
+// keeps "1" / "0", the option's text ("" = none) and a date as yyyy-MM-dd.
+// optionText: the field's options, Scrivener's option ID -> text.
+QString valueFromScrivener(CustomFieldType type, const QString &text, const QHash<QString, QString> &optionText);
+
+// A saved search (0.90.0): Scrivener 3.1.6.0 for Windows keeps it as <Collection Type="SavedSearch"> with
+// <SearchSettings Operator="Any" Type="Text" Scope="All" CompileSetting="All" CaseSensitive="No" IgnoreDiacritics="No">
+// the words</SearchSettings>. Seen in a project: those values. Read: Operator "Any" = any of the words, "All" = all
+// of them, "Exact" = the phrase, "RegEx" = a regular expression [the last three are a guess: not seen in a file];
+// CaseSensitive; CompileSetting "Included" / "Excluded" [a guess]. What else the element says stays as it is.
+SearchQuery queryFromScrivener(const QDomElement &settings);
 
 // What the last write or read had in the .scriv (settings/scrivener-sync.json
 // of the working copy).
@@ -50,6 +74,11 @@ struct SyncState {
     // copy that is not among them never reached the .scriv's binder (kept at the next opening)
     QStringList binder;
     bool binderKnown = false;        // false: a state of a version before 0.65 (then `theirs` is used, as before)
+    // 0.81.2: 1 = keywords, custom metadata and collections of the working copy are in the .scriv (written by
+    // this version, or read from it with nothing of the working copy's own to add). 0 = a state of an older
+    // version, which kept them in the working copy only: the next opening reads the .scriv again and joins
+    // the two once (nothing made here is lost), and the next write puts them into the .scriv.
+    int meta = 0;
     bool load(const QString &file);
     bool save(const QString &file) const;
 };

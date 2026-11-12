@@ -80,6 +80,17 @@ private:
     void updateImage();
     void showPlayer(BinderItem *item, const QString &path);
     void showOther(BinderItem *item, const QString &path);
+    // a web page document (0.81.3): the page here (a saved .mht unpacked first), its address and two buttons
+    void showWebPage(BinderItem *item, const QString &path);
+    QString webAddressOf(BinderItem *item, const QString &path) const;
+public:
+    // Open Saved Page in Browser: a copy of the page (unpacked, when it is Scrivener's .mht) in the Downloads folder,
+    // "Quillbinder web pages/<title>", opened with the desktop's browser; the browser of a sandbox (Firefox as a
+    // snap) cannot read the program's hidden data folder. The page's file there, "" when it failed (*error).
+    QString openSavedPage(QString *error = nullptr);
+    // Open Original Address: the page's address in the browser. False when the page has none.
+    bool openOriginalAddress();
+private:
     void refreshPlayerPage();
     void rememberPosition();
     // zoom of a picture, zoom and page of a PDF file, kept with the project (0.21.1)
@@ -98,6 +109,11 @@ private:
     QPdfDocument *m_pdf;
     QPdfView *m_pdfView;
     QTextBrowser *m_html;
+    QWidget *m_webPage = nullptr;      // the bar with the address and the buttons, the page below (0.81.3)
+    QLabel *m_webAddress = nullptr;
+    QLabel *m_webNote = nullptr;
+    QPushButton *m_webOpenSaved = nullptr;
+    QPushButton *m_webOpenOriginal = nullptr;
     QWidget *m_other;
     QLabel *m_otherLabel;
     QLabel *m_otherHint;

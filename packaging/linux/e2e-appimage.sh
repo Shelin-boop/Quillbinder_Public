@@ -6,8 +6,8 @@
 # a Scrivener sample) a .scriv project opened in Scrivener format must keep its binder
 # order and dates.
 #
-#   tools/e2e-appimage.sh <AppImage> <update.qbpkg> [work dir]
-#   tools/e2e-appimage.sh <AppImage> - [work dir]     the AppImage alone (a new AppImage)
+#   packaging/linux/e2e-appimage.sh <AppImage> <update.qbpkg> [work dir]
+#   packaging/linux/e2e-appimage.sh <AppImage> - [work dir]     the AppImage alone (a new AppImage)
 #
 #   QB_PREV_UPDATE=<older update.qbpkg>   installed first; at the end the program is
 #                                         switched back to it and must still start
@@ -29,7 +29,7 @@ set -u
 APPIMAGE=$(readlink -f "${1:?AppImage}")
 UPDATE=${2:?update package, or - for the AppImage alone}
 [ "$UPDATE" != "-" ] && UPDATE=$(readlink -f "$UPDATE")
-ROOT=$(cd "$(dirname "$0")/.." && pwd)
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 E=$(mkdir -p "${3:-$ROOT/build/e2e}" && cd "${3:-$ROOT/build/e2e}" && pwd)
 chmod +x "$APPIMAGE"
 if [ ${#E} -gt 70 ]; then

@@ -1,9 +1,9 @@
 Apache Tika MimeType Definitions
-Version: 5101bc7fb090ed7deffe56837d7633c9485a1e5d
+Version: c29724782854bb5a319f4a1940d0828a58ace3f9
 Homepage: https://github.com/apache/tika/tree/main/tika-core/src/main/resources/org/apache/tika/mime
 The Apache Tika MimeTypes list many known MIME types and how to match files (using globs and/or 'magic' rules for the file contents)
 
-Copyright 2024 The Apache Software Foundation
+Copyright 2026 The Apache Software Foundation
 
 Apache License
 Version 2.0, January 2004

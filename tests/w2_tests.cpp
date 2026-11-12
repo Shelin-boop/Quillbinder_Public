@@ -1,6 +1,6 @@
 // Checks of the Windows port, step W2 (2026-11-07), on Linux: what W2 changed in the code that
 // Linux runs as well. The Windows parts themselves are checked on the Windows runner
-// (tools/win-check.sh).
+// (packaging/windows/win-check.sh).
 //  - Packages name the system their libraries were built for ("platform"): a Windows add-on
 //    with libraries is refused here, a Linux one (with or without the field) and one without
 //    libraries are accepted; the field goes through the manifest and tools/make-package.py.

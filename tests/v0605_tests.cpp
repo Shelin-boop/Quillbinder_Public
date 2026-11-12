@@ -317,7 +317,7 @@ int main(int argc, char **argv)
           QStringLiteral("autosave: a scene nobody touched keeps its file byte for byte"));
     {
         const QByteArray cs = readAll(dataDir + QLatin1String("docs.checksum"));
-        const QByteArray want = editedUuid.toLower().toUtf8() + "/content.rtf="
+        const QByteArray want = editedUuid.toUpper().toUtf8() + "/content.rtf="  // 0.81.3: Scrivener for Windows' form
                                 + QCryptographicHash::hash(editedNow, QCryptographicHash::Sha1).toHex();
         check(cs.contains(want), QStringLiteral("autosave: docs.checksum has the edited scene's new checksum"));
     }

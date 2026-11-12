@@ -585,7 +585,9 @@ void ScratchPadWindow::saveEmergencyCopy()
 {
     if (m_file.isEmpty() || !m_edit->document()->isModified())
         return;
-    const QString dir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/Quillbinder/Emergency");
+    // 1.4 (W4b): the program's own data folder, which the host names (Windows: inside the portable program folder;
+    // Linux: the same ~/.local/share/Quillbinder/Emergency as before)
+    const QString dir = QDir::cleanPath(m_host->dataDir(QString::fromLatin1(kTool)) + QStringLiteral("/../../Emergency"));
     QDir().mkpath(dir);
     const QFileInfo fi(m_file);
     const QString target = dir + QLatin1Char('/') + fi.completeBaseName() + QStringLiteral(" (scratch pad, ")

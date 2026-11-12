@@ -12,11 +12,16 @@ between the programs. Scrivener and Scapple are names of products of Literature 
 
 ## Download
 
-**Quillbinder 0.81.1 beta for Linux (x86_64):**
+**[The download page](https://shelin-boop.github.io/Quillbinder_Public/)** has one button per system for the full
+version (the program with all add-ons). The files, sorted by system:
 
-- **[Quillbinder-0.81.1-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.81.1-beta/Quillbinder-0.81.1-beta-x86_64.AppImage)**: the program
-- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.81.1-beta/media-all-formats.qbpkg)**: the commonly used audio and video formats (an add-on; optional)
-- **[Quillbinder-0.81.1-full-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.81.1-beta/Quillbinder-0.81.1-full-beta-x86_64.AppImage)**:
+### Linux
+
+**Quillbinder 0.90.0 beta for Linux (x86_64):**
+
+- **[Quillbinder-0.90.0-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.90.0-beta/Quillbinder-0.90.0-beta-x86_64.AppImage)**: the program
+- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.90.0-beta/media-all-formats.qbpkg)**: the commonly used audio and video formats (an add-on; optional)
+- **[Quillbinder-0.90.0-full-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.90.0-beta/Quillbinder-0.90.0-full-beta-x86_64.AppImage)**:
   **the full version**: the program with all add-ons and all the libraries they need included (the commonly
   used audio and video formats, extra themes, project templates, the scriptwriting pack, the writing tools with offline speech recognition, the
   importers of web pages and old Word files). They are installed at the first start: one download, nothing
@@ -24,17 +29,30 @@ between the programs. Scrivener and Scapple are names of products of Literature 
 - [All files of the newest version](https://github.com/Shelin-boop/Quillbinder_Public/releases/latest): the other
   add-ons, the program update and SHA-256 checksums. Earlier versions: [Releases](https://github.com/Shelin-boop/Quillbinder_Public/releases).
 
-0.81.1 brings the fixes of the audit of 0.81.0 (documents whose file is damaged, pictures in notes, interrupted
-saves in sync folders, a freeze on a damaged RTF file); 0.81.0 brought those of the audit of 0.80.0 (backups and
-restore above all). It is a new AppImage on the same libraries as 0.80.0: the add-ons of 0.80.0 fit it, and 0.80.0
-and 0.81.0 can also take the program update (on the Releases page). Since 0.80.0 (a new Qt, 6.12), add-ons with program code installed for earlier versions must be installed
+0.90.0 completes the work on Scrivener compatibility: texts, comments, footnotes, bookmarks, targets, the
+writing history, the corkboard, saved searches, index card pictures and the compile title and author are read from
+a Scrivener 3 project and written back in Scrivener's own form; 0.81.0 to 0.81.3 brought the fixes of two audits
+(backups, restore, damaged documents, interrupted saves) and keywords, custom metadata, collections, styles, inline
+notes and web pages in Scrivener format. It is a new AppImage on the same libraries as 0.80.0: the add-ons of 0.80.0
+fit it, and 0.80.0 and later can also take the program update (on the Releases page). Since 0.80.0 (a new Qt, 6.12), add-ons with program code installed for earlier versions must be installed
 again in their new versions (the bundle on the Releases page, `media-all-formats.qbpkg`, or simply the full
 version); program updates of 0.70.0 and earlier do not fit.
 
 To start, make the AppImage executable (right-click > Properties > Permissions > *Is executable*, or
 `chmod +x`) and double-click it; **Help > Add to Application Menu** puts it into the menu of the desktop.
-Add-ons are installed with **File > Install Update or Add-on**. Everything on the Releases page is built by
-GitHub from this source code (`.github/workflows/release.yml`). Since 0.65.0 every package and the checksum list
+Add-ons are installed with **File > Install Update or Add-on**.
+
+### Windows
+
+The Windows 11 version (64-bit, a folder to unpack, no installation) is being prepared and not published yet.
+
+### Android
+
+Planned, after Windows.
+
+### How the downloads are made
+
+Everything on the Releases page is built by GitHub from this source code (`.github/workflows/release.yml`). Since 0.65.0 every package and the checksum list
 (`SHA256SUMS.txt`, with its signature `SHA256SUMS.txt.sig`) are signed with the project's key
 (`packaging/quillbinder-signing-public.pem`); the program installs program updates only with that signature.
 Since 0.70.0 the release workflow runs the full test suite on every release, and since 0.81.0 nothing is published
@@ -91,13 +109,13 @@ cmake -S . -B build -DQB_TEST_SWITCHES=ON
 tools/cloud-setup.sh                         # (as root) everything to build and test on a fresh Ubuntu 24.04
 tools/run-all-tests.sh build/test-results offscreen   # every suite, one line each; "x11" instead of offscreen for a virtual display
 tools/get-ffmpeg.sh                          # once: FFmpeg for the Media Playback add-on (the runner builds the add-ons then)
-tools/e2e-appimage.sh <AppImage> dist/quillbinder-<version>-update.qbpkg   # the update in the real AppImage
+packaging/linux/e2e-appimage.sh <AppImage> dist/quillbinder-<version>-update.qbpkg   # the update in the real AppImage
 QT_QPA_PLATFORM=offscreen ./build/tests/qb_tests               # formats, compile, import
 QT_QPA_PLATFORM=offscreen ./build/tests/qb_ui_tests /tmp/shots  # scripted UI run + screenshots
 QT_QPA_PLATFORM=offscreen ./build/tests/qb_m6_tests /tmp/shots  # page view and copyholders
 QT_QPA_PLATFORM=offscreen ./build/tests/qb_m7_tests /tmp/shots  # drag and drop, navigation, Quick Reference panels
 QT_QPA_PLATFORM=offscreen ./build/tests/qb_m8_tests /tmp/shots  # search and replace, filters, find by formatting
-QT_QPA_PLATFORM=offscreen ./build/tests/qb_m9_tests /tmp/shots  # scriptwriting (the add-on part needs packaging/build-addons.sh build build/addons-dist)
+QT_QPA_PLATFORM=offscreen ./build/tests/qb_m9_tests /tmp/shots  # scriptwriting (the add-on part needs packaging/linux/build-addons.sh build build/addons-dist)
 QT_QPA_PLATFORM=offscreen ./build/tests/qb_m10_tests /tmp/shots # writing tools (installs build/addons-dist/tool-*.qbpkg; build them first as above)
 QT_QPA_PLATFORM=offscreen ./build/tests/qb_m11_tests /tmp/shots # audio and video (installs build/addons-dist/media-playback.qbpkg; needs a sound server, see below)
 QT_QPA_PLATFORM=offscreen ./build/tests/qb_m12_tests /tmp/shots # .doc and web page import, export options (installs build/addons-dist/import-*.qbpkg; serves its test pages itself)
@@ -105,7 +123,7 @@ QT_QPA_PLATFORM=offscreen ./build/tests/qb_m13_tests /tmp/shots # Scrivener proj
 QT_QPA_PLATFORM=offscreen ./build/tests/qb_fixes_tests /tmp/shots # corrections of 0.14.1: fonts project-wide, label tint, bookmarks, icons, search marks
 QT_QPA_PLATFORM=offscreen ./build/tests/qb_v020_tests /tmp/shots # 0.20: the Objects sheet and the data-safety fixes (QB_SKIP_BIG_BACKUP=1: without the 4.3 GB backup)
 QT_QPA_PLATFORM=offscreen ./build/tests/qb_v040_tests /tmp/shots # 0.40: welcome project, Quick Start Guide, third-party licenses, About
-tools/e2e-old-version.sh <older AppImage>    # 0.20: a project with objects opened and saved by an older version keeps them
+packaging/linux/e2e-old-version.sh <older AppImage>    # 0.20: a project with objects opened and saved by an older version keeps them
 QB_SCRIV_SAMPLE=/path/to/sample.scriv QT_QPA_PLATFORM=offscreen ./build/tests/qb_tests   # also round-trips a real Scrivener 3 project
 # under X11 the M6 and M7 runs also drag with the mouse: xvfb-run -a -s "-screen 0 1920x1080x24" ./build/tests/qb_m7_tests /tmp/shots
 ```
@@ -113,7 +131,7 @@ QB_SCRIV_SAMPLE=/path/to/sample.scriv QT_QPA_PLATFORM=offscreen ./build/tests/qb
 ## AppImage
 
 ```
-packaging/build-appimage.sh      # downloads linuxdeploy/appimagetool on first run
+packaging/linux/build-appimage.sh      # downloads linuxdeploy/appimagetool on first run
 ```
 
 The result is `build-appimage/Quillbinder-<version>-x86_64.AppImage`. It uses
@@ -126,8 +144,8 @@ texts into the AppImage (`usr/share/doc/quillbinder/licenses`).
 Updates and extensions are delivered as `.qbpkg` packages (see `src/core/Addons.h` and section 17 of the manual).
 
 ```
-packaging/build-update.sh "What is new ..."   # program update -> dist/quillbinder-<version>-update.qbpkg
-packaging/build-addons.sh build dist          # add-ons in addons/ -> dist/<id>.qbpkg
+packaging/linux/build-update.sh "What is new ..."   # program update -> dist/quillbinder-<version>-update.qbpkg
+packaging/linux/build-addons.sh build dist          # add-ons in addons/ -> dist/<id>.qbpkg
 tools/make-package.py bundle --id ... --name ... --version ... a.qbpkg b.qbpkg out.qbpkg
 ```
 
@@ -138,10 +156,10 @@ version (`tools/publish-public.sh`, one commit per version), checked first by `t
 A new version on `main` of the public repository (a change of `CMakeLists.txt` whose version has no release yet), or a
 tag `v<version>` (for example `v0.50.0-alpha`, the version and label of `CMakeLists.txt`) pushed from a computer, starts
 `.github/workflows/release.yml` on GitHub, which also creates the tag: in a clean Ubuntu 24.04 it builds both FFmpeg sets, the
-AppImage, the add-ons and the program update, checks the AppImage (`tools/e2e-appimage.sh`), collects the source
+AppImage, the add-ons and the program update, checks the AppImage (`packaging/linux/e2e-appimage.sh`), collects the source
 code of every third-party library (`tools/collect-sources.py`, needs `tools/enable-deb-src.sh`) and publishes the
 release (`tools/publish-release.sh`; the text comes from `tools/release-notes.py` and `docs/CHANGES.md`).
-`packaging/build-addons.sh` also makes `media-all-formats.qbpkg`, which installs both media add-ons in one step.
+`packaging/linux/build-addons.sh` also makes `media-all-formats.qbpkg`, which installs both media add-ons in one step.
 `tools/collect-licenses.py --refresh` keeps Help > Third-Party Licenses at the library versions of the build system.
 
 `src/text/PageLayout.cpp` calls a private Qt class (page margins without an entry in the undo history). The program must
@@ -157,7 +175,7 @@ Build updates on the same system as the AppImage (Ubuntu 24.04).
 The name generator, the scratch pad and text statistics are Qt plugins that implement `src/tools/ToolApi.h`
 (a header of pure virtual classes: the program gives a tool a `ToolHost`; nothing is linked against the
 program). They are built into `build/tool-plugins/` and delivered as add-ons (`addons/tool-*`, whose
-`plugins.txt` names the library that `packaging/build-addons.sh` copies in). To try them from the build folder:
+`plugins.txt` names the library that `packaging/linux/build-addons.sh` copies in). To try them from the build folder:
 
 ```
 QB_PLUGIN_PATH=build/tool-plugins QB_TOOL_DATA=addons/tool-name-generator/payload ./build/quillbinder
@@ -184,7 +202,7 @@ sudo apt install nasm                              # build time only; Qt Multime
 tools/get-ffmpeg.sh                                # FFmpeg 9.0.2 source (Ubuntu's copy) -> tools/build-ffmpeg.sh -> build/ffmpeg
                                                    # (set "base") and build/ffmpeg-full (set "full"); applies
                                                    # tools/ffmpeg-patches, about 10 minutes for both on 2 cores
-packaging/build-addons.sh build build/addons-dist  # addons/media-*/stage.sh copy the libraries in
+packaging/linux/build-addons.sh build build/addons-dist  # addons/media-*/stage.sh copy the libraries in
 ```
 
 Why the parts are as they are (details in `plugins/media/MediaEngine.h` and `tools/build-ffmpeg.sh`):

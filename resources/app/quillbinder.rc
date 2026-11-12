@@ -1,0 +1,2 @@
+// Windows (W4b, 2026-11-12): the program icon of quillbinder.exe (Explorer, shortcuts, the Start menu).
+IDI_ICON1 ICON "quillbinder.ico"

@@ -1,3 +1,6 @@
 build*/
 dist/
 packaging/tools/
+.whisper/
+.models/
+__pycache__/

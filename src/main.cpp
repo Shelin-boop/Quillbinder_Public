@@ -7,8 +7,10 @@
 #include "core/Addons.h"
 #include "core/CrashGuard.h"
 #include "core/Launcher.h"
+#include "core/Portable.h"
 #include "text/FontFaces.h"
 #include "ui/AppSettings.h"
+#include "ui/FontInstall.h"
 #include "ui/Language.h"
 #include "ui/CrashDialogs.h"
 #include "ui/MainWindow.h"
@@ -50,7 +52,8 @@ int main(int argc, char **argv)
 
     // Names first: QSettings (~/.config/<name>/<name>.conf) works before QApplication.
 #ifdef Q_OS_WIN
-    QSettings::setDefaultFormat(QSettings::IniFormat); // a file in %APPDATA%\Quillbinder, not the registry (W3)
+    QSettings::setDefaultFormat(QSettings::IniFormat); // a file, not the registry (W3)
+    qb::portable::useProgramFolder(); // W4b: that file in the program folder (data\settings), portable
 #endif
     QCoreApplication::setOrganizationName(QStringLiteral(QB_APP_NAME));
     QCoreApplication::setApplicationName(QStringLiteral(QB_APP_NAME));
@@ -103,7 +106,7 @@ int main(int argc, char **argv)
                 std::printf("LD_LIBRARY_PATH=[%s] QB_CORE_ACTIVE=[%s]\n", qgetenv("LD_LIBRARY_PATH").constData(),
                             qgetenv("QB_CORE_ACTIVE").constData());
 #ifdef Q_OS_WIN
-            // the update loader's check on the Windows runner (tools/win-ci.sh)
+            // the update loader's check on the Windows runner (packaging/windows/win-ci.sh)
             if (qEnvironmentVariableIsSet("QB_DEBUG_ENV"))
                 std::printf("overlay=[%d] base=[%s] program=[%s] QB_CORE_APPDIR=[%s] path-starts-with-program=[%d]\n",
                             int(qb::launcher::isOverlay()), qPrintable(qb::launcher::builtInVersion()),
@@ -127,7 +130,46 @@ int main(int argc, char **argv)
             qputenv("QT_QPA_PLATFORMTHEME", "xdgdesktopportal");
     }
 
+#ifdef Q_OS_WIN
+    // W4a (2026-11-11): Qt's offscreen platform on Windows reads fonts with FreeType from one folder only
+    // (QT_QPA_FONTDIR, else "fonts" beside Qt's libraries), so it found none, and the self-test before an update
+    // (launcher::selfTest starts the new version offscreen) refused every update. Point it at Windows' fonts.
+    {
+        bool offscreen = qEnvironmentVariable("QT_QPA_PLATFORM").startsWith(QLatin1String("offscreen"));
+        for (int i = 1; i + 1 < argc; ++i)
+            if (qstrcmp(argv[i], "-platform") == 0 && qstrncmp(argv[i + 1], "offscreen", 9) == 0)
+                offscreen = true;
+        const QString windir = qEnvironmentVariable("WINDIR");
+        if (offscreen && qEnvironmentVariableIsEmpty("QT_QPA_FONTDIR") && !windir.isEmpty())
+            qputenv("QT_QPA_FONTDIR", QDir::toNativeSeparators(windir + QStringLiteral("/Fonts")).toLocal8Bit());
+    }
+#endif
+
     QApplication app(argc, argv);
+#ifdef Q_OS_WIN
+    // W4b: the program keeps everything in its own folder; one it cannot write to (Program Files, a read-only stick)
+    // is refused before anything is written elsewhere
+    {
+        const QString why = qb::portable::folderProblem();
+        if (!why.isEmpty()) {
+            const QString text = QCoreApplication::translate(
+                                     "main", "Quillbinder keeps its settings, add-ons and updates in its own folder, and it "
+                                             "cannot work there because %1.\n\nMove the whole Quillbinder folder to a place of "
+                                             "your own, for example C:\\Users\\<your name>\\Quillbinder, and start it "
+                                             "from there. Program Files and other protected folders do not work, because "
+                                             "the program needs no administrator rights.")
+                                     .arg(why);
+            std::fprintf(stderr, "%s\n", qPrintable(text));
+            if (!QB_TEST_ENV_SET("QB_NO_DIALOGS"))
+                QMessageBox::critical(nullptr, QStringLiteral(QB_APP_NAME), text);
+            return 2;
+        }
+    }
+    qb::portable::followProgramFolder();
+    // W4b: fonts installed through the program are files in data\fonts, loaded for this program at each start
+    // (nothing in Windows' font folder or the registry)
+    qb::fontinstall::reload();
+#endif
     qb::language::install(); // 0.70.0: English or German (File > Options > General > Startup), before any window
     // fonts with several designs in one family (Sitka: Small ... Banner) get a family per
     // design, so that Bold and Italic stay within the design (0.40.1, text/FontFaces.h)
@@ -147,8 +189,17 @@ int main(int argc, char **argv)
 
     // Fusion is the Qt style that follows the KDE colour scheme best and
     // looks identical everywhere (the AppImage cannot load system styles).
-    if (QStyle *fusion = QStyleFactory::create(QStringLiteral("Fusion")))
-        QApplication::setStyle(fusion);
+    // Windows (W4b, the writer's requirement 5a): Windows 11's own controls (Qt's style "windows11"), Fusion where
+    // Qt does not offer it.
+    QStyle *style = nullptr;
+#ifdef Q_OS_WIN
+    if (QStyleFactory::keys().contains(QStringLiteral("windows11"), Qt::CaseInsensitive))
+        style = QStyleFactory::create(QStringLiteral("windows11"));
+#endif
+    if (!style)
+        style = QStyleFactory::create(QStringLiteral("Fusion"));
+    if (style)
+        QApplication::setStyle(style);
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral("%1 - a writing studio for long texts").arg(QStringLiteral(QB_APP_NAME)));
@@ -361,7 +412,7 @@ int main(int argc, char **argv)
     // the time is set in File > Options > Extras > Crash Reports (0.21)
     qb::crash::startWatchdog(qBound(10, qb::AppSettings::instance().freezeSeconds, 600));
 #ifdef Q_OS_WIN
-    // Checks of the crash guard on the Windows runner (tools/win-ci.sh; Linux sends signals instead).
+    // Checks of the crash guard on the Windows runner (packaging/windows/win-ci.sh; Linux sends signals instead).
     // Nothing happens without the variable: QB_TEST_CRASH=access|abort|freeze|quit.
     const QByteArray crashTest = QB_TEST_ENV_BYTES("QB_TEST_CRASH");
     if (!crashTest.isEmpty())

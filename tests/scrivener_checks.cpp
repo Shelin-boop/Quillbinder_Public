@@ -482,9 +482,14 @@ void runOn(const QString &origin, const QString &label)
     {
         const QString base = scriv + QLatin1String("/Files/Data/") + nd->id + QLatin1Char('/');
         const QByteArray rtf = readAll(base + QLatin1String("content.rtf"));
-        check(rtf.count("scrivcmt://") == 3, L(QStringLiteral("notes: three HYPERLINK \"scrivcmt://\" anchors")), QString::fromUtf8(rtf.right(400)));
-        check(!rtf.contains("Calm that night") && !rtf.contains("check the log"),
-              L(QStringLiteral("notes: inline notes leave the text and become linked notes")));
+        // 0.81.3: inline notes stay inline, as Scrivener for Windows keeps them (text marks in the RTF); before, they became
+        // linked notes (decision "1A")
+        check(rtf.count("scrivcmt://") == 1, L(QStringLiteral("notes: one HYPERLINK \"scrivcmt://\" anchor (the linked comment)")),
+              QString::fromUtf8(rtf.right(400)));
+        const QString plain = rtf::toPlainText(rtf);
+        check(plain.contains(QLatin1String("and the sea{\\Scrv_fn=Calm that night.\\end_Scrv_fn}."))
+                  && plain.contains(QLatin1String("{\\Scrv_annot \\color={\\R=")) && plain.contains(QLatin1String("\\text=check the log\\end_Scrv_annot}")),
+              L(QStringLiteral("notes: inline notes stay in the text, in Scrivener for Windows' form")), plain);
         QDomDocument cd;
         check(bool(cd.setContent(readAll(base + QLatin1String("content.comments")))), L(QStringLiteral("notes: content.comments is XML")));
         const QDomNodeList cs = cd.elementsByTagName(QStringLiteral("Comment"));
@@ -497,10 +502,8 @@ void runOn(const QString &origin, const QString &label)
             check(rtf.contains(("scrivcmt://" + e.attribute(QStringLiteral("ID"))).toUtf8()),
                   L(QStringLiteral("notes: comment %1 has its anchor in the text").arg(i + 1)));
         }
-        check(cs.size() == 3 && fns == 1, L(QStringLiteral("notes: two comments and one footnote")), QString::number(cs.size()));
-        check(texts.contains(QStringLiteral("Too plain?")) && texts.contains(QStringLiteral("check the log"))
-                  && texts.contains(QStringLiteral("Calm that night.")),
-              L(QStringLiteral("notes: their texts")), texts.join(QLatin1String(" | ")));
+        check(cs.size() == 1 && fns == 0, L(QStringLiteral("notes: one comment")), QString::number(cs.size()));
+        check(texts == QStringList{QStringLiteral("Too plain?")}, L(QStringLiteral("notes: its text")), texts.join(QLatin1String(" | ")));
         check(QString::fromUtf8(readAll(base + QLatin1String("synopsis.txt"))) == QLatin1String("The lamp fails."),
               L(QStringLiteral("new document: synopsis.txt")));
         const QDomDocument d2 = scrivxDom(scriv);
@@ -578,7 +581,7 @@ void runOn(const QString &origin, const QString &label)
                   L(QStringLiteral("changed elsewhere: the window layout and the like of the last time stay")));
             BinderItem *c2 = q->item(QStringLiteral("06C0455C-36DD-4F38-BB7B-F7DD2453A8A5"));
             check(c2 && c2->keywords.size() == 1 && q->keywordById(c2->keywords.first()),
-                  L(QStringLiteral("changed elsewhere: keywords (not written to the .scriv) stay")));
+                  L(QStringLiteral("changed elsewhere: keywords made here stay (written into the .scriv since 0.81.2)")));
             check(countKind(q->docs()->text(nightId), NoteKind::InlineFootnote) == 1,
                   L(QStringLiteral("changed elsewhere: the notes of an untouched text stay as they were")));
 
@@ -681,10 +684,13 @@ int scrivenerChecks()
             check(QFile::exists(scriv + QLatin1String("/Files/Data/") + pic->id + QLatin1String("/content.png"))
                       && itemEl(d, pic->id).attribute(QStringLiteral("Type")) == QLatin1String("Image"),
                   QStringLiteral("convert: a picture as Image with content.png"));
+            // 0.81.2: as Scrivener 3.1.6.0 for Windows has audio and video (before: a text that named the file)
             check(QFile::exists(scriv + QLatin1String("/Files/Data/") + audio->id + QLatin1String("/content.mp3"))
-                      && itemEl(d, audio->id).attribute(QStringLiteral("Type")) == QLatin1String("Text")
-                      && readAll(scriv + QLatin1String("/Files/Data/") + audio->id + QLatin1String("/content.rtf")).contains("content.mp3"),
-                  QStringLiteral("convert: an audio file as a text that names it, the file beside it"));
+                      && itemEl(d, audio->id).attribute(QStringLiteral("Type")) == QLatin1String("Media")
+                      && itemEl(d, audio->id).firstChildElement(QStringLiteral("MetaData")).firstChildElement(QStringLiteral("FileExtension")).text()
+                             == QLatin1String("mp3")
+                      && !QFile::exists(scriv + QLatin1String("/Files/Data/") + audio->id + QLatin1String("/content.rtf")),
+                  QStringLiteral("convert: an audio file as Media with content.mp3, no stand-in text"));
             check(!root.firstChildElement(QStringLiteral("LabelSettings")).isNull()
                       && root.firstChildElement(QStringLiteral("StatusSettings")).elementsByTagName(QStringLiteral("Status")).size()
                              == p->statuses.size() + 1,

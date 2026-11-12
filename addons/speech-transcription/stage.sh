@@ -1,6 +1,6 @@
 #!/bin/bash
 # Puts the libraries of the add-on "Speech Transcription" (0.61) into a staged copy of the add-on.
-#   stage.sh <build dir> <stage dir>      (called by packaging/build-addons.sh)
+#   stage.sh <build dir> <stage dir>      (called by packaging/linux/build-addons.sh)
 # Needs: the two libraries of plugins/tools/speech-transcription (built with the program), whisper.cpp
 # built by tools/get-whisper.sh into <build dir>/../build/whisper (or QB_WHISPER_DIR), Qt Multimedia and Qt's TLS
 # plugin of The Qt Company's own build of the Qt the AppImage carries (0.80.0: Qt 6.12.0 in QB_QT_DIR; the

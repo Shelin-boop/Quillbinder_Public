@@ -8,7 +8,7 @@
 // description, the release workflow. Saves screenshots into the folder given as first
 // argument. Exit code = number of failed checks.
 //
-//   tools/get-ffmpeg.sh; packaging/build-addons.sh build build/addons-dist
+//   tools/get-ffmpeg.sh; packaging/linux/build-addons.sh build build/addons-dist
 //   pulseaudio -D --exit-idle-time=-1     (any sound server; a null sink is enough)
 //   QT_QPA_PLATFORM=offscreen ./qb_v050_tests /tmp/shots
 //
@@ -687,19 +687,19 @@ int main(int argc, char **argv)
               QStringLiteral("the short what's-new lines of the program update come from the list of changes"), news);
         const QString wf = QString::fromUtf8(readAll(kSource + QStringLiteral("/.github/workflows/release.yml")));
         check(wf.contains(QLatin1String("tags: ['v*']")) && wf.contains(QLatin1String("container: ubuntu:24.04"))
-                  && wf.contains(QLatin1String("tools/get-ffmpeg.sh")) && wf.contains(QLatin1String("packaging/build-appimage.sh"))
-                  && wf.contains(QLatin1String("tools/e2e-appimage.sh")) && wf.contains(QLatin1String("tools/collect-sources.py"))
+                  && wf.contains(QLatin1String("tools/get-ffmpeg.sh")) && wf.contains(QLatin1String("packaging/linux/build-appimage.sh"))
+                  && wf.contains(QLatin1String("packaging/linux/e2e-appimage.sh")) && wf.contains(QLatin1String("tools/collect-sources.py"))
                   && wf.contains(QLatin1String("tools/publish-release.sh")) && wf.contains(QLatin1String("contents: write")),
               QStringLiteral("the release workflow builds, checks, collects the sources and publishes on a version tag"));
-        const QString meta = QString::fromUtf8(readAll(kSource + QStringLiteral("/packaging/quillbinder.metainfo.xml")));
-        const QString desktop = QString::fromUtf8(readAll(kSource + QStringLiteral("/packaging/quillbinder.desktop")));
+        const QString meta = QString::fromUtf8(readAll(kSource + QStringLiteral("/packaging/linux/quillbinder.metainfo.xml")));
+        const QString desktop = QString::fromUtf8(readAll(kSource + QStringLiteral("/packaging/linux/quillbinder.desktop")));
         check(meta.contains(QLatin1String("Scrivener 3 format")) && meta.contains(QLatin1String("not made by or connected"))
                   && meta.contains(QStringLiteral("%1 version: keep backups").arg(label)) && !desktop.contains(QLatin1String("Scrivener")),
               QStringLiteral("the AppStream description names Scrivener only as a file format, with the non-affiliation and the label's notes; "
                              "the desktop file does not name it"));
         if (!run(QStringLiteral("sh"), {QStringLiteral("-c"), QStringLiteral("command -v appstreamcli")}).trimmed().isEmpty()) {
             const QString v = run(QStringLiteral("appstreamcli"), {QStringLiteral("validate"), QStringLiteral("--no-net"),
-                                                                    kSource + QStringLiteral("/packaging/quillbinder.metainfo.xml")}, &rc);
+                                                                    kSource + QStringLiteral("/packaging/linux/quillbinder.metainfo.xml")}, &rc);
             check(rc == 0, QStringLiteral("appstreamcli accepts the AppStream description"), v);
         }
         const QString readme = QString::fromUtf8(readAll(kSource + QStringLiteral("/README.md")));

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Puts the libraries of the add-on "Media Playback" into a staged copy of the add-on.
-#   stage.sh <build dir> <stage dir>      (called by packaging/build-addons.sh)
+#   stage.sh <build dir> <stage dir>      (called by packaging/linux/build-addons.sh)
 # Needs: the two libraries of plugins/media (built with the program), Qt Multimedia of The Qt Company's own
 # build of the Qt the AppImage carries (0.80.0: Qt 6.12.0 in QB_QT_DIR, tools/get-qt.sh), FFmpeg 9.0 set "base"
 # built by tools/build-ffmpeg.sh into <build dir>/ffmpeg (or QB_FFMPEG_DIR=<prefix>).

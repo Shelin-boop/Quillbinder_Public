@@ -49,12 +49,52 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#else
 #include <dlfcn.h>
+#endif
 #include <memory>
 
 using namespace qb::tools;
 
 namespace {
+
+// The engine and the Qt Multimedia of the add-on are loaded by their full path (Windows: W4a, 2026-11-11; the
+// libraries they need are looked for beside them first, as MediaEngineWin.cpp does).
+#ifdef Q_OS_WIN
+const QString kImplFile = QStringLiteral("/qb-speech-impl.dll");
+const QString kMultimediaFile = QStringLiteral("/Qt6Multimedia.dll");
+void *openLibrary(const QString &path, bool /*global*/)
+{
+    return ::LoadLibraryExW(reinterpret_cast<LPCWSTR>(QDir::toNativeSeparators(path).utf16()), nullptr,
+                            LOAD_WITH_ALTERED_SEARCH_PATH);
+}
+void *librarySymbol(void *h, const char *name)
+{
+    return reinterpret_cast<void *>(::GetProcAddress(static_cast<HMODULE>(h), name));
+}
+QString libraryError()
+{
+    const DWORD code = ::GetLastError();
+    wchar_t *msg = nullptr;
+    ::FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr,
+                     code, 0, reinterpret_cast<LPWSTR>(&msg), 0, nullptr);
+    const QString text = msg ? QString::fromWCharArray(msg).trimmed() : QString();
+    if (msg)
+        ::LocalFree(msg);
+    return QStringLiteral("%1 (%2)").arg(text).arg(code);
+}
+#else
+const QString kImplFile = QStringLiteral("/libqb-speech-impl.so");
+const QString kMultimediaFile = QStringLiteral("/lib/libQt6Multimedia.so.6");
+void *openLibrary(const QString &path, bool global)
+{
+    return dlopen(QFile::encodeName(path).constData(), RTLD_NOW | (global ? RTLD_GLOBAL : RTLD_LOCAL));
+}
+void *librarySymbol(void *h, const char *name) { return dlsym(h, name); }
+QString libraryError() { return QString::fromLocal8Bit(dlerror()); }
+#endif
 
 const QString kRecord = QStringLiteral("speech-transcription.record");
 const QString kShow = QStringLiteral("speech-transcription.show");
@@ -302,20 +342,30 @@ speech::EngineInterface *SpeechTool::engine(QString *error)
     if (!m_engineError.isEmpty())
         return fail(m_engineError);
     const QString dir = speechDir();
-    const QString impl = dir + QStringLiteral("/libqb-speech-impl.so");
+    const QString impl = dir + kImplFile;
     if (dir.isEmpty() || !QFileInfo::exists(impl))
         return fail(tr("The add-on's speech engine is missing (install the add-on again)."));
     // Qt Multimedia comes with the add-on (the program has none): loaded by its full path first,
     // so the engine takes this copy (the same Qt as the program) whatever the system has
-    const QString mm = dir + QStringLiteral("/lib/libQt6Multimedia.so.6");
-    if (QFileInfo::exists(mm) && !dlopen(QFile::encodeName(mm).constData(), RTLD_NOW | RTLD_GLOBAL))
-        return fail(tr("Cannot load Qt Multimedia: %1").arg(QString::fromLocal8Bit(dlerror())));
+    const QString mm = dir + kMultimediaFile;
+    if (QFileInfo::exists(mm) && !openLibrary(mm, true))
+        return fail(tr("Cannot load Qt Multimedia: %1").arg(libraryError()));
     if (QFileInfo::exists(dir + QStringLiteral("/qtplugins")))
         QCoreApplication::addLibraryPath(dir + QStringLiteral("/qtplugins"));
-    void *h = dlopen(QFile::encodeName(impl).constData(), RTLD_NOW | RTLD_LOCAL);
+#ifdef Q_OS_WIN
+    // W4c (2026-11-12): whisper.cpp's libraries sit in lib\ (as on Linux), where Windows does not look for the
+    // engine's libraries; loaded here by their full paths, in the order they need each other, so that the engine
+    // takes these (Windows uses a library of that name that is already loaded)
+    for (const char *name : {"ggml-base", "ggml", "whisper"}) {
+        const QString lib = dir + QStringLiteral("/lib/%1.dll").arg(QLatin1String(name));
+        if (QFileInfo::exists(lib) && !openLibrary(lib, false))
+            return fail(tr("Cannot load %1: %2").arg(QFileInfo(lib).fileName(), libraryError()));
+    }
+#endif
+    void *h = openLibrary(impl, false);
     if (!h)
-        return fail(tr("Cannot load the speech engine: %1").arg(QString::fromLocal8Bit(dlerror())));
-    auto create = reinterpret_cast<SpeechCreateFn>(dlsym(h, "qb_speech_impl_create"));
+        return fail(tr("Cannot load the speech engine: %1").arg(libraryError()));
+    auto create = reinterpret_cast<SpeechCreateFn>(librarySymbol(h, "qb_speech_impl_create"));
     if (!create)
         return fail(tr("The speech engine is damaged (no entry point)."));
     m_engine = create();
@@ -1145,7 +1195,11 @@ bool TranscriptPanel::saveOrKeep()
 {
     if (save())
         return true;
-    const QString dir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/Quillbinder/Emergency");
+    // 1.7 (W4b): the program's own data folder, which the host names (Windows: inside the portable program folder;
+    // Linux: the same ~/.local/share/Quillbinder/Emergency as before)
+    qb::tools::ToolHost *host = m_tool->host();
+    const QString dir = host ? QDir::cleanPath(host->dataDir(m_tool->id()) + QStringLiteral("/../../Emergency"))
+                             : QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/Quillbinder/Emergency");
     QDir().mkpath(dir);
     const QString target = dir + QLatin1Char('/') + QFileInfo(m_file).completeBaseName() + QStringLiteral(" (transcript, ")
                            + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH-mm-ss")) + QStringLiteral(").txt");

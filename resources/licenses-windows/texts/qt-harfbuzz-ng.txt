@@ -1,5 +1,5 @@
 HarfBuzz-NG
-Version: 10.4.0
+Version: 14.5.0
 Homepage: http://harfbuzz.org
 HarfBuzz is an OpenType text shaping engine.
 

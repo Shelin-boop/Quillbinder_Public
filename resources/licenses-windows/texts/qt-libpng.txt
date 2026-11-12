@@ -1,10 +1,10 @@
 LibPNG
-Version: 1.6.47
+Version: 1.6.58
 Homepage: http://www.libpng.org/pub/png/libpng.html
 libpng is the official PNG reference library.
 
-Copyright (c) 1995-2025 The PNG Reference Library Authors
-Copyright (c) 2000-2025 Cosmin Truta
+Copyright (c) 1995-2026 The PNG Reference Library Authors
+Copyright (c) 2000-2026 Cosmin Truta
 Copyright (c) 1998-2018 Glenn Randers-Pehrson
 Copyright (c) 1996-1997 Andreas Dilger
 Copyright (c) 1995-1996 Guy Eric Schalnat, Group 42, Inc.
@@ -32,8 +32,8 @@ COPYRIGHT NOTICE, DISCLAIMER, and LICENSE
 PNG Reference Library License version 2
 ---------------------------------------
 
- * Copyright (c) 1995-2025 The PNG Reference Library Authors.
- * Copyright (c) 2018-2025 Cosmin Truta.
+ * Copyright (c) 1995-2026 The PNG Reference Library Authors.
+ * Copyright (c) 2018-2026 Cosmin Truta.
  * Copyright (c) 2000-2002, 2004, 2006-2018 Glenn Randers-Pehrson.
  * Copyright (c) 1996-1997 Andreas Dilger.
  * Copyright (c) 1995-1996 Guy Eric Schalnat, Group 42, Inc.

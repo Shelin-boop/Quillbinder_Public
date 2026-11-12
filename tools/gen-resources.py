@@ -40,7 +40,7 @@ def write_qrc(name, items):
 
 write_qrc("resources.qrc", entries)
 # Windows (port, W3): the same files, but the license list of what the Windows program ships
-# (resources/licenses-windows, tools/collect-licenses-windows.py) under the same names :/licenses/...
+# (resources/licenses-windows, packaging/windows/collect-licenses-windows.py) under the same names :/licenses/...
 win = [e for e in entries if not e[0].startswith("licenses/")]
 base = os.path.join(RES, "licenses-windows")
 for dirpath, _, files in sorted(os.walk(base)):

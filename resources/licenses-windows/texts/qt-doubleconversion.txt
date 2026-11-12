@@ -1,5 +1,5 @@
 Efficient Binary-Decimal and Decimal-Binary Conversion Routines for IEEE Doubles
-Version: 3.3.0
+Version: 3.4.0
 Homepage: https://github.com/google/double-conversion
 
 Copyright 2006-2012, the V8 project authors

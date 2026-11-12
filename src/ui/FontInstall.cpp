@@ -11,10 +11,7 @@
 #include <QProcess>
 #include <QSet>
 #include <QStandardPaths>
-#ifdef Q_OS_WIN
-#include <QSettings>
-#include <windows.h>
-#endif
+#include "core/Paths.h"
 
 namespace qb {
 namespace fontinstall {
@@ -98,13 +95,14 @@ QString place(const QString &dir, const QString &name, const QByteArray &data, Q
 
 QString userFontDir()
 {
+#ifdef Q_OS_WIN
+    // W4b (portable): the program folder's data\fonts, loaded for this program at each start (main.cpp); before
+    // (W2 to W4a) Windows' folder for fonts of one user with a line in the registry
+    const QString dir = dataDir() + QStringLiteral("/fonts");
+#else
     QString base = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
     if (base.isEmpty())
         base = QDir::homePath() + QStringLiteral("/.local/share");
-#ifdef Q_OS_WIN
-    // Windows' own folder for fonts of one user (%LOCALAPPDATA%\Microsoft\Windows\Fonts, port W2)
-    const QString dir = base + QStringLiteral("/Microsoft/Windows/Fonts");
-#else
     const QString dir = base + QStringLiteral("/fonts");
 #endif
     QDir().mkpath(dir);
@@ -185,7 +183,11 @@ Result install(const QStringList &files, const QString &targetDir)
 QStringList reload()
 {
     QStringList fresh;
+#ifdef Q_OS_WIN
+    const QStringList dirs = {userFontDir()};
+#else
     const QStringList dirs = {userFontDir(), QDir::homePath() + QStringLiteral("/.fonts")};
+#endif
     for (const QString &d : dirs) {
         if (!QDir(d).exists())
             continue;
@@ -243,26 +245,9 @@ bool openFontManager(QString *which)
 void refreshCache(const QString &dir)
 {
 #ifdef Q_OS_WIN
-    // Windows: a user's font is a file in that folder plus a line under HKEY_CURRENT_USER; other
-    // programs see it after WM_FONTCHANGE
-    QSettings reg(QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts"),
-                  QSettings::NativeFormat);
-    bool changed = false;
-    for (const QFileInfo &fi : QDir(dir).entryInfoList(QDir::Files)) {
-        if (!isFontFile(fi.fileName()))
-            continue;
-        const QString path = QDir::toNativeSeparators(fi.absoluteFilePath());
-        const QString key = fi.completeBaseName()
-                            + (fi.suffix().compare(QLatin1String("otf"), Qt::CaseInsensitive) == 0 ? QStringLiteral(" (OpenType)")
-                                                                                                     : QStringLiteral(" (TrueType)"));
-        if (reg.value(key).toString() == path)
-            continue;
-        reg.setValue(key, path);
-        ::AddFontResourceW(reinterpret_cast<const wchar_t *>(path.utf16()));
-        changed = true;
-    }
-    if (changed)
-        ::PostMessageW(HWND_BROADCAST, WM_FONTCHANGE, 0, 0);
+    // W4b (portable): nothing to tell Windows; the files in data\fonts are this program's only (registered with Qt
+    // by install() and, at each start, by reload())
+    Q_UNUSED(dir)
 #else
     const QString exe = QStandardPaths::findExecutable(QStringLiteral("fc-cache"));
     if (!exe.isEmpty())

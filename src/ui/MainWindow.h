@@ -364,6 +364,12 @@ private:
     void importFiles();
     void explainWebImportAddon();
     void backupNow(bool chooseLocation);
+    // W4b: the portable program (Windows) has no standard backup folder. Whether a backup may run now: true when a
+    // folder is set (elsewhere always); else, when `ask` allows, the writer is asked for one (Once: once per session,
+    // Always: an explicit Back Up Now); without a folder the status bar says that no backup was made (`tell`).
+    enum class AskFolder { Never, Once, Always };
+    bool backupFolderReady(AskFolder ask, bool tell = true);
+    void updateBackupState();
     void convertFileTool();
     void printDocument();
     // File > Print Preview (with the given settings instead of the project's: the
@@ -404,6 +410,8 @@ private:
     QString m_lastSaveRecovery;
     QString m_lastChangeKeptAside;
     QLabel *m_saveState = nullptr;
+    QLabel *m_backupState = nullptr; // W4b: "No backups" while the portable program has no backup folder
+    bool m_backupFolderAsked = false;
     QTimer *m_saveStateTimer = nullptr;
     QTimer *m_saveRetry = nullptr;
     QDateTime m_saveFailedSince;

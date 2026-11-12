@@ -73,6 +73,10 @@ QTextBlockFormat blockFormatFor(const Formatting &f, const QString &style, const
         bf.setIndent(base.indent());
     if (base.objectIndex() >= 0)
         bf.setObjectIndex(base.objectIndex()); // stays an item of its list
+    // 0.90.0: what a Scrivener text keeps and this program does not show (written back as read)
+    for (int prop : {int(props::RightOutdent), int(props::ListIndents)})
+        if (base.hasProperty(prop))
+            bf.setProperty(prop, base.property(prop));
     // explicit centre alignment on an unstyled paragraph is semantic
     if (style.isEmpty() && base.hasProperty(QTextFormat::BlockAlignment)
         && (base.alignment() & Qt::AlignHCenter)) {
@@ -246,7 +250,8 @@ QTextCharFormat semanticCharFormat(const QTextCharFormat &in)
         out.setForeground(QColor(30, 90, 200));
     }
     for (int p : {int(props::NoteKind), int(props::NoteId), int(props::NoteText), int(props::NoteColor),
-                  int(props::Highlight), int(props::Revision), int(props::CharStyle)}) {
+                  int(props::Highlight), int(props::Revision), int(props::CharStyle), int(props::FaceBold),
+                  int(props::FaceItalic), int(props::LinkUnderline)}) {
         if (in.hasProperty(p))
             out.setProperty(p, in.property(p));
     }

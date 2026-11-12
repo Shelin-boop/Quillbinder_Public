@@ -1,7 +1,7 @@
 {
   "id": "speech-transcription",
   "name": "Speech Transcription",
-  "version": "1.6",
+  "version": "1.7",
   "description": "Speech becomes text, on this computer only: a microphone button in the main toolbar starts and stops a recording (the arrow beside it chooses the microphone), and what is said is written into a new transcription file, listed in the inspector's tab \"Transcriptions\", where it can be edited and copied. Or record only, using little power, and let the text be written later with Transcribe. Recognition by whisper.cpp; the model (Small, Medium, Large v3 or Large v3 Turbo) is chosen and downloaded once under File > Options > Speech, checked, and then used without any connection. A main language for the text and a fallback language that is also spoken: with English as the main language, what is said in the other language is written in English. Graphics cards through Vulkan when one is found. Brings Qt Multimedia 6.4.2 for the microphone and Qt's TLS plugin for the download.",
   "author": "Quillbinder",
   "minApp": "0.61.0",

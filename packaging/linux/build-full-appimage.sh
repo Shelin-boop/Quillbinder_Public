@@ -1,17 +1,17 @@
 #!/bin/bash
-# Builds the full version of the AppImage (0.60): the AppImage of packaging/build-appimage.sh with every
+# Builds the full version of the AppImage (0.60): the AppImage of packaging/linux/build-appimage.sh with every
 # add-on package inside. At the first start of this version the add-ons are installed (as with
-# File > Install Update or Add-on), so the program comes with audio and video in every format, the
+# File > Install Update or Add-on), so the program comes with the commonly used audio and video formats, the
 # themes, templates, writing tools and importers, and all the libraries they need.
 #
-#   packaging/build-full-appimage.sh [AppImage build dir] [add-on packages dir]
+#   packaging/linux/build-full-appimage.sh [AppImage build dir] [add-on packages dir]
 #
-# Needs: <build dir>/<Name>-<version>-<label>-x86_64.AppImage (packaging/build-appimage.sh, which also
+# Needs: <build dir>/<Name>-<version>-<label>-x86_64.AppImage (packaging/linux/build-appimage.sh, which also
 # fetches appimagetool and the runtime) and one <id>.qbpkg per folder of addons/ in the packages dir
-# (packaging/build-addons.sh; the media add-ons need tools/get-ffmpeg.sh).
+# (packaging/linux/build-addons.sh; the media add-ons need tools/get-ffmpeg.sh).
 # Result: <build dir>/<Name>-<version>-full-<label>-x86_64.AppImage
 set -euo pipefail
-ROOT=$(cd "$(dirname "$0")/.." && pwd)
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 BUILD=$(cd "${1:-$ROOT/build-appimage}" && pwd)
 ADDONS=$(cd "${2:-$ROOT/dist}" && pwd)
 TOOLS=${TOOLS:-$ROOT/packaging/tools}
@@ -21,9 +21,9 @@ VERSION=$(sed -n 's/^set(APP_VERSION *"\(.*\)")/\1/p' "$ROOT/CMakeLists.txt")
 LABEL=$(sed -n 's/^set(APP_VERSION_LABEL *"\(.*\)")/\1/p' "$ROOT/CMakeLists.txt")
 IN="$BUILD/$APP_NAME-$VERSION${LABEL:+-$LABEL}-x86_64.AppImage"
 OUT="$BUILD/$APP_NAME-$VERSION-full${LABEL:+-$LABEL}-x86_64.AppImage"
-[ -f "$IN" ] || { echo "no AppImage: $IN (packaging/build-appimage.sh)" >&2; exit 1; }
+[ -f "$IN" ] || { echo "no AppImage: $IN (packaging/linux/build-appimage.sh)" >&2; exit 1; }
 for t in appimagetool-x86_64.AppImage runtime-x86_64; do
-    [ -f "$TOOLS/$t" ] || { echo "missing $TOOLS/$t (packaging/build-appimage.sh fetches it)" >&2; exit 1; }
+    [ -f "$TOOLS/$t" ] || { echo "missing $TOOLS/$t (packaging/linux/build-appimage.sh fetches it)" >&2; exit 1; }
 done
 # every add-on of the source, nothing else (not the program update, not the media bundle, which
 # holds two of these packages again)
@@ -45,7 +45,7 @@ cat > "$FULL/README.txt" <<TEXT
 $APP_NAME $VERSION${LABEL:+ $LABEL}, full version
 
 This AppImage is $APP_NAME with all its add-ons and the libraries they need included: audio and
-video in every format (Media Playback with Qt Multimedia and FFmpeg, also the formats licensed under
+video in the commonly used formats (Media Playback with Qt Multimedia and FFmpeg, also the formats licensed under
 patents), the extra themes, the project templates, the compile format, the scriptwriting pack, the
 writing tools (Name Generator, Scratch Pad, Text Statistics) and the importers of web pages and old
 Word files. They are installed at the first start of this version, as File > Install Update or
@@ -58,7 +58,7 @@ rm -f "$APPDIR/AppRun"
 cat > "$APPDIR/AppRun" <<SCRIPT
 #!/bin/sh
 # $APP_NAME, full version: installs the add-ons inside this AppImage at the first start of
-# version $VERSION (packaging/build-full-appimage.sh), then starts the program.
+# version $VERSION (packaging/linux/build-full-appimage.sh), then starts the program.
 HERE=\$(dirname "\$(readlink -f "\$0")")
 BIN="\$HERE/usr/bin/$APP_ID"
 MARK="\${XDG_DATA_HOME:-\$HOME/.local/share}/$APP_NAME/full-addons-installed-$VERSION"

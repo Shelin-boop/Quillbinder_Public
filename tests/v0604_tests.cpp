@@ -159,7 +159,8 @@ int main(int argc, char **argv)
     // ---- the README
     {
         QFile f(QStringLiteral(QB_TEST_SOURCE_DIR "/../README.md"));
-        const QString readme = f.open(QIODevice::ReadOnly) ? QString::fromUtf8(f.readAll()) : QString();
+        // (W4c: without carriage returns: Git on Windows checks the file out with CRLF)
+        const QString readme = f.open(QIODevice::ReadOnly) ? QString::fromUtf8(f.readAll()).remove(QLatin1Char('\r')) : QString();
         // the writer's own words, first written into the public README on GitHub (2026-11-06)
         const int download = int(readme.indexOf(QLatin1String("## Download")));
         const int wayland = int(readme.indexOf(QLatin1String("Works under Kubuntu 26.04 LTS\nWayland.")));

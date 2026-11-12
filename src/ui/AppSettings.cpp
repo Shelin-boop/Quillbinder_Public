@@ -2,6 +2,7 @@
 #include "core/SettingsLayer.h"
 #include "core/SyncSafety.h"
 #include "core/Backup.h"
+#include "core/Portable.h"
 #include "core/Addons.h"
 #include "core/ItemIcons.h"
 #include "core/PageSetup.h"
@@ -70,6 +71,7 @@ void AppSettings::pushToModules()
     nf.paragraphSpacing = newParagraphSpacing;
     nf.align = newAlign;
     ScrivenerImporter::setNewProjectFormatting(nf);
+    ScrivenerImporter::setCardWidth(cardWidth);   // 0.90.0: places of cards on a freely arranged corkboard
 }
 
 QMap<QString, QColor> AppSettings::standardOwnColors()
@@ -214,7 +216,8 @@ void AppSettings::load()
     backupOnClose = s.value(QStringLiteral("onClose"), backupOnClose).toBool();
     backupOnOpen = s.value(QStringLiteral("onOpen"), backupOnOpen).toBool();
     backupKeep = s.value(QStringLiteral("keep"), backupKeep).toInt();
-    backupDir = s.value(QStringLiteral("dir"), backup::defaultDirectory()).toString();
+    // W4b: the portable program (Windows) has no standard backup folder; the writer picks one (first start, Options)
+    backupDir = s.value(QStringLiteral("dir"), portable::active() ? QString() : backup::defaultDirectory()).toString();
     s.endGroup();
 
     s.beginGroup(QStringLiteral("behaviour"));

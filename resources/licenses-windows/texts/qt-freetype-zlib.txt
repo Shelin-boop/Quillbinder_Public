@@ -2,7 +2,7 @@ Freetype 2 - zlib
 Homepage: http://www.freetype.org
 FreeType is a freely available software library to render fonts.
 
-Copyright (C) 1995-2023 Jean-loup Gailly and Mark Adler
+Copyright (C) 1995-2024 Jean-loup Gailly and Mark Adler
 
 Copyright (C) 1995-2002 Jean-loup Gailly and Mark Adler
 

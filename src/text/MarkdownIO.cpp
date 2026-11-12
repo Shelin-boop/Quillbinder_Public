@@ -17,6 +17,7 @@
 #include <QTextFragment>
 #include <QTextList>
 #include <QTextTable>
+#include <QUrl>
 #include <QUuid>
 
 namespace qb {
@@ -820,6 +821,13 @@ BlockInfo parseBlock(const QString &line, const Formatting &f)
     const QRegularExpressionMatch pm = paraRe.match(line);
     if (pm.hasMatch()) {
         BlockInfo inner = parseBlock(pm.captured(2), f);
+        // 0.90.0: the paragraph style of a list item ("{: style=Heading%201} 1. text"; the list's mark leaves no room
+        // for "::Style::", and older versions ignore the key, as they lost the style before)
+        static const QRegularExpression styleKey(QStringLiteral("(^|\\s)style=([^\\s}]+)"));
+        const QRegularExpressionMatch sm = styleKey.match(pm.captured(1));
+        if (sm.hasMatch() && inner.style.isEmpty())
+            if (const Style *st = styles::find(f, QUrl::fromPercentEncoding(sm.captured(2).toUtf8())))
+                inner.style = st->name;
         const direct::ParaSpec outer = direct::paraSpecFromText(pm.captured(1));
         if (!inner.para.bits)
             inner.para = outer;
@@ -1716,6 +1724,10 @@ QString paragraphLine(Writer &w, const QTextBlock &b, const Formatting &f)
     const bool pageBreak = b.blockFormat().property(props::PageBreak).toBool()
                            || (b.blockFormat().pageBreakPolicy() & QTextFormat::PageBreak_AlwaysBefore);
     QStringList paraAttrs;
+    // 0.90.0 (the system test's menu monkey, 2026-11-12): a list item with a paragraph style lost the style at the
+    // next opening (the list's mark took the place of "::Style::")
+    if (list && ps)
+        paraAttrs << QStringLiteral("style=") + QString::fromLatin1(QUrl::toPercentEncoding(ps->name));
     if (own.bits)
         paraAttrs << direct::toText(own);
     if (pageBreak)

@@ -451,7 +451,7 @@ int main(int argc, char **argv)
     {
         const QString dist = QStringLiteral(QB_TEST_PLUGIN_DIR "/../addons-dist");
         if (!QFile::exists(dist + QLatin1String("/themes-extra.qbpkg"))) {
-            std::printf("      (add-on packages not built; run packaging/build-addons.sh <build> <build>/addons-dist)\n");
+            std::printf("      (add-on packages not built; run packaging/linux/build-addons.sh <build> <build>/addons-dist)\n");
         } else {
             // the install window: grab it while it is open, then press its button
             auto answer = [](const QString &shotName, const QString &buttonText) {

@@ -1,11 +1,11 @@
 D3D12 Memory Allocator
-Version: f128d39b7a95b4235bd228d231646278dc6c24b2
+Version: v3.1.0
 Homepage: https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator
 D3D12 Memory Allocator
 
-Copyright (c) 2019-2022 Advanced Micro Devices, Inc. All rights reserved.
+Copyright (c) 2019-2026 Advanced Micro Devices, Inc. All rights reserved.
 
-Copyright (c) 2019-2022 Advanced Micro Devices, Inc. All rights reserved.
+Copyright (c) 2019-2026 Advanced Micro Devices, Inc. All rights reserved.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

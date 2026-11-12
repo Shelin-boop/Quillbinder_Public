@@ -4,14 +4,14 @@
 # version must still find every object, link and picture, and the older version must have left
 # the folder objects/ untouched.
 #
-#   tools/e2e-old-version.sh <older AppImage> [build dir] [work dir]
+#   packaging/linux/e2e-old-version.sh <older AppImage> [build dir] [work dir]
 #
 # Needs: a build with tests (build/tests/qb_v020_tests), Xvfb, xdotool, python3. The older
 # AppImage runs with a home folder of its own (so it starts its own program, not an installed
-# update). Uses the instance link of the program (as tools/e2e-appimage.sh does).
+# update). Uses the instance link of the program (as packaging/linux/e2e-appimage.sh does).
 set -u
 OLD=$(readlink -f "${1:?older AppImage}")
-ROOT=$(cd "$(dirname "$0")/.." && pwd)
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 B=$(readlink -f "${2:-$ROOT/build}")
 E=$(mkdir -p "${3:-$ROOT/build/e2e-old}" && cd "${3:-$ROOT/build/e2e-old}" && pwd)
 chmod +x "$OLD"

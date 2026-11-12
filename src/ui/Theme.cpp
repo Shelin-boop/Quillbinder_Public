@@ -6,6 +6,7 @@
 #include "ui/AppSettings.h"
 
 #include <QApplication>
+#include <QStyleHints>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -829,6 +830,14 @@ void apply()
             && i.role != Role::TargetSession && i.role != Role::TargetDraft && i.role != Role::TargetReached
             && i.role != Role::InspectorFields) // the inspector's own, not the window palette's (0.60.3)
             generalChanged = true;
+#ifdef Q_OS_WIN
+    // W4b: Windows 11's own controls (the style "windows11") take their colors from the color scheme, not from the
+    // palette alone: a dark theme on a light Windows gave light fields with light text. Qt is told the theme's scheme
+    // (before the palette is set, so the theme's colors stay on top); a theme that follows the desktop follows Windows.
+    if (QStyleHints *hints = QGuiApplication::styleHints())
+        hints->setColorScheme(t.followDesktop ? Qt::ColorScheme::Unknown
+                                              : (darkColor(s_colors[Role::Window]) ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light));
+#endif
     const QPalette pal = generalChanged ? paletteFor(s_colors) : s_systemPalette;
     if ((generalChanged || s_ownPalette) && pal != QApplication::palette())
         QApplication::setPalette(pal);

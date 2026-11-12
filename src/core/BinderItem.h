@@ -31,6 +31,7 @@ public:
     QString synopsisImage;         // file name inside the content folder
     QString fileExt;               // media extension ("png", "pdf" ...)
     QString originalFileName;
+    QString sourceUrl;             // a web page's address (0.81.3; Scrivener's OriginalURL)
     int target = 0;                // document target
     bool targetChars = false;
     QString defaultTemplate;       // template id for new subdocuments
@@ -40,6 +41,9 @@ public:
     bool autoTitle = false;
     QList<Bookmark> bookmarks;     // document bookmarks
     QString corkboardPos;          // "x,y" for freeform corkboard
+    // 0.90.0: how this container's corkboard is arranged, as chosen for it ("freeform", "grid"; "" = never chosen:
+    // the pane keeps its arrangement). Scrivener keeps the arrangement per container.
+    QString corkArrangement;
     // cached statistics (kept in the project file so they are known without
     // loading every document)
     int wordCount = 0;

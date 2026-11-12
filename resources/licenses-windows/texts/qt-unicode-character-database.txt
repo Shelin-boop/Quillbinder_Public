@@ -1,9 +1,9 @@
 Unicode Character Database (UCD)
-Version: 34
+Version: 36
 Homepage: https://www.unicode.org/ucd/
 The Unicode Character Database (UCD) is a set of files that  define the Unicode character properties and internal mappings.
 
-Copyright (C) 1991-2022 Unicode, Inc.
+Copyright (C) 1991-2025 Unicode, Inc.
 
 UNICODE LICENSE V3
 

@@ -394,7 +394,7 @@ def refresh(licdir, runtime_file=None):
 # ---------------------------------------------------------------- Qt's own build (0.80.0)
 # The AppImage carries The Qt Company's Linux binaries (tools/get-qt.sh), not Ubuntu's: their licenses come from
 # Qt's attribution files (qt_attribution.json) and the license files of Qt PDF's parts, checked out by
-# tools/get-qt-licenses.sh (as tools/collect-licenses-windows.py does for the Windows build).
+# tools/get-qt-licenses.sh (as packaging/windows/collect-licenses-windows.py does for the Windows build).
 # Left out: parts of other systems (Android, macOS, Windows, WebAssembly), of the test library, of tools that are
 # not shipped (SQL drivers, the TIFF picture plugin) and ARM-only code.
 QT_LEFT_OUT = {

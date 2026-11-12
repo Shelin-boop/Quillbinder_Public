@@ -851,7 +851,7 @@ int main(int argc, char **argv)
         bool trashed = false;
         QDirIterator t(home.path() + QLatin1String("/data/Trash/files"), QDir::Dirs | QDir::NoDotAndDotDot);
         while (t.hasNext())
-            trashed = trashed || t.next().contains(QStringLiteral("Welcome to"));
+            trashed = t.next().contains(QStringLiteral("Welcome to")) || trashed; // next() on every turn (W4c)
         check(fresh && trashed && QFileInfo(p->folderPath()).absoluteFilePath() == QFileInfo(folder).absoluteFilePath()
                   && !QFileInfo::exists(QDir::currentPath() + QLatin1String("/files")),
               QStringLiteral("... \"Make a Fresh Copy\" puts the old one into the trash and starts again in the same place"),

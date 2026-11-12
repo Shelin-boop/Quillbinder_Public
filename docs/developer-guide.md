@@ -83,7 +83,7 @@ Installed add-ons live in `<data>/addons/<id>/`. They can be switched off (they 
 
 An add-on folder in the source tree (`addons/<id>/`) holds `manifest.json` and `payload/`. Extras:
 
-- `outline.json` or `outlines/*.json`: project templates written as outlines; `packaging/build-addons.sh` turns them into template files with `build/qb_template` (`tools/qb-template.cpp`, which uses `src/core/OutlineProject.*` like the welcome project of the program);
+- `outline.json` or `outlines/*.json`: project templates written as outlines; `packaging/linux/build-addons.sh` turns them into template files with `build/qb_template` (`tools/qb-template.cpp`, which uses `src/core/OutlineProject.*` like the welcome project of the program);
 - `plugins.txt`: the plugin libraries (built into `build/tool-plugins/`) that are copied into the package;
 - `stage.sh`: a script that copies further files in (libraries of the Media Playback add-on, Qt's TLS plugin of the Web Page Import add-on).
 
@@ -132,27 +132,46 @@ update; everything else of such a tool comes with an update of its add-on.
 
 ## 8. Tools in the source tree
 
+**Where is what** (2026-11-12). One source for every system:
+
+| Folder | What is in it |
+|--------|---------------|
+| `src/` | the program: `core` (projects, saving, backups, packages), `text` (formatting, Markdown and RTF), `ui` (the windows), `compile`, `import`, `tools` (the interface of the writing tools) |
+| `plugins/`, `addons/` | the writing tools, importers and media playback as plugins, and the add-on packages made of them |
+| `resources/`, `translations/` | icons, templates, the welcome project, the license lists (Linux and Windows); the German texts |
+| `tests/` | the test programs (`tools/run-all-tests.sh` runs them on Linux, `packaging/windows/win-tests.sh` on Windows) |
+| `packaging/linux/` | building and checking the Linux downloads: AppImage, program update, add-ons, full version, end-to-end checks |
+| `packaging/windows/` | building and checking the Windows downloads on GitHub's Windows machine (`.github/workflows/windows.yml`) |
+| `packaging/android/` | planned |
+| `tools/` | shared tools: packages, release text, download page, publishing, legal check, test runner, the build machine's set-up |
+| `docs/` | the user manual, the quick start guide, this guide, the list of changes |
+
+Downloads: published versions on the public repository's Releases page and its download page (GitHub Pages, one
+button per system for the full version, `tools/download-page.py`).
+Work branches are named after the system they are for: `linux/...`, `win/...`, `android/...`, or `all/...`.
+
 | Tool | What it does |
 |------|--------------|
-| `packaging/build-update.sh "line" ...` | builds a program update from the source: `dist/quillbinder-<version>-update.qbpkg` (own build folder `build-update`); the lines become `whatsNew` |
-| `packaging/build-addons.sh [build] [out]` | builds every add-on in `addons/` into `<out>/<id>.qbpkg` |
-| `packaging/build-appimage.sh` | builds a new AppImage (rarely; keep `APP_RUNTIME` when the libraries stay the same) |
+| `packaging/linux/build-update.sh "line" ...` | builds a program update from the source: `dist/quillbinder-<version>-update.qbpkg` (own build folder `build-update`); the lines become `whatsNew` |
+| `packaging/linux/build-addons.sh [build] [out]` | builds every add-on in `addons/` into `<out>/<id>.qbpkg` |
+| `packaging/linux/build-appimage.sh` | builds a new AppImage (rarely; keep `APP_RUNTIME` when the libraries stay the same) |
 | `tools/make-package.py addon / core / bundle` | writes `.qbpkg` files with the manifest and the SHA-256 sums; `bundle` packs several packages |
-| `tools/e2e-appimage.sh <AppImage> <update.qbpkg>` | end-to-end check with the real AppImage: install, `--versions`, `--selftest`, a cut-off package, the first start with the welcome project and printing its first document, the second start, a Scrivener sample (`QB_SCRIV_SAMPLE`), the way back (`QB_PREV_UPDATE`); `-` instead of the package checks a new AppImage alone |
+| `packaging/linux/e2e-appimage.sh <AppImage> <update.qbpkg>` | end-to-end check with the real AppImage: install, `--versions`, `--selftest`, a cut-off package, the first start with the welcome project and printing its first document, the second start, a Scrivener sample (`QB_SCRIV_SAMPLE`), the way back (`QB_PREV_UPDATE`); `-` instead of the package checks a new AppImage alone |
 | `tools/run-all-tests.sh <out> offscreen\|x11` | every test suite, one line each |
 | `tools/cloud-setup.sh` | the packages for a fresh Ubuntu 24.04 (build and tests) |
 | `tools/get-ffmpeg.sh`, `tools/build-ffmpeg.sh` | the two FFmpeg sets of the media add-ons: "base" (free formats, Media Playback) and "full" (every decoder, Extra Video and Audio Formats) |
 | `tools/qb-template.cpp` | project template files from outlines (the builder is `src/core/OutlineProject.*`, shared with the welcome project) |
-| `tools/collect-licenses.py` | the license texts of every library the AppImage carries (`resources/licenses`, Help > Third-Party Licenses) with the name of each library's source file; `--refresh` (versions of the build system and the runtime's commit) and `--check` (same versions as the AppDir) are run by `packaging/build-appimage.sh` |
+| `tools/collect-licenses.py` | the license texts of every library the AppImage carries (`resources/licenses`, Help > Third-Party Licenses) with the name of each library's source file; `--refresh` (versions of the build system and the runtime's commit) and `--check` (same versions as the AppDir) are run by `packaging/linux/build-appimage.sh` |
 | `tools/collect-sources.py <out>` | the source code of every third-party part of the AppImage and the add-ons, one `.src.tar` per part, for the release "Third-party source code" (needs `tools/enable-deb-src.sh`) |
-| `tools/release-notes.py`, `tools/publish-release.sh` | the text of a release and its publication on the project page (run by `.github/workflows/release.yml`) |
+| `tools/release-notes.py`, `tools/publish-release.sh` | the text of a release (the files sorted by system under a short headline each) and its publication on the project page (run by `.github/workflows/release.yml`) |
+| `tools/download-page.py` | the download page of a release (GitHub Pages; job `download-page` of the release workflow) |
 | `tools/make-item-icons.py` | draws the document icons of Documents > Change Icon (0.17) |
 | `tools/gen-resources.py`, `tools/update-icon-index.sh` | the resource list after adding icons or documents |
 
 Example: a bundle of a program update and an add-on
 
-    packaging/build-update.sh "Mind maps" "Icon bar"
-    packaging/build-addons.sh build dist
+    packaging/linux/build-update.sh "Mind maps" "Icon bar"
+    packaging/linux/build-addons.sh build dist
     tools/make-package.py bundle --id quillbinder-bundle --name "Quillbinder 0.17" --version 0.17.0 \
         dist/quillbinder-0.17.0-update.qbpkg dist/themes-extra.qbpkg dist/bundle.qbpkg
 
@@ -162,8 +181,8 @@ Example: a bundle of a program update and an add-on
 
 1. Raise `APP_VERSION`; write what is new in `docs/CHANGES.md` (and the section of the version in the development log `docs/status.md`, where there is one); bring `docs/manual.md` up to date.
 2. Run every test suite, offscreen and under X11 (`tools/run-all-tests.sh`); all must end with "0 failure(s)". New functions get checks of their own in a test program under `tests/`; look at the screenshots the tests save.
-3. Build the update package (`packaging/build-update.sh`).
-4. Run the end-to-end check with the real AppImage (`tools/e2e-appimage.sh`; the AppImage 0.40.0 alpha and earlier packages are on the branch `assets` of the repository; `tools/e2e-old-version.sh` checks that an older AppImage keeps the objects of a project).
+3. Build the update package (`packaging/linux/build-update.sh`).
+4. Run the end-to-end check with the real AppImage (`packaging/linux/e2e-appimage.sh`; the AppImage 0.40.0 alpha and earlier packages are on the branch `assets` of the repository; `packaging/linux/e2e-old-version.sh` checks that an older AppImage keeps the objects of a project).
 5. Commit on a branch, open a pull request, merge it; put the package on the branch `assets` as well.
 6. The user installs the package with **File > Install Update or Add-on**.
 7. A public release (0.50): copy the tree into the public repository (without `docs/status.md`), commit, and push it to `main`; a version on `main` that has no release yet (or a tag `v<version>-<label>` pushed from a computer, for example `v0.50.0-alpha`) starts `.github/workflows/release.yml`, which builds everything on GitHub in a clean Ubuntu 24.04, checks the AppImage, collects the third-party source code and publishes the release with the AppImage, the program update, the add-ons, the checksums and the list of source files; the source files go into the release "Third-party source code" (added once, never removed). Releases and tags cannot be made from a Claude Code session; the workflow makes both with GitHub's own token.

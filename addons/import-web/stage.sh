@@ -1,6 +1,6 @@
 #!/bin/bash
 # Puts the files of the add-on "Web Page Import" into a staged copy of the add-on.
-#   stage.sh <build dir> <stage dir>      (called by packaging/build-addons.sh)
+#   stage.sh <build dir> <stage dir>      (called by packaging/linux/build-addons.sh)
 # The plugin of the program (build/tool-plugins/libqb-import-web.so) and Qt's TLS plugin of The Qt Company's own
 # build of the Qt the AppImage carries (0.80.0: Qt 6.12.0 in QB_QT_DIR; the AppImage has no TLS plugin).
 set -euo pipefail

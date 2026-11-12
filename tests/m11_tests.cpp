@@ -5,7 +5,7 @@
 // failed checks.
 //
 //   tools/build-ffmpeg.sh <ffmpeg-9.0.2 source> build/ffmpeg
-//   packaging/build-addons.sh build build/addons-dist
+//   packaging/linux/build-addons.sh build build/addons-dist
 //   pulseaudio -D --exit-idle-time=-1     (any sound server; a null sink is enough)
 //   QT_QPA_PLATFORM=offscreen ./qb_m11_tests /tmp/shots
 //

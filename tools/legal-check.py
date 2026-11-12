@@ -84,7 +84,7 @@ def main(argv):
            "NOTICE names the project and its source and no person")
 
     # 2. the program says it is independent of Literature & Latte where it is presented
-    places = ["README.md", "packaging/quillbinder.metainfo.xml", "src/ui/MainWindow.cpp", "tools/release-notes.py"]
+    places = ["README.md", "packaging/linux/quillbinder.metainfo.xml", "src/ui/MainWindow.cpp", "tools/release-notes.py"]
     def plain(t):  # C++ string pieces joined, white space folded
         return re.sub(r"\s+", " ", re.sub(r'"\s*\n\s*"', "", t).replace("&amp;", "&"))
     missing = [p for p in places if "not made by or connected with Literature" not in plain(text(p))]

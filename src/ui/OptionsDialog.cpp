@@ -5,6 +5,9 @@
 #include "ui/Ask.h"
 #include "compile/PluginManager.h"
 #include "core/Backup.h"
+#include "core/Paths.h"
+#include "core/Portable.h"
+#include "ui/PortableSetup.h"
 #include "core/CrashGuard.h"
 #include "core/ItemIcons.h"
 #include "core/Objects.h"
@@ -594,6 +597,20 @@ QWidget *OptionsDialog::generalSection()
                       "instead, and the user name is left out."),
                    saving));
     pages.append({tr("Saving"), saving});
+
+    // W4b: the portable program (Windows): where it keeps its files, notes and transcriptions, Start menu, file types
+    if (portable::active()) {
+        QWidget *computer = page(&f);
+        auto *where = hint(tr("The program keeps its settings, add-ons, updates, fonts and crash reports in %1. The backup "
+                              "folder is on the page Backup.")
+                               .arg(PortableSetup::shownPath(dataDir())),
+                           computer);
+        where->setObjectName(QStringLiteral("optThisComputerWhere"));
+        f->addRow(where);
+        m_portableSetup = new PortableSetup(computer);
+        f->addRow(m_portableSetup);
+        pages.append({tr("This Computer"), computer});
+    }
 
     // Author Information
     QWidget *author = page(&f);
@@ -2061,7 +2078,11 @@ QWidget *OptionsDialog::backupSection()
     m_backupKeep->setValue(s.backupKeep);
     f->addRow(tr("Retain backup files per project:"), m_backupKeep);
     auto *row = new QHBoxLayout;
-    m_backupDir = new QLineEdit(s.backupDir.isEmpty() ? backup::defaultDirectory() : s.backupDir, w);
+    // W4b: the portable program (Windows) shows an empty field until a folder is chosen (no automatic backups then)
+    m_backupDir = new QLineEdit(s.backupDir.isEmpty() && !portable::active() ? backup::defaultDirectory() : s.backupDir, w);
+    m_backupDir->setObjectName(QStringLiteral("optBackupDir"));
+    if (portable::active())
+        m_backupDir->setPlaceholderText(tr("No folder chosen: no automatic backups"));
     auto *choose = new QPushButton(tr("Choose..."), w);
     auto *open = new QPushButton(tr("Open Backup Folder..."), w);
     row->addWidget(m_backupDir, 1);
@@ -2074,6 +2095,8 @@ QWidget *OptionsDialog::backupSection()
             m_backupDir->setText(d);
     });
     connect(open, &QPushButton::clicked, this, [this] {
+        if (m_backupDir->text().trimmed().isEmpty())
+            return;
         QDir().mkpath(m_backupDir->text());
         QDesktopServices::openUrl(QUrl::fromLocalFile(m_backupDir->text()));
     });
@@ -2475,6 +2498,8 @@ void OptionsDialog::apply()
     s.phone = m_phone->text().trimmed();
     s.email = m_email->text().trimmed();
     s.deviceName = m_deviceName->text().simplified();
+    if (m_portableSetup)
+        m_portableSetup->apply();
     s.sharedTemplatesDir = m_sharedTemplates->text().trimmed();
     s.citationsApp = m_citations->text().trimmed();
     s.sepMerge = m_sepMerge->currentData().toString();
@@ -2602,7 +2627,7 @@ void OptionsDialog::apply()
     s.backupOnOpen = m_backupOpen->isChecked();
     s.backupOnManualSave = m_backupManual->isChecked();
     s.backupKeep = m_backupKeep->value();
-    s.backupDir = m_backupDir->text();
+    s.backupDir = portable::active() ? QDir::fromNativeSeparators(m_backupDir->text().trimmed()) : m_backupDir->text();
     // Extras
     MindMapPrefs &mp = MindMapPrefs::instance();
     mp.enterEndsEditing = m_mmEnterEnds->isChecked();

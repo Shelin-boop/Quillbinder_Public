@@ -38,7 +38,12 @@ struct ReadResult {
 
 ReadResult read(const QByteArray &data, QTextDocument *doc, const Formatting &f,
                 const ReadOptions &opt = ReadOptions());
-QByteArray write(const QTextDocument *doc, const Formatting &f);
+// How a text is written. scrivener (0.90.0): the forms Scrivener 3 for Windows writes where this program's own
+// differ: lists with a list table, links to outside addresses underlined, and nothing of the page setup.
+struct WriteOptions {
+    bool scrivener = false;
+};
+QByteArray write(const QTextDocument *doc, const Formatting &f, const WriteOptions &opt = WriteOptions());
 
 // Quick plain-text extraction (used for synopses stored as RTF, comments ...)
 QString toPlainText(const QByteArray &data);

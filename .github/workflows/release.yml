@@ -115,7 +115,7 @@ jobs:
         run: tools/ci-step.sh whisper tools/get-whisper.sh
 
       - name: AppImage
-        run: tools/ci-step.sh appimage packaging/build-appimage.sh
+        run: tools/ci-step.sh appimage packaging/linux/build-appimage.sh
 
       - name: Add-ons and program update (not signed yet)
         env:
@@ -123,14 +123,14 @@ jobs:
           QB_FFMPEG_FULL_DIR: ${{ github.workspace }}/build/ffmpeg-full
         run: |
           mkdir -p dist
-          tools/ci-step.sh addons packaging/build-addons.sh build-appimage dist
+          tools/ci-step.sh addons packaging/linux/build-addons.sh build-appimage dist
           mapfile -t NEWS < <(python3 -I tools/release-notes.py --whats-new)
-          BUILD=build-appimage OUT=dist tools/ci-step.sh update packaging/build-update.sh "${NEWS[@]}"
+          BUILD=build-appimage OUT=dist tools/ci-step.sh update packaging/linux/build-update.sh "${NEWS[@]}"
           cp build-appimage/*.AppImage dist/
           ls -la dist
 
       - name: Check the AppImage
-        run: tools/ci-step.sh e2e tools/e2e-appimage.sh "$(ls dist/*-x86_64.AppImage | grep -v -- -full-)" - /tmp/e2e
+        run: tools/ci-step.sh e2e packaging/linux/e2e-appimage.sh "$(ls dist/*-x86_64.AppImage | grep -v -- -full-)" - /tmp/e2e
 
       - name: Third-party source code
         run: tools/ci-step.sh sources python3 -I tools/collect-sources.py sources
@@ -375,12 +375,12 @@ jobs:
           cp unsigned/packaging/tools/* packaging/tools/
           chmod +x packaging/tools/* dist/*.AppImage       # (artifacts do not keep the executable bit)
           cp "$(ls dist/*-x86_64.AppImage | grep -v -- -full-)" build-appimage/
-          tools/ci-step.sh full packaging/build-full-appimage.sh build-appimage dist
+          tools/ci-step.sh full packaging/linux/build-full-appimage.sh build-appimage dist
           cp build-appimage/*-full-*.AppImage dist/
           ls -la dist
 
       - name: Check the full version
-        run: tools/ci-step.sh e2e-full tools/e2e-appimage.sh "$(ls dist/*-full-*-x86_64.AppImage)" - /tmp/e2e-full
+        run: tools/ci-step.sh e2e-full packaging/linux/e2e-appimage.sh "$(ls dist/*-full-*-x86_64.AppImage)" - /tmp/e2e-full
 
       - name: Hand the files to the job "sign-checksums"
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -491,3 +491,41 @@ jobs:
           [ -f "$f" ] || { echo "::error title=Step $s failed::no log"; exit 0; }
           msg=$(tail -n 80 "$f" | cut -c1-300 | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | sed ':a;N;$!ba;s/\n/%0A/g')
           echo "::error title=Step $s failed::$msg"
+
+  download-page:
+    # 2026-11-12: the download page on GitHub Pages (https://shelin-boop.github.io/Quillbinder_Public/): one button
+    # per system for the full version, made by tools/download-page.py from the names of the release's files. Needs,
+    # once, Settings > Pages > Build and deployment > Source "GitHub Actions" in the public repository. Runs after
+    # the release is published and changes nothing in it.
+    needs: [version, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: The page
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          mkdir -p release-names site
+          gh release view "$TAG" --json assets --jq '.assets[].name' | while IFS= read -r n; do : > "release-names/$n"; done
+          ls release-names
+          python3 -I tools/download-page.py release-names "$TAG" site
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

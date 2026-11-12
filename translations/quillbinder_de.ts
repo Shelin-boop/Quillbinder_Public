@@ -353,7 +353,30 @@ Die Vornamen dieser Liste sind nicht in weiblich und männlich unterteilt.</tran
         </message>
     </context>
     <context>
+        <name>Portable</name>
+        <message>
+            <source>the folder &quot;data&quot; cannot be made in %1</source>
+            <translation>der Ordner „data“ in %1 nicht angelegt werden kann</translation>
+        </message>
+        <message>
+            <source>nothing can be written into %1 (%2)</source>
+            <translation>nichts in %1 geschrieben werden kann (%2)</translation>
+        </message>
+    </context>
+    <context>
         <name>QObject</name>
+        <message>
+            <source>The saved page holds no web page.</source>
+            <translation>Die gespeicherte Seite enthält keine Webseite.</translation>
+        </message>
+        <message>
+            <source>Cannot make the folder %1.</source>
+            <translation>Der Ordner %1 kann nicht angelegt werden.</translation>
+        </message>
+        <message>
+            <source>Cannot write %1.</source>
+            <translation>%1 kann nicht geschrieben werden.</translation>
+        </message>
         <message>
             <source>Part &lt;$W:part&gt;</source>
             <translation>Teil &lt;$W:part&gt;</translation>
@@ -4481,6 +4504,37 @@ Quelle: %1</translation>
         </message>
     </context>
     <context>
+        <name>WinShell</name>
+        <message>
+            <source>Quillbinder, a writing program</source>
+            <translation>Quillbinder, ein Schreibprogramm</translation>
+        </message>
+        <message>
+            <source>Quillbinder project</source>
+            <translation>Quillbinder-Projekt</translation>
+        </message>
+        <message>
+            <source>Scrivener project</source>
+            <translation>Scrivener-Projekt</translation>
+        </message>
+        <message>
+            <source>the registry entries could not be written</source>
+            <translation>die Einträge in der Registrierung nicht geschrieben werden konnten</translation>
+        </message>
+        <message>
+            <source>only on Windows</source>
+            <translation>nur unter Windows</translation>
+        </message>
+        <message>
+            <source>the registry entries could not be removed</source>
+            <translation>die Einträge in der Registrierung nicht entfernt werden konnten</translation>
+        </message>
+        <message>
+            <source>%1 cannot be deleted</source>
+            <translation>%1 nicht gelöscht werden kann</translation>
+        </message>
+    </context>
+    <context>
         <name>Word97Importer</name>
         <message>
             <source>Cannot copy the file for LibreOffice.</source>
@@ -4521,6 +4575,17 @@ Quelle: %1</translation>
         <message>
             <source>Word 97–2003 documents</source>
             <translation>Word-97–2003-Dokumente</translation>
+        </message>
+    </context>
+    <context>
+        <name>main</name>
+        <message>
+            <source>Quillbinder keeps its settings, add-ons and updates in its own folder, and it cannot work there because %1.
+
+Move the whole Quillbinder folder to a place of your own, for example C:\Users\&lt;your name&gt;\Quillbinder, and start it from there. Program Files and other protected folders do not work, because the program needs no administrator rights.</source>
+            <translation>Quillbinder bewahrt seine Einstellungen, Erweiterungen und Aktualisierungen in seinem eigenen Ordner auf und kann dort nicht arbeiten, weil %1.
+
+Verschieben Sie den ganzen Quillbinder-Ordner an einen eigenen Ort, zum Beispiel C:\Users\&lt;Ihr Name&gt;\Quillbinder, und starten Sie es von dort. Programme (Program Files) und andere geschützte Ordner gehen nicht, weil das Programm keine Administratorrechte braucht.</translation>
         </message>
     </context>
     <context>
@@ -6735,6 +6800,44 @@ Seiten (250 Wörter): %5</translation>
         <message>
             <source>Before you start: how your projects are backed up. Everything is filled in already: OK keeps it as it is. You can change all of it later in File &gt; Options.</source>
             <translation>Bevor Sie beginnen: wie Ihre Projekte gesichert werden. Alles ist schon ausgefüllt: OK übernimmt es so. Sie können alles später unter Datei &gt; Einstellungen ändern.</translation>
+        </message>
+        <message>
+            <source>Everything in One Folder</source>
+            <translation>Alles in einem Ordner</translation>
+        </message>
+        <message>
+            <source>Quillbinder keeps its settings, add-ons, program updates, fonts and crash reports in the folder &quot;data&quot; inside its own folder:
+%1
+
+Nothing is written into Windows&apos; own folders or the registry, unless you ask for it below. The whole folder can be moved or copied, to a USB stick or another computer, and deleting it removes the program. Program updates are installed with File &gt; Install Update or Add-on; to move to a version you downloaded anew, unpack it and copy the folder &quot;data&quot; into it. Your projects stay wherever you keep them.</source>
+            <translation>Quillbinder bewahrt seine Einstellungen, Erweiterungen, Programmaktualisierungen, Schriften und Absturzberichte im Ordner „data“ in seinem eigenen Ordner auf:
+%1
+
+In die Ordner von Windows und in die Registrierung wird nichts geschrieben, außer Sie wünschen es unten. Der ganze Ordner lässt sich verschieben oder kopieren, auf einen USB-Stick oder einen anderen Computer, und wer ihn löscht, entfernt das Programm. Programmaktualisierungen werden mit Datei &gt; Aktualisierung oder Erweiterung installieren eingespielt; um zu einer neu heruntergeladenen Version zu wechseln, entpacken Sie sie und kopieren den Ordner „data“ hinein. Ihre Projekte bleiben, wo Sie sie aufbewahren.</translation>
+        </message>
+        <message>
+            <source>The program&apos;s folder is inside your %1 folder. That works, but the sync service copies the program&apos;s own files back and forth and may keep them only online. Better: the program&apos;s folder outside it (for example C:\Users\&lt;your name&gt;\Quillbinder), your projects inside it.</source>
+            <translation>Der Ordner des Programms liegt in Ihrem %1-Ordner. Das geht, aber der Sync-Dienst kopiert die eigenen Dateien des Programms hin und her und hält sie vielleicht nur online vor. Besser: der Ordner des Programms außerhalb (zum Beispiel C:\Users\&lt;Ihr Name&gt;\Quillbinder), Ihre Projekte darin.</translation>
+        </message>
+        <message>
+            <source>The program&apos;s folder has a long path. Windows limits most paths to 260 characters; a short place such as C:\Users\&lt;your name&gt;\Quillbinder leaves room for updates and add-ons.</source>
+            <translation>Der Ordner des Programms hat einen langen Pfad. Windows begrenzt die meisten Pfade auf 260 Zeichen; ein kurzer Ort wie C:\Users\&lt;Ihr Name&gt;\Quillbinder lässt Platz für Aktualisierungen und Erweiterungen.</translation>
+        </message>
+        <message>
+            <source>Windows may warn when the program starts for the first time, because it is not signed (SmartScreen: &quot;More info&quot;, then &quot;Run anyway&quot;). That happens again for each new download.</source>
+            <translation>Windows warnt vielleicht beim ersten Start des Programms, weil es nicht signiert ist (SmartScreen: „Weitere Informationen“, dann „Trotzdem ausführen“). Das geschieht bei jedem neuen Download wieder.</translation>
+        </message>
+        <message>
+            <source>Choose a folder: until then no backups are made</source>
+            <translation>Ordner wählen: bis dahin werden keine Sicherungen erstellt</translation>
+        </message>
+        <message>
+            <source>This Computer</source>
+            <translation>Dieser Computer</translation>
+        </message>
+        <message>
+            <source>Before you start: where Quillbinder keeps its files on this computer and how your projects are backed up. OK keeps what is filled in; you can change all of it later in File &gt; Options (General &gt; This Computer, Backup) or with Help &gt; This Computer.</source>
+            <translation>Bevor Sie beginnen: wo Quillbinder seine Dateien auf diesem Computer aufbewahrt und wie Ihre Projekte gesichert werden. OK übernimmt, was ausgefüllt ist; Sie können alles später unter Datei &gt; Einstellungen (Allgemein &gt; Dieser Computer, Sicherung) oder mit Hilfe &gt; Dieser Computer ändern.</translation>
         </message>
     </context>
     <context>
@@ -12029,6 +12132,56 @@ Reparieren Sie sie zuerst (Zurücksetzen auf einen Schnappschuss im Inspektor, o
             <source>Not changed, because their file cannot be read (such a file is never written over): %1</source>
             <translation>Nicht geändert, weil ihre Datei nicht gelesen werden kann (eine solche Datei wird nie überschrieben): %1</translation>
         </message>
+        <message>
+            <source>This &amp;Computer…</source>
+            <translation>Dieser &amp;Computer…</translation>
+        </message>
+        <message>
+            <source>Where the program keeps its files, the backup folder, the place of notes and transcriptions, the Start menu entry and the project file types</source>
+            <translation>Wo das Programm seine Dateien aufbewahrt, der Ordner für Sicherungen, der Ort von Notizen und Transkriptionen, der Eintrag im Startmenü und die Projektdateitypen</translation>
+        </message>
+        <message>
+            <source>Backups</source>
+            <translation>Sicherungen</translation>
+        </message>
+        <message>
+            <source>No folder for backups has been chosen yet, so no backup is made. Choose one now?
+
+Best on another drive (a USB stick, a second disk, a folder your sync program copies): the backups should outlive a failing disk. You can change it later in File &gt; Options &gt; Backup.</source>
+            <translation>Es wurde noch kein Ordner für Sicherungen gewählt, deshalb wird keine Sicherung erstellt. Jetzt einen wählen?
+
+Am besten auf einem anderen Laufwerk (USB-Stick, zweite Festplatte, ein Ordner, den Ihr Sync-Programm kopiert): Die Sicherungen sollen eine ausfallende Festplatte überdauern. Sie können ihn später unter Datei &gt; Einstellungen &gt; Sicherung ändern.</translation>
+        </message>
+        <message>
+            <source>Choose Folder…</source>
+            <translation>Ordner wählen…</translation>
+        </message>
+        <message>
+            <source>Folder for Backups</source>
+            <translation>Ordner für Sicherungen</translation>
+        </message>
+        <message>
+            <source>No backup was made: no folder for backups has been chosen (File &gt; Options &gt; Backup).</source>
+            <translation>Es wurde keine Sicherung erstellt: Es ist kein Ordner für Sicherungen gewählt (Datei &gt; Einstellungen &gt; Sicherung).</translation>
+        </message>
+        <message>
+            <source>No backups</source>
+            <translation>Keine Sicherungen</translation>
+        </message>
+        <message>
+            <source>Automatic backups are not made until a folder for them is chosen: click here, or File &gt; Options &gt; Backup.</source>
+            <translation>Automatische Sicherungen werden erst erstellt, wenn ein Ordner dafür gewählt ist: hier klicken oder Datei &gt; Einstellungen &gt; Sicherung.</translation>
+        </message>
+        <message>
+            <source>Installed for Quillbinder (in %1):
+%2
+
+The fonts can be used at once. They stay in the program&apos;s folder: other programs do not see them (to use them elsewhere too, install them with Windows: right-click the font file &gt; Install).</source>
+            <translation>Für Quillbinder installiert (in %1):
+%2
+
+Die Schriften sind sofort nutzbar. Sie bleiben im Ordner des Programms: Andere Programme sehen sie nicht (um sie auch dort zu nutzen, installieren Sie sie mit Windows: Rechtsklick auf die Schriftdatei &gt; Installieren).</translation>
+        </message>
     </context>
     <context>
         <name>qb::ManageIconsDialog</name>
@@ -12102,6 +12255,62 @@ Reparieren Sie sie zuerst (Zurücksetzen auf einen Schnappschuss im Inspektor, o
     </context>
     <context>
         <name>qb::MediaView</name>
+        <message>
+            <source>Open Saved Page in Browser</source>
+            <translation>Gespeicherte Seite im Browser öffnen</translation>
+        </message>
+        <message>
+            <source>Shows the page as it was saved, in your web browser. A copy of it is put into your Downloads folder for that.</source>
+            <translation>Zeigt die Seite so, wie sie gespeichert wurde, in Ihrem Webbrowser. Dafür wird eine Kopie in Ihren Download-Ordner gelegt.</translation>
+        </message>
+        <message>
+            <source>Open Original Address</source>
+            <translation>Ursprüngliche Adresse öffnen</translation>
+        </message>
+        <message>
+            <source>Opens the page&apos;s address in your web browser: the page as it is today.</source>
+            <translation>Öffnet die Adresse der Seite in Ihrem Webbrowser: die Seite, wie sie heute ist.</translation>
+        </message>
+        <message>
+            <source>The page could not be opened: %1</source>
+            <translation>Die Seite konnte nicht geöffnet werden: %1</translation>
+        </message>
+        <message>
+            <source>Opened in your browser from %1</source>
+            <translation>Im Browser geöffnet aus %1</translation>
+        </message>
+        <message>
+            <source>The saved page cannot be read.</source>
+            <translation>Die gespeicherte Seite kann nicht gelesen werden.</translation>
+        </message>
+        <message>
+            <source>No address</source>
+            <translation>Keine Adresse</translation>
+        </message>
+        <message>
+            <source>Web Page</source>
+            <translation>Webseite</translation>
+        </message>
+        <message>
+            <source>Quillbinder web pages</source>
+            <translation>Quillbinder-Webseiten</translation>
+        </message>
+        <message>
+            <source>Cannot make the folder %1.</source>
+            <translation>Der Ordner %1 kann nicht angelegt werden.</translation>
+        </message>
+        <message>
+            <source>Cannot read %1.</source>
+            <translation>%1 kann nicht gelesen werden.</translation>
+        </message>
+        <message>
+            <source>Cannot copy %1.</source>
+            <translation>%1 kann nicht kopiert werden.</translation>
+        </message>
+        <message>
+            <source>No program opened %1.</source>
+            <translation>Kein Programm hat %1 geöffnet.</translation>
+        </message>
         <message>
             <source>Open with Default Application</source>
             <translation>Mit Standardanwendung öffnen</translation>
@@ -15698,6 +15907,18 @@ Ihre zuletzt verwendeten Projekte, eigene Designs, Layouts, Symbolleisten und Ta
             <source>The program speaks %1 from its next start.</source>
             <translation>Das Programm spricht ab seinem nächsten Start %1.</translation>
         </message>
+        <message>
+            <source>The program keeps its settings, add-ons, updates, fonts and crash reports in %1. The backup folder is on the page Backup.</source>
+            <translation>Das Programm bewahrt seine Einstellungen, Erweiterungen, Aktualisierungen, Schriften und Absturzberichte in %1 auf. Der Ordner für Sicherungen steht auf der Seite Sicherung.</translation>
+        </message>
+        <message>
+            <source>This Computer</source>
+            <translation>Dieser Computer</translation>
+        </message>
+        <message>
+            <source>No folder chosen: no automatic backups</source>
+            <translation>Kein Ordner gewählt: keine automatischen Sicherungen</translation>
+        </message>
     </context>
     <context>
         <name>qb::Outliner</name>
@@ -15957,6 +16178,93 @@ Ihre zuletzt verwendeten Projekte, eigene Designs, Layouts, Symbolleisten und Ta
         <message>
             <source>Not shown in the text: e-books, Word files and screen readers keep it with the picture (alt text), and it appears when the mouse rests on the picture.</source>
             <translation>Wird nicht im Text angezeigt: E-Books, Word-Dateien und Screenreader behalten sie beim Bild (Alternativtext), und sie erscheint, wenn die Maus auf dem Bild verweilt.</translation>
+        </message>
+    </context>
+    <context>
+        <name>qb::PortableSetup</name>
+        <message>
+            <source>Scratch Pad Notes and Transcriptions</source>
+            <translation>Notizblock-Notizen und Transkriptionen</translation>
+        </message>
+        <message>
+            <source>In Documents</source>
+            <translation>Im Ordner „Dokumente“</translation>
+        </message>
+        <message>
+            <source>In the program&apos;s folder</source>
+            <translation>Im Ordner des Programms</translation>
+        </message>
+        <message>
+            <source>In a folder of your own:</source>
+            <translation>In einem eigenen Ordner:</translation>
+        </message>
+        <message>
+            <source>Choose…</source>
+            <translation>Auswählen…</translation>
+        </message>
+        <message>
+            <source>Your notes of the Scratch Pad and the texts of Speech Transcription are your writing: in Documents or a folder of your own they stay when the program&apos;s folder is deleted or replaced. A change here gives both tools the new place; what they wrote so far stays where it is.</source>
+            <translation>Ihre Notizen des Notizblocks und die Texte der Spracherkennung sind Ihr Geschriebenes: Im Ordner „Dokumente“ oder in einem eigenen Ordner bleiben sie erhalten, wenn der Ordner des Programms gelöscht oder ersetzt wird. Eine Änderung hier gibt beiden Werkzeugen den neuen Ort; was sie bisher geschrieben haben, bleibt, wo es ist.</translation>
+        </message>
+        <message>
+            <source>Folder for Notes and Transcriptions</source>
+            <translation>Ordner für Notizen und Transkriptionen</translation>
+        </message>
+        <message>
+            <source>Windows</source>
+            <translation>Windows</translation>
+        </message>
+        <message>
+            <source>Entry in the Start menu</source>
+            <translation>Eintrag im Startmenü</translation>
+        </message>
+        <message>
+            <source>Shortcut on the desktop</source>
+            <translation>Verknüpfung auf dem Desktop</translation>
+        </message>
+        <message>
+            <source>Project files: .qbx files open with Quillbinder; it is offered in &quot;Open with&quot; for Scrivener&apos;s .scrivx files</source>
+            <translation>Projektdateien: .qbx-Dateien öffnen sich mit Quillbinder; für Scriveners .scrivx-Dateien wird es unter „Öffnen mit“ angeboten</translation>
+        </message>
+        <message>
+            <source>This could not be removed: %1.</source>
+            <translation>Das ließ sich nicht entfernen: %1.</translation>
+        </message>
+        <message>
+            <source>This could not be added: %1.</source>
+            <translation>Das ließ sich nicht hinzufügen: %1.</translation>
+        </message>
+        <message>
+            <source>These are the only things the program puts outside its folder, and only when you ask for them here. Remove them before you delete or move the program&apos;s folder. To pin Quillbinder to the taskbar: start it, then right-click its button in the taskbar and choose &quot;Pin to taskbar&quot;.</source>
+            <translation>Nur diese Dinge legt das Programm außerhalb seines Ordners an, und nur, wenn Sie es hier wünschen. Entfernen Sie sie, bevor Sie den Ordner des Programms löschen oder verschieben. Quillbinder an die Taskleiste heften: starten, dann mit der rechten Maustaste auf seine Schaltfläche in der Taskleiste klicken und „An Taskleiste anheften“ wählen.</translation>
+        </message>
+        <message>
+            <source>only on Windows</source>
+            <translation>nur unter Windows</translation>
+        </message>
+        <message>
+            <source>added</source>
+            <translation>hinzugefügt</translation>
+        </message>
+        <message>
+            <source>there, for another copy of the program</source>
+            <translation>vorhanden, für eine andere Kopie des Programms</translation>
+        </message>
+        <message>
+            <source>not added</source>
+            <translation>nicht hinzugefügt</translation>
+        </message>
+        <message>
+            <source>Remove</source>
+            <translation>Entfernen</translation>
+        </message>
+        <message>
+            <source>Point Here</source>
+            <translation>Hierher zeigen lassen</translation>
+        </message>
+        <message>
+            <source>Add</source>
+            <translation>Hinzufügen</translation>
         </message>
     </context>
     <context>
