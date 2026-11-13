@@ -50,6 +50,7 @@
 #include <QApplication>
 #include <QDialog>
 #include <QDir>
+#include <QDirIterator>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
@@ -905,7 +906,9 @@ int main(int argc, char **argv)
             env.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("offscreen"));
             if (!mode.isEmpty()) {
                 env.insert(QStringLiteral("LD_PRELOAD"), QStringLiteral(QB_FAULT_SHIM));
-                env.insert(QStringLiteral("QB_SHIM_DIR"), mode == QLatin1String("backup") ? root.path() + QStringLiteral("/backups") : dir);
+                // (0.90.3: a backup is packed in the program's work folder, so that is the drive that is full here; a full
+                // drive under the backup folder is in qb_v0903_tests)
+                env.insert(QStringLiteral("QB_SHIM_DIR"), mode == QLatin1String("backup") ? backup::workDirectory() : dir);
                 env.insert(QStringLiteral("QB_SHIM_MODE"), mode == QLatin1String("backup") ? QStringLiteral("write") : mode);
             }
             pr.setProcessEnvironment(env);
@@ -940,7 +943,12 @@ int main(int argc, char **argv)
         check(rc == 1 && out.contains(QLatin1String("result=0")),
               QStringLiteral("... the same for the notes of a document"), QStringLiteral("rc %1: %2").arg(rc).arg(out.right(300)));
         rc = child(QStringLiteral("backup"), QStringLiteral("backup:") + root.path() + QStringLiteral("/backups"), &out);
-        const QStringList zips = QDir(root.path() + QStringLiteral("/backups")).entryList({QStringLiteral("*.zip")}, QDir::Files);
+        QStringList zips; // (0.90.3: looked for in the project's own backup folder too, and in the work folder)
+        for (const QString &place : {root.path() + QStringLiteral("/backups"), backup::workDirectory()}) {
+            QDirIterator zi(place, {QStringLiteral("*.zip")}, QDir::Files, QDirIterator::Subdirectories);
+            while (zi.hasNext())
+                zips << zi.next();
+        }
         check(rc == 1 && out.contains(QLatin1String("result=0")) && zips.isEmpty(),
               QStringLiteral("a backup on a full disk fails and leaves no backup that looks finished"),
               QStringLiteral("rc %1: %2; %3").arg(rc).arg(out.right(300), zips.join(QLatin1Char(','))));

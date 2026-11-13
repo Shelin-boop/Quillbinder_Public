@@ -16,12 +16,21 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cerrno>
+#include <cstring>
 #include <QFileInfo>
 #include <QHash>
 #include <QLocale>
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QStorageInfo>
+#ifdef Q_OS_UNIX
+#include <unistd.h>
+#elif defined(Q_OS_WIN)
+#include <io.h>
+#endif
+
+#include "core/TestSwitches.h"
 
 namespace qb {
 namespace backup {
@@ -83,6 +92,193 @@ QStringList zipsIn(const QString &dir, const QString &pattern)
         out << fi.absoluteFilePath();
     return out;
 }
+
+// ------------------------------------------------------------------ 0.90.3: names, the work folder, putting in place
+
+// "<title> bak <date time>[ (n)][ (incomplete[ n])].zip": 1 = up to the time, 2 = n, 3 = the incomplete note, 4 = its n
+const QRegularExpression &ownForm()
+{
+    static const QRegularExpression own(QStringLiteral(
+        "^(.+ bak \\d{4}-\\d{2}-\\d{2} \\d{2}-\\d{2}-\\d{2})(?: \\((\\d+)\\))?( \\(incomplete(?: (\\d+))?\\))?\\.zip$"));
+    return own;
+}
+
+// The backup's name with another number of its second ("... (3).zip"; the note "(incomplete)" stays behind it).
+QString numberedName(const QString &fileName, int n)
+{
+    const QRegularExpressionMatch m = ownForm().match(fileName);
+    if (!m.hasMatch())
+        return QFileInfo(fileName).completeBaseName() + QStringLiteral(" (%1).zip").arg(n);
+    return m.captured(1) + QStringLiteral(" (%1)").arg(n) + m.captured(3) + QLatin1String(".zip");
+}
+
+QByteArray sha1Of(const QString &file, qint64 *size)
+{
+    QFile f(file);
+    if (!f.open(QIODevice::ReadOnly))
+        return {};
+    QCryptographicHash h(QCryptographicHash::Sha1);
+    if (!h.addData(&f) || f.error() != QFileDevice::NoError)
+        return {};
+    if (size)
+        *size = f.size();
+    return h.result();
+}
+
+bool syncFile(QFile &f)
+{
+#ifdef Q_OS_UNIX
+    return ::fsync(f.handle()) == 0 || errno == EINVAL || errno == ENOTSUP || errno == EOPNOTSUPP || errno == ENOSYS;
+#elif defined(Q_OS_WIN)
+    return ::_commit(f.handle()) == 0;
+#else
+    Q_UNUSED(f);
+    return true;
+#endif
+}
+
+enum class Put { Done, Failed, Cancelled };
+
+// Copies a finished backup straight to its final name (never over a file that is there: NewOnly), synced, then read
+// again and compared with what was sent. No temporary name in the backup folder: a program that watches the folder
+// sees one file that is written once and closed. A copy that fails, differs or is cancelled is removed again.
+Put copyInto(const QString &staged, const QString &target, QString *why, const std::atomic<bool> *cancel)
+{
+    QFile in(staged);
+    if (!in.open(QIODevice::ReadOnly)) {
+        *why = in.errorString();
+        return Put::Failed;
+    }
+    QFile out(target);
+    if (!out.open(QIODevice::WriteOnly | QIODevice::NewOnly)) {
+        *why = out.errorString();
+        return Put::Failed;
+    }
+    QCryptographicHash sent(QCryptographicHash::Sha1);
+    qint64 copied = 0;
+    bool ok = true, stopped = false;
+    for (;;) {
+        if (cancel && cancel->load()) {
+            stopped = true;
+            break;
+        }
+        const QByteArray piece = in.read(1 << 20);
+        if (piece.isEmpty())
+            break;
+        if (out.write(piece) != piece.size()) {
+            ok = false;
+            *why = out.errorString();
+            break;
+        }
+        sent.addData(piece);
+        copied += piece.size();
+    }
+    if (!stopped && ok) {
+        if (in.error() != QFileDevice::NoError) {
+            ok = false;
+            *why = in.errorString();
+        } else if (copied != in.size()) {
+            ok = false;
+            *why = QObject::tr("the copy differs from the backup");
+        } else if (!out.flush()) {
+            ok = false;
+            *why = out.errorString();
+        } else if (!syncFile(out)) {
+            ok = false;
+            *why = QString::fromLocal8Bit(std::strerror(errno));
+        }
+    }
+    out.close();
+    if (!stopped && ok && out.error() != QFileDevice::NoError) {
+        ok = false;
+        *why = out.errorString();
+    }
+    if (!stopped && ok) {
+        qint64 size = -1;
+        if (sha1Of(target, &size) != sent.result() || size != copied) {
+            ok = false;
+            *why = QObject::tr("the copy differs from the backup");
+        }
+    }
+    if (stopped || !ok) {
+        QFile::remove(target);
+        return stopped ? Put::Cancelled : Put::Failed;
+    }
+    return Put::Done;
+}
+
+// Puts a finished backup of the work folder into the backup folder, in one step: renamed there (one drive), else
+// copied straight to the final name. *finalPath: where it is now. The waiting file is gone only when the backup is
+// in the folder, whole.
+Put putInPlace(const QString &staged, const QString &dir, QString *finalPath, QString *why, const std::atomic<bool> *cancel)
+{
+    if (!QDir().mkpath(dir)) {
+        *why = QObject::tr("the folder cannot be created");
+        return Put::Failed;
+    }
+    const QString ownName = QFileInfo(staged).fileName();
+    QString target = QDir(dir).filePath(ownName);
+    if (QFileInfo::exists(target)) {
+        // a file of this name came into the folder after the name was chosen
+        qint64 a = -1, b = -2;
+        const QByteArray ours = sha1Of(staged, &a);
+        if (!ours.isEmpty() && ours == sha1Of(target, &b) && a == b) {
+            // this very backup: it was put in place before, and the program ended before the waiting file was removed
+            QFile::remove(staged);
+            *finalPath = target;
+            return Put::Done;
+        }
+        if (ZipWriter::verify(target) < 0) {
+            // not a whole ZIP file: what an earlier copy of this backup left when the program ended in the middle
+            if (!QFile::remove(target)) {
+                *why = QObject::tr("a file of this name is in the way and cannot be removed");
+                return Put::Failed;
+            }
+        } else {
+            // another whole backup of this name stays; ours gets the next free number of its second
+            for (int n = 2; QFileInfo::exists(target) && n < 100; ++n)
+                target = QDir(dir).filePath(numberedName(ownName, n));
+            if (QFileInfo::exists(target)) {
+                *why = QObject::tr("a file of this name is in the way and cannot be removed");
+                return Put::Failed;
+            }
+        }
+    }
+    // (test builds: QB_TEST_BACKUP_COPY takes the way of two drives on one)
+    if (QB_TEST_ENV_SET("QB_TEST_BACKUP_COPY") || !savebatch::replace(staged, target)) {
+        const Put r = copyInto(staged, target, why, cancel);
+        if (r != Put::Done)
+            return r;
+        QFile::remove(staged);
+    }
+    // 0.70.0 (audit A F-11): the new backup's name reaches the disk before older backups are deleted
+    savebatch::syncDir(dir);
+    *finalPath = target;
+    return Put::Done;
+}
+
+// The work folder says where its backups belong (for the writer who finds one waiting there).
+void noteTarget(const QString &work, const QString &dir)
+{
+    const QString note = work + QLatin1String("/target.txt");
+    const QByteArray text = QDir::toNativeSeparators(QFileInfo(dir).absoluteFilePath()).toUtf8() + '\n';
+    QFile f(note);
+    if (f.open(QIODevice::ReadOnly) && f.readAll() == text)
+        return;
+    f.close();
+    safesave::writeFile(note, text);
+}
+
+// What a backup left that was cut off while it was packed (a crash, the power): removed once it is an hour old (a
+// younger one may be the backup of another window into the same folder, still running).
+void sweepWork(const QString &work)
+{
+    const QDateTime limit = QDateTime::currentDateTime().addSecs(-3600);
+    const QFileInfoList parts = QDir(work).entryInfoList({QStringLiteral("*.part")}, QDir::Files);
+    for (const QFileInfo &fi : parts)
+        if (fi.lastModified() < limit)
+            QFile::remove(fi.absoluteFilePath());
+}
 } // namespace
 
 void setProgressHandler(std::function<void(const QString &, qint64, qint64, bool *)> handler)
@@ -93,6 +289,30 @@ void setProgressHandler(std::function<void(const QString &, qint64, qint64, bool
 QString defaultDirectory()
 {
     return dataDir() + QLatin1String("/Backups");
+}
+
+QString workDirectory()
+{
+    return dataDir() + QLatin1String("/backup-work");
+}
+
+QString workFolderFor(const QString &backupFolder)
+{
+    const QString place = QDir::cleanPath(QFileInfo(backupFolder).absoluteFilePath());
+    return workDirectory() + QLatin1Char('/')
+           + QString::fromLatin1(QCryptographicHash::hash(place.toUtf8(), QCryptographicHash::Sha1).toHex().left(12));
+}
+
+bool isOwnBackupName(const QString &fileName)
+{
+    const QRegularExpressionMatch m = ownForm().match(fileName);
+    if (!m.hasMatch())
+        return false;
+    // the second backup of a second is "(2)" and the second incomplete one "(incomplete 2)": a "(1)" was made elsewhere
+    for (int group : {2, 4})
+        if (!m.captured(group).isEmpty() && m.captured(group).toInt() < 2)
+            return false;
+    return true;
 }
 
 QString projectKey(const Project *p)
@@ -125,18 +345,18 @@ QStringList backupsFor(const QString &projectTitle, const QString &dir)
     return zipsIn(dir, text::safeFileName(projectTitle) + QLatin1String(" bak *.zip"));
 }
 
-bool backupProject(Project *p, const QString &dirIn, int keep, QString *outPath, QString *error, Where where)
+bool backupProject(Project *p, const QString &dirIn, int keep, QString *outPath, QString *error, Where where, bool *waiting)
 {
+    if (waiting)
+        *waiting = false;
+    // (0.90.3: an empty *error after a backup means "complete": a text left in it from an earlier step is not kept)
+    if (error)
+        error->clear();
     const QString root = dirIn.isEmpty() ? defaultDirectory() : dirIn;
     // 0.70.0 (audit A F-02, B F-3): the backups of a project go into a folder of its own, found by the project
     // folder's place, and only they are counted and cleaned up; another project with the same title (a copy, a
     // restored backup) has its own folder. Back Up To... writes into the chosen folder as it is.
     const QString dir = where == Where::ProjectFolder ? projectFolder(p, root) : root;
-    if (!QDir().mkpath(dir)) {
-        if (error)
-            *error = QObject::tr("Cannot create the backup folder %1").arg(dir);
-        return false;
-    }
     // 0.64.1: a backup is made only of a project whose latest changes were saved (before, a failed save
     // was passed over and the backup reported success without them)
     {
@@ -147,16 +367,31 @@ bool backupProject(Project *p, const QString &dirIn, int keep, QString *outPath,
             return false;
         }
     }
+    // 0.90.3: packed and checked in the program's own work folder for this backup folder; the backup folder gets
+    // only the finished file (see Backup.h). Before, the backup was written as "<name>.zip.part" inside the backup
+    // folder and renamed there, in view of every program that watches the folder.
+    const QString work = workFolderFor(dir);
+    if (!QDir().mkpath(work)) {
+        if (error)
+            *error = QObject::tr("Cannot create the work folder for backups %1").arg(QDir::toNativeSeparators(work));
+        return false;
+    }
+    noteTarget(work, dir);
+    sweepWork(work);
     const QString stem = text::safeFileName(p->title()) + QLatin1String(" bak ")
                          + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH-mm-ss"));
     // two backups in the same second (File > Save twice with "back up with each manual save",
-    // 0.21): the second gets a number instead of failing
-    QString path = QDir(dir).filePath(stem + QLatin1String(".zip"));
-    for (int n = 2; QFile::exists(path) && n < 100; ++n)
-        path = QDir(dir).filePath(stem + QStringLiteral(" (%1).zip").arg(n));
+    // 0.21): the second gets a number instead of failing. The name must be free in the backup folder and among
+    // the backups that wait in the work folder.
+    auto taken = [&dir, &work](const QString &name) {
+        return QFile::exists(QDir(dir).filePath(name)) || QFile::exists(QDir(work).filePath(name));
+    };
+    QString name = stem + QLatin1String(".zip");
+    for (int n = 2; taken(name) && n < 100; ++n)
+        name = stem + QStringLiteral(" (%1).zip").arg(n);
     // written under a temporary name, checked, then renamed: a backup that was cut off
     // (a crash, a full disk) never looks like a finished one (0.20)
-    const QString part = path + QLatin1String(".part");
+    const QString part = QDir(work).filePath(name) + QLatin1String(".part");
     // what the work needs from the project, taken here in the window's thread
     const QString display = p->displayFolder();
     const QString folderName = QFileInfo(display).fileName();
@@ -166,33 +401,39 @@ bool backupProject(Project *p, const QString &dirIn, int keep, QString *outPath,
                                                                                               QLatin1String(QB_APP_NAME))
                                                         + QLatin1Char('/') + QFileInfo(working).fileName();
     struct Result {
-        bool ok = false;
+        bool packed = false; // finished and checked in the work folder
         bool cancelled = false;
         QStringList skipped;
-        QString why;
+        QString why;            // why it could not be packed
+        QString staged;         // the finished backup in the work folder
+        Put put = Put::Failed;  // whether it reached the backup folder
+        QString putWhy;
+        QString path;           // where it is in the backup folder
     } res;
     std::atomic<qint64> done{0};
     std::atomic<bool> cancel{false};
     // 0.70.0 (audit A U-06): packing and checking run in a thread of their own; the window's thread waits with
     // the progress window of the handler (drawn, its Cancel button working, the freeze watchdog fed)
-    auto work = [&] {
-        ZipWriter zw(part);
-        if (!zw.isOpen()) {
-            res.why = zw.errorString();
-            return;
-        }
-        zw.setProgress(&done, &cancel);
-        // a project in Scrivener format: the .scriv is the project; the working copy holds
-        // what only this program knows (keywords, collections, styles, objects ...)
-        bool ok = zw.addDirectory(display, folderName);
-        if (!working.isEmpty() && !zw.cancelled())
-            ok = zw.addDirectory(working, workingName) && ok;
-        res.skipped = zw.skipped();
-        res.cancelled = zw.cancelled();
-        if (!zw.close() || !ok) {
-            res.why = zw.errorString();
-            QFile::remove(part);
-            return;
+    auto work_ = [&] {
+        {
+            ZipWriter zw(part);
+            if (!zw.isOpen()) {
+                res.why = zw.errorString();
+                return;
+            }
+            zw.setProgress(&done, &cancel);
+            // a project in Scrivener format: the .scriv is the project; the working copy holds
+            // what only this program knows (keywords, collections, styles, objects ...)
+            bool ok = zw.addDirectory(display, folderName);
+            if (!working.isEmpty() && !zw.cancelled())
+                ok = zw.addDirectory(working, workingName) && ok;
+            res.skipped = zw.skipped();
+            res.cancelled = zw.cancelled();
+            if (!zw.close() || !ok) {
+                res.why = zw.errorString();
+                QFile::remove(part);
+                return;
+            }
         }
         QString why;
         if (ZipWriter::verify(part, &why) < 0) {
@@ -200,11 +441,42 @@ bool backupProject(Project *p, const QString &dirIn, int keep, QString *outPath,
             res.why = why;
             return;
         }
-        res.ok = true;
+        // 0.65.0 (audit F03): a backup with files missing says so in its name, and never counts as one of the backups
+        // to keep: older complete backups are deleted only after a complete one
+        QString finished = name;
+        if (!res.skipped.isEmpty()) {
+            const QString base = QFileInfo(name).completeBaseName();
+            finished = base + QLatin1String(" (incomplete).zip");
+            for (int n = 2; taken(finished) && n < 100; ++n)
+                finished = base + QStringLiteral(" (incomplete %1).zip").arg(n);
+        }
+        res.staged = QDir(work).filePath(finished);
+        if (!savebatch::replace(part, res.staged)) {
+            QFile::remove(part);
+            res.staged.clear();
+            return;
+        }
+        res.packed = true;
+        // backups that could not be put into the backup folder before go first, oldest first
+        const QStringList waitingOnes = zipsIn(work, QStringLiteral("*.zip"));
+        for (const QString &w : waitingOnes) {
+            if (QFileInfo(w).fileName() == finished)
+                continue;
+            QString at, whyNot;
+            if (putInPlace(w, dir, &at, &whyNot, &cancel) != Put::Done)
+                break; // the folder does not take them now; the new backup says why
+        }
+        if (cancel.load()) {
+            res.cancelled = true;
+            return;
+        }
+        res.put = putInPlace(res.staged, dir, &res.path, &res.putWhy, &cancel);
+        if (res.put == Put::Cancelled)
+            res.cancelled = true;
     };
     const qint64 total = sizeOf(display) + (working.isEmpty() ? 0 : sizeOf(working));
     if (progressHandler()) {
-        QThread *t = QThread::create(work);
+        QThread *t = QThread::create(work_);
         t->start();
         QElapsedTimer clock;
         clock.start();
@@ -217,37 +489,53 @@ bool backupProject(Project *p, const QString &dirIn, int keep, QString *outPath,
         delete t;
         progressHandler()(QString(), total, total, nullptr); // done: the progress window goes
     } else {
-        work();
+        work_();
     }
     if (res.cancelled) {
         QFile::remove(part);
+        if (!res.staged.isEmpty())
+            QFile::remove(res.staged);
         if (error)
             *error = QObject::tr("The backup was cancelled.");
         return false;
     }
-    if (!res.ok) {
+    if (!res.packed) {
+        const QString shown = QDir(work).filePath(name);
         if (error)
-            *error = res.why.isEmpty() ? QObject::tr("Could not write the backup %1").arg(path)
-                                       : QObject::tr("Could not write or check the backup %1: %2").arg(path, res.why);
+            *error = res.why.isEmpty() ? QObject::tr("Could not write the backup %1").arg(shown)
+                                       : QObject::tr("Could not write or check the backup %1: %2").arg(shown, res.why);
         return false;
     }
-    if (!QFile::rename(part, path)) {
-        QFile::remove(part);
+    if (res.put != Put::Done) {
+        const QString shownDir = QDir::toNativeSeparators(dir);
+        if (where == Where::AsChosen) {
+            // the writer chose this folder a moment ago and can choose another: nothing is kept for it
+            QFile::remove(res.staged);
+            if (error)
+                *error = QObject::tr("The backup could not be put into %1: %2").arg(shownDir, res.putWhy);
+            return false;
+        }
+        // The backup is whole and stays in the work folder; the next backup into this folder puts it in place. Of
+        // those that wait, the newest `keep` stay (as in the backup folder).
+        if (keep > 0) {
+            QStringList waitingOnes = zipsIn(work, QStringLiteral("*.zip")); // oldest first
+            while (waitingOnes.size() > keep) {
+                const QString oldest = waitingOnes.takeFirst();
+                if (QFileInfo(oldest).fileName() != QFileInfo(res.staged).fileName())
+                    QFile::remove(oldest);
+            }
+        }
+        if (waiting)
+            *waiting = true;
+        if (outPath)
+            *outPath = res.staged;
         if (error)
-            *error = QObject::tr("The backup %1 could not be put in place, so it was removed.").arg(path);
+            *error = QObject::tr("The backup was made, but it could not be put into the backup folder %1: %2\n\nIt is kept "
+                                 "in %3, and the next backup will put it in place.")
+                         .arg(shownDir, res.putWhy, QDir::toNativeSeparators(work));
         return false;
     }
-    // 0.65.0 (audit F03): a backup with files missing says so in its name, and never counts as one of the backups
-    // to keep: older complete backups are deleted only after a complete one
-    if (!res.skipped.isEmpty()) {
-        QString named = QDir(dir).filePath(QFileInfo(path).completeBaseName() + QLatin1String(" (incomplete).zip"));
-        for (int n = 2; QFile::exists(named) && n < 100; ++n)
-            named = QDir(dir).filePath(QFileInfo(path).completeBaseName() + QStringLiteral(" (incomplete %1).zip").arg(n));
-        if (QFile::rename(path, named))
-            path = named;
-    }
-    // 0.70.0 (audit A F-11): the new backup's name reaches the disk before older backups are deleted
-    savebatch::syncDir(dir);
+    const QString path = res.path;
     if (outPath)
         *outPath = path;
     if (error && !res.skipped.isEmpty())
@@ -256,8 +544,15 @@ bool backupProject(Project *p, const QString &dirIn, int keep, QString *outPath,
                      .arg(res.skipped.join(QLatin1String(", ")));
     if (keep > 0 && where == Where::ProjectFolder) {
         QStringList complete, incomplete; // oldest first
-        for (const QString &f : zipsIn(dir, QStringLiteral("* bak *.zip")))
+        // 0.90.3: only files named as this program names its backups; a copy a sync program made of a backup
+        // ("... bak <date>-<computer>-safeBackup-0001.zip") counted as a backup of that moment, and six of them pushed
+        // every real older backup out of a folder that keeps five
+        const QStringList found = zipsIn(dir, QStringLiteral("* bak *.zip"));
+        for (const QString &f : found) {
+            if (!isOwnBackupName(QFileInfo(f).fileName()))
+                continue;
             (isIncomplete(f) ? incomplete : complete) << f;
+        }
         const QString made = QFileInfo(path).absoluteFilePath();
         // the backup just made is never one of those deleted, whatever its name says (0.81.0)
         auto trim = [&made](QStringList &list, int keepCount) {

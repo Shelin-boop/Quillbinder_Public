@@ -186,6 +186,12 @@ changed and what was checked. Preferences:
   in Main Editor, the invisibles' color in Textual Marks; the Mind Map page's color buttons beside their labels; the
   invisibles' default and an own color in the project's look (red pixels); the theme list: placed between Redo and the
   search button, Bright / Dark / Both, the kept filter, a theme chosen there and one chosen in Window > Themes).
+- `qb_v0903_tests` (0.90.3 beta: backups and sync programs: `backup::isOwnBackupName`; nine copies of a backup in the
+  folder push no real backup out; what a watcher of the backup folder sees during a backup (inotify: one `movedTo`, or
+  `create` + `written` for the copy of two drives, `QB_TEST_BACKUP_COPY=1`; a real second drive is `/dev/shm`); a backup
+  that waits for its folder and is put in place later, a cut-off copy replaced, a same-named whole backup kept; Cancel;
+  old `.part` files of the work folder; a full drive under the backup folder and under the work folder (child runs with
+  `qbfaultshim`); the window's messages).
 - `qb_audit1_tests` (0.64.1, the fixes of the external audit of 2026-11-09: ids of a project file and names in archives
   (`core/PathSafety.*`), damaged ZIP entries, a Word 97 file with a looping sector chain (compiles the plugin's `Cfb.cpp`),
   XML nested 20,000 deep, the keys a project may hold and the question of Load Options, the code warning of packages,
@@ -244,6 +250,36 @@ changed and what was checked. Preferences:
   public repository, https://shelin-boop.github.io/Quillbinder_Public/): a button per system for the full version, the
   visitor's system first. Needs, once, Settings > Pages > Source "GitHub Actions" in the public repository (the writer).
   The README's download part links it and is sorted by system too.
+
+## Backups and sync programs (0.90.3 beta, 2026-11-13)
+
+Reported by the writer: a backup folder inside a synced folder filled with "<backup>-<computer>-safeBackup-000n.zip"
+copies. The sync program's log showed the cause: its upload of the new backup was refused (HTTP 401), it then took the
+leftover of its own failed upload for a newer version online, set the local file aside under that name and tried again,
+every pass. The backup's ".zip.part" file was not the cause (the client handled the rename as one new file). Two things
+were this program's:
+
+- **The clean-up knows its own files** (`backup::isOwnBackupName`, `ownForm()` in `core/Backup.cpp`): only
+  "<title> bak <yyyy-MM-dd HH-mm-ss>[ (n)][ (incomplete[ n])].zip" (n from 2) counts for `keep` and can be deleted. Any
+  other file in a project's backup folder is left alone (sync copies, "(1)", "- Copy"). `backupsFor` (Restore From
+  Backup) still lists every "* bak *.zip". Never widen the clean-up's pattern again.
+- **Packed outside, put in place as one file**: `backupProject` packs "<name>.zip.part" in
+  `backup::workFolderFor(<backup folder>)` (`<data>/backup-work/<12 hex of the folder's place>`, with `target.txt`),
+  checks it, renames it there to its final name ("(incomplete)" included), then `putInPlace`: `savebatch::replace`
+  (rename; one drive), else `copyInto` (straight to the final name with `NewOnly`, fsync, read again and compared by
+  SHA-1; never `QFile::copy`, `QFile::rename` or `safesave::copyFile` here: they write a temporary file beside the
+  target or copy in ways a watcher sees as several files). The backup folder sees one `IN_MOVED_TO`, or `IN_CREATE` +
+  one `IN_CLOSE_WRITE`. All of it runs in the worker thread.
+- **A backup that waits**: when the folder cannot be made or written, the whole backup stays in the work folder
+  (`*waiting` true, `*outPath` there, the error text names both folders; return false); the next backup into that
+  folder puts the waiting ones in place first, oldest first. Of those that wait, the newest `keep` stay. `Where::AsChosen`
+  keeps nothing. A same-named file in the folder: the same bytes -> the waiting file goes; not a whole ZIP (a copy that
+  was cut off) -> replaced; another whole ZIP -> it stays and ours gets the next "(n)". `sweepWork` removes `.part`
+  files older than an hour.
+- Test switch `QB_TEST_BACKUP_COPY` (test builds): the copy also on one drive. `MainWindow::manualSave` shows a waiting
+  backup's own text in the status bar; `tellBackupProblem` shows it under "failed".
+- Not done: the same review for temporary names written inside a project folder (`.qbstage`, QSaveFile's names, the
+  speech add-on's `.txt.part`, the Word writer's `.part`).
 
 ## The writer's list after 0.90.1 (0.90.2 beta, 2026-11-13)
 

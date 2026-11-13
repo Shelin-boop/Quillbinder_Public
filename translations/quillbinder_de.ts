@@ -336,10 +336,6 @@ Die Vornamen dieser Liste sind nicht in weiblich und männlich unterteilt.</tran
             <translation>Gliederung</translation>
         </message>
         <message>
-            <source>Page View</source>
-            <translation>Seitenansicht</translation>
-        </message>
-        <message>
             <source>Combined Text</source>
             <translation>Gesamttext</translation>
         </message>
@@ -512,10 +508,6 @@ Die Vornamen dieser Liste sind nicht in weiblich und männlich unterteilt.</tran
             <translation>Die Datei konnte nicht geschrieben werden: %1</translation>
         </message>
         <message>
-            <source>Cannot create the backup folder %1</source>
-            <translation>Der Sicherungsordner %1 kann nicht erstellt werden</translation>
-        </message>
-        <message>
             <source>The project could not be saved first, so no backup was made: %1</source>
             <translation>Das Projekt konnte vorher nicht gespeichert werden, daher wurde keine Sicherung erstellt: %1</translation>
         </message>
@@ -538,10 +530,6 @@ Die Vornamen dieser Liste sind nicht in weiblich und männlich unterteilt.</tran
         <message>
             <source>Could not write or check the backup %1: %2</source>
             <translation>Die Sicherung %1 konnte nicht geschrieben oder geprüft werden: %2</translation>
-        </message>
-        <message>
-            <source>The backup %1 could not be put in place, so it was removed.</source>
-            <translation>Die Sicherung %1 konnte nicht an ihren Platz gebracht werden und wurde daher entfernt.</translation>
         </message>
         <message numerus="yes">
             <source>The backup is incomplete: %n file(s) could not be read and are missing from it: %1. Older backups were kept.</source>
@@ -2550,10 +2538,6 @@ Quelle: %1</translation>
             <translation>Neben der Textspalte</translation>
         </message>
         <message>
-            <source>Around the pages (page view)</source>
-            <translation>Um die Seiten (Seitenansicht)</translation>
-        </message>
-        <message>
             <source>Links in the text</source>
             <translation>Links im Text</translation>
         </message>
@@ -3345,6 +3329,34 @@ Quelle: %1</translation>
         <message>
             <source>Themes (Bright, Dark, Both and the list)</source>
             <translation>Designs (Hell, Dunkel, Beide und die Liste)</translation>
+        </message>
+        <message>
+            <source>Cannot create the work folder for backups %1</source>
+            <translation>Der Arbeitsordner für Sicherungen %1 kann nicht erstellt werden</translation>
+        </message>
+        <message>
+            <source>The backup could not be put into %1: %2</source>
+            <translation>Die Sicherung konnte nicht nach %1 gebracht werden: %2</translation>
+        </message>
+        <message>
+            <source>The backup was made, but it could not be put into the backup folder %1: %2
+
+It is kept in %3, and the next backup will put it in place.</source>
+            <translation>Die Sicherung wurde erstellt, konnte aber nicht in den Sicherungsordner %1 gebracht werden: %2
+
+Sie liegt in %3, und die nächste Sicherung bringt sie an ihren Platz.</translation>
+        </message>
+        <message>
+            <source>the folder cannot be created</source>
+            <translation>der Ordner kann nicht erstellt werden</translation>
+        </message>
+        <message>
+            <source>the copy differs from the backup</source>
+            <translation>die Kopie weicht von der Sicherung ab</translation>
+        </message>
+        <message>
+            <source>a file of this name is in the way and cannot be removed</source>
+            <translation>eine Datei dieses Namens ist im Weg und kann nicht entfernt werden</translation>
         </message>
     </context>
     <context>

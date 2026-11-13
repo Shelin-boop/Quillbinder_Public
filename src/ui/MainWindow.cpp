@@ -4728,8 +4728,11 @@ bool MainWindow::manualSave()
     // File > Options > Backup: a backup with each manual save
     if (s.backupOnManualSave && backupFolderReady(AskFolder::Once)) {
         QString out;
-        const bool ok = backup::backupProject(m_project.get(), s.backupDir, s.backupKeep, &out, &err);
-        if (!ok)
+        bool waits = false;
+        const bool ok = backup::backupProject(m_project.get(), s.backupDir, s.backupKeep, &out, &err, backup::Where::ProjectFolder, &waits);
+        if (!ok && waits) // 0.90.3: made, but not in the backup folder yet: its own text says so (and where it is kept)
+            statusBar()->showMessage(QString(err).replace(QLatin1String("\n\n"), QLatin1String(" ")), 20000);
+        else if (!ok)
             statusBar()->showMessage(tr("The backup could not be made: %1").arg(err), 15000);
         else if (!err.isEmpty()) // 0.65.0 (audit F03)
             statusBar()->showMessage(err, 15000);

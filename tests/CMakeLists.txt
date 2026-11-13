@@ -277,6 +277,14 @@ target_link_libraries(qb_v0901_tests PRIVATE qbui Qt6::Test)
 add_executable(qb_v0902_tests v0902_tests.cpp ${QB_RESOURCES_QRC} ${CMAKE_SOURCE_DIR}/translations/translations.qrc)
 target_link_libraries(qb_v0902_tests PRIVATE qbui Qt6::Test)
 target_compile_definitions(qb_v0902_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+# 0.90.3: backups packed outside the backup folder and put there as one finished file, a backup that waits for its
+# folder, the clean-up only for the program's own backups (what a watcher of the folder sees: inotify; a full drive:
+# child runs with qbfaultshim) (xvfb-run -a ./qb_v0903_tests /tmp/shots)
+add_executable(qb_v0903_tests v0903_tests.cpp ${QB_RESOURCES_QRC} ${CMAKE_SOURCE_DIR}/translations/translations.qrc)
+target_link_libraries(qb_v0903_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_v0903_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+                           QB_FAULT_SHIM="$<TARGET_FILE:qbfaultshim>")
+add_dependencies(qb_v0903_tests qbfaultshim)
 target_compile_definitions(qb_v0900_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
 # The readers against damaged input (0.80.0, the external audit of 2026-11-09, ST-5): fixed-seed damage of small
 # valid inputs of RTF, Markdown, XML, ZIP, DOCX, ODT, Word 97 and .scrivx, each read in this process

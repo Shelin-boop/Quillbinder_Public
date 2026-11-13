@@ -18,11 +18,32 @@ enum class Where {
     ProjectFolder, // the project's own folder inside dir; the newest `keep` complete backups stay
     AsChosen       // straight into dir (Back Up To...); nothing is deleted
 };
+
+// 0.90.3: a backup is packed and checked outside the backup folder, in a folder of the program's own
+// (<data>/backup-work/<a key of the backup folder>), and only the finished file is put into the backup folder, in one
+// step and under its final name: renamed there when both folders are on one drive, else copied straight to the final
+// name and compared with the original. So a backup folder that a sync program watches (or that is on a drive of its
+// own) never sees a file that is still being written, and no temporary name. A finished backup that cannot be put
+// into the backup folder (not there, not writable, full) waits in the work folder, and the next backup into the same
+// folder puts it in place.
+QString workDirectory();
+// The work folder of one backup folder (it holds target.txt with that folder's place).
+QString workFolderFor(const QString &backupFolder);
+
+// 0.90.3: only files named as this program names its backups count for the clean-up and can be deleted by it:
+// "<title> bak <yyyy-MM-dd HH-mm-ss>[ (n)][ (incomplete[ n])].zip" (n from 2). Any other file in a project's backup
+// folder is left alone, such as the copies a sync program makes of a backup ("...-<computer>-safeBackup-0001.zip",
+// "... (conflicted copy).zip"): counted as backups of that moment, they pushed the real older backups out.
+bool isOwnBackupName(const QString &fileName);
+
 // Zips the whole project folder. True with *error set: written, but files could not be read; such a backup is
 // named "... (incomplete).zip" and no older backup is deleted for it (0.65.0). The settings/lock file is left
 // out (0.70.0, audit A U-09).
+// 0.90.3: false with *waiting true: the backup was made and checked but could not be put into the backup folder;
+// it is kept in the work folder (*outPath names it there) and *error says so (Where::ProjectFolder only: a backup
+// to a chosen folder that cannot be put there is removed).
 bool backupProject(Project *p, const QString &dir, int keep, QString *outPath, QString *error,
-                   Where where = Where::ProjectFolder);
+                   Where where = Where::ProjectFolder, bool *waiting = nullptr);
 // This project's backups in its folder, oldest first.
 QStringList backupsFor(const Project *p, const QString &dir);
 // Backups of the time before 0.70.0, named by the title only, straight in dir (never deleted automatically:

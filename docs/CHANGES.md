@@ -3,6 +3,24 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.90.3 beta (2026-11-13)
+
+A program update for 0.90.2 (File > Install Update or Add-on; it fits 0.80.0 and later). Backups and sync programs:
+found when a sync program filled a backup folder with copies of one backup after its upload was refused.
+
+- **Copies of a backup no longer count as backups**. The clean-up counts and deletes only files named as the program
+  names its backups. Copies that a sync program or you put into a project's backup folder ("...-MyComputer-safeBackup-0001.zip",
+  "... (conflicted copy).zip", "... - Copy.zip") are left alone; before, they counted as backups of their date, and
+  six of them would have pushed every real older backup out of a folder that keeps five. Restore From Backup still
+  lists them.
+- **A backup is put together outside the backup folder**. It is packed and checked in the program's own folder
+  (`~/.local/share/Quillbinder/backup-work`) and only the finished file goes into the backup folder, in one step and
+  under its final name (moved on one drive, copied and compared on two). A sync program that watches the backup folder
+  sees one finished file arrive, and no ".zip.part" file any more.
+- **A backup folder that is out of reach loses no backup**. When the folder cannot be made or written (a drive that
+  is not plugged in, no room), the backup is made all the same, waits in the program's folder, a message names both
+  folders, and the next backup puts it in place. A copy that was cut off is replaced by the whole backup.
+
 ## 0.90.2 beta (2026-11-13)
 
 A program update for 0.90.1 (File > Install Update or Add-on; it fits 0.80.0 and later). The writer's list from testing
