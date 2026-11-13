@@ -105,7 +105,7 @@ struct LookPage {
     QStringList colors;
     QStringList fonts;
 };
-enum LookPageId { LGeneral, LBinder, LComposition, LCorkboard, LCards, LInspector, LEditor, LOutliner, LPageView, LCombined, LTargets, LMarks };
+enum LookPageId { LGeneral, LBinder, LComposition, LCorkboard, LCards, LInspector, LEditor, LOutliner, LCombined, LTargets, LMarks };
 
 QList<LookPage> lookPages()
 {
@@ -127,13 +127,13 @@ QList<LookPage> lookPages()
             {QT_TRANSLATE_NOOP("OptionsDialog", "Inspector & Notes"),
              l({"inspectorBackground", "inspectorText", "synopsisPaper", "synopsisText", "notesPaper", "notesText"}), l({"synopsis"})},
             {QT_TRANSLATE_NOOP("OptionsDialog", "Main Editor"),
-             l({"editorPaper", "editorText", "editorMargin", "headerBar", "headerBarText", "headerBarActive", "headerBarLocked"}),
+             l({"editorPaper", "editorText", "editorMargin", "editorPageSurround", "headerBar", "headerBarText", "headerBarActive",
+                "headerBarLocked"}),
              l({"headerTitle"})},
             {QT_TRANSLATE_NOOP("OptionsDialog", "Outliner"), l({"outlinerBackground", "outlinerAlternate", "outlinerText"}), l({"outliner"})},
-            {QT_TRANSLATE_NOOP("OptionsDialog", "Page View"), l({"editorPageSurround"}), {}},
             {QT_TRANSLATE_NOOP("OptionsDialog", "Combined Text"), {}, l({"combinedTitle"})},
             {QT_TRANSLATE_NOOP("OptionsDialog", "Target Progress Bars"), l({"targetSession", "targetDraft", "targetReached"}), {}},
-            {QT_TRANSLATE_NOOP("OptionsDialog", "Textual Marks"), l({"editorLink", "searchHit", "spellingError"}), {}}};
+            {QT_TRANSLATE_NOOP("OptionsDialog", "Textual Marks"), l({"editorLink", "searchHit", "spellingError", "invisibles"}), {}}};
 }
 
 const theme::RoleInfo *lookRoleInfo(const QString &key)
@@ -1467,8 +1467,7 @@ QWidget *OptionsDialog::appearancePage(int which)
         spinRow(m_textBorder, tr("Border beside the text:"), 0, 100, s.textBorder, tr(" px"), "optTextBorder");
         m_textBorder->setToolTip(tr("Paper left and right of the text, in the paper's color (at 100 % zoom)"));
         check(m_typewriter, tr("Typewriter scrolling in the main editor"), s.typewriterScrolling);
-        break;
-    case LPageView:
+        // the color around the pages is among this page's colors since 0.90.2 (it had a page of its own)
         options->addWidget(hint(tr("View > Text Editing > Page View shows the text on pages; their size and margins are set "
                                    "under View > Text Editing > Page Size and Margins."),
                                 page));

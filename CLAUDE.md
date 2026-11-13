@@ -181,6 +181,11 @@ changed and what was checked. Preferences:
   placeholder contrast (light and dark); Compile's Formats column also at scale 2 (a child run with `QT_SCALE_FACTOR=2`);
   Undo names and lists; the binder's empty space; Close in Find by Formatting and Print Preview; the busy pointer of
   Project Statistics; the new shortcuts and no shortcut given twice; digit grouping; the link question of a long name).
+- `qb_v0902_tests` (0.90.2 beta: an arranged main toolbar gets the theme list once (and not again when taken away); the
+  download page's other downloads (Linux and Windows names); Appearance without "Page View", the color around the pages
+  in Main Editor, the invisibles' color in Textual Marks; the Mind Map page's color buttons beside their labels; the
+  invisibles' default and an own color in the project's look (red pixels); the theme list: placed between Redo and the
+  search button, Bright / Dark / Both, the kept filter, a theme chosen there and one chosen in Window > Themes).
 - `qb_audit1_tests` (0.64.1, the fixes of the external audit of 2026-11-09: ids of a project file and names in archives
   (`core/PathSafety.*`), damaged ZIP entries, a Word 97 file with a looping sector chain (compiles the plugin's `Cfb.cpp`),
   XML nested 20,000 deep, the keys a project may hold and the question of Load Options, the code warning of packages,
@@ -239,6 +244,33 @@ changed and what was checked. Preferences:
   public repository, https://shelin-boop.github.io/Quillbinder_Public/): a button per system for the full version, the
   visitor's system first. Needs, once, Settings > Pages > Source "GitHub Actions" in the public repository (the writer).
   The README's download part links it and is sorted by system too.
+
+## The writer's list after 0.90.1 (0.90.2 beta, 2026-11-13)
+
+- **No P/A badges**: `optstore::mark` keeps only the key and the base tool tip (no badge, no "storageHolder");
+  `refresh` sets the tool tip and the control's property `qbPlace` ("P"/"A"). The explanation sentences lost their
+  "(A)"/"(P)". The holders had spread a fixed-width color button's free space (QPushButton keeps its GrowFlag after
+  `setFixedWidth`), so the Mind Map page's color buttons stood at the far right.
+- **`theme::Role::Invisibles`** ("invisibles", `Area::Editor`; default `mix(paper, editorText, 0.45)`, what was drawn
+  before): `TextColumnView::applyColors` hands it to each editor (`TextEditor::setInvisiblesColor`; invalid for custom
+  colors, i.e. composition mode: the text at 45 % as before). Listed in Appearance > Textual Marks and the editor's
+  right-click Appearance menu; `v0402`'s digest leaves it out (with `inspectorFields`).
+- **Appearance pages**: `LPageView` is gone; `editorPageSurround` ("Around the pages (only in page view)") is in Main
+  Editor with the page-view hint. `LookPageId` must match `lookPages()`' order.
+- **The theme list** (`ui/ThemePicker.*`, toolbar special `themePicker`, standard set `redo, <>, themePicker, <>,
+  searchMenu`; `AppSettings::load` adds it once to an arranged main toolbar, key `toolbars/themePicker0902`):
+  `QButtonGroup` of `themeFilterBright/Dark/Both` (setting `window/themeFilter`, program-only by its group), the combo
+  `themeCombo` filled again in `showPopup` and on `theme::Notifier::changed`; a choice runs `themeui::choose(window(),
+  id)` (as Window > Themes). `theme::brightnessOf(id)`: by the resolved Window color; `followDesktop` = Either (in both
+  lists). `ThemePicker::giveWay(bar, action, quickSearch)` (a filter on the main toolbar): when the quick search would go
+  into the overflow menu, the list's action is hidden; shown again when the bar is `need` wider (and at every
+  `rebuildToolBars`).
+- **WindowCare** (a 0.90.1 bug, a rare SIGSEGV of the ui suite in `Filter::eventFilter` at a dialog's hide): the owner and
+  focus widget at a dialog's Show are kept as `QPointer`s in the filter (`m_before`), no longer as `QObject*` properties
+  of the dialog (`qobject_cast` on a deleted one). Guard every widget pointer that outlives an event this way.
+- **Download page** (`tools/download-page.py`, `others()`): under each system's full version the program alone, the
+  update and the audio and video add-ons (`media-all-formats.qbpkg`; Windows: names with "windows"); only files the
+  release has.
 
 ## Memory and the usability review (0.90.1 beta, 2026-11-13)
 

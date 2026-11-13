@@ -3,6 +3,28 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.90.2 beta (2026-11-13)
+
+A program update for 0.90.1 (File > Install Update or Add-on; it fits 0.80.0 and later). The writer's list from testing
+0.90.1.
+
+- **A theme list in the main toolbar**. In the middle of the main toolbar, Bright, Dark and Both narrow the list of
+  themes beside them; a theme chosen there is used as with Window > Themes (the open project and new projects). The
+  choice of Bright, Dark or Both is kept; a main toolbar arranged by hand gets the list once, after Redo. On a crowded
+  toolbar (a narrow window, large icons with text) the list gives way to the quick search and comes back with room.
+- **A color of its own for Show Invisibles**. File > Options > Appearance > Textual Marks (and right-click >
+  Appearance on the text) sets the color of the dots, arrows and pilcrows; it belongs to the project's look. Without
+  one they look as before (the text faded into the paper).
+- **No lone "Page View" entry in Appearance**. Its one color, the desk around the pages, is now in Main Editor as
+  "Around the pages (only in page view)"; it had seemed to do nothing, since it only shows in page view.
+- **No P and A circles in File > Options**. Where an option is kept stays in its tool tip; the circles drew too much
+  attention, and the room they took pushed the color buttons of the Mind Map page to the far right.
+- **A rare crash when a dialog closed** (from 0.90.1). Giving the keyboard back after a dialog read a window or field
+  that had been deleted while the dialog was open; it is now guarded. Found by the regression run (the ui suite crashed
+  in about one run of three).
+- **The download page lists more**. Under the full version of each system: the program alone (the small AppImage),
+  the program update and the audio and video add-ons.
+
 ## 0.90.1 beta (2026-11-13)
 
 A program update for 0.90.0 (File > Install Update or Add-on; it fits 0.80.0 and later). Memory during long writing

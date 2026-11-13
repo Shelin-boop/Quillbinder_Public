@@ -56,10 +56,11 @@ const QList<RoleInfo> &roles()
         {Role::EditorPaper, "editorPaper", QObject::tr("Paper"), Area::Editor},
         {Role::EditorText, "editorText", QObject::tr("Text"), Area::Editor},
         {Role::EditorMargin, "editorMargin", QObject::tr("Beside the text column"), Area::Editor},
-        {Role::EditorPageSurround, "editorPageSurround", QObject::tr("Around the pages (page view)"), Area::Editor},
+        {Role::EditorPageSurround, "editorPageSurround", QObject::tr("Around the pages (only in page view)"), Area::Editor},
         {Role::EditorLink, "editorLink", QObject::tr("Links in the text"), Area::Editor},
         {Role::SearchHit, "searchHit", QObject::tr("Search hits"), Area::Editor},
         {Role::SpellingError, "spellingError", QObject::tr("Spelling underline"), Area::Editor},
+        {Role::Invisibles, "invisibles", QObject::tr("Invisibles (spaces, tabs, paragraph ends)"), Area::Editor},
         {Role::HeaderBar, "headerBar", QObject::tr("Header bar"), Area::Editor},
         {Role::HeaderBarText, "headerBarText", QObject::tr("Header bar title"), Area::Editor},
         {Role::HeaderBarActive, "headerBarActive", QObject::tr("Header bar, active editor"), Area::Editor},
@@ -549,6 +550,8 @@ QMap<Role, QColor> resolvedColors(const Theme &t, const QMap<QString, QColor> &o
     put(Role::EditorLink, darkPaper ? QColor(120, 175, 250) : QColor(30, 90, 200));
     put(Role::SearchHit, QColor(255, 200, 60));
     put(Role::SpellingError, darkPaper ? QColor(255, 95, 95) : QColor(220, 40, 40));
+    // the text at 45 % on the paper: what Show Invisibles drew before it had a color of its own
+    put(Role::Invisibles, mix(paper, c[Role::EditorText], 0.45));
     put(Role::HeaderBar, window);
     const QColor header = c[Role::HeaderBar];
     put(Role::HeaderBarText, darkColor(header) == dark ? c[Role::WindowText] : (darkColor(header) ? QColor(235, 235, 235) : QColor(35, 38, 41)));
@@ -910,6 +913,16 @@ QFont font(FontRole r)
 }
 
 bool isDark() { return s_dark; }
+
+Brightness brightnessOf(const QString &id)
+{
+    Theme t;
+    if (!load(id, &t))
+        return Brightness::Either;
+    if (t.followDesktop)
+        return Brightness::Either;
+    return darkColor(resolvedColors(t, {}).value(Role::Window)) ? Brightness::Dark : Brightness::Bright;
+}
 
 QColor accent() { return color(Role::Highlight); }
 

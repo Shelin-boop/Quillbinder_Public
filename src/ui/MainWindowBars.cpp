@@ -1,5 +1,6 @@
 // Menus, toolbars, window layouts and the lists of commands that change
 // with the project (styles) or the data folder (layouts).
+#include "ui/ThemePicker.h"
 #include "ui/MainWindow.h"
 #include "ui/UndoNames.h"
 #include "ui/MenuClear.h"
@@ -770,6 +771,11 @@ void MainWindow::createToolBars()
     layoutBtn->setMenu(m_layoutMenu);
     wrap(QStringLiteral("layoutsButton"), layoutBtn);
 
+    // the theme list with its filter (0.90.2)
+    wrap(QStringLiteral("themePicker"), new ThemePicker);
+    // on a crowded toolbar (large icons, text beside them, a narrow window) it gives way to the quick search
+    ThemePicker::giveWay(m_toolbar, m_barItems.value(QStringLiteral("themePicker")), m_quickSearch);
+
     // right-click on a bar: what is shown, and the editor for the buttons
     auto barMenu = [this](QToolBar *bar, int which) {
         bar->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -1029,6 +1035,9 @@ void MainWindow::rebuildToolBars()
     QToolBar *bars[2] = {m_toolbar, m_formatBar};
     for (QToolBar *bar : bars)
         bar->clear();
+    // the theme list shows again; if the new bar is too crowded it gives way to the search once more (ThemePicker)
+    if (QAction *tp = m_barItems.value(QStringLiteral("themePicker")))
+        tp->setVisible(true);
     qDeleteAll(m_barOwned);
     m_barOwned.clear();
     QSet<QString> placed; // a control exists once

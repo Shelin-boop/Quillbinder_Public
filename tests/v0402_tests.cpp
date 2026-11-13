@@ -1114,7 +1114,8 @@ static void builtInThemesUnchanged()
         const QMap<theme::Role, QColor> c = theme::resolvedColors(t, {});
         QStringList parts;
         for (const theme::RoleInfo &ri : theme::roles())
-            if (QLatin1String(ri.key) != QLatin1String("inspectorFields")) // new in 0.60.3, the color of the lists (v0603 checks it)
+            if (QLatin1String(ri.key) != QLatin1String("inspectorFields") // new in 0.60.3, the color of the lists (v0603 checks it)
+                && QLatin1String(ri.key) != QLatin1String("invisibles")) // new in 0.90.2, worked out from text and paper (v0902)
                 parts << QLatin1String(ri.key) + QLatin1Char('=') + c.value(ri.role).name();
         lines << te.id + QLatin1Char(':') + parts.join(QLatin1Char(','));
     }

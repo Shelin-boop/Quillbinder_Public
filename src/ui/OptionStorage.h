@@ -1,12 +1,13 @@
 #pragma once
 // 0.90.1 (the usability review of 0.90.0, UR-10 and UR-03, the writer's wish): every option of File > Options tells
-// where its value is kept. A badge before the control: a green circle with "P" (kept in the open project) or a blue
-// circle with "A" (kept by the program, for all projects); its tool tip says whether that place is fixed or depends on
-// the choice "Settings for" (and, for the look, "Show and change the look of").
+// where its value is kept: the control's tool tip says whether it is kept in the open project or by the program for all
+// projects, and whether that place is fixed or depends on the choice "Settings for" (and, for the look, "Show and change
+// the look of"). 0.90.2: the badges before the controls (a green "P", a blue "A") are gone at the writer's wish (they
+// drew too much attention, and the holders they needed pushed color buttons to the far right); the tool tip stays.
 //
 // A control is marked with the settings key it writes ("editing/smartQuotes"; "zoomDefault/*" = every key under the
-// group; "look" = part of a project's look, settings/look.json). mark() puts the badge before the control (the control
-// moves into a small holder in the same place of the layout); refresh() sets every badge and tool tip of a window.
+// group; "look" = part of a project's look, settings/look.json). refresh() sets every marked control's tool tip and its
+// property "qbPlace" ("P" or "A", for the checks).
 #include <QString>
 
 class QWidget;
@@ -30,7 +31,7 @@ QString keyOf(const QWidget *control);
 bool fixedToProgram(const QString &key);
 // the open project keeps a value of its own for the key
 bool projectKeeps(const QString &key);
-// "P" or "A" for a key in this state
+// "P" (the project) or "A" (the program) for a key in this state
 QString placeOf(const QString &key, const State &s);
 // the sentence of the tool tip
 QString explanation(const QString &key, const State &s);

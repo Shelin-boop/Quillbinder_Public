@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Writes the download page of a release (2026-11-12): one button per system for the full version (the program with
-all add-ons), the steps to start it, and links to all files of the release. The release workflow publishes it on the
+all add-ons), the steps to start it, and links to all files of the release. Since 0.90.2 (the writer's wish) each
+system also lists its other downloads: the program alone (the small AppImage), the program update and the audio and
+video add-ons. The release workflow publishes it on the
 public repository's GitHub Pages (job download-page of .github/workflows/release.yml).
 
     tools/download-page.py <folder with the release's files (their names are enough)> <tag> <out dir>
@@ -31,10 +33,35 @@ def pick(files):
     return {"linux": linux, "windows": windows, "android": android}
 
 
+def others(files):
+    """The other downloads of each system (0.90.2): [(file, what it is, how to use it)], only those the release has."""
+    win = lambda f: "windows" in f.lower()
+    first = lambda test: next((f for f in files if test(f)), "")
+    linux = [
+        (first(lambda f: f.endswith(".AppImage") and "-full-" not in f),
+         "The program alone (the small AppImage)", "without the add-ons; they can be installed later, one by one"),
+        (first(lambda f: f.endswith("-update.qbpkg") and not win(f)),
+         "Program update", "for a Quillbinder you already have (File &gt; Install Update or Add-on)"),
+        (first(lambda f: f == "media-all-formats.qbpkg"),
+         "Audio and video add-ons", "sound and video in all common formats (File &gt; Install Update or Add-on)"),
+    ]
+    windows = [
+        (first(lambda f: f.endswith(".zip") and win(f) and "-full-" not in f and "symbols" not in f),
+         "The program alone", "without the add-ons; they can be installed later, one by one"),
+        (first(lambda f: f.endswith("-update.qbpkg") and win(f)),
+         "Program update", "for a Quillbinder you already have (File &gt; Install Update or Add-on)"),
+        (first(lambda f: f.startswith("media-all-formats") and win(f) and f.endswith(".qbpkg")),
+         "Audio and video add-ons", "sound and video in all common formats (File &gt; Install Update or Add-on)"),
+    ]
+    keep = lambda rows: [r for r in rows if r[0]]
+    return {"linux": keep(linux), "windows": keep(windows), "android": []}
+
+
 def page(files, tag):
     home = cmake_var("APP_HOMEPAGE") or "https://github.com/Shelin-boop/Quillbinder_Public"
     shown = tag[1:].replace("-", " ") if tag.startswith("v") else tag
     full = pick(files)
+    more = others(files)
     url = lambda f: "%s/releases/download/%s/%s" % (home, tag, f)
     systems = [
         ("windows", "Windows 11", "64-bit",
@@ -60,6 +87,10 @@ def page(files, tag):
                        "".join("<li>%s</li>" % s for s in steps)))
         else:
             body = '<p class="later">Comes later.</p>'
+        if more[key]:
+            rows = "".join('\n        <li><a href="%s">%s</a>: %s <span class="file">%s</span></li>'
+                           % (html.escape(url(of)), what, how, html.escape(of)) for of, what, how in more[key])
+            body += ('\n      <h3>Other downloads</h3>\n      <ul class="others">%s\n      </ul>' % rows)
         cards.append('    <section class="system" data-system="%s">\n      <h2>%s <span>%s</span></h2>\n      %s\n    </section>'
                      % (key, html.escape(name), html.escape(detail), body))
     return """<!doctype html>
@@ -86,6 +117,11 @@ def page(files, tag):
   .button:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
   .file { color: var(--muted); font-size: 14px; margin: 8px 0 0; word-break: break-all; }
   ol { margin: 12px 0 0; padding-left: 22px; }
+  h3 { font-size: 16px; margin: 18px 0 6px; }
+  .others { margin: 0; padding-left: 22px; }
+  .others li { margin: 4px 0; }
+  .others a { color: var(--accent); font-weight: 600; }
+  .others .file { display: block; margin: 0; }
   .later { color: var(--muted); margin: 0; }
   .more { margin-top: 28px; }
   .more a { color: var(--accent); }
@@ -100,8 +136,8 @@ def page(files, tag):
   <div id="systems">
 %(cards)s
   </div>
-  <p class="more"><a href="%(release)s">All files of this version</a> (the program without add-ons, program updates,
-  single add-ons, checksums) &middot; <a href="%(home)s/releases">Earlier versions</a> &middot;
+  <p class="more"><a href="%(release)s">All files of this version</a> (single add-ons, the symbols for crash reports,
+  checksums) &middot; <a href="%(home)s/releases">Earlier versions</a> &middot;
   <a href="%(home)s">Source code</a></p>
   <p class="note">Quillbinder is an independent program. It is not made by or connected with Literature &amp; Latte,
   the maker of Scrivener; it reads and writes Scrivener 3 projects. This is %(article)s %(label)s version: keep backups of

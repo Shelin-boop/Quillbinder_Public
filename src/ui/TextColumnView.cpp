@@ -517,6 +517,7 @@ void TextColumnView::applyColors()
         pal.setColor(QPalette::PlaceholderText, faded);
         s.editor->setPalette(pal);
         s.editor->setPageSurround(around, edge);
+        s.editor->setInvisiblesColor(m_customColors ? QColor() : theme::color(theme::Role::Invisibles));
         if (s.title) {
             QPalette tp = s.title->palette();
             tp.setColor(QPalette::Text, paged ? onAround : m_text);

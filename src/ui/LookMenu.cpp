@@ -34,7 +34,7 @@ PartInfo infoOf(Part part)
     };
     switch (part) {
     case Part::Editor:
-        return {l({"editorPaper", "editorText", "editorMargin", "editorPageSurround", "editorLink", "searchHit", "spellingError"}),
+        return {l({"editorPaper", "editorText", "editorMargin", "editorPageSurround", "editorLink", "searchHit", "spellingError", "invisibles"}),
                 l({"combinedTitle"})};
     case Part::HeaderBar:
         return {l({"headerBar", "headerBarText", "headerBarActive", "headerBarLocked"}), l({"headerTitle"})};

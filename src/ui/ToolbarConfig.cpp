@@ -33,6 +33,8 @@ QList<Special> specials(Bar bar)
             {QStringLiteral("bookmarks"), QObject::tr("Project Bookmarks"), QStringLiteral("bookmarks")},
             {QStringLiteral("notes"), QObject::tr("Comments and Footnotes"), QStringLiteral("edit-comment")},
             {QStringLiteral("layoutsButton"), QObject::tr("Layouts"), QStringLiteral("view-split-left-right")},
+            // 0.90.2: the theme list with its filter Bright / Dark / Both
+            {QStringLiteral("themePicker"), QObject::tr("Themes (Bright, Dark, Both and the list)"), QStringLiteral("format-text-color")},
         };
     return {
         {QStringLiteral("styleCombo"), QObject::tr("Style list"), QStringLiteral("format-text-bold")},
@@ -102,6 +104,7 @@ QStringList standard(Bar bar)
         // Undo and Redo after Move to Trash (0.61, where the writer put them)
         QStringList list = {QStringLiteral("view"), Separator, QStringLiteral("add"), QStringLiteral("newFolder"),
                             QStringLiteral("trash"), QStringLiteral("undo"), QStringLiteral("redo"), Spacer,
+                            QStringLiteral("themePicker"), Spacer, // 0.90.2, in the middle of the free space
                             QStringLiteral("searchMenu"), QStringLiteral("search"), QStringLiteral("viewModes"), Spacer,
                             QStringLiteral("bookmarks"), QStringLiteral("quickRef"), QStringLiteral("notes"), Separator,
                             QStringLiteral("compile"), Separator, QStringLiteral("showInvisibles"), QStringLiteral("composition"),

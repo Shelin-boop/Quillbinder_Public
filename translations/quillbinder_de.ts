@@ -3334,6 +3334,18 @@ Quelle: %1</translation>
             <source>it lists no files</source>
             <translation>es nennt keine Dateien</translation>
         </message>
+        <message>
+            <source>Around the pages (only in page view)</source>
+            <translation>Um die Seiten (nur in der Seitenansicht)</translation>
+        </message>
+        <message>
+            <source>Invisibles (spaces, tabs, paragraph ends)</source>
+            <translation>Unsichtbare Zeichen (Leerzeichen, Tabulatoren, Absatzenden)</translation>
+        </message>
+        <message>
+            <source>Themes (Bright, Dark, Both and the list)</source>
+            <translation>Designs (Hell, Dunkel, Beide und die Liste)</translation>
+        </message>
     </context>
     <context>
         <name>RegionPicker</name>
@@ -18899,6 +18911,53 @@ Strg+Klick zum Öffnen</translation>
         </message>
     </context>
     <context>
+        <name>qb::ThemePicker</name>
+        <message>
+            <source>Bright</source>
+            <translation>Hell</translation>
+        </message>
+        <message>
+            <source>Show the bright themes</source>
+            <translation>Die hellen Designs zeigen</translation>
+        </message>
+        <message>
+            <source>Dark</source>
+            <translation>Dunkel</translation>
+        </message>
+        <message>
+            <source>Show the dark themes</source>
+            <translation>Die dunklen Designs zeigen</translation>
+        </message>
+        <message>
+            <source>Both</source>
+            <translation>Beide</translation>
+        </message>
+        <message>
+            <source>Show all themes</source>
+            <translation>Alle Designs zeigen</translation>
+        </message>
+        <message>
+            <source>The theme of the open project and of new projects (as Window &gt; Themes)</source>
+            <translation>Das Design des geöffneten Projekts und neuer Projekte (wie Fenster &gt; Designs)</translation>
+        </message>
+        <message>
+            <source>Theme</source>
+            <translation>Design</translation>
+        </message>
+        <message>
+            <source>Choose a bright theme</source>
+            <translation>Ein helles Design wählen</translation>
+        </message>
+        <message>
+            <source>Choose a dark theme</source>
+            <translation>Ein dunkles Design wählen</translation>
+        </message>
+        <message>
+            <source>Choose a theme</source>
+            <translation>Ein Design wählen</translation>
+        </message>
+    </context>
+    <context>
         <name>qb::ThemePreview</name>
         <message>
             <source>File  Edit  View</source>
@@ -19552,52 +19611,44 @@ Sie wird von hier aus nicht geöffnet. Wenn Sie ihr vertrauen, öffnen Sie sie s
     <context>
         <name>qb::optstore</name>
         <message>
-            <source>Part of the look: kept by the program as the look for new projects (A). An open project keeps a look of its own (P).</source>
-            <translation>Teil des Aussehens: vom Programm als Aussehen für neue Projekte gespeichert (A). Ein geöffnetes Projekt hat ein eigenes Aussehen (P).</translation>
+            <source>Part of the look: kept by the program as the look for new projects. An open project keeps a look of its own.</source>
+            <translation>Teil des Aussehens: vom Programm als Aussehen für neue Projekte gespeichert. Ein geöffnetes Projekt hat ein eigenes Aussehen.</translation>
         </message>
         <message>
-            <source>Part of the look: kept with this project (P), as chosen in &quot;Show and change the look of&quot; above.</source>
-            <translation>Teil des Aussehens: mit diesem Projekt gespeichert (P), wie oben bei „Aussehen anzeigen und ändern für“ gewählt.</translation>
+            <source>Part of the look: kept with this project, as chosen in &quot;Show and change the look of&quot; above.</source>
+            <translation>Teil des Aussehens: mit diesem Projekt gespeichert, wie oben bei „Aussehen anzeigen und ändern für“ gewählt.</translation>
         </message>
         <message>
-            <source>Part of the look: kept by the program as the look for new projects (A), as chosen in &quot;Show and change the look of&quot; above.</source>
-            <translation>Teil des Aussehens: vom Programm als Aussehen für neue Projekte gespeichert (A), wie oben bei „Aussehen anzeigen und ändern für“ gewählt.</translation>
+            <source>Part of the look: kept by the program as the look for new projects, as chosen in &quot;Show and change the look of&quot; above.</source>
+            <translation>Teil des Aussehens: vom Programm als Aussehen für neue Projekte gespeichert, wie oben bei „Aussehen anzeigen und ändern für“ gewählt.</translation>
         </message>
         <message>
-            <source>Fixed: kept by the program for all projects (A). A project cannot keep a value of its own here.</source>
-            <translation>Fest: vom Programm für alle Projekte gespeichert (A). Ein Projekt kann hier keinen eigenen Wert haben.</translation>
+            <source>Fixed: kept by the program for all projects. A project cannot keep a value of its own here.</source>
+            <translation>Fest: vom Programm für alle Projekte gespeichert. Ein Projekt kann hier keinen eigenen Wert haben.</translation>
         </message>
         <message>
-            <source>Depends on the setting: kept by the program for all projects (A). An open project can keep a value of its own (P): &quot;Settings for: This project&quot;.</source>
-            <translation>Hängt von der Einstellung ab: vom Programm für alle Projekte gespeichert (A). Ein geöffnetes Projekt kann einen eigenen Wert haben (P): „Einstellungen für: Dieses Projekt“.</translation>
+            <source>Depends on the setting: kept by the program for all projects. An open project can keep a value of its own: &quot;Settings for: This project&quot;.</source>
+            <translation>Hängt von der Einstellung ab: vom Programm für alle Projekte gespeichert. Ein geöffnetes Projekt kann einen eigenen Wert haben: „Einstellungen für: Dieses Projekt“.</translation>
         </message>
         <message>
-            <source>Depends on the setting: kept by the program for all projects (A). Projects&apos; own values are not used now (General &gt; Which settings come first).</source>
-            <translation>Hängt von der Einstellung ab: vom Programm für alle Projekte gespeichert (A). Eigene Werte von Projekten werden zurzeit nicht verwendet (Allgemein &gt; Welche Einstellungen Vorrang haben).</translation>
+            <source>Depends on the setting: kept by the program for all projects. Projects&apos; own values are not used now (General &gt; Which settings come first).</source>
+            <translation>Hängt von der Einstellung ab: vom Programm für alle Projekte gespeichert. Eigene Werte von Projekten werden zurzeit nicht verwendet (Allgemein &gt; Welche Einstellungen Vorrang haben).</translation>
         </message>
         <message>
-            <source>Depends on the setting: this project keeps a value of its own (P), used while it is open.</source>
-            <translation>Hängt von der Einstellung ab: dieses Projekt hat einen eigenen Wert (P), der gilt, solange es geöffnet ist.</translation>
+            <source>Depends on the setting: this project keeps a value of its own, used while it is open.</source>
+            <translation>Hängt von der Einstellung ab: dieses Projekt hat einen eigenen Wert, der gilt, solange es geöffnet ist.</translation>
         </message>
         <message>
-            <source>Depends on the setting: this project uses the value for all projects (A). Change it here and press OK to keep a value of its own (P).</source>
-            <translation>Hängt von der Einstellung ab: dieses Projekt verwendet den Wert für alle Projekte (A). Hier ändern und mit OK bestätigen, um einen eigenen Wert zu speichern (P).</translation>
+            <source>Depends on the setting: this project uses the value for all projects. Change it here and press OK to keep a value of its own.</source>
+            <translation>Hängt von der Einstellung ab: dieses Projekt verwendet den Wert für alle Projekte. Hier ändern und mit OK bestätigen, um einen eigenen Wert zu speichern.</translation>
         </message>
         <message>
-            <source>Depends on the setting: here you change the value for all projects (A). This project keeps a value of its own (P), which it uses while it is open.</source>
-            <translation>Hängt von der Einstellung ab: hier ändern Sie den Wert für alle Projekte (A). Dieses Projekt hat einen eigenen Wert (P), der gilt, solange es geöffnet ist.</translation>
+            <source>Depends on the setting: here you change the value for all projects. This project keeps a value of its own, which it uses while it is open.</source>
+            <translation>Hängt von der Einstellung ab: hier ändern Sie den Wert für alle Projekte. Dieses Projekt hat einen eigenen Wert, der gilt, solange es geöffnet ist.</translation>
         </message>
         <message>
-            <source>Depends on the setting: kept by the program for all projects (A). A project can keep a value of its own (P): &quot;Settings for: This project&quot;.</source>
-            <translation>Hängt von der Einstellung ab: vom Programm für alle Projekte gespeichert (A). Ein Projekt kann einen eigenen Wert haben (P): „Einstellungen für: Dieses Projekt“.</translation>
-        </message>
-        <message>
-            <source>Kept in this project</source>
-            <translation>In diesem Projekt gespeichert</translation>
-        </message>
-        <message>
-            <source>Kept by the program for all projects</source>
-            <translation>Vom Programm für alle Projekte gespeichert</translation>
+            <source>Depends on the setting: kept by the program for all projects. A project can keep a value of its own: &quot;Settings for: This project&quot;.</source>
+            <translation>Hängt von der Einstellung ab: vom Programm für alle Projekte gespeichert. Ein Projekt kann einen eigenen Wert haben: „Einstellungen für: Dieses Projekt“.</translation>
         </message>
     </context>
     <context>

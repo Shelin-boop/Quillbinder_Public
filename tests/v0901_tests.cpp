@@ -259,7 +259,7 @@ static QString describe(QWidget *w)
     return s;
 }
 
-// File > Options: a badge and a tool tip of where each option is kept (UR-10), the pages scroll (UR-02)
+// File > Options: a tool tip of where each option is kept (UR-10; the badges went in 0.90.2), the pages scroll (UR-02)
 static void optionsChecks(MainWindow &w)
 {
     using optstore::keyOf;
@@ -268,8 +268,12 @@ static void optionsChecks(MainWindow &w)
     od.resize(900, 640);
     od.show();
     settle(200);
-    QStringList unmarked, noTip, noBadge;
-    int marked = 0, badges = 0, project = 0;
+    QStringList unmarked, noTip;
+    int marked = 0, project = 0;
+    auto namesPlace = [](const QString &tip) {
+        return tip.contains(QLatin1String("Fixed:")) || tip.contains(QLatin1String("Depends on the setting:"))
+               || tip.contains(QLatin1String("Part of the look:"));
+    };
     for (QWidget *c : od.findChildren<QWidget *>()) {
         if (!isInput(c) || notAnOption(c))
             continue;
@@ -278,22 +282,21 @@ static void optionsChecks(MainWindow &w)
             continue;
         }
         ++marked;
-        if (!c->toolTip().contains(QLatin1String("(A)")) && !c->toolTip().contains(QLatin1String("(P)")))
+        if (c->property("qbPlace").toString() == QLatin1String("P"))
+            ++project;
+        if (!namesPlace(c->toolTip()))
             noTip << describe(c);
     }
-    for (QLabel *b : od.findChildren<QLabel *>(QStringLiteral("storageBadge"))) {
-        ++badges;
-        if (b->property("qbPlace").toString() == QLatin1String("P"))
-            ++project;
-        if (b->pixmap().isNull())
-            noBadge << b->parentWidget()->objectName();
-    }
-    info(QStringLiteral("%1 option controls marked, %2 badges, %3 of them P").arg(marked).arg(badges).arg(project));
+    // 0.90.2: no badges and no holders any more (the writer's wish); the tool tip tells
+    const int badges = int(od.findChildren<QLabel *>(QStringLiteral("storageBadge")).size());
+    const int holders = int(od.findChildren<QWidget *>(QStringLiteral("storageHolder")).size());
+    info(QStringLiteral("%1 option controls marked, %2 of them P; %3 badges, %4 holders").arg(marked).arg(project).arg(badges).arg(holders));
     check(marked > 90 && unmarked.isEmpty(), QStringLiteral("Options: every option control tells where it is kept"),
           unmarked.join(QLatin1String("\n      ")));
-    check(noTip.isEmpty(), QStringLiteral("Options: each tool tip names the place, A or P"), noTip.join(QLatin1String("\n      ")));
-    check(badges > 80 && noBadge.isEmpty(), QStringLiteral("Options: the controls have their badge, a drawn circle"),
-          QString::number(badges));
+    check(noTip.isEmpty(), QStringLiteral("Options: each tool tip names the place (fixed, depending, or part of the look)"),
+          noTip.join(QLatin1String("\n      ")));
+    check(badges == 0 && holders == 0, QStringLiteral("Options: no P/A circles and no holders before the controls (0.90.2)"),
+          QStringLiteral("%1 badges, %2 holders").arg(badges).arg(holders));
     auto *scroll = od.findChild<QScrollArea *>(QStringLiteral("optionsScroll"));
     check(scroll && scroll->widgetResizable(), QStringLiteral("Options: the pages are in a scrolling area (UR-02)"));
     for (int s = 0; s < OptionsDialog::SectionCount; ++s) {
@@ -301,11 +304,7 @@ static void optionsChecks(MainWindow &w)
         od.showSection(s, pages.isEmpty() ? QString() : pages.first());
         shot(&od, QStringLiteral("options-%1").arg(s, 2, 10, QLatin1Char('0')));
     }
-    auto badgeOf = [](QWidget *c) { return c ? qobject_cast<QLabel *>(c->property("qbStorageBadge").value<QObject *>()) : nullptr; };
-    auto placeOf = [&](QWidget *c) {
-        QLabel *b = badgeOf(c);
-        return b ? b->property("qbPlace").toString() : QStringLiteral("?");
-    };
+    auto placeOf = [](QWidget *c) { return c ? c->property("qbPlace").toString() : QStringLiteral("?"); };
     auto *quotes = od.findChild<QCheckBox *>(QStringLiteral("optSmartQuotes"));
     auto *language = od.findChild<QComboBox *>(QStringLiteral("optLanguage"));
     auto *paper = od.findChild<QPushButton *>(QStringLiteral("color_editorPaper"));
@@ -314,7 +313,7 @@ static void optionsChecks(MainWindow &w)
     check(placeOf(language) == QLatin1String("A") && language->toolTip().contains(QLatin1String("Fixed")),
           QStringLiteral("the language: A, fixed"), language ? language->toolTip() : QString());
     check(paper && placeOf(paper) == QLatin1String("P") && paper->toolTip().contains(QLatin1String("#"))
-              && paper->toolTip().contains(QLatin1String("(P)")),
+              && paper->toolTip().contains(QLatin1String("kept with this project")),
           QStringLiteral("the editor's paper color: P (this project's look), its tool tip names the color and the place"),
           paper ? paper->toolTip() : QString());
     od.reject();
@@ -344,7 +343,7 @@ static void optionsChecks(MainWindow &w)
         settle(150);
         auto *q = d.findChild<QCheckBox *>(QStringLiteral("optSmartQuotes"));
         auto *lang = d.findChild<QComboBox *>(QStringLiteral("optLanguage"));
-        check(placeOf(q) == QLatin1String("P") && q->toolTip().contains(QLatin1String("keeps a value of its own (P)")),
+        check(placeOf(q) == QLatin1String("P") && q->toolTip().contains(QLatin1String("this project keeps a value of its own")),
               QStringLiteral("this project after the change: smart quotes P"), q ? q->toolTip() : QString());
         check(placeOf(lang) == QLatin1String("A"), QStringLiteral("this project: the language stays A (fixed)"));
         d.showSection(OptionsDialog::SEditing);
@@ -357,7 +356,7 @@ static void optionsChecks(MainWindow &w)
         d.show();
         settle(150);
         auto *q = d.findChild<QCheckBox *>(QStringLiteral("optSmartQuotes"));
-        check(placeOf(q) == QLatin1String("A") && q->toolTip().contains(QLatin1String("This project keeps a value of its own (P)")),
+        check(placeOf(q) == QLatin1String("A") && q->toolTip().contains(QLatin1String("This project keeps a value of its own")),
               QStringLiteral("all projects: smart quotes A, the tool tip says this project keeps its own"), q ? q->toolTip() : QString());
         d.reject();
         settle(50);

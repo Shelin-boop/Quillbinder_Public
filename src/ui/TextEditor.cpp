@@ -332,6 +332,15 @@ void TextEditor::setPageSurround(const QColor &outside, const QColor &edge)
         viewport()->update();
 }
 
+void TextEditor::setInvisiblesColor(const QColor &c)
+{
+    if (m_invisibles == c)
+        return;
+    m_invisibles = c;
+    if (s_invisibles)
+        viewport()->update();
+}
+
 void TextEditor::pageLayoutChanged()
 {
     updateHeight();
@@ -423,8 +432,11 @@ void TextEditor::paintInvisibles(QPaintEvent *e)
         return;
     const int xOff = horizontalScrollBar()->value(), yOff = verticalScrollBar()->value();
     const QRectF area = QRectF(e->rect()).translated(xOff, yOff); // layout coordinates
-    QColor ink = palette().color(QPalette::Text);
-    ink.setAlphaF(0.45);
+    QColor ink = m_invisibles;
+    if (!ink.isValid()) { // composition mode and the other views with colors of their own
+        ink = palette().color(QPalette::Text);
+        ink.setAlphaF(0.45);
+    }
     QPainter p(viewport());
     p.setRenderHint(QPainter::Antialiasing);
     p.translate(-xOff, -yOff);

@@ -7,6 +7,8 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QHash>
+#include <QSet>
 #include <QLayout>
 #include <QEvent>
 #include <QLineEdit>
@@ -22,8 +24,6 @@ namespace windowcare {
 
 namespace {
 
-const char *kOwner = "qbCareOwner";
-const char *kFocus = "qbCareFocus";
 const char *kBusy = "qbCarePlaceholderBusy";
 
 // room for a title bar and the frame when the window has none yet (no window manager has framed it)
@@ -63,6 +63,13 @@ void giveBack(QPointer<QWidget> owner, QPointer<QWidget> focus)
         target->setFocus(Qt::ActiveWindowFocusReason);
 }
 
+// where the keyboard was when a dialog came, guarded: the window or the field may be deleted while the dialog is open
+// (0.90.2: 0.90.1 kept them as plain pointers in properties of the dialog, and a hide after such a deletion read freed
+// memory; seen as a rare crash of the ui suite when a dialog closed)
+struct Before {
+    QPointer<QWidget> owner, focus;
+};
+
 class Filter : public QObject
 {
 public:
@@ -90,7 +97,7 @@ public:
     }
 
 private:
-    static void shown(QWidget *d)
+    void shown(QWidget *d)
     {
         // UR-02: never taller or wider than the screen can show
         const QRect area = usableArea(d);
@@ -103,14 +110,21 @@ private:
         QWidget *focus = QApplication::focusWidget();
         if (!focus || focus->window() != owner)
             focus = owner->focusWidget();
-        d->setProperty(kOwner, QVariant::fromValue<QObject *>(owner));
-        d->setProperty(kFocus, QVariant::fromValue<QObject *>(focus));
+        m_before.insert(d, Before{owner, focus});
+        if (!m_watched.contains(d)) { // a dialog deleted without being hidden leaves no entry behind
+            m_watched.insert(d);
+            connect(d, &QObject::destroyed, this, [this, d] {
+                m_before.remove(d);
+                m_watched.remove(d);
+            });
+        }
     }
 
-    static void hidden(QWidget *d)
+    void hidden(QWidget *d)
     {
-        QPointer<QWidget> owner = qobject_cast<QWidget *>(d->property(kOwner).value<QObject *>());
-        QPointer<QWidget> focus = qobject_cast<QWidget *>(d->property(kFocus).value<QObject *>());
+        const Before b = m_before.take(d);
+        QPointer<QWidget> owner = b.owner;
+        QPointer<QWidget> focus = b.focus;
         if (!owner)
             return;
         // after the dialog's own clean-up and whatever its result started; again a little later: without a window
@@ -119,6 +133,9 @@ private:
         QTimer::singleShot(0, owner, [owner, focus] { giveBack(owner, focus); });
         QTimer::singleShot(250, owner, [owner, focus] { giveBack(owner, focus); });
     }
+
+    QHash<const QWidget *, Before> m_before;
+    QSet<const QWidget *> m_watched;
 };
 
 } // namespace

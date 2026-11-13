@@ -300,7 +300,7 @@ static void optionsChecks()
     check(beh.contains(QStringLiteral("Composition Mode")) && beh.contains(QStringLiteral("Return Key")) && beh.contains(QStringLiteral("Playback"))
               && beh.contains(QStringLiteral("Snapshots")),
           QStringLiteral("Behaviors: Composition Mode ... Return Key, Snapshots"), beh.join(QLatin1String(", ")));
-    check(od.pageNames(OptionsDialog::SAppearance).size() == 12, QStringLiteral("Appearance: twelve parts of the window"),
+    check(od.pageNames(OptionsDialog::SAppearance).size() == 11, QStringLiteral("Appearance: eleven parts of the window (0.90.2: no Page View)"),
           od.pageNames(OptionsDialog::SAppearance).join(QLatin1String(", ")));
     check(od.pageNames(OptionsDialog::SCorrections) == QStringList({QStringLiteral("Corrections"), QStringLiteral("Spelling")}),
           QStringLiteral("Corrections: Corrections and Spelling"));

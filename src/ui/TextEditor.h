@@ -75,6 +75,9 @@ public:
     // combined text: the last sheet ends below the text instead of being a full page.
     void setTrimLastPage(bool on);
     void setPageSurround(const QColor &outside, const QColor &edge);
+    // the color of Show Invisibles' marks (0.90.2); invalid = the text color at 45 %
+    void setInvisiblesColor(const QColor &c);
+    QColor invisiblesColor() const { return m_invisibles; }
     int pageCount() const;        // 0 when not paged
     int pageOfCursor() const;     // 1-based; 0 when not paged
     int pageAt(int position) const;
@@ -295,6 +298,7 @@ private:
     bool m_trimLastPage = false;
     bool m_healQueued = false;
     QColor m_pageOutside, m_pageEdge;
+    QColor m_invisibles;
     QRegularExpression m_searchRe;
     bool m_searchOn = false;
     int m_searchCount = 0;

@@ -172,7 +172,7 @@ Choose a layout under **Window > Layouts** or from the **View** button of the to
 - Add a command with the arrow button or a double-click. Every command of the menus is available, also those of writing tools (Edit > Writing Tools); the search field above the list finds it.
 - Remove a button with the other arrow or a double-click, and move it with the up and down buttons or by dragging.
 - **Separator** and **Flexible Space** can be used as often as you like. A flexible space pushes what follows to the right; two of them center what stands between them.
-- Some entries are more than one command: **View**, **Add**, **Search**, the **Quick Search field**, **View Mode**, **Project Bookmarks**, **Comments and Footnotes**, and **Layouts** for the main toolbar; the style, font, size, and line spacing lists for the format bar.
+- Some entries are more than one command: **View**, **Add**, **Search**, the **Quick Search field**, **View Mode**, **Project Bookmarks**, **Comments and Footnotes**, **Layouts**, and **Themes** (the theme list with Bright, Dark, and Both) for the main toolbar; the style, font, size, and line spacing lists for the format bar.
 - Below the lists you choose small, medium, or large icons and whether the main toolbar shows text beside or under the icons.
 - **Standard Set** puts the buttons the program came with back into the bar.
 
@@ -322,7 +322,7 @@ Applying a paragraph style replaces the formatting set by hand in the paragraphs
 
 ### Invisible characters
 
-**View > Text Editing > Show Invisibles** (also the ¶ button of the toolbar) shows the characters you do not see: a dot for each space, an arrow for a tab, a small circle for a no-break space, a bent arrow for a line break (**Shift+Enter**) and ¶ at the end of each paragraph. They are drawn on the screen only, in the main text of every editor; they are never part of the text, a print or the compile. The choice is kept.
+**View > Text Editing > Show Invisibles** (also the ¶ button of the toolbar) shows the characters you do not see: a dot for each space, an arrow for a tab, a small circle for a no-break space, a bent arrow for a line break (**Shift+Enter**) and ¶ at the end of each paragraph. They are drawn on the screen only, in the main text of every editor; they are never part of the text, a print or the compile. The choice is kept. Their color is the text's, faded into the paper; a color of their own is set under **File > Options > Appearance > Textual Marks** (or right-click the text > **Appearance**), and it belongs to the project's look like the paper and the text (composition mode keeps the faded text color).
 
 ### The ruler
 
@@ -490,7 +490,7 @@ The **Insert** menu also offers the current date and time, special characters (e
 
 ### Page view
 
-**View > Text Editing > Page View** (also in the menu of the **View** toolbar button) shows your text on sheets of paper instead of one endless column. The footer then shows the page of the cursor and the number of pages, for example "Page 3 of 12". Choose the command again to return to the column.
+**View > Text Editing > Page View** (also in the menu of the **View** toolbar button) shows your text on sheets of paper instead of one endless column. The footer then shows the page of the cursor and the number of pages, for example "Page 3 of 12". Choose the command again to return to the column. The color of the desk around the pages is under **File > Options > Appearance > Main Editor** (or right-click > **Appearance** while the pages are shown).
 
 The pages are a way of looking at your text, nothing more. They do not show what a compiled or printed manuscript will look like: you write in pieces, and titles, fonts, and page size are decided when you compile (section 13). Nothing about the pages is stored in your documents.
 
@@ -1308,14 +1308,14 @@ A backup is written under a temporary name (*… .zip.part*), checked, and only 
 
 **File > Options** (**Ctrl+,**) has a row of icons at the top for the sections, a list of pages (or tabs) on the left, the options on the right. Nothing changes until you click **OK** or **Apply**. At the bottom left, **Manage** saves all options into a file and loads them again (**Save Options to File...**, **Load Options from File...**, for example to take your settings to another computer; recent projects and window places are not in the file), saves the current look as a theme file, and lists the themes; **Defaults** sets every option back to the standard (your recent projects, your own themes, layouts, toolbars, and shortcuts stay).
 
-**Where each option is kept.** A small circle stands before every option: a green **P** means the value is kept in the open project, a blue **A** means the program keeps it for all projects. Its tool tip (also on the option itself) says whether that place is **fixed** (a setting only the program can hold, such as the language) or **depends on the setting** **Settings for** at the top (and, on the Appearance page, **Show and change the look of**). A value changed for **This project** shows its **P** once you click **OK** or **Apply**. On a small screen the pages scroll, so OK, Cancel, and Apply stay in view.
+**Where each option is kept.** Point at an option to see where its value is kept: its tool tip says whether the open project keeps it or the program keeps it for all projects, and whether that place is **fixed** (a setting only the program can hold, such as the language) or **depends on the setting** **Settings for** at the top (and, on the Appearance page, **Show and change the look of**). (0.90.1 showed a green P or a blue A before every option; 0.90.2 leaves that to the tool tip.) On a small screen the pages scroll, so OK, Cancel, and Apply stay in view.
 
 Since 0.70 the window opens for **All projects** (the program's settings); choose **This project** at the top to set something for the open project only. A project's own settings can make saving safer but never less safe: the shorter autosave delay counts, a backup the program makes stays on, the larger number of backups is kept, and the automatic quit is the program's alone. The latest save comes 10 seconds after a change at most, whatever the autosave delay.
 
 - **General**: **Startup** (reopen the last project, the desktop's file dialogs, the **Language**: English or Deutsch, from the next start; the manual and the welcome project stay in English; **Group the digits of large numbers**: word counts, targets, and statistics with a separator between the thousands, as your system writes numbers (44,825 or 44.825), or 44825 when unticked); **Saving** (autosave interval, the number of recent projects, snapshots with each File > Save); **Author Information** (your name, address, phone, and email for title pages, used by the placeholders `<$author>`, `<$street>`, `<$city>`, `<$state>`, `<$zip>`, `<$country>`, `<$phone>`, `<$email>`, `<$address>`); the options of the writing tools (**Scratch Pad**); **Shared Templates** (a further folder of project templates, for example one synchronized between your computers; its templates appear in File > New Project); **Citations** (the program **Format > Bibliography/Citations...** starts, for example Zotero or JabRef); **Separators** (what goes between merged documents and between scratch pad notes added to a document: a single return, an empty line, a page break, nothing, or your own text); **Automatic Quit** (save and close after a number of minutes without key or mouse input); **Warnings** (**Show Internal Log Console** shows the program's messages of this session, **Reset All Warnings** asks again the questions answered with "Don't ask again").
 - **Editing**: **Options** (reload the editors' last zoom, the default text zoom of each area, centimeters or inches and the step of the ruler, the Insert key for overtype, a date format of your own for Insert > Current Date, what the live count shows, inline annotations without color, comments and footnotes that stop before punctuation, a block insertion point); **Formatting** (the formatting and styles of new projects); **Revisions** (the five colors of Format > Revision Mode, from the shared palette).
 - **Behaviors**: **Composition Mode** (screen, main window out of the way, Esc); **Document Links** (where document links open, back-links); **Double-Clicking** (a double-click on the corkboard makes a card); **Dragging & Dropping** (documents dropped onto text documents, the format of text dragged to other programs); **Folders & Files** (folders open as a corkboard; a text with subdocuments opens like a folder); **Playback** of audio and video (section 6); **Quick Reference** (panels reopen with their project); **Return Key** (Return ends editing a synopsis; Return makes a new card or row); **Snapshots** (a message when snapshots are taken).
-- **Appearance**: the theme, and twelve parts of the window (General Interface, Binder, Composition Mode, Corkboard, Index Cards, Inspector & Notes, Main Editor, Outliner, Page View, Combined Text, Target Progress Bars, Textual Marks), each with its options, fonts, and colors. See "Themes, colors, and fonts" below. **General Interface** also has the full path of the project in the title bar and the size of the toolbar icons.
+- **Appearance**: the theme, and eleven parts of the window (General Interface, Binder, Composition Mode, Corkboard, Index Cards, Inspector & Notes, Main Editor, Outliner, Combined Text, Target Progress Bars, Textual Marks), each with its options, fonts, and colors. See "Themes, colors, and fonts" below. **General Interface** also has the full path of the project in the title bar and the size of the toolbar icons.
 - **Corrections**: corrections while typing (section 4) and **Spelling** (the dictionary, words with numbers, the underline, the personal word list).
 - **Keyboard**: the shortcut of every command (section 19).
 - **Sharing**: **Import** (comments, footnotes, styles, the encoding of plain text, HTML files; section 14), **Export** (the file format and notes of File > Export > Files), **Conversion** (how *.doc* files are read).
@@ -1344,7 +1344,7 @@ A few settings belong to the program only and are not shown for a project: the r
 
 ### Themes, colors, and fonts
 
-A theme sets the colors, and if it wants the fonts, of every area of the window. Choose one under **Window > Themes**; the change takes effect at once, without a restart. Eight themes are built in:
+A theme sets the colors, and if it wants the fonts, of every area of the window. Choose one under **Window > Themes**, or in the theme list in the middle of the main toolbar; the change takes effect at once, without a restart. Eight themes are built in:
 
 | Theme | Look |
 |-------|------|
@@ -1359,6 +1359,8 @@ A theme sets the colors, and if it wants the fonts, of every area of the window.
 
 Add-ons can bring more themes (the add-on "Extra themes" has Northern Night, Forest, Graphite, Warm Paper, and Rose Dawn).
 
+**The theme list in the toolbar** (0.90.2). In the middle of the main toolbar, three buttons narrow the list beside them: **Bright** shows the bright themes, **Dark** the dark ones, **Both** all of them (a theme counts as bright or dark by the color of its window; **Default (Follow the Desktop)** is in both lists, and themes of your own and of add-ons are sorted the same way). Choosing a theme in the list does what **Window > Themes** does: the open project and new projects use it. When the theme in use is not in the list shown, the list says "Choose a bright theme" (or a dark one). The choice of Bright, Dark, or Both is kept. When the toolbar is too narrow for everything (a small window, large icons with text beside them), the list steps aside so that the quick search stays; it comes back when there is room. Like every toolbar control, the list can be moved or taken away under **View > Toolbars > Customize Toolbars**; a toolbar you arranged yourself got it once, after **Redo**.
+
 **The page in dark themes** (0.70). The standard page of {{APP}} is a light olive paper beside a gray desk. With a dark theme, the page is a very dark gray with white text instead (or the theme's own dark page, if it has one), so a dark theme does not leave a bright page in a dark frame. A page color you chose yourself (right-click > Appearance, or File > Options > Appearance) stays in every theme.
 
 **Changing colors and fonts.** **File > Options > Appearance** (or **Window > Themes > Colors and Fonts…**) lists the parts of the window on the left. Each shows its options, its fonts, and its colors (a click on a color shows the shared palette: the label colors, the six standard colors, and **Other...**):
@@ -1371,12 +1373,11 @@ Add-ons can bring more themes (the add-on "Extra themes" has Northern Night, For
 | Corkboard | (none) | corkboard, status stamp |
 | Index Cards | card titles, card text | index card, title, text, line under the title, ruled lines |
 | Inspector & Notes | synopsis | Inspector Strips (the tab row, the headings, the Label and Status row), labels, synopsis card and text, notes and their text |
-| Main Editor | header bar title | paper, text, the space beside the text column, the header bar (normal, active editor, locked in place) |
+| Main Editor | header bar title | paper, text, the space beside the text column, the desk around the pages (only shown in page view), the header bar (normal, active editor, locked in place) |
 | Outliner | outliner | background, alternate rows, text |
-| Page View | (none) | the desk around the pages |
 | Combined Text | titles in the combined text | (none) |
 | Target Progress Bars | (none) | session, draft, target reached |
-| Textual Marks | (none) | links in the text, search hits, spelling underline |
+| Textual Marks | (none) | links in the text, search hits, spelling underline, the marks of Show Invisibles |
 
 **Every project keeps its own look.** The theme of the binder, editor, corkboard, outliner, inspector, and composition mode, your own colors and fonts for them, the text column width, and the border beside the text belong to the project: changing them in one project leaves the others as they are, and an update of {{APP}} never changes how an existing project looks. The list **Show and change the look of** at the top of **File > Options > Appearance** chooses whose look the page shows and changes: **This project** (the open one; chosen first) or **New projects** (the look a new project starts with). Switching between the two keeps what you changed in each until you press **Apply** or **OK**. The colors of menus and panels (**General Interface**) and the font of menus, buttons, and panels are the same in every project. A project opened for the first time by version 0.40.2 or later keeps the look it had until then. **Window > Themes** sets the theme of the open project and of new projects at once.
 

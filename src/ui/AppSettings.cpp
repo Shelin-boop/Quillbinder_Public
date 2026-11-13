@@ -366,6 +366,22 @@ void AppSettings::load()
         s.setValue(QStringLiteral("paraButtons0604"), true);
         s.setValue(QStringLiteral("format"), toolbarFormat);
     }
+    // 0.90.2: a main toolbar arranged by the writer gets the theme list once, in the middle of the space after Redo
+    // (it can be taken away under View > Toolbars > Customize Toolbars)
+    if (!toolbarMain.isEmpty() && !s.value(QStringLiteral("themePicker0902")).toBool()) {
+        if (!toolbarMain.contains(QStringLiteral("themePicker"))) {
+            const int redo = int(toolbarMain.indexOf(QStringLiteral("redo")));
+            if (redo >= 0 && redo + 1 < toolbarMain.size() && toolbarMain.at(redo + 1) == QLatin1String("<>")) {
+                toolbarMain.insert(redo + 2, QStringLiteral("themePicker"));
+                toolbarMain.insert(redo + 3, QStringLiteral("<>"));
+            } else {
+                const int search = int(toolbarMain.indexOf(QStringLiteral("searchMenu")));
+                toolbarMain.insert(search >= 0 ? search : int(toolbarMain.size()), QStringLiteral("themePicker"));
+            }
+        }
+        s.setValue(QStringLiteral("themePicker0902"), true);
+        s.setValue(QStringLiteral("main"), toolbarMain);
+    }
     toolbarIconSize = qBound(16, s.value(QStringLiteral("iconSize"), toolbarIconSize).toInt(), 48);
     toolbarStyle = s.value(QStringLiteral("style"), toolbarStyle).toString();
     s.endGroup();

@@ -46,6 +46,7 @@ enum class Role {
     BinderBackground, BinderText,
     // main editor
     EditorPaper, EditorText, EditorMargin, EditorPageSurround, EditorLink, SearchHit, SpellingError,
+    Invisibles, // the marks of Show Invisibles (0.90.2; by default the text faded into the paper, as before)
     HeaderBar, HeaderBarText, HeaderBarActive, HeaderBarLocked,
     // corkboard and index cards
     CorkboardBackground, CardPaper, CardTitle, CardText, CardTitleLine, CardLines, StatusStamp,
@@ -147,6 +148,10 @@ QColor color(Role r);
 QFont font(FontRole r);             // the area's font with the changes applied
 QFont baseFont(FontRole r);         // the area's font without them
 bool isDark();
+// Whether a theme is bright or dark, by the color of its window and panels (0.90.2, the theme list of the
+// main toolbar); a theme that follows the desktop is either.
+enum class Brightness { Bright, Dark, Either };
+Brightness brightnessOf(const QString &id);
 QColor accent();
 QString currentName();
 

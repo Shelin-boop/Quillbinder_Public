@@ -1431,8 +1431,8 @@ int main(int argc, char **argv)
             settle(200);
             auto *areas = od.findChild<QListWidget *>(QStringLiteral("appearanceAreas"));
             auto *combo = od.findChild<QComboBox *>(QStringLiteral("themeCombo"));
-            check(areas && areas->count() == 12 && combo && combo->currentData().toString() == QLatin1String("sepia"),
-                  QStringLiteral("Appearance: the twelve areas of Scrivener's list, the theme in use is selected"));
+            check(areas && areas->count() == 11 && combo && combo->currentData().toString() == QLatin1String("sepia"),
+                  QStringLiteral("Appearance: the eleven areas (0.90.2: Page View's color in Main Editor), the theme in use is selected"));
             auto *paperBtn = od.findChild<QPushButton *>(QStringLiteral("color_editorPaper"));
             auto *paperReset = od.findChild<QToolButton *>(QStringLiteral("colorReset_editorPaper"));
             check(paperBtn && paperReset && !paperReset->isEnabled() && od.shownColor(QStringLiteral("editorPaper")) == QColor(0xfa, 0xf3, 0xe4)
@@ -2000,7 +2000,7 @@ int main(int argc, char **argv)
             auto *quick = w.findChild<QLineEdit *>(QStringLiteral("quickSearch"));
             auto *styleCombo = w.findChild<QComboBox *>(QStringLiteral("styleCombo"));
             const QStringList standardKeys = barKeys(mainBar);
-            check(viewBtn && viewBtn->isVisible() && quick && quick->isVisible() && mainBar->actions().size() == 23 // 0.60.1: + Show Invisibles; 0.61: + Undo, Redo
+            check(viewBtn && viewBtn->isVisible() && quick && quick->isVisible() && mainBar->actions().size() == 25 // 0.60.1: + Show Invisibles; 0.61: + Undo, Redo; 0.90.2: + the theme list and a space
                       && mainBar->widgetForAction(mainBar->actions().first()) == viewBtn
                       && standardKeys.contains(QStringLiteral("viewCork")) && standardKeys.last() == QLatin1String("showInspector")
                       && standardKeys.indexOf(QStringLiteral("undo")) == standardKeys.indexOf(QStringLiteral("trash")) + 1
