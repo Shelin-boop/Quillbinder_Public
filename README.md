@@ -18,12 +18,12 @@ add-ons. The files, sorted by system:
 
 ### Linux
 
-**Quillbinder 0.90.4 beta for Linux (x86_64):**
+**Quillbinder 0.91.0 beta for Linux (x86_64):**
 
-- **[Quillbinder-0.90.4-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.90.4-beta/Quillbinder-0.90.4-beta-x86_64.AppImage)**: the program
-- **[quillbinder-0.90.4-update.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.90.4-beta/quillbinder-0.90.4-update.qbpkg)**: the program update, for a Quillbinder you already have (0.80.0 or later; **File > Install Update or Add-on**)
-- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.90.4-beta/media-all-formats.qbpkg)**: the commonly used audio and video formats (an add-on; optional)
-- **[Quillbinder-0.90.4-full-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.90.4-beta/Quillbinder-0.90.4-full-beta-x86_64.AppImage)**:
+- **[Quillbinder-0.91.0-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.91.0-beta/Quillbinder-0.91.0-beta-x86_64.AppImage)**: the program
+- **[quillbinder-0.91.0-update.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.91.0-beta/quillbinder-0.91.0-update.qbpkg)**: the program update, for a Quillbinder you already have (0.80.0 or later; **File > Install Update or Add-on**)
+- **[media-all-formats.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.91.0-beta/media-all-formats.qbpkg)**: the commonly used audio and video formats (an add-on; optional)
+- **[Quillbinder-0.91.0-full-beta-x86_64.AppImage](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.91.0-beta/Quillbinder-0.91.0-full-beta-x86_64.AppImage)**:
   **the full version**: the program with all add-ons and all the libraries they need included (the commonly
   used audio and video formats, extra themes, project templates, the scriptwriting pack, the writing tools with offline speech recognition, the
   importers of web pages and old Word files). They are installed at the first start: one download, nothing
@@ -31,7 +31,9 @@ add-ons. The files, sorted by system:
 - [All files of the newest version](https://github.com/Shelin-boop/Quillbinder_Public/releases/latest): the other
   add-ons and SHA-256 checksums. Earlier versions: [Releases](https://github.com/Shelin-boop/Quillbinder_Public/releases).
 
-0.90.4 changes nothing in the writing work on Linux: it is the first version whose source also builds the Windows
+0.91.0 puts all backups straight into the backup folder again, splits the toolbars into eight that can be moved by
+a grip and switched off one by one, and gives the theme buttons a click that switches: Bright, Dark, and U1 and U2
+for two looks of your own. 0.90.4 changes nothing in the writing work on Linux: it is the first version whose source also builds the Windows
 version, which is still being tested and not published. 0.90.3 made backups safe in a folder that a sync program
 watches. 0.90.2 added a theme list with Bright, Dark and Both to the main toolbar and a color of its own for Show
 Invisibles, and leaves where an option is kept to its tool tip. 0.90.1 keeps long writing sessions light on memory and makes everyday work smoother: every option shows whether

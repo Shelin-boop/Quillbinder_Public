@@ -2129,8 +2129,10 @@ QWidget *OptionsDialog::backupSection()
         QDir().mkpath(m_backupDir->text());
         QDesktopServices::openUrl(QUrl::fromLocalFile(m_backupDir->text()));
     });
-    f->addRow(hint(tr("Backups are ZIP files of the whole project folder with the date in their names. To restore one, "
-                      "unpack it and open the project inside."),
+    // 0.91.0: says where the backups are (they are straight in this folder again, for every project)
+    f->addRow(hint(tr("Backups are ZIP files of the whole project folder. The backups of all projects are in this folder, "
+                      "each named after its project with the date and time. To restore one, use File > Back Up > Restore "
+                      "From Backup, or unpack it and open the project inside."),
                    w));
     return w;
 }

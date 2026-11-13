@@ -156,20 +156,48 @@ namespace themeui {
 
 // A theme chosen in Window > Themes (or the Themes window) is for the program, new projects and
 // the open project alike (0.40.2: every project keeps its own look; other projects keep theirs).
+int ownChanges()
+{
+    const AppSettings &s = AppSettings::instance();
+    if (!look::project())
+        return int(s.ownColors.size() + s.ownFonts.size());
+    // what the writer sees: the general colors and the interface font, and the project's areas
+    const look::Values pl = look::active();
+    int own = int(pl.colors.size() + pl.fonts.size());
+    for (auto it = s.ownColors.constBegin(); it != s.ownColors.constEnd(); ++it)
+        own += theme::isAreaColor(it.key()) ? 0 : 1;
+    for (auto it = s.ownFonts.constBegin(); it != s.ownFonts.constEnd(); ++it)
+        own += theme::isAreaFont(it.key()) ? 0 : 1;
+    return own;
+}
+
+bool useAsItIs(QWidget *parent, const QString &id)
+{
+    AppSettings &s = AppSettings::instance();
+    s.ownColors.clear();
+    s.ownFonts.clear();
+    s.theme = id;
+    s.notifyChanged();
+    if (look::project()) {
+        look::Values pl = look::active();
+        pl.colors.clear();
+        pl.fonts.clear();
+        pl.theme = id;
+        QString err;
+        if (!look::change(pl, &err)) {
+            QMessageBox::warning(parent, QObject::tr("Change Theme"), err);
+            return false;
+        }
+    }
+    return true;
+}
+
 bool choose(QWidget *parent, const QString &id, bool ask)
 {
     AppSettings &s = AppSettings::instance();
     look::Values pl = look::active();
     const bool hasProject = look::project() != nullptr;
-    int own = int(s.ownColors.size() + s.ownFonts.size());
-    if (hasProject) {
-        // what the writer sees: the general colors and the interface font, and the project's areas
-        own = int(pl.colors.size() + pl.fonts.size());
-        for (auto it = s.ownColors.constBegin(); it != s.ownColors.constEnd(); ++it)
-            own += theme::isAreaColor(it.key()) ? 0 : 1;
-        for (auto it = s.ownFonts.constBegin(); it != s.ownFonts.constEnd(); ++it)
-            own += theme::isAreaFont(it.key()) ? 0 : 1;
-    }
+    const int own = ownChanges();
     bool discard = false;
     if (own > 0 && ask && (id != s.theme || id != pl.theme)) {
         QMessageBox box(QMessageBox::Question, QObject::tr("Change Theme"),

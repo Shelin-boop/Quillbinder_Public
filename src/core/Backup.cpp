@@ -103,6 +103,30 @@ const QRegularExpression &ownForm()
     return own;
 }
 
+// The title in a backup's name of the program's own form ("<title> bak <date time>..."); "" for any other name.
+QString ownTitle(const QString &fileName)
+{
+    const QRegularExpressionMatch m = ownForm().match(fileName);
+    if (!m.hasMatch())
+        return QString();
+    const QString upToTime = m.captured(1); // "<title> bak yyyy-MM-dd HH-mm-ss"
+    return upToTime.left(upToTime.size() - 24);
+}
+
+// 0.91.0: the backups in dir that this program made of the project with this title (its safe file name form), oldest
+// first: the only files the clean-up counts and may delete.
+QStringList ownBackupsOf(const QString &dir, const QString &title)
+{
+    QStringList out;
+    const QStringList all = zipsIn(dir, QStringLiteral("* bak *.zip"));
+    for (const QString &f : all) {
+        const QString name = QFileInfo(f).fileName();
+        if (isOwnBackupName(name) && ownTitle(name) == title)
+            out << f;
+    }
+    return out;
+}
+
 // The backup's name with another number of its second ("... (3).zip"; the note "(incomplete)" stays behind it).
 QString numberedName(const QString &fileName, int n)
 {
@@ -324,25 +348,36 @@ QString projectKey(const Project *p)
     return QString::fromLatin1(QCryptographicHash::hash(QDir::cleanPath(place).toUtf8(), QCryptographicHash::Sha1).toHex().left(8));
 }
 
-QString projectFolder(const Project *p, const QString &dirIn)
+QString formerProjectFolder(const Project *p, const QString &dirIn)
 {
     const QString dir = dirIn.isEmpty() ? defaultDirectory() : dirIn;
-    const QString key = projectKey(p);
-    // the folder keeps its name when the project's title changes: it is found by its key
-    const QStringList found = QDir(dir).entryList({QStringLiteral("* ") + key}, QDir::Dirs | QDir::NoDotAndDotDot);
-    if (!found.isEmpty())
-        return QDir(dir).filePath(found.first());
-    return QDir(dir).filePath(text::safeFileName(p->title()) + QLatin1Char(' ') + key);
+    // the folder kept its name when the project's title changed: it is found by its key
+    const QStringList found = QDir(dir).entryList({QStringLiteral("* ") + projectKey(p)}, QDir::Dirs | QDir::NoDotAndDotDot);
+    return found.isEmpty() ? QString() : QDir(dir).filePath(found.first());
 }
 
-QStringList backupsFor(const Project *p, const QString &dir)
+QStringList backupsFor(const Project *p, const QString &dirIn)
 {
-    return zipsIn(projectFolder(p, dir), QStringLiteral("* bak *.zip"));
+    const QString dir = dirIn.isEmpty() ? defaultDirectory() : dirIn;
+    const QString mine = text::safeFileName(p->title());
+    const QString begins = mine + QLatin1String(" bak ");
+    QStringList out;
+    const QStringList all = zipsIn(dir, QStringLiteral("* bak *.zip"));
+    for (const QString &f : all) {
+        const QString name = QFileInfo(f).fileName();
+        // a name in the program's own form says exactly which title it is of; any other one (a sync program's copy)
+        // is taken by how it begins
+        const QString title = ownTitle(name);
+        if (title.isEmpty() ? name.startsWith(begins) : title == mine)
+            out << f;
+    }
+    return out;
 }
 
-QStringList backupsFor(const QString &projectTitle, const QString &dir)
+QStringList formerBackupsFor(const Project *p, const QString &dir)
 {
-    return zipsIn(dir, text::safeFileName(projectTitle) + QLatin1String(" bak *.zip"));
+    const QString former = formerProjectFolder(p, dir);
+    return former.isEmpty() ? QStringList() : zipsIn(former, QStringLiteral("* bak *.zip"));
 }
 
 bool backupProject(Project *p, const QString &dirIn, int keep, QString *outPath, QString *error, Where where, bool *waiting)
@@ -352,11 +387,20 @@ bool backupProject(Project *p, const QString &dirIn, int keep, QString *outPath,
     // (0.90.3: an empty *error after a backup means "complete": a text left in it from an earlier step is not kept)
     if (error)
         error->clear();
-    const QString root = dirIn.isEmpty() ? defaultDirectory() : dirIn;
-    // 0.70.0 (audit A F-02, B F-3): the backups of a project go into a folder of its own, found by the project
-    // folder's place, and only they are counted and cleaned up; another project with the same title (a copy, a
-    // restored backup) has its own folder. Back Up To... writes into the chosen folder as it is.
-    const QString dir = where == Where::ProjectFolder ? projectFolder(p, root) : root;
+    // 0.91.0: every backup goes straight into the folder given (see Backup.h); the backups of this project are those
+    // that carry its title, and only they are counted and cleaned up
+    const QString dir = dirIn.isEmpty() ? defaultDirectory() : dirIn;
+    const QString mine = text::safeFileName(p->title());
+    // Backups that waited for the project's own folder of 0.70.0 to 0.90.4 (it could not be reached then) wait in
+    // that folder's work folder; they are put into the backup folder with this backup.
+    QStringList formerWork;
+    if (where == Where::BackupFolder) {
+        const QString wouldBe = QDir(dir).filePath(mine + QLatin1Char(' ') + projectKey(p));
+        formerWork << workFolderFor(wouldBe);
+        const QString former = formerProjectFolder(p, dir);
+        if (!former.isEmpty() && QDir::cleanPath(former) != QDir::cleanPath(wouldBe))
+            formerWork << workFolderFor(former);
+    }
     // 0.64.1: a backup is made only of a project whose latest changes were saved (before, a failed save
     // was passed over and the backup reported success without them)
     {
@@ -457,14 +501,35 @@ bool backupProject(Project *p, const QString &dirIn, int keep, QString *outPath,
             return;
         }
         res.packed = true;
-        // backups that could not be put into the backup folder before go first, oldest first
+        // backups that could not be put into the backup folder before go first, oldest first (those of every
+        // project: they all belong into this folder)
+        bool takes = true;
         const QStringList waitingOnes = zipsIn(work, QStringLiteral("*.zip"));
         for (const QString &w : waitingOnes) {
             if (QFileInfo(w).fileName() == finished)
                 continue;
             QString at, whyNot;
-            if (putInPlace(w, dir, &at, &whyNot, &cancel) != Put::Done)
+            if (putInPlace(w, dir, &at, &whyNot, &cancel) != Put::Done) {
+                takes = false;
                 break; // the folder does not take them now; the new backup says why
+            }
+        }
+        // 0.91.0: and those that waited for this project's own folder of 0.70.0 to 0.90.4
+        for (const QString &fw : std::as_const(formerWork)) {
+            if (!takes)
+                break;
+            const QStringList formerOnes = zipsIn(fw, QStringLiteral("*.zip"));
+            for (const QString &w : formerOnes) {
+                QString at, whyNot;
+                if (putInPlace(w, dir, &at, &whyNot, &cancel) != Put::Done) {
+                    takes = false;
+                    break;
+                }
+            }
+            if (takes && QDir(fw).exists()) { // nothing waits there any more: the folder goes with its note
+                QFile::remove(fw + QLatin1String("/target.txt"));
+                QDir().rmdir(fw);
+            }
         }
         if (cancel.load()) {
             res.cancelled = true;
@@ -516,9 +581,9 @@ bool backupProject(Project *p, const QString &dirIn, int keep, QString *outPath,
             return false;
         }
         // The backup is whole and stays in the work folder; the next backup into this folder puts it in place. Of
-        // those that wait, the newest `keep` stay (as in the backup folder).
+        // those of this project that wait, the newest `keep` stay (as in the backup folder).
         if (keep > 0) {
-            QStringList waitingOnes = zipsIn(work, QStringLiteral("*.zip")); // oldest first
+            QStringList waitingOnes = ownBackupsOf(work, mine); // oldest first
             while (waitingOnes.size() > keep) {
                 const QString oldest = waitingOnes.takeFirst();
                 if (QFileInfo(oldest).fileName() != QFileInfo(res.staged).fileName())
@@ -542,17 +607,15 @@ bool backupProject(Project *p, const QString &dirIn, int keep, QString *outPath,
         *error = QObject::tr("The backup is incomplete: %n file(s) could not be read and are missing from it: %1. Older "
                              "backups were kept.", nullptr, int(res.skipped.size()))
                      .arg(res.skipped.join(QLatin1String(", ")));
-    if (keep > 0 && where == Where::ProjectFolder) {
+    if (keep > 0 && where == Where::BackupFolder) {
         QStringList complete, incomplete; // oldest first
         // 0.90.3: only files named as this program names its backups; a copy a sync program made of a backup
         // ("... bak <date>-<computer>-safeBackup-0001.zip") counted as a backup of that moment, and six of them pushed
         // every real older backup out of a folder that keeps five
-        const QStringList found = zipsIn(dir, QStringLiteral("* bak *.zip"));
-        for (const QString &f : found) {
-            if (!isOwnBackupName(QFileInfo(f).fileName()))
-                continue;
+        // 0.91.0: and of those only the ones with this project's title (the folder holds every project's backups)
+        const QStringList found = ownBackupsOf(dir, mine);
+        for (const QString &f : found)
             (isIncomplete(f) ? incomplete : complete) << f;
-        }
         const QString made = QFileInfo(path).absoluteFilePath();
         // the backup just made is never one of those deleted, whatever its name says (0.81.0)
         auto trim = [&made](QStringList &list, int keepCount) {

@@ -3,6 +3,7 @@
 #include "ui/Ask.h"
 #include "ui/LinkOpen.h"
 #include "ui/MainWindow.h"
+#include "ui/ToolbarConfig.h"
 #include "ui/UndoNames.h"
 #include "ui/WindowCare.h"
 #include "core/SettingsLayer.h"
@@ -282,8 +283,9 @@ MainWindow::MainWindow()
     createIconBar();
     // the fields on the toolbars (quick search, style, font, size ...) in the color of the
     // menus and toolbars, not of lists (0.60.3)
-    for (QToolBar *bar : {m_toolbar, m_formatBar, m_iconBar})
+    for (QToolBar *bar : m_bars)
         theme::panelFields(bar);
+    theme::panelFields(m_iconBar);
     rebuildStyleActions();
     rebuildScriptActions();
     rebuildLayoutActions();
@@ -472,7 +474,9 @@ MainWindow::MainWindow()
         if (qobject_cast<TextEditor *>(now) || qobject_cast<ObjectTextEdit *>(now)) {
             m_lastTextField = qobject_cast<QTextEdit *>(now);
         } else {
-            const bool bar = (m_formatBar && m_formatBar->isAncestorOf(now)) || (m_toolbar && m_toolbar->isAncestorOf(now));
+            bool bar = false;
+            for (QToolBar *one : m_bars)
+                bar = bar || (one && one->isAncestorOf(now));
             const bool popup = now->window() && (now->window()->windowType() == Qt::Popup || qobject_cast<QMenu *>(now->window()));
             if (!bar && !popup)
                 m_lastTextField = nullptr;
@@ -489,6 +493,13 @@ MainWindow::MainWindow()
     QSettings s;
     restoreGeometry(s.value(QStringLiteral("window/geometry")).toByteArray());
     restoreState(s.value(QStringLiteral("window/state")).toByteArray());
+    // 0.91.0: a state saved by an earlier version knows two toolbars and the icon bar: the seven bars take their
+    // standard places once (later their places come from the state)
+    if (!s.value(QStringLiteral("window/barPlaces0910")).toBool()) {
+        placeToolBars();
+        s.setValue(QStringLiteral("window/barPlaces0910"), true);
+    }
+    loadBarGaps(); // the free space the writer left between toolbars
     const QVariantList sizes = s.value(QStringLiteral("window/mainSplit")).toList();
     if (sizes.size() == 3)
         m_mainSplit->setSizes({sizes[0].toInt(), sizes[1].toInt(), sizes[2].toInt()});
@@ -499,8 +510,13 @@ MainWindow::MainWindow()
     a[QStringLiteral("showToolbar")]->setChecked(s.value(QStringLiteral("window/toolbar"), true).toBool());
     a[QStringLiteral("showFormatBar")]->setChecked(s.value(QStringLiteral("window/formatBar"), true).toBool());
     // restoreState() above may have shown or hidden the bars on its own
-    m_toolbar->setVisible(a[QStringLiteral("showToolbar")]->isChecked());
-    m_formatBar->setVisible(a[QStringLiteral("showFormatBar")]->isChecked());
+    applyBarVisibility();
+    // 0.91.0: the icon bar's switch says what the window's state brought (it was off at every start, whatever showed)
+    if (m_iconBar) {
+        const bool shown = !m_iconBar->isHidden();
+        a[QStringLiteral("showIconBar")]->setChecked(shown);
+        m_iconBar->setVisible(shown);
+    }
     // 0.70.0 (audit A S-01, B S-1): a sign of the save state that is always there
     m_saveState = new QLabel(this);
     m_saveState->setObjectName(QStringLiteral("saveState"));
@@ -931,11 +947,10 @@ void MainWindow::createActions()
         if (!backupFolderReady(AskFolder::Always, false))
             return; // W4b: the portable program has no backup folder yet
         const QString d = AppSettings::instance().backupDir.isEmpty() ? backup::defaultDirectory() : AppSettings::instance().backupDir;
-        // 0.70.0: the open project's own backup folder when it has one
-        const QString own = m_project ? backup::projectFolder(m_project.get(), d) : QString();
-        const QString shown = !own.isEmpty() && QFileInfo::exists(own) ? own : d;
-        QDir().mkpath(shown);
-        QDesktopServices::openUrl(QUrl::fromLocalFile(shown));
+        // 0.91.0: every project's backups are straight in the backup folder (0.70.0 to 0.90.4 showed the open
+        // project's own folder inside it)
+        QDir().mkpath(d);
+        QDesktopServices::openUrl(QUrl::fromLocalFile(d));
     });
     // 0.70.0 (audit A U-05): backups restored by the program
     connect(act(QStringLiteral("restoreBackup"), tr("&Restore From Backup…")), &QAction::triggered, this,
@@ -1840,6 +1855,26 @@ void MainWindow::createActions()
         tb->setChecked(true);
         connect(act(QStringLiteral("customizeToolbars"), tr("&Customize Toolbars…"), QStringLiteral("configure-toolbars")),
                 &QAction::triggered, this, [this] { customizeToolbars(0); });
+        // 0.91.0: a switch for each of the seven toolbars, and the way back to their standard places
+        for (toolbars::Bar b : toolbars::allBars()) {
+            QAction *one = act(toolbars::barCommand(b), toolbars::barName(b));
+            one->setCheckable(true);
+            const QString key = toolbars::barKey(b);
+            one->setChecked(!AppSettings::instance().toolbarHidden.contains(key));
+            connect(one, &QAction::toggled, this, [this, key](bool on) {
+                if (m_applyingBars)
+                    return;
+                AppSettings &s = AppSettings::instance();
+                if (on)
+                    s.toolbarHidden.removeAll(key);
+                else if (!s.toolbarHidden.contains(key))
+                    s.toolbarHidden << key;
+                s.save();
+                applyBarVisibility();
+            });
+        }
+        connect(act(QStringLiteral("resetToolbarPlaces"), tr("&Reset Toolbar Places")), &QAction::triggered, this,
+                [this] { resetToolbarPlaces(); });
         QAction *fs = act(QStringLiteral("fullScreen"), tr("&Full Screen"), QStringLiteral("view-fullscreen"),
                           QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F11));
         fs->setCheckable(true);
@@ -4224,7 +4259,7 @@ void MainWindow::backupNow(bool chooseLocation)
     QString out, err;
     QApplication::setOverrideCursor(Qt::WaitCursor);
     const bool ok = backup::backupProject(m_project.get(), dir, chooseLocation ? 0 : AppSettings::instance().backupKeep, &out, &err,
-                                          chooseLocation ? backup::Where::AsChosen : backup::Where::ProjectFolder);
+                                          chooseLocation ? backup::Where::AsChosen : backup::Where::BackupFolder);
     QApplication::restoreOverrideCursor();
     if (ok && !err.isEmpty()) // saved, but some files could not be read (0.20)
         QMessageBox::warning(this, tr("Back Up"), tr("Backup saved:\n%1\n\n%2").arg(out, err));
@@ -4299,7 +4334,9 @@ void MainWindow::restoreBackup()
         return;
     const QString dir = AppSettings::instance().backupDir;
     const QStringList own = backup::backupsFor(m_project.get(), dir);
-    const QStringList older = backup::backupsFor(m_project->title(), dir.isEmpty() ? backup::defaultDirectory() : dir);
+    // 0.91.0: the backups of the project's own folder of 0.70.0 to 0.90.4 stay where they are and are offered too
+    const QStringList older = backup::formerBackupsFor(m_project.get(), dir);
+    const QString olderFolder = QFileInfo(backup::formerProjectFolder(m_project.get(), dir)).fileName();
     QDialog dlg(this);
     dlg.setObjectName(QStringLiteral("restoreBackupDialog"));
     dlg.setWindowTitle(tr("Restore From Backup"));
@@ -4322,7 +4359,7 @@ void MainWindow::restoreBackup()
             row->setText(1, QLocale().formattedDataSize(fi.size()));
             QString state = fi.completeBaseName().contains(QLatin1String(" (incomplete")) ? tr("incomplete") : tr("complete");
             if (olderKind)
-                state += tr(" (made before 0.70: may belong to another project with the same title)");
+                state += tr(" (in the folder \"%1\")").arg(olderFolder);
             row->setText(2, state);
             row->setData(0, Qt::UserRole, fi.absoluteFilePath());
             row->setToolTip(0, QDir::toNativeSeparators(fi.absoluteFilePath()));
@@ -4729,7 +4766,7 @@ bool MainWindow::manualSave()
     if (s.backupOnManualSave && backupFolderReady(AskFolder::Once)) {
         QString out;
         bool waits = false;
-        const bool ok = backup::backupProject(m_project.get(), s.backupDir, s.backupKeep, &out, &err, backup::Where::ProjectFolder, &waits);
+        const bool ok = backup::backupProject(m_project.get(), s.backupDir, s.backupKeep, &out, &err, backup::Where::BackupFolder, &waits);
         if (!ok && waits) // 0.90.3: made, but not in the backup folder yet: its own text says so (and where it is kept)
             statusBar()->showMessage(QString(err).replace(QLatin1String("\n\n"), QLatin1String(" ")), 20000);
         else if (!ok)

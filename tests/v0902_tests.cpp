@@ -41,6 +41,8 @@
 #include <QGroupBox>
 #include <QLabel>
 #include <QListWidget>
+#include <QMenu>
+#include <QStatusBar>
 #include <QMessageBox>
 #include <QProcess>
 #include <QPushButton>
@@ -126,51 +128,63 @@ static void keepChangesWhenAsked()
     });
 }
 
-// ---- a main toolbar arranged by the writer gets the theme list once
+// ---- 0.91.0: an arranged main toolbar of an earlier version is split over the new bars; the theme list comes once
 static void arrangedToolbarChecks()
 {
     AppSettings &as = AppSettings::instance();
     QSettings s;
+    // the settings as an earlier version left them: the list of its main toolbar, with or without the mark of 0.90.2
+    auto former = [&](const QStringList &main, bool mark0902) {
+        if (main.isEmpty())
+            s.remove(QStringLiteral("toolbars/main"));
+        else
+            s.setValue(QStringLiteral("toolbars/main"), main);
+        if (mark0902)
+            s.setValue(QStringLiteral("toolbars/themePicker0902"), true);
+        else
+            s.remove(QStringLiteral("toolbars/themePicker0902"));
+        s.remove(QStringLiteral("toolbars/split0910"));
+        s.remove(QStringLiteral("toolbars/hidden"));
+        for (toolbars::Bar b : toolbars::allBars())
+            s.remove(QLatin1String("toolbars/bar-") + toolbars::barKey(b));
+        s.sync();
+        as.load();
+    };
     const QStringList arranged = {QStringLiteral("view"), QStringLiteral("|"), QStringLiteral("add"), QStringLiteral("undo"),
                                   QStringLiteral("redo"), QStringLiteral("<>"), QStringLiteral("searchMenu"),
                                   QStringLiteral("search"), QStringLiteral("<>"), QStringLiteral("compile")};
-    s.setValue(QStringLiteral("toolbars/main"), arranged);
-    s.remove(QStringLiteral("toolbars/themePicker0902"));
+    former(arranged, false);
+    check(as.toolbarMain == QStringList({QStringLiteral("view"), QStringLiteral("|"), QStringLiteral("add"), QStringLiteral("undo"),
+                                         QStringLiteral("redo")})
+              && as.toolbarSearch == QStringList({QStringLiteral("searchMenu"), QStringLiteral("search")})
+              && as.toolbarTools == QStringList({QStringLiteral("compile")}),
+          QStringLiteral("0.91.0: an arranged main toolbar of an earlier version is split over the bars Main, Search and Tools"),
+          as.toolbarMain.join(QLatin1Char(' ')) + QLatin1String(" / ") + as.toolbarSearch.join(QLatin1Char(' ')) + QLatin1String(" / ")
+              + as.toolbarTools.join(QLatin1Char(' ')));
+    check(as.toolbarThemes.isEmpty() && !as.toolbarHidden.contains(QStringLiteral("themes")),
+          QStringLiteral("it gets the theme list once: the Themes bar with its standard set, switched on"),
+          as.toolbarHidden.join(QLatin1Char(' ')));
+    check(s.value(QStringLiteral("toolbars/main")).toStringList() == arranged && s.value(QStringLiteral("toolbars/split0910")).toBool(),
+          QStringLiteral("the old list stays as it was (an older version started again finds its toolbar)"));
+    // taken away by the writer in 0.90.2 (the mark set, no theme list on the old bar): its bar stays switched off
+    former(arranged, true);
+    check(as.toolbarHidden.contains(QStringLiteral("themes")) && as.toolbarThemes.isEmpty(),
+          QStringLiteral("taken away under Customize Toolbars before, the Themes bar is switched off"),
+          as.toolbarHidden.join(QLatin1Char(' ')));
+    // split once: a second start reads the new lists and does not split again
+    s.setValue(QStringLiteral("toolbars/main"), QStringList{QStringLiteral("view")});
     s.sync();
     as.load();
-    const QStringList after = as.toolbarMain;
-    const int redo = int(after.indexOf(QStringLiteral("redo")));
-    check(after.count(QStringLiteral("themePicker")) == 1 && redo >= 0 && after.value(redo + 1) == QLatin1String("<>")
-              && after.value(redo + 2) == QLatin1String("themePicker") && after.value(redo + 3) == QLatin1String("<>")
-              && after.value(redo + 4) == QLatin1String("searchMenu"),
-          QStringLiteral("an arranged main toolbar gets the theme list once, in the middle of the space after Redo"),
-          after.join(QLatin1Char(' ')));
-    // taken away by the writer: it stays away
-    QStringList without = after;
-    without.removeAll(QStringLiteral("themePicker"));
-    s.setValue(QStringLiteral("toolbars/main"), without);
-    s.sync();
-    as.load();
-    check(!as.toolbarMain.contains(QStringLiteral("themePicker")),
-          QStringLiteral("taken away under Customize Toolbars, it is not put back"), as.toolbarMain.join(QLatin1Char(' ')));
-    // a bar without Redo: before the search button
-    s.setValue(QStringLiteral("toolbars/main"), QStringList{QStringLiteral("view"), QStringLiteral("searchMenu")});
-    s.remove(QStringLiteral("toolbars/themePicker0902"));
-    s.sync();
-    as.load();
-    check(as.toolbarMain == QStringList({QStringLiteral("view"), QStringLiteral("themePicker"), QStringLiteral("searchMenu")}),
-          QStringLiteral("a bar without Redo gets it before the search button"), as.toolbarMain.join(QLatin1Char(' ')));
-    // back to the standard set
-    s.remove(QStringLiteral("toolbars/main"));
-    s.sync();
-    as.load();
-    const QStringList standard = toolbars::standard(toolbars::Bar::Main);
-    const int r = int(standard.indexOf(QStringLiteral("redo")));
-    check(toolbars::isSpecial(QStringLiteral("themePicker")) && !toolbars::label(QStringLiteral("themePicker")).isEmpty()
-              && standard.value(r + 1) == QLatin1String("<>") && standard.value(r + 2) == QLatin1String("themePicker")
-              && standard.value(r + 3) == QLatin1String("<>"),
-          QStringLiteral("the standard set has the theme list between two spaces after Redo; Customize Toolbars offers it"),
-          standard.join(QLatin1Char(' ')));
+    check(as.toolbarSearch == QStringList({QStringLiteral("searchMenu"), QStringLiteral("search")}),
+          QStringLiteral("the split is done once"), as.toolbarSearch.join(QLatin1Char(' ')));
+    // back to the standard sets
+    former(QStringList(), false);
+    bool allStandard = as.toolbarHidden.isEmpty();
+    for (toolbars::Bar b : toolbars::allBars())
+        allStandard = allStandard && as.toolbarList(int(b)).isEmpty();
+    check(allStandard && toolbars::isSpecial(QStringLiteral("themePicker")) && !toolbars::label(QStringLiteral("themePicker")).isEmpty()
+              && toolbars::standard(toolbars::Bar::Themes) == QStringList{QStringLiteral("themePicker")},
+          QStringLiteral("the standard: the theme list alone on the Themes bar; Customize Toolbars offers it"));
 }
 
 // ---- File > Options: Appearance and the Mind Map page
@@ -320,111 +334,223 @@ static void invisiblesChecks(MainWindow &w, Project *p, BinderItem *doc)
         show->trigger();
 }
 
-// ---- the theme list of the main toolbar
+// ---- the theme control of the Themes toolbar (0.91.0: Bright, Dark, U1, U2 as switches, and the list)
 static void pickerChecks(MainWindow &w)
 {
-    auto *bar = w.findChild<QToolBar *>(QStringLiteral("mainToolbar"));
+    auto *bar = w.findChild<QToolBar *>(QStringLiteral("themesBar"));
     auto *picker = w.findChild<ThemePicker *>(QStringLiteral("themePicker"));
-    check(bar && picker && picker->isVisible(), QStringLiteral("the theme list is in the main toolbar and visible"));
+    check(bar && picker && picker->isVisible() && bar->isAncestorOf(picker),
+          QStringLiteral("the theme list is on the Themes toolbar and visible"));
     if (!bar || !picker)
         return;
-    // between Redo and the search button
-    QAction *redo = w.findChild<QAction *>(QStringLiteral("redo"));
-    QWidget *redoW = redo ? bar->widgetForAction(redo) : nullptr;
-    QWidget *searchW = w.findChild<QToolButton *>(QStringLiteral("searchButton"));
-    const int px = picker->mapTo(bar, QPoint(0, 0)).x();
-    check(redoW && searchW && px > redoW->mapTo(bar, QPoint(0, 0)).x() + redoW->width() + 20
-              && px + picker->width() + 20 < searchW->mapTo(bar, QPoint(0, 0)).x(),
-          QStringLiteral("it stands in the free space between Redo and the search button"),
-          QStringLiteral("picker x %1").arg(px));
     shot(bar, QStringLiteral("toolbar-light"));
-    // a crowded toolbar: the theme list gives way to the quick search, and comes back with room
-    {
-        auto *quick = w.findChild<QWidget *>(QStringLiteral("quickSearch"));
-        const QSize before = w.size();
-        // large icons with their text beside them, as a writer may choose: the toolbar is crowded at this width
-        AppSettings &as = AppSettings::instance();
-        const int oldSize = as.toolbarIconSize;
-        const QString oldStyle = as.toolbarStyle;
-        as.toolbarIconSize = 32;
-        as.toolbarStyle = QStringLiteral("beside");
-        as.notifyChanged();
-        settle(400);
-        w.resize(1100, before.height());
-        settle(500);
-        const bool narrowOk = quick && quick->isVisible() && !picker->isVisible();
-        info(QStringLiteral("crowded at %1 px (toolbar %2): search %3, theme list %4")
-                 .arg(w.width()).arg(bar->width()).arg(quick && quick->isVisible()).arg(picker->isVisible()));
-        shot(bar, QStringLiteral("toolbar-narrow"));
-        as.toolbarIconSize = oldSize;
-        as.toolbarStyle = oldStyle;
-        as.notifyChanged();
-        w.resize(before);
-        settle(500);
-        check(narrowOk && quick->isVisible() && picker->isVisible(),
-              QStringLiteral("a crowded toolbar keeps the quick search (the theme list gives way); with room again, both are back"),
-              QStringLiteral("now: search %1, theme list %2").arg(quick && quick->isVisible()).arg(picker->isVisible()));
-    }
-
     auto *combo = picker->findChild<QComboBox *>(QStringLiteral("themeCombo"));
-    auto *bBright = picker->findChild<QToolButton *>(QStringLiteral("themeFilterBright"));
-    auto *bDark = picker->findChild<QToolButton *>(QStringLiteral("themeFilterDark"));
-    auto *bBoth = picker->findChild<QToolButton *>(QStringLiteral("themeFilterBoth"));
-    check(combo && bBright && bDark && bBoth, QStringLiteral("(the list and the three buttons found)"));
-    if (!combo || !bBright || !bDark || !bBoth)
+    auto *bBright = picker->findChild<QToolButton *>(QStringLiteral("themeBright"));
+    auto *bDark = picker->findChild<QToolButton *>(QStringLiteral("themeDark"));
+    auto *u1 = picker->findChild<QToolButton *>(QStringLiteral("themeUser1"));
+    auto *u2 = picker->findChild<QToolButton *>(QStringLiteral("themeUser2"));
+    check(combo && bBright && bDark && u1 && u2 && !picker->findChild<QToolButton *>(QStringLiteral("themeFilterBoth"))
+              && u1->text() == QLatin1String("U1") && u2->text() == QLatin1String("U2"),
+          QStringLiteral("the list and the four buttons Bright, Dark, U1, U2 (no \"Both\")"));
+    if (!combo || !bBright || !bDark || !u1 || !u2)
         return;
-    bDark->click();
-    settle(50);
     QStringList ids = picker->shownIds();
-    check(picker->filter() == ThemePicker::Dark && ids.contains(QStringLiteral("dark")) && ids.contains(QStringLiteral("midnight"))
-              && !ids.contains(QStringLiteral("light")) && !ids.contains(QStringLiteral("sepia")) && ids.contains(QStringLiteral("system")),
-          QStringLiteral("Dark: only the dark themes (and the one that follows the desktop)"), ids.join(QLatin1Char(' ')));
-    check(bDark->isChecked() && bDark->font().bold() && !bBright->font().bold() && !bBoth->font().bold(),
-          QStringLiteral("the chosen filter is checked and in bold, the others not"));
-    check(combo->currentIndex() == -1 && combo->placeholderText().contains(QLatin1String("dark")),
-          QStringLiteral("the bright theme in use is not in that list: it asks for a dark theme"), combo->currentText());
-    check(QSettings().value(QStringLiteral("window/themeFilter")).toString() == QLatin1String("dark"),
-          QStringLiteral("the filter is kept by the program"));
-    bBright->click();
-    settle(50);
-    ids = picker->shownIds();
-    check(ids.contains(QStringLiteral("light")) && ids.contains(QStringLiteral("sepia")) && !ids.contains(QStringLiteral("dark"))
-              && !ids.contains(QStringLiteral("midnight")) && combo->currentText() == combo->itemText(combo->findData(QStringLiteral("light"))),
-          QStringLiteral("Bright: only the bright themes, the theme in use shown"), ids.join(QLatin1Char(' ')));
-    bBoth->click();
-    settle(50);
-    ids = picker->shownIds();
     int all = 0;
     for (const theme::Entry &e : theme::available())
         all += ids.contains(e.id) ? 1 : 0;
-    check(all == theme::available().size() && all >= 8, QStringLiteral("Both: every theme"), QString::number(all));
+    check(all == theme::available().size() && all >= 8, QStringLiteral("the list holds every theme, whatever button was clicked"),
+          QString::number(all));
+    check(picker->themeOf(ThemePicker::Bright) == QLatin1String("light") && picker->themeOf(ThemePicker::Dark) == QLatin1String("dark")
+              && picker->themeOf(ThemePicker::User1).isEmpty() && picker->themeOf(ThemePicker::User2).isEmpty()
+              && bBright->isChecked() && bBright->font().bold() && !bDark->isChecked(),
+          QStringLiteral("at first: Bright shows Light and Dark shows Dark Mode, U1 and U2 are empty; the button of the theme "
+                         "shown is checked and bold"));
 
-    // a theme chosen in the list is used as with Window > Themes: the project's look and the look for new projects
+    // the writer's look: a color of their own on top of the bright theme
+    QString err;
+    look::Values v = look::active();
+    v.colors.insert(QStringLiteral("invisibles"), QColor(230, 20, 20));
+    look::change(v, &err);
+    settle(200);
+    const int ownBefore = themeui::ownChanges();
+    // Dark: the look changes for real, and the own look goes into the empty U1 first
     bDark->click();
-    settle(50);
-    const int mid = combo->findData(QStringLiteral("midnight"));
-    keepChangesWhenAsked();
-    emit combo->activated(mid);
     settle(400);
-    check(look::active().theme == QLatin1String("midnight") && AppSettings::instance().theme == QLatin1String("midnight")
-              && theme::isDark() && combo->currentData().toString() == QLatin1String("midnight"),
-          QStringLiteral("Midnight chosen in the list: the project and new projects use it, the window is dark"),
-          look::active().theme + QLatin1Char(' ') + AppSettings::instance().theme);
+    check(ownBefore > 0 && look::active().theme == QLatin1String("dark") && AppSettings::instance().theme == QLatin1String("dark")
+              && theme::isDark() && themeui::ownChanges() == 0,
+          QStringLiteral("Dark: one click shows the dark theme as it is, for the project and for new projects (the window is dark)"),
+          QStringLiteral("own before %1, theme %2, own now %3").arg(ownBefore).arg(look::active().theme).arg(themeui::ownChanges()));
+    check(picker->themeOf(ThemePicker::User1) == QLatin1String("user:User_1") && picker->themeOf(ThemePicker::User2).isEmpty()
+              && w.statusBar()->currentMessage().contains(QLatin1String("U1")),
+          QStringLiteral("the look with the writer's own colors was saved in the empty U1 first, and the status bar says so"),
+          w.statusBar()->currentMessage());
+    check(bDark->isChecked() && bDark->font().bold() && !bBright->isChecked() && !bBright->font().bold(),
+          QStringLiteral("Dark is the checked, bold button now"));
+    ids = picker->shownIds();
+    check(ids.contains(QStringLiteral("user:User_1")) && combo->itemText(combo->findData(QStringLiteral("user:User_1"))) == QLatin1String("User_1"),
+          QStringLiteral("the saved look is in the list as \"User_1\""));
     shot(bar, QStringLiteral("toolbar-dark"));
-    shot(&w, QStringLiteral("window-midnight"));
-    // a new list (the window built again) remembers the filter
+    shot(&w, QStringLiteral("window-dark"));
+    // U1 brings the own look back
+    u1->click();
+    settle(400);
+    check(look::active().theme == QLatin1String("user:User_1") && !theme::isDark() && near(theme::color(theme::Role::Invisibles), QColor(230, 20, 20), 2)
+              && themeui::ownChanges() == 0 && u1->isChecked() && u1->font().bold(),
+          QStringLiteral("U1: the look saved there is back, with the writer's color"),
+          look::active().theme + QLatin1Char(' ') + theme::color(theme::Role::Invisibles).name());
+    // Bright: no question, nothing of the writer's own lies on top
+    bBright->click();
+    settle(400);
+    check(look::active().theme == QLatin1String("light") && !near(theme::color(theme::Role::Invisibles), QColor(230, 20, 20), 30),
+          QStringLiteral("Bright: the bright theme as it is"), look::active().theme);
+    // an empty U2 takes the look shown now at once
+    u2->click();
+    settle(400);
+    check(picker->themeOf(ThemePicker::User2) == QLatin1String("user:User_2") && look::active().theme == QLatin1String("user:User_2")
+              && u2->isChecked() && w.statusBar()->currentMessage().contains(QLatin1String("U2")),
+          QStringLiteral("a click on the empty U2 saves the look shown now there"), w.statusBar()->currentMessage());
+    // a change on top of U2 with both buttons taken: the question. Cancelled: nothing happens
+    v = look::active();
+    v.colors.insert(QStringLiteral("invisibles"), QColor(20, 20, 230));
+    look::change(v, &err);
+    settle(200);
+    ThemePicker::setAnswerForTests(-2);
+    bDark->click();
+    settle(300);
+    check(look::active().theme == QLatin1String("user:User_2") && themeui::ownChanges() > 0 && near(theme::color(theme::Role::Invisibles), QColor(20, 20, 230), 2),
+          QStringLiteral("own colors not saved in U1 or U2, both taken: the question; cancelled, the look stays as it is"),
+          look::active().theme);
+    // the question itself: its buttons, and the standard answer is to save back into the button the look came from
     {
-        ThemePicker again;
-        check(again.filter() == ThemePicker::Dark, QStringLiteral("a new theme list starts with the kept filter"));
+        ThemePicker::setAnswerForTests(-3);
+        QString buttons, standard;
+        QTimer::singleShot(300, [&] {
+            auto *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget());
+            if (!box)
+                return;
+            for (QAbstractButton *b : box->buttons())
+                buttons += b->text().remove(QLatin1Char('&')) + QLatin1Char('|');
+            standard = box->defaultButton() ? box->defaultButton()->text().remove(QLatin1Char('&')) : QString();
+            box->reject();
+        });
+        bDark->click();
+        settle(300);
+        check(buttons.contains(QLatin1String("Save in U1|")) && buttons.contains(QLatin1String("Save in U2|"))
+                  && buttons.contains(QLatin1String("Switch Without Saving|")) && buttons.contains(QLatin1String("Cancel|"))
+                  && standard == QLatin1String("Save in U2") && look::active().theme == QLatin1String("user:User_2"),
+              QStringLiteral("the question offers Save in U1, Save in U2, Switch Without Saving and Cancel; Esc changes nothing"),
+              buttons + QLatin1String(" standard: ") + standard);
     }
-    // Window > Themes changes the list too
-    bBoth->click();
-    settle(50);
+    // saved in U2 first, then Dark; U2 has the changed look afterwards
+    ThemePicker::setAnswerForTests(int(ThemePicker::User2));
+    bDark->click();
+    settle(400);
+    const bool darkNow = look::active().theme == QLatin1String("dark");
+    u2->click();
+    settle(400);
+    check(darkNow && look::active().theme == QLatin1String("user:User_2") && near(theme::color(theme::Role::Invisibles), QColor(20, 20, 230), 2),
+          QStringLiteral("answered \"Save in U2\": the changed look is saved there, then the dark theme shows; U2 brings it back"),
+          look::active().theme + QLatin1Char(' ') + theme::color(theme::Role::Invisibles).name());
+    // switching without saving
+    v = look::active();
+    v.colors.insert(QStringLiteral("invisibles"), QColor(20, 230, 20));
+    look::change(v, &err);
+    settle(200);
+    ThemePicker::setAnswerForTests(-1);
+    bBright->click();
+    settle(400);
+    u2->click();
+    settle(400);
+    check(near(theme::color(theme::Role::Invisibles), QColor(20, 20, 230), 2),
+          QStringLiteral("answered \"Switch Without Saving\": U2 keeps the look it had"), theme::color(theme::Role::Invisibles).name());
+    ThemePicker::setAnswerForTests(-3);
+
+    // the theme of the buttons Bright and Dark: assigned from the right-click menu
+    {
+        QMenu menu;
+        picker->fillButtonMenu(&menu, ThemePicker::Dark);
+        QStringList offered;
+        QAction *midnight = nullptr;
+        for (QAction *a : menu.actions()) {
+            offered << a->data().toString();
+            if (a->data().toString() == QLatin1String("midnight"))
+                midnight = a;
+        }
+        check(midnight && offered.contains(QStringLiteral("dark")) && offered.contains(QStringLiteral("system"))
+                  && !offered.contains(QStringLiteral("light")) && !offered.contains(QStringLiteral("sepia")),
+              QStringLiteral("right-click on Dark: the dark themes (and the one that follows the desktop) to choose from"),
+              offered.join(QLatin1Char(' ')));
+        if (midnight)
+            midnight->trigger();
+        settle(50);
+        check(picker->themeOf(ThemePicker::Dark) == QLatin1String("midnight")
+                  && QSettings().value(QStringLiteral("window/themeDark")).toString() == QLatin1String("midnight")
+                  && look::active().theme == QLatin1String("user:User_2") && bDark->toolTip().contains(QLatin1String("Midnight")),
+              QStringLiteral("Midnight assigned to Dark: kept by the program, named in the tool tip; the look shown does not change"),
+              picker->themeOf(ThemePicker::Dark));
+        bDark->click();
+        settle(400);
+        check(look::active().theme == QLatin1String("midnight") && theme::isDark(), QStringLiteral("a click on Dark shows Midnight now"),
+              look::active().theme);
+        shot(&w, QStringLiteral("window-midnight"));
+        ThemePicker again;
+        check(again.themeOf(ThemePicker::Dark) == QLatin1String("midnight") && !picker->assign(ThemePicker::Dark, QStringLiteral("no-such-theme"))
+                  && !picker->assign(ThemePicker::User1, QStringLiteral("light")),
+              QStringLiteral("a new theme control (the window built again) knows the assigned theme; a theme that does not exist is refused"));
+        QMenu bright;
+        picker->fillButtonMenu(&bright, ThemePicker::Bright);
+        offered.clear();
+        for (QAction *a : bright.actions())
+            offered << a->data().toString();
+        check(offered.contains(QStringLiteral("light")) && offered.contains(QStringLiteral("sepia")) && offered.contains(QStringLiteral("user:User_1"))
+                  && !offered.contains(QStringLiteral("midnight")),
+              QStringLiteral("right-click on Bright: the bright themes, the writer's own bright looks among them"),
+              offered.join(QLatin1Char(' ')));
+    }
+    // right-click on U1: Save the Current Look Here (asks before it replaces a look), Show This Look
+    {
+        QMenu menu;
+        picker->fillButtonMenu(&menu, ThemePicker::User1);
+        auto *save = menu.findChild<QAction *>(QStringLiteral("themeSaveHere"));
+        auto *show = menu.findChild<QAction *>(QStringLiteral("themeShowThis"));
+        check(save && show && show->isEnabled(), QStringLiteral("right-click on U1: Save the Current Look Here, Show This Look"));
+        QString asked;
+        QTimer::singleShot(300, [&] {
+            if (auto *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget())) {
+                asked = box->text();
+                for (QAbstractButton *b : box->buttons())
+                    if (b->text().remove(QLatin1Char('&')).startsWith(QLatin1String("Replace")))
+                        return b->click();
+                box->reject();
+            }
+        });
+        if (save)
+            save->trigger();
+        settle(400);
+        check(asked.contains(QLatin1String("U1")) && look::active().theme == QLatin1String("user:User_1") && theme::isDark(),
+              QStringLiteral("Save the Current Look Here on the filled U1 asks first, then U1 holds the look shown (Midnight) and shows it"),
+              asked + QLatin1Char(' ') + look::active().theme);
+    }
+    // a theme chosen in the list is used as with Window > Themes
+    const int sepia = combo->findData(QStringLiteral("sepia"));
+    keepChangesWhenAsked();
+    emit combo->activated(sepia);
+    settle(400);
+    check(look::active().theme == QLatin1String("sepia") && AppSettings::instance().theme == QLatin1String("sepia")
+              && combo->currentData().toString() == QLatin1String("sepia") && !bBright->isChecked() && !bDark->isChecked() && !u1->isChecked(),
+          QStringLiteral("Sepia chosen in the list: the project and new projects use it; no button is checked"),
+          look::active().theme + QLatin1Char(' ') + AppSettings::instance().theme);
+    // Window > Themes changes the list and the buttons too
     keepChangesWhenAsked();
     themeui::choose(&w, QStringLiteral("light"));
     settle(300);
-    check(combo->currentData().toString() == QLatin1String("light"), QStringLiteral("a theme chosen elsewhere shows in the list"),
-          combo->currentText());
+    check(combo->currentData().toString() == QLatin1String("light") && bBright->isChecked(),
+          QStringLiteral("a theme chosen elsewhere shows in the list and on its button"), combo->currentText());
+    // (the standard again for what follows)
+    picker->assign(ThemePicker::Dark, QStringLiteral("dark"));
+    QString e2;
+    theme::removeUserTheme(QStringLiteral("user:User_1"), &e2);
+    theme::removeUserTheme(QStringLiteral("user:User_2"), &e2);
 }
 
 // ---- a dialog closed after the field (or window) that had the keyboard before it was deleted (0.90.1 kept plain

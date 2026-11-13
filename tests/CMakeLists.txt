@@ -293,6 +293,11 @@ endif()
 add_executable(qb_v0904_tests v0904_tests.cpp ${QB_RESOURCES_QRC})
 target_link_libraries(qb_v0904_tests PRIVATE qbui Qt6::Test)
 target_compile_definitions(qb_v0904_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+# 0.91.0: backups straight in the backup folder (what waited for a project's own folder, titles with special
+# characters), the seven toolbars and the icon bar (places, the grip, switches, Reset Toolbar Places, Customize Toolbars)
+# (xvfb-run -a ./qb_v0910_tests /tmp/shots)
+add_executable(qb_v0910_tests v0910_tests.cpp ${QB_RESOURCES_QRC})
+target_link_libraries(qb_v0910_tests PRIVATE qbui Qt6::Test)
 target_compile_definitions(qb_v0900_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
 # The readers against damaged input (0.80.0, the external audit of 2026-11-09, ST-5): fixed-seed damage of small
 # valid inputs of RTF, Markdown, XML, ZIP, DOCX, ODT, Word 97 and .scrivx, each read in this process

@@ -599,31 +599,57 @@ static void failedSaves(const QString &W)
 
 static void backups(const QString &W)
 {
-    std::printf("== Backups per project, restored by the program, made beside the window (audit A F-02, U-05, U-06, U-09; B F-3)\n");
+    std::printf("== Backups by title in the backup folder (0.91.0), restored by the program, made beside the window (audit A U-05, U-06, U-09)\n");
     QString err, out;
     const QString bdir = W + QStringLiteral("/backups");
     QDir().mkpath(W + QStringLiteral("/one"));
     QDir().mkpath(W + QStringLiteral("/two"));
+    QDir().mkpath(W + QStringLiteral("/three"));
     auto a = Project::create(W + QStringLiteral("/one"), QStringLiteral("My Novel"), &err);
     auto b = Project::create(W + QStringLiteral("/two"), QStringLiteral("My Novel"), &err);
+    auto c = Project::create(W + QStringLiteral("/three"), QStringLiteral("My Novel 2"), &err);
     textDoc(a.get(), a->draft(), QStringLiteral("A"), QStringLiteral("Text of A."));
     textDoc(b.get(), b->draft(), QStringLiteral("B"), QStringLiteral("Text of B."));
-    // a backup of the time before 0.70.0, named by the title only
+    textDoc(c.get(), c->draft(), QStringLiteral("C"), QStringLiteral("Text of C."));
+    // a backup of an earlier version, named by the title as every backup is
     writeAll(bdir + QStringLiteral("/My Novel bak 2026-11-01 10-00-00.zip"), "old");
+    // the project's own folder of 0.70.0 to 0.90.4, with a backup in it
+    const QString formerDir = bdir + QStringLiteral("/My Novel ") + backup::projectKey(a.get());
+    writeAll(formerDir + QStringLiteral("/My Novel bak 2026-11-05 10-00-00.zip"), "former");
+    for (int i = 0; i < 3; ++i) {
+        backup::backupProject(c.get(), bdir, 2, &out, &err);
+        QTest::qWait(1100);
+    }
+    const QStringList ofC = backup::backupsFor(c.get(), bdir);
     for (int i = 0; i < 3; ++i) {
         backup::backupProject(a.get(), bdir, 2, &out, &err);
         QTest::qWait(1100);
     }
+    const QString lastOfA = out;
     for (int i = 0; i < 3; ++i) {
         backup::backupProject(b.get(), bdir, 2, &out, &err);
         QTest::qWait(1100);
     }
     const QStringList ofA = backup::backupsFor(a.get(), bdir), ofB = backup::backupsFor(b.get(), bdir);
-    check(ofA.size() == 2 && ofB.size() == 2 && backup::projectFolder(a.get(), bdir) != backup::projectFolder(b.get(), bdir),
-          QStringLiteral("two projects with the same title keep their backups apart; neither deletes the other's"),
+    bool flat = !ofA.isEmpty();
+    for (const QString &f : ofA + ofC)
+        flat = flat && QFileInfo(f).absolutePath() == QFileInfo(bdir).absoluteFilePath();
+    check(flat && QDir(bdir).entryList(QDir::Dirs | QDir::NoDotAndDotDot) == QStringList{QFileInfo(formerDir).fileName()},
+          QStringLiteral("0.91.0: backups go straight into the backup folder; no folder per project is made"),
+          QDir(bdir).entryList(QDir::Dirs | QDir::NoDotAndDotDot).join(QLatin1String(", ")));
+    check(ofA.size() == 2 && ofA == ofB && !ofA.contains(lastOfA),
+          QStringLiteral("two projects with the same title share their backups and the number kept (the writer's choice)"),
           QStringLiteral("%1 / %2").arg(ofA.size()).arg(ofB.size()));
-    check(QFile::exists(bdir + QStringLiteral("/My Novel bak 2026-11-01 10-00-00.zip")),
-          QStringLiteral("a backup made before 0.70.0 is never deleted automatically"));
+    check(ofC.size() == 2 && backup::backupsFor(c.get(), bdir) == ofC,
+          QStringLiteral("a project with another title (one that begins the same) keeps its own backups; the others' clean-up leaves them"),
+          QString::number(backup::backupsFor(c.get(), bdir).size()));
+    check(!QFile::exists(bdir + QStringLiteral("/My Novel bak 2026-11-01 10-00-00.zip")),
+          QStringLiteral("an older backup with the project's title in the backup folder counts again and goes as the oldest"));
+    check(QDir(formerDir).entryList(QDir::Files) == QStringList{QStringLiteral("My Novel bak 2026-11-05 10-00-00.zip")}
+              && backup::formerProjectFolder(a.get(), bdir) == formerDir && backup::formerBackupsFor(a.get(), bdir).size() == 1
+              && backup::formerProjectFolder(b.get(), bdir).isEmpty(),
+          QStringLiteral("the project's own folder of 0.70.0 to 0.90.4 is left as it is, and its backups are still found"),
+          QDir(formerDir).entryList(QDir::Files).join(QLatin1String(", ")));
     // the lock file stays out (audit A U-09)
     {
         writeAll(a->settingsDir() + QStringLiteral("/lock"), "host 1\ndevice=box\nuser=writer\n");
@@ -659,7 +685,7 @@ static void backups(const QString &W)
         const bool ok = backup::backupProject(a.get(), bdir, 0, &out, &e2);
         backup::setProgressHandler(nullptr);
         bool parts = false;
-        for (const QString &f : QDir(backup::projectFolder(a.get(), bdir)).entryList({QStringLiteral("*.part")}, QDir::Files))
+        for (const QString &f : QDir(bdir).entryList({QStringLiteral("*.part")}, QDir::Files))
             parts = parts || !f.isEmpty();
         check(calls >= 1 && !ok && e2.contains(QLatin1String("cancelled")) && int(backup::backupsFor(a.get(), bdir).size()) == before && !parts,
               QStringLiteral("a backup runs beside the window with progress, and Cancel leaves no backup behind"),
@@ -671,6 +697,7 @@ static void backups(const QString &W)
     const QString title = a->title();
     a.reset();
     b.reset();
+    c.reset();
     // Restore (audit A U-05)
     {
         AppSettings::instance().backupDir = bdir;

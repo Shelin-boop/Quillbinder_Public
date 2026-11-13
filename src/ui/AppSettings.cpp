@@ -1,4 +1,5 @@
 #include "ui/AppSettings.h"
+#include "ui/ToolbarConfig.h"
 #include "ui/Language.h"
 #include "core/SettingsLayer.h"
 #include "core/SyncSafety.h"
@@ -38,6 +39,22 @@ namespace qb {
     return true;
 }();
 #endif
+
+QStringList &AppSettings::toolbarList(int bar)
+{
+    switch (toolbars::Bar(bar)) {
+    case toolbars::Bar::Main: return toolbarMain;
+    case toolbars::Bar::Format: return toolbarFormat;
+    case toolbars::Bar::Themes: return toolbarThemes;
+    case toolbars::Bar::Search: return toolbarSearch;
+    case toolbars::Bar::Tools: return toolbarTools;
+    case toolbars::Bar::Character: return toolbarCharacter;
+    case toolbars::Bar::Paragraph: return toolbarParagraph;
+    }
+    return toolbarMain;
+}
+
+const QStringList &AppSettings::toolbarList(int bar) const { return const_cast<AppSettings *>(this)->toolbarList(bar); }
 
 AppSettings &AppSettings::instance()
 {
@@ -344,43 +361,48 @@ void AppSettings::load()
     pushToModules();
 
     s.beginGroup(QStringLiteral("toolbars"));
-    toolbarMain = s.value(QStringLiteral("main")).toStringList();
-    toolbarFormat = s.value(QStringLiteral("format")).toStringList();
-    // 0.60.4: a format bar arranged by the writer gets the four paragraph buttons once, after the
-    // list buttons (they can be taken away again under View > Toolbars > Customize Toolbars)
-    if (!toolbarFormat.isEmpty() && !s.value(QStringLiteral("paraButtons0604")).toBool()) {
-        const QStringList ids = {QStringLiteral("spaceBefore"), QStringLiteral("spaceAfter"), QStringLiteral("indentFirst"),
-                                 QStringLiteral("indentLeft")};
-        bool any = false;
-        for (const QString &id : ids)
-            any = any || toolbarFormat.contains(id);
-        if (!any) {
-            int at = int(toolbarFormat.indexOf(QStringLiteral("numbers")));
-            if (at < 0)
-                at = int(toolbarFormat.indexOf(QStringLiteral("alignJustify")));
-            at = at < 0 ? int(toolbarFormat.size()) : at + 1;
-            toolbarFormat.insert(at, QStringLiteral("|"));
-            for (int i = 0; i < ids.size(); ++i)
-                toolbarFormat.insert(at + 1 + i, ids[i]);
-        }
-        s.setValue(QStringLiteral("paraButtons0604"), true);
-        s.setValue(QStringLiteral("format"), toolbarFormat);
-    }
-    // 0.90.2: a main toolbar arranged by the writer gets the theme list once, in the middle of the space after Redo
-    // (it can be taken away under View > Toolbars > Customize Toolbars)
-    if (!toolbarMain.isEmpty() && !s.value(QStringLiteral("themePicker0902")).toBool()) {
-        if (!toolbarMain.contains(QStringLiteral("themePicker"))) {
-            const int redo = int(toolbarMain.indexOf(QStringLiteral("redo")));
-            if (redo >= 0 && redo + 1 < toolbarMain.size() && toolbarMain.at(redo + 1) == QLatin1String("<>")) {
-                toolbarMain.insert(redo + 2, QStringLiteral("themePicker"));
-                toolbarMain.insert(redo + 3, QStringLiteral("<>"));
-            } else {
-                const int search = int(toolbarMain.indexOf(QStringLiteral("searchMenu")));
-                toolbarMain.insert(search >= 0 ? search : int(toolbarMain.size()), QStringLiteral("themePicker"));
+    // 0.91.0: seven toolbars, each with a list of its own under "bar-<key>". The lists "main" and "format" of the two
+    // toolbars of earlier versions are split over them once (toolbars::splitFormer) and then left as they are, so an
+    // older version started again finds its toolbars as it left them.
+    if (!s.value(QStringLiteral("split0910")).toBool()) {
+        QStringList formerMain = s.value(QStringLiteral("main")).toStringList();
+        QStringList formerFormat = s.value(QStringLiteral("format")).toStringList();
+        // 0.60.4: a format bar arranged by the writer gets the four paragraph buttons once, after the
+        // list buttons (they can be taken away again under View > Toolbars > Customize Toolbars)
+        if (!formerFormat.isEmpty() && !s.value(QStringLiteral("paraButtons0604")).toBool()) {
+            const QStringList ids = {QStringLiteral("spaceBefore"), QStringLiteral("spaceAfter"), QStringLiteral("indentFirst"),
+                                     QStringLiteral("indentLeft")};
+            bool any = false;
+            for (const QString &id : ids)
+                any = any || formerFormat.contains(id);
+            if (!any) {
+                int at = int(formerFormat.indexOf(QStringLiteral("numbers")));
+                if (at < 0)
+                    at = int(formerFormat.indexOf(QStringLiteral("alignJustify")));
+                at = at < 0 ? int(formerFormat.size()) : at + 1;
+                formerFormat.insert(at, QStringLiteral("|"));
+                for (int i = 0; i < ids.size(); ++i)
+                    formerFormat.insert(at + 1 + i, ids[i]);
             }
         }
-        s.setValue(QStringLiteral("themePicker0902"), true);
-        s.setValue(QStringLiteral("main"), toolbarMain);
+        // 0.90.2: a main toolbar arranged by the writer gets the theme list once
+        if (!formerMain.isEmpty() && !s.value(QStringLiteral("themePicker0902")).toBool()
+            && !formerMain.contains(QStringLiteral("themePicker"))) {
+            const int search = int(formerMain.indexOf(QStringLiteral("searchMenu")));
+            formerMain.insert(search >= 0 ? search : int(formerMain.size()), QStringLiteral("themePicker"));
+        }
+        const toolbars::Split split = toolbars::splitFormer(formerMain, formerFormat);
+        for (toolbars::Bar b : toolbars::allBars()) {
+            toolbarList(int(b)) = split.lists[int(b)];
+            s.setValue(QLatin1String("bar-") + toolbars::barKey(b), toolbarList(int(b)));
+        }
+        toolbarHidden = split.hidden;
+        s.setValue(QStringLiteral("hidden"), toolbarHidden);
+        s.setValue(QStringLiteral("split0910"), true);
+    } else {
+        for (toolbars::Bar b : toolbars::allBars())
+            toolbarList(int(b)) = s.value(QLatin1String("bar-") + toolbars::barKey(b)).toStringList();
+        toolbarHidden = s.value(QStringLiteral("hidden")).toStringList();
     }
     toolbarIconSize = qBound(16, s.value(QStringLiteral("iconSize"), toolbarIconSize).toInt(), 48);
     toolbarStyle = s.value(QStringLiteral("style"), toolbarStyle).toString();
@@ -599,8 +621,11 @@ void AppSettings::save()
     pushToModules();
 
     s.beginGroup(QStringLiteral("toolbars"));
-    s.setValue(QStringLiteral("main"), toolbarMain);
-    s.setValue(QStringLiteral("format"), toolbarFormat);
+    // 0.91.0: "main" and "format" (the two toolbars of earlier versions) are not written any more
+    for (toolbars::Bar b : toolbars::allBars())
+        s.setValue(QLatin1String("bar-") + toolbars::barKey(b), toolbarList(int(b)));
+    s.setValue(QStringLiteral("hidden"), toolbarHidden);
+    s.setValue(QStringLiteral("split0910"), true);
     s.setValue(QStringLiteral("iconSize"), toolbarIconSize);
     s.setValue(QStringLiteral("style"), toolbarStyle);
     s.endGroup();

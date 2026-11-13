@@ -15,6 +15,7 @@
 #include "compile/PluginManager.h"
 #include "text/DirectFormat.h"
 #include "text/DisplayFormat.h"
+#include "ui/ToolbarConfig.h"
 #include "ui/AppSettings.h"
 #include "ui/EditorPane.h"
 #include "ui/MainWindow.h"
@@ -126,29 +127,42 @@ int main(int argc, char **argv)
     QIcon::setFallbackThemeName(QStringLiteral("qbicons"));
     QApplication::setFont(QFont(QStringLiteral("Noto Sans"), 10));
 
-    // ---- a format bar arranged by the writer gets the buttons once, after the list buttons
+    // ---- a format bar arranged by the writer in a version before 0.60.4 gets the buttons once (0.91.0: when its list is
+    // split over the three format toolbars; they go where the standard has them, onto Paragraph and Insert)
     const QStringList own = {QStringLiteral("styleCombo"), QStringLiteral("bold"), QStringLiteral("bullets"), QStringLiteral("numbers"),
                              QStringLiteral("|"), QStringLiteral("comment")};
-    {
+    auto former = [&own](bool mark0604) {
         QSettings s;
         s.setValue(QStringLiteral("toolbars/format"), own);
+        if (mark0604)
+            s.setValue(QStringLiteral("toolbars/paraButtons0604"), true); // the writer had them and took them away again
+        else
+            s.remove(QStringLiteral("toolbars/paraButtons0604"));
+        s.remove(QStringLiteral("toolbars/split0910"));
+        s.remove(QStringLiteral("toolbars/hidden"));
+        for (toolbars::Bar b : toolbars::allBars())
+            s.remove(QLatin1String("toolbars/bar-") + toolbars::barKey(b));
         s.sync();
-    }
+        AppSettings::instance().load();
+    };
     AppSettings &as = AppSettings::instance();
-    as.load();
-    const QStringList added = as.toolbarFormat;
-    check(added == QStringList{QStringLiteral("styleCombo"), QStringLiteral("bold"), QStringLiteral("bullets"), QStringLiteral("numbers"),
-                               QStringLiteral("|"), QStringLiteral("spaceBefore"), QStringLiteral("spaceAfter"), QStringLiteral("indentFirst"),
-                               QStringLiteral("indentLeft"), QStringLiteral("|"), QStringLiteral("comment")},
-          QStringLiteral("a format bar arranged by the writer gets the four buttons after the list buttons"), added.join(QLatin1Char(' ')));
-    {
-        QSettings s;
-        s.setValue(QStringLiteral("toolbars/format"), own); // the writer took them away again
-        s.sync();
-    }
-    as.load();
-    check(as.toolbarFormat == own, QStringLiteral("... only once: taken away, they stay away"), as.toolbarFormat.join(QLatin1Char(' ')));
-    as.toolbarFormat.clear(); // the standard bar for the rest of the run
+    former(false);
+    const QStringList added = as.toolbarParagraph;
+    check(as.toolbarFormat == QStringList{QStringLiteral("styleCombo")} && as.toolbarCharacter == QStringList{QStringLiteral("bold")}
+              && added == QStringList{QStringLiteral("bullets"), QStringLiteral("numbers"), QStringLiteral("|"), QStringLiteral("spaceBefore"),
+                                      QStringLiteral("spaceAfter"), QStringLiteral("indentFirst"), QStringLiteral("indentLeft"),
+                                      QStringLiteral("|"), QStringLiteral("comment")},
+          QStringLiteral("a format bar arranged by the writer is split over the three format toolbars and gets the four buttons "
+                         "after the list buttons"),
+          as.toolbarFormat.join(QLatin1Char(' ')) + QLatin1String(" / ") + as.toolbarCharacter.join(QLatin1Char(' ')) + QLatin1String(" / ")
+              + added.join(QLatin1Char(' ')));
+    former(true);
+    check(as.toolbarParagraph == QStringList{QStringLiteral("bullets"), QStringLiteral("numbers"), QStringLiteral("|"), QStringLiteral("comment")},
+          QStringLiteral("... only once: taken away before, they stay away"), as.toolbarParagraph.join(QLatin1Char(' ')));
+    // the standard bars for the rest of the run
+    for (toolbars::Bar b : toolbars::allBars())
+        as.toolbarList(int(b)).clear();
+    as.toolbarHidden.clear();
     as.theme = QStringLiteral("light");
     as.spellCheck = false;
     as.backupOnClose = false;
@@ -229,7 +243,7 @@ int main(int argc, char **argv)
     settle(800);
 
     // ---- place on the format bar
-    auto *bar = w.findChild<QToolBar *>(QStringLiteral("formatBar"));
+    auto *bar = w.findChild<QToolBar *>(QStringLiteral("paragraphBar")); // 0.91.0: the toolbar Paragraph and Insert
     QStringList order;
     if (bar)
         for (QAction *a : bar->actions()) {

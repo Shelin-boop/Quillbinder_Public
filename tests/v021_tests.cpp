@@ -571,8 +571,8 @@ static void generalOptionChecks()
         QTest::keyClicks(e, QStringLiteral(" more"));
         settle(100);
         check(w.editedSinceManualSave().contains(b->id), QStringLiteral("(the edited text is noted)"));
-        // (0.70.0: the backups of a project are in a folder of their own inside the backup folder)
-        const QString projectBackups = backup::projectFolder(p, backups.path());
+        // (0.91.0: the backups are straight in the backup folder)
+        const QString projectBackups = backups.path();
         const int backupsBefore = QDir(projectBackups).entryList(QDir::Files).size();
         w.manualSave();
         settle(200);

@@ -210,24 +210,42 @@ static void backupChecks(const QString &W)
             apple << out;
             waitNextSecond();
         }
+        // 0.91.0: the backups are told apart by the title, so those made as "Zebra" stay as they are and the new ones
+        // are counted on their own (0.70.0 to 0.90.4, with a folder per project, counted all five and removed two)
         const QStringList kept = backup::backupsFor(p.get(), dir);
-        check(ok && QFile::exists(apple.value(0)) && QFile::exists(apple.value(1)) && kept.size() == 3 && !QFile::exists(zebra.value(0))
-                  && !QFile::exists(zebra.value(1)) && QFile::exists(zebra.value(2)),
-              QStringLiteral("F-01: after the title changed from \"Zebra\" to \"Apple\" (keep 3), the new backups stay and the "
-                             "two oldest go (before, every new backup was deleted at once while it reported success)"),
+        check(ok && QFile::exists(apple.value(0)) && QFile::exists(apple.value(1)) && kept.size() == 2 && QFile::exists(zebra.value(0))
+                  && QFile::exists(zebra.value(1)) && QFile::exists(zebra.value(2)),
+              QStringLiteral("F-01: after the title changed from \"Zebra\" to \"Apple\" (keep 3), the new backups stay; those "
+                             "made under the old title stay too and are not counted (0.91.0)"),
               kept.join(QLatin1String(" | ")));
-        check(kept.value(0) == zebra.value(2) && kept.value(2) == apple.value(1),
-              QStringLiteral("F-01: the backups are in the order of their date, whatever the title"), kept.join(QLatin1String(" | ")));
-        // two backups within one second: "(2)" comes after the first, also with another title
+        check(kept.value(0) == apple.value(0) && kept.value(1) == apple.value(1),
+              QStringLiteral("F-01: the backups are in the order of their date"), kept.join(QLatin1String(" | ")));
+        // one more "Apple" than the number to keep: the oldest "Apple" goes, no "Zebra"
+        {
+            QStringList more;
+            for (int i = 0; i < 2; ++i) {
+                QString out;
+                ok = backup::backupProject(p.get(), dir, 3, &out, &err) && ok;
+                more << out;
+                waitNextSecond();
+            }
+            const QStringList then = backup::backupsFor(p.get(), dir);
+            check(ok && then.size() == 3 && !QFile::exists(apple.value(0)) && then.last() == more.value(1) && QFile::exists(zebra.value(0)),
+                  QStringLiteral("0.91.0: the clean-up removes only backups with the project's title of today"),
+                  then.join(QLatin1String(" | ")));
+        }
+        // two backups within one second under two titles: each is listed with its title
         QString out1, out2;
         p->setTitle(QStringLiteral("Mango"));
         backup::backupProject(p.get(), dir, 10, &out1, &err);
         p->setTitle(QStringLiteral("Banana"));
         backup::backupProject(p.get(), dir, 10, &out2, &err);
         const QStringList now = backup::backupsFor(p.get(), dir);
-        check(now.size() >= 2 && now.last() == out2 && now.value(now.size() - 2) == out1,
-              QStringLiteral("F-01: two backups within one second under two titles keep the order they were made in"),
+        p->setTitle(QStringLiteral("Mango"));
+        check(now == QStringList{out2} && backup::backupsFor(p.get(), dir) == QStringList{out1} && out1 != out2,
+              QStringLiteral("two backups within one second under two titles are both there, each listed with its title"),
               now.join(QLatin1String(" | ")));
+        p->setTitle(QStringLiteral("Banana"));
     }
 
     // ================================================================ F-05: a folder that is a link; incomplete ones kept to the number

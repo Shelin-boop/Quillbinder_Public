@@ -8,15 +8,21 @@ class Project;
 namespace backup {
 QString defaultDirectory();
 
-// 0.70.0 (audit A F-02, B F-3): each project's backups are in a folder of their own inside the backup folder,
-// "<title> <key>", where the key is made from the project folder's place on this computer (so a copy of the
-// project, or a restored backup, has its own); the folder keeps its name when the title changes.
+// 0.91.0 (the writer's decision of 2026-11-13: "that's why i chose a backup folder, that all the backups go in
+// there"): the backups of every project are straight in the backup folder, named "<title> bak <date time>.zip" as
+// always. A project's backups are the files that carry its title: two projects with the same title (a folder copied
+// by hand, a backup unpacked by hand) share their backups and the number kept, as before 0.70.0. Restore From Backup
+// renames what it restores, so it does not mix.
+// 0.70.0 to 0.90.4 kept each project's backups in a folder of their own inside the backup folder, "<title> <key>" (the
+// key made from the project folder's place on this computer). Such a folder is left as it is (the writer's choice):
+// nothing is written, counted or deleted there any more; Restore From Backup still offers its backups.
 QString projectKey(const Project *p);
-QString projectFolder(const Project *p, const QString &dir);
+// That folder of 0.70.0 to 0.90.4; "" when the backup folder holds none for this project.
+QString formerProjectFolder(const Project *p, const QString &dir);
 
 enum class Where {
-    ProjectFolder, // the project's own folder inside dir; the newest `keep` complete backups stay
-    AsChosen       // straight into dir (Back Up To...); nothing is deleted
+    BackupFolder, // the backup folder of the options; of this project's backups the newest `keep` complete ones stay
+    AsChosen      // a folder chosen for this one backup (Back Up To...); nothing is deleted
 };
 
 // 0.90.3: a backup is packed and checked outside the backup folder, in a folder of the program's own
@@ -40,15 +46,15 @@ bool isOwnBackupName(const QString &fileName);
 // named "... (incomplete).zip" and no older backup is deleted for it (0.65.0). The settings/lock file is left
 // out (0.70.0, audit A U-09).
 // 0.90.3: false with *waiting true: the backup was made and checked but could not be put into the backup folder;
-// it is kept in the work folder (*outPath names it there) and *error says so (Where::ProjectFolder only: a backup
+// it is kept in the work folder (*outPath names it there) and *error says so (Where::BackupFolder only: a backup
 // to a chosen folder that cannot be put there is removed).
 bool backupProject(Project *p, const QString &dir, int keep, QString *outPath, QString *error,
-                   Where where = Where::ProjectFolder, bool *waiting = nullptr);
-// This project's backups in its folder, oldest first.
+                   Where where = Where::BackupFolder, bool *waiting = nullptr);
+// The backups in dir that carry this project's title, oldest first: those in the program's own name form, and other
+// files that begin "<title> bak " (a sync program's copy of a backup), which Restore From Backup offers too.
 QStringList backupsFor(const Project *p, const QString &dir);
-// Backups of the time before 0.70.0, named by the title only, straight in dir (never deleted automatically:
-// they may be another project's of the same title).
-QStringList backupsFor(const QString &projectTitle, const QString &dir);
+// The backups in this project's folder of 0.70.0 to 0.90.4 (see formerProjectFolder), oldest first.
+QStringList formerBackupsFor(const Project *p, const QString &dir);
 
 // 0.70.0 (audit A U-06): while a backup is packed and checked (in a thread of its own) the calling thread hands
 // over to this handler every 50 ms: what is done (a title; "" when it is over), bytes done, bytes in all, and

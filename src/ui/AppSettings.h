@@ -194,7 +194,14 @@ public:
     int keepReports = 20;
 
     // toolbars (View > Customize Toolbars); an empty list means the standard set
+    // 0.91.0: seven toolbars (toolbars::Bar in ToolbarConfig.h). toolbarMain and toolbarFormat are the lists of the
+    // bars Main and Format (style and font) now; toolbarList(bar) reaches every list by the bar's number.
     QStringList toolbarMain, toolbarFormat;       // item ids, see ToolbarConfig.h
+    QStringList toolbarThemes, toolbarSearch, toolbarTools, toolbarCharacter, toolbarParagraph;
+    QStringList &toolbarList(int bar);
+    const QStringList &toolbarList(int bar) const;
+    // the bars switched off one by one (toolbars::barKey); Show Toolbar and Show Format Bar switch whole rows besides
+    QStringList toolbarHidden;
     int toolbarIconSize = 22;                     // main toolbar: 16 | 22 | 32
     QString toolbarStyle = QStringLiteral("icons"); // icons | beside | under
 

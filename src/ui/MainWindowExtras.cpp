@@ -1,6 +1,7 @@
 // Additions of 0.17 to the main window: Navigate > Fonts, Documents > Change
 // Icon (the whole icon set, recent icons, Icon from Text, Manage Icons), the
 // icon bar, the two color buttons of the format bar, Help > Developer Guide.
+#include "ui/GripBar.h"
 #include "ui/MenuClear.h"
 #include "ui/ObjectsUi.h"
 #include "AppInfo.h"
@@ -243,9 +244,15 @@ QStringList MainWindow::iconBarIcons() const
 
 void MainWindow::createIconBar()
 {
-    m_iconBar = new QToolBar(tr("Icon Bar"), this);
+    auto *iconBar = new GripBar(tr("Icon Bar"), this);
+    iconBar->setMover([this](GripBar *moved, int dx) { return moveBarSideways(moved, dx); });
+    iconBar->setDropped([this] { saveBarGaps(); });
+    m_iconBar = iconBar;
     m_iconBar->setObjectName(QStringLiteral("iconBar"));
-    m_iconBar->setMovable(false);
+    // 0.91.0: movable by its grip like the seven toolbars (top or bottom edge)
+    m_iconBar->setMovable(true);
+    m_iconBar->setFloatable(false);
+    m_iconBar->setAllowedAreas(Qt::TopToolBarArea | Qt::BottomToolBarArea);
     m_iconBar->setIconSize(QSize(20, 20));
     addToolBar(Qt::TopToolBarArea, m_iconBar);
     connect(a[QStringLiteral("showIconBar")], &QAction::toggled, m_iconBar, &QWidget::setVisible);
@@ -254,6 +261,8 @@ void MainWindow::createIconBar()
         QMenu menu;
         menu.addAction(a[QStringLiteral("customizeIconBar")]);
         menu.addAction(a[QStringLiteral("showIconBar")]);
+        menu.addSeparator();
+        menu.addAction(a[QStringLiteral("resetToolbarPlaces")]);
         menu.exec(m_iconBar->mapToGlobal(pos));
     });
     rebuildIconBar();

@@ -169,18 +169,26 @@ Choose a layout under **Window > Layouts** or from the **View** button of the to
 
 **Window > Layouts > Save Current Layout** stores the window as it is now under a name of your choice; tick "Also remember the size of the window" if the layout should resize the window. **Manage Layouts** shows all layouts with a small picture and lets you use, update (replace with the current window), rename, delete, export, and import your own layouts. Built-in layouts cannot be changed; save a changed window under a new name instead. Every layout can have a keyboard shortcut (section 19, group "Layouts").
 
+### The toolbars and their places
+
+Since 0.91 the window has eight toolbars in two rows. The first row holds **Main** (View, new text, new folder, trash, Undo, Redo), **Themes** (the theme buttons and the theme list), **Search** (the search button, the quick search field, the view modes) and **Tools** (bookmarks, Quick Reference, comments, Compile, Show Invisibles, Composition Mode, the buttons of writing tools, the inspector). The second row holds **Style and Font**, **Character and Alignment**, **Paragraph and Insert** and the **icon bar**.
+
+- **Moving a toolbar.** Every toolbar has a grip at its front (two columns of dots; the pointer turns into a cross with arrows over it). Drag the grip sideways to put the bar further right or left in its row: the toolbars after it move along, so the free space before a bar is as wide as you make it. A bar goes right as far as the row has room for the buttons of the bars after it, and left until it meets the bar before it; the first bar of a row stays at the window's edge. Drag the grip up or down to put the bar into another row, a new row, or at the bottom edge of the window. A toolbar cannot stand at the sides or float as a window of its own. {{APP}} remembers the places and the spaces.
+- **Switching a toolbar off.** **View > Toolbars** has a switch for each toolbar; the same list comes with a right-click on a toolbar or on the free space beside the toolbars. **Show Toolbar** and **Show Format Bar** switch a whole row as before (the four bars of the first row, the three format toolbars), and the layouts use these two; the switch of a single bar is off limits while its row is switched off.
+- **View > Toolbars > Reset Toolbar Places** puts all toolbars back into their standard places and closes the spaces between them.
+
 ### Toolbars of your own
 
-**View > Toolbars > Customize Toolbars** (or a right-click on a bar) opens a window with two lists: the available commands on the left, the contents of the bar on the right. Choose the main toolbar or the format bar at the top.
+**View > Toolbars > Customize Toolbars** (or a right-click on a bar) opens a window with two lists: the available commands on the left, the contents of the bar on the right. Choose the toolbar at the top.
 
 - Add a command with the arrow button or a double-click. Every command of the menus is available, also those of writing tools (Edit > Writing Tools); the search field above the list finds it.
 - Remove a button with the other arrow or a double-click, and move it with the up and down buttons or by dragging.
 - **Separator** and **Flexible Space** can be used as often as you like. A flexible space pushes what follows to the right; two of them center what stands between them.
-- Some entries are more than one command: **View**, **Add**, **Search**, the **Quick Search field**, **View Mode**, **Project Bookmarks**, **Comments and Footnotes**, **Layouts**, and **Themes** (the theme list with Bright, Dark, and Both) for the main toolbar; the style, font, size, and line spacing lists for the format bar.
-- Below the lists you choose small, medium, or large icons and whether the main toolbar shows text beside or under the icons.
+- Some entries are more than one command: **View**, **Add**, **Search**, the **Quick Search field**, **View Mode**, **Project Bookmarks**, **Comments and Footnotes**, **Layouts**, and **Themes** (the theme buttons Bright, Dark, U1, U2 with the theme list) for the four toolbars of the first row; the style, font, size, and line spacing lists and the four paragraph buttons for the three format toolbars. Such a control exists once: added to a toolbar, it moves there from the toolbar that had it. A control of the first row cannot go onto a format toolbar, nor the other way round.
+- Below the lists you choose small, medium, or large icons and whether the toolbars of the first row show text beside or under the icons.
 - **Standard Set** puts the buttons the program came with back into the bar.
 
-If a bar holds more than fits into the window, an arrow at its end opens the rest. An empty bar is not possible: hide the bar with **View > Toolbars** instead.
+If a bar holds more than fits into the window, an arrow at its end opens the rest. A toolbar left without any button is switched off; switched on again under **View > Toolbars**, it has its standard set. A toolbar you arranged in a version before 0.91 was split over the new toolbars: every button went to the toolbar that holds it in the standard sets, and what you had taken off stays off.
 
 ### The icon bar
 
@@ -985,7 +993,7 @@ Speak instead of typing: the add-on **Speech Transcription** (version 0.61 or la
 
 The models come from whisper.cpp's model files on Hugging Face. Under **Source** you can give another address instead, or use **Use a File I Downloaded…** for a model file you fetched yourself. Before a model is used it is checked: first its checksum (SHA-256), then the description of the model inside the file, and a short test transcription. Only when all is well does it replace the model in use, which is then deleted. A model from the official source must have the known checksum; otherwise it is not installed (the download may be damaged). A file from another address, or one you downloaded yourself, whose checksum is not the known one is read only after you agree, because the speech engine has to read it. Other addresses must start with *https://*. An interrupted download goes on where it stopped the next time. **Speed Test** shows how long this computer takes for a short recording with the chosen model and device.
 
-**Recording.** Press the microphone button on the main toolbar (or **Edit > Writing Tools > Speech Transcription**). The inspector opens on its tab **Transcriptions** (the microphone, first in the inspector's row of buttons), and a new transcription starts, named by date and time. Speak; a short pause ends a piece, and its text appears a few seconds later. A longer pause (3 s unless you change it) starts a new paragraph. Press the button again to stop: the pieces still waiting are written, then the text can be edited. The arrow beside the button chooses the microphone.
+**Recording.** Press the microphone button on the Tools toolbar (or **Edit > Writing Tools > Speech Transcription**). The inspector opens on its tab **Transcriptions** (the microphone, first in the inspector's row of buttons), and a new transcription starts, named by date and time. Speak; a short pause ends a piece, and its text appears a few seconds later. A longer pause (3 s unless you change it) starts a new paragraph. Press the button again to stop: the pieces still waiting are written, then the text can be edited. The arrow beside the button chooses the microphone.
 
 **The transcriptions** are plain text files in a folder of their own, outside every project (normally *Documents/{{APP}} Transcriptions*), so your projects stay as they are. In the tab you can edit a transcription (saved by itself), rename it, copy the whole text to paste it wherever you need it, delete it (it goes to the desktop's trash), or open the folder. While a recording is written its text is read-only. If an edited transcription cannot be saved, it stays open (the status line says why); when a recording starts or the program ends meanwhile, its text goes into the emergency folder *~/.local/share/{{APP}}/Emergency* (0.65).
 
@@ -1294,13 +1302,13 @@ Print Current Document prints a document as you work on it. For a finished manus
 
 {{APP}} makes a backup (a ZIP file of the whole project) every time you close a project, and keeps the last five per project. Change this under **File > Options > Backup**, where you can also choose the backup folder (best on another drive, or a folder your sync program copies).
 
-Since 0.70 each project has a folder of its own inside the backup folder (*My Novel 1a2b3c4d*: the title and a key made from the project folder's place on this computer), and only that folder's backups are counted and cleaned up. A copy of a project, a restored backup, or another project with the same title has its own folder, so it can never delete the backups of the first. Backups made before 0.70 stay where they were and are never deleted automatically. A backup runs beside the window: after a moment a progress window shows how far it is and can cancel it. Who has the project open (the lock file with the computer's and the login's name) is not in the backup.
+Since 0.91 the backups of all projects are straight in the backup folder, each named after its project with the date and time (*My Novel bak 2026-11-13 15-40-00.zip*). The backups of a project are the files that carry its title, and only they are counted and cleaned up for it. Two projects with the same title (a project folder you copied by hand, a backup you unpacked by hand) therefore share their backups and the number kept: give such a copy a title of its own. A backup restored with **Restore From Backup** gets one by itself. When you change a project's title, the backups made under the old title stay until you delete them. Versions 0.70 to 0.90 kept each project's backups in a folder of its own inside the backup folder (*My Novel 1a2b3c4d*); such a folder is left as it is, nothing is added or deleted there any more, and **Restore From Backup** still lists its backups. A backup runs beside the window: after a moment a progress window shows how far it is and can cancel it. Who has the project open (the lock file with the computer's and the login's name) is not in the backup.
 
 - With **Back up with each manual save** (**File > Options > Backup**), every **File > Save** (**Ctrl+S**) makes a backup as well. Two backups within the same second get a number ("... (2)").
 - **File > Back Up > Back Up Now** makes a backup immediately.
 - **Back Up To…** saves a backup wherever you choose, for example on a USB stick.
 - **Restore From Backup…** (0.70) lists the backups of the open project with their date, size and whether they are complete; choose one and **Restore and Open**: it is unpacked into a new folder beside the project, *… (restored 2026-11-10 14-03)*, its title says "(restored …)", and it opens there. The project you had open is not changed. Since 0.81 a restore of any size works (backups of 2 GB and more, files of more than 1 GB such as videos, more than 65,535 files), every file is checked as it is written, a restore that does not fit on the drive is not started, a progress window can cancel it, and when files cannot be restored the message names each of them with the reason (a full disk, a damaged entry).
-- **Show Backup Folder** opens the open project's backup folder (or the backup folder).
+- **Show Backup Folder** opens the backup folder.
 
 **Where a backup is put together (since 0.90.3).** A backup is packed and checked in a folder of the program's own, *~/.local/share/{{APP}}/backup-work* (on Windows *data\backup-work* in the program folder), and only the finished file is put into the backup folder, in one step and under its final name: moved there when both folders are on the same drive, otherwise copied straight to its final name and compared with the original. So a backup folder that a sync program watches, or that is on a USB stick or a network drive, never holds a half-written backup or a temporary file, and a backup that was cut off never looks like a finished one. (Before 0.90.3 the backup was written inside the backup folder as *… .zip.part* and renamed there.) The work folder is empty between backups, apart from a small note of the backup folder it serves.
 
@@ -1354,7 +1362,7 @@ A few settings belong to the program only and are not shown for a project: the r
 
 ### Themes, colors, and fonts
 
-A theme sets the colors, and if it wants the fonts, of every area of the window. Choose one under **Window > Themes**, or in the theme list in the middle of the main toolbar; the change takes effect at once, without a restart. Eight themes are built in:
+A theme sets the colors, and if it wants the fonts, of every area of the window. Choose one under **Window > Themes**, or with the buttons and the list of the Themes toolbar; the change takes effect at once, without a restart. Eight themes are built in:
 
 | Theme | Look |
 |-------|------|
@@ -1369,7 +1377,15 @@ A theme sets the colors, and if it wants the fonts, of every area of the window.
 
 Add-ons can bring more themes (the add-on "Extra themes" has Northern Night, Forest, Graphite, Warm Paper, and Rose Dawn).
 
-**The theme list in the toolbar** (0.90.2). In the middle of the main toolbar, three buttons narrow the list beside them: **Bright** shows the bright themes, **Dark** the dark ones, **Both** all of them (a theme counts as bright or dark by the color of its window; **Default (Follow the Desktop)** is in both lists, and themes of your own and of add-ons are sorted the same way). Choosing a theme in the list does what **Window > Themes** does: the open project and new projects use it. When the theme in use is not in the list shown, the list says "Choose a bright theme" (or a dark one). The choice of Bright, Dark, or Both is kept. When the toolbar is too narrow for everything (a small window, large icons with text beside them), the list steps aside so that the quick search stays; it comes back when there is room. Like every toolbar control, the list can be moved or taken away under **View > Toolbars > Customize Toolbars**; a toolbar you arranged yourself got it once, after **Redo**.
+**The Themes toolbar** (0.90.2, changed in 0.91). Four buttons and a list of all themes.
+
+- **Bright** and **Dark** are switches: a click shows the theme of the button at once, as it is. At first these are *Light* and *Dark Mode*; a right-click on the button lists the bright (or dark) themes, also those of add-ons and your own, and the one you choose there is the button's theme from then on.
+- **U1** and **U2** keep two looks of your own. A click on an empty button saves the look you see now (the theme with every color and font you changed on top of it) in that button; a click on a filled button brings its look back. A right-click offers **Save the Current Look Here** (it asks before it replaces a look) and **Show This Look**. The two looks are ordinary themes named *User_1* and *User_2*: they are in the list and under **Window > Themes**, where they can also be exported or deleted (a deleted one leaves its button empty).
+- **Your own look is never lost by a click.** A button shows its theme as it is, so what you see really changes. If colors or fonts of your own lie on top of the theme shown, they would be lost by that, so they are saved first: into an empty U button without a question (the status bar says where), and when both hold a look, {{APP}} asks whether to save in U1, in U2, or to switch without saving.
+- The button of the theme shown is pressed and bold.
+- **The list** shows every theme. Choosing one there does what **Window > Themes** does: the open project and new projects use it, and the question whether to keep your own changes on top comes as before.
+
+Like every toolbar control, the theme control can be moved or taken away under **View > Toolbars > Customize Toolbars**, and the whole Themes toolbar can be switched off under **View > Toolbars**.
 
 **The page in dark themes** (0.70). The standard page of {{APP}} is a light olive paper beside a gray desk. With a dark theme, the page is a very dark gray with white text instead (or the theme's own dark page, if it has one), so a dark theme does not leave a bright page in a dark frame. A page color you chose yourself (right-click > Appearance, or File > Options > Appearance) stays in every theme.
 

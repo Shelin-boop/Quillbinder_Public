@@ -3,6 +3,36 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.91.0 beta (2026-11-13)
+
+A new AppImage for Linux with three requests of the writer: all backups straight in the backup folder, toolbars that
+can be moved and switched off one by one, and theme buttons that switch the look with one click.
+
+- **All backups are straight in the backup folder again**. The automatic backups of every project go into the folder
+  chosen under File > Options > Backup itself, named *<title> bak <date time>.zip* as always; versions 0.70 to 0.90
+  put them into a folder per project inside it. A project's backups are the files with its title, and only they count
+  toward the number to keep. Two projects with the same title share their backups (give a copy a title of its own);
+  after a title change the backups made under the old title stay until you delete them. An older backup with the
+  project's title that lies in the backup folder counts again. The folders per project of 0.70 to 0.90 are left as
+  they are, and Restore From Backup still lists their backups. Show Backup Folder opens the backup folder.
+- **Eight toolbars that can be moved**. The two toolbars became seven: Main, Themes, Search and Tools in the first
+  row; Style and Font, Character and Alignment, Paragraph and Insert in the second, followed by the icon bar. Each has
+  a grip at its front (two columns of dots): drag it sideways to put the bar further right or left in its row, and the
+  bars after it make room; drag it up or down to put the bar into another row or at the bottom edge of the window. The
+  program remembers the places and the spaces between the bars.
+- **A switch for every toolbar**. View > Toolbars, and a right-click on a toolbar, switch each bar on and off. Show
+  Toolbar and Show Format Bar switch a whole row as before. Reset Toolbar Places puts every bar back.
+- **Customize Toolbars works with every toolbar**. Buttons can be added to each of the seven bars; a control such as
+  the quick search field moves from one bar to another. A toolbar arranged in an earlier version is split over the new
+  bars, and what was taken off it stays off.
+- **Theme buttons that switch: Bright, Dark, U1 and U2**. Bright and Dark show a bright and a dark theme with one
+  click; a right-click chooses which theme each of them shows. U1 and U2 keep two looks of your own (the themes User_1
+  and User_2): a click on an empty button saves the look you see, a click on a filled one brings it back, a right-click
+  saves the current look there. The button "Both" is gone, and the list shows every theme.
+- **A look of your own is not lost by a click on a theme button**. A button shows its theme as it is. Colors and fonts
+  of your own on top of the theme shown before are saved first: into an empty U button without a question, otherwise
+  the program asks whether to save them in U1 or U2 or to switch without saving.
+
 ## 0.90.4 beta (2026-11-13)
 
 The first version built for Linux and Windows from one source. For Linux it is a program update for 0.90.3 (File >

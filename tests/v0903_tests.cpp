@@ -336,7 +336,7 @@ static int childRun(const QString &folder, const QString &dir)
     }
     QString out;
     bool waits = false;
-    const bool ok = backup::backupProject(p.get(), dir, 5, &out, &err, backup::Where::ProjectFolder, &waits);
+    const bool ok = backup::backupProject(p.get(), dir, 5, &out, &err, backup::Where::BackupFolder, &waits);
     std::printf("result=%d waiting=%d out=%s err=%s\n", ok ? 1 : 0, waits ? 1 : 0, qPrintable(out), qPrintable(err));
     std::fflush(stdout);
     return ok ? 0 : 1;
@@ -387,7 +387,7 @@ static void foreignCopyChecks(const QString &H)
         real << out;
         waitNextSecond();
     }
-    const QString pf = backup::projectFolder(p.get(), dir);
+    const QString pf = dir; // 0.91.0: the backups are straight in the backup folder
     // what the writer found: six copies of the newest backup, named by the sync program; and copies of other kinds
     const QString newest = real.last();
     const QString base = QFileInfo(newest).completeBaseName();
@@ -446,7 +446,7 @@ static void placeChecks(const QString &H)
     writeAll(p->folderPath() + QStringLiteral("/Files/picture.bin"), QByteArray(300000, 'p'));
     p->save(&err);
     const QString dir = H + QStringLiteral("/bk-watched");
-    const QString pf = backup::projectFolder(p.get(), dir);
+    const QString pf = dir; // 0.91.0: the backups are straight in the backup folder
     const QString work = backup::workFolderFor(pf);
     QString out, why;
     bool ok = backup::backupProject(p.get(), dir, 0, &out, &why);
@@ -614,14 +614,14 @@ static void waitingChecks(const QString &H)
     textDoc(p.get(), p->draft(), QStringLiteral("Scene"), QStringLiteral("The text of the scene."));
     p->save(&err);
     const QString dir = H + QStringLiteral("/bk-waiting");
-    const QString pf = backup::projectFolder(p.get(), dir);
+    const QString pf = dir; // 0.91.0: the backups are straight in the backup folder
     const QString work = backup::workFolderFor(pf);
     QStringList kept;
     {
         Block block(pf);
         QString out, why;
         bool waits = false;
-        bool ok = backup::backupProject(p.get(), dir, 5, &out, &why, backup::Where::ProjectFolder, &waits);
+        bool ok = backup::backupProject(p.get(), dir, 5, &out, &why, backup::Where::BackupFolder, &waits);
         kept << out;
         check(!ok && waits && QFileInfo(out).absolutePath() == work && ZipWriter::verify(out) > 0 && backup::isOwnBackupName(QFileInfo(out).fileName()),
               QStringLiteral("a backup folder that cannot be made: the backup is packed and checked all the same and waits, whole, in "
@@ -633,7 +633,7 @@ static void waitingChecks(const QString &H)
                              "next backup puts it in place"),
               why);
         waitNextSecond();
-        ok = backup::backupProject(p.get(), dir, 5, &out, &why, backup::Where::ProjectFolder, &waits);
+        ok = backup::backupProject(p.get(), dir, 5, &out, &why, backup::Where::BackupFolder, &waits);
         kept << out;
         check(!ok && waits && filesIn(work, QStringLiteral("*.zip")).size() == 2,
               QStringLiteral("a second backup while the folder is still out of reach waits beside the first"),
@@ -643,7 +643,7 @@ static void waitingChecks(const QString &H)
         waitNextSecond();
         QString out, why;
         bool waits = true;
-        const bool ok = backup::backupProject(p.get(), dir, 5, &out, &why, backup::Where::ProjectFolder, &waits);
+        const bool ok = backup::backupProject(p.get(), dir, 5, &out, &why, backup::Where::BackupFolder, &waits);
         const QStringList there = backup::backupsFor(p.get(), dir);
         check(ok && !waits && why.isEmpty() && there.size() == 3 && QFileInfo(there.value(0)).fileName() == QFileInfo(kept.value(0)).fileName()
                   && QFileInfo(there.value(1)).fileName() == QFileInfo(kept.value(1)).fileName() && there.value(2) == out
@@ -836,7 +836,7 @@ static void windowChecks(const QString &H)
     QString pf;
     {
         auto p = Project::open(folder, &err);
-        pf = p ? backup::projectFolder(p.get(), dir) : QString();
+        pf = p ? dir : QString(); // 0.91.0: the backup folder itself
     }
     {
         Block block(pf);

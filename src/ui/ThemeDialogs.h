@@ -39,6 +39,11 @@ namespace themeui {
 // their own on top of the current theme, asks whether to keep them
 // (ask = false: keeps them). Returns false when cancelled.
 bool choose(QWidget *parent, const QString &id, bool ask = true);
+// 0.91.0: how many colors and fonts of the writer's own lie on top of the theme shown now (what choose() asks about).
+int ownChanges();
+// 0.91.0: makes a theme the theme in use as it is: the writer's own colors and fonts on top of the current theme go
+// (the toolbar's buttons Bright, Dark, U1 and U2, which save them first where they would be lost). No question.
+bool useAsItIs(QWidget *parent, const QString &id);
 
 // Asks for a name and saves theme + own changes as a new theme, which
 // becomes the theme in use. Returns the new id or an empty string.

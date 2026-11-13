@@ -473,10 +473,10 @@ int main(int argc, char **argv)
     as.theme = QStringLiteral("light");
     as.spellCheck = false;
     as.backupOnClose = false;
-    // a main toolbar the writer arranged: gets the speech button once
-    const QStringList own = {QStringLiteral("view"), QStringLiteral("add"), QStringLiteral("trash"), QStringLiteral("undo"),
-                             QStringLiteral("redo"), QStringLiteral("<>"), QStringLiteral("compile"), QStringLiteral("showInspector")};
-    as.toolbarMain = own;
+    // a Tools bar the writer arranged (0.91.0: the tool buttons stand there; the main toolbar before): gets the speech
+    // button once
+    const QStringList own = {QStringLiteral("compile"), QStringLiteral("showInspector")};
+    as.toolbarTools = own;
     as.save();
     theme::apply();
     compile::PluginManager::instance().load();
@@ -517,11 +517,12 @@ int main(int argc, char **argv)
     check(w.adoptProject(std::move(proj)), QStringLiteral("(project open)"));
     settle(600);
 
-    const QStringList placed = AppSettings::instance().toolbarMain;
-    check(placed.indexOf(QStringLiteral("tool:speech-transcription.record")) == placed.indexOf(QStringLiteral("showInspector")) - 1,
-          QStringLiteral("a main toolbar the writer arranged gets the speech button once, before the inspector's button"),
+    const QStringList placed = AppSettings::instance().toolbarTools;
+    check(placed.indexOf(QStringLiteral("tool:speech-transcription.record")) == placed.indexOf(QStringLiteral("showInspector")) - 1
+              && placed.count(QStringLiteral("tool:speech-transcription.record")) == 1,
+          QStringLiteral("a Tools bar the writer arranged gets the speech button once, before the inspector's button"),
           placed.join(QLatin1Char(' ')));
-    auto *bar = w.findChild<QToolBar *>(QStringLiteral("mainToolbar"));
+    auto *bar = w.findChild<QToolBar *>(QStringLiteral("toolsBar"));
     if (!bar)
         for (QToolBar *b : w.findChildren<QToolBar *>())
             if (b->actions().contains(w.findChild<QAction *>(QStringLiteral("showInspector"))))
@@ -529,9 +530,10 @@ int main(int argc, char **argv)
     QAction *rec = w.findChild<QAction *>(QStringLiteral("tool:speech-transcription.record"));
     auto *recButton = bar && rec ? qobject_cast<QToolButton *>(bar->widgetForAction(rec)) : nullptr;
     check(recButton && recButton->menu() && recButton->popupMode() == QToolButton::MenuButtonPopup,
-          QStringLiteral("the speech button is on the main toolbar, with an arrow that opens its menu"));
+          QStringLiteral("the speech button is on the Tools toolbar, with an arrow that opens its menu"));
     QAction *undo = w.findChild<QAction *>(QStringLiteral("undo"));
-    check(undo && bar && bar->widgetForAction(undo), QStringLiteral("Undo is on the (arranged) main toolbar"));
+    auto *mainBar = w.findChild<QToolBar *>(QStringLiteral("mainToolbar")); // 0.91.0: Undo stands on the Main bar
+    check(undo && mainBar && mainBar->widgetForAction(undo), QStringLiteral("Undo is on the Main toolbar"));
     w.grab().save(outDir + QStringLiteral("/01-window.png"));
     if (bar)
         bar->grab().save(outDir + QStringLiteral("/02-toolbar.png"));

@@ -192,6 +192,8 @@ changed and what was checked. Preferences:
   that waits for its folder and is put in place later, a cut-off copy replaced, a same-named whole backup kept; Cancel;
   old `.part` files of the work folder; a full drive under the backup folder and under the work folder (child runs with
   `qbfaultshim`); the window's messages).
+- `qb_v0910_tests` (0.91.0 beta: backups straight in the backup folder, the seven toolbars and the icon bar; see
+  "Backups in one folder, eight toolbars, theme buttons").
 - `qb_audit1_tests` (0.64.1, the fixes of the external audit of 2026-11-09: ids of a project file and names in archives
   (`core/PathSafety.*`), damaged ZIP entries, a Word 97 file with a looping sector chain (compiles the plugin's `Cfb.cpp`),
   XML nested 20,000 deep, the keys a project may hold and the question of Load Options, the code warning of packages,
@@ -250,6 +252,72 @@ changed and what was checked. Preferences:
   public repository, https://shelin-boop.github.io/Quillbinder_Public/): a button per system for the full version, the
   visitor's system first. Needs, once, Settings > Pages > Source "GitHub Actions" in the public repository (the writer).
   The README's download part links it and is sorted by system too.
+
+## Backups in one folder, eight toolbars, theme buttons (0.91.0 beta, 2026-11-13)
+
+Three requests of the writer in one job (a new AppImage; Linux first, the Windows machine has not run this version).
+
+- **Backups straight in the backup folder** (`core/Backup.*`; the writer: "that's why i chose a backup folder, that
+  all the backups go in there"). `Where::BackupFolder` (was `ProjectFolder`) writes into the folder itself; a project's
+  backups are the files in the program's own name form whose title part (`ownTitle`: what stands before the last
+  " bak <date time>") equals `text::safeFileName(p->title())` (`ownBackupsOf`): only they count for `keep` and can be
+  deleted. Compared as text, never as a file pattern (a title may hold `[ ] ? *`). Two projects with the same title
+  share backups and `keep` (the writer's choice, as before 0.70.0); after a title change the old title's backups stay.
+  `backupsFor(p, dir)` (Restore From Backup) also lists other files that begin "<title> bak " (sync copies).
+  The folder per project of 0.70.0 to 0.90.4 is `formerProjectFolder` ("" when there is none): never written, counted
+  or cleaned any more, its backups listed by `formerBackupsFor` and shown by Restore with " (in the folder ...)".
+  Backups that waited for it (work folder of `<dir>/<title> <key>`) are put into the backup folder by the next backup,
+  and that work folder goes. One work folder now serves every project of a backup folder: of the waiting backups only
+  those of this title are trimmed to `keep`. Show Backup Folder opens the backup folder. Do not bring the folder per
+  project back without the writer's word.
+- **Seven toolbars and the icon bar** (`ui/ToolbarConfig.*`, `MainWindowBars.cpp`): `toolbars::Bar` = Main, Format
+  (style and font; both keep their numbers and the object names "mainToolbar", "formatBar"), Themes, Search, Tools,
+  Character, Paragraph (`allBars()` gives the window's order; `barKey`, `barName`, `barObjectName`, `barCommand`).
+  `MainWindow::m_bars[]`; each a `GripBar` (`ui/GripBar.*`), `setMovable(true)`, not floatable, top and bottom edge
+  only. **The grip**: `GripBar` paints two columns of dots over the style's handle (`gripRect()` =
+  `SE_ToolBarHandle`) and shows the move pointer there. Dragged out of its row, Qt unplugs the bar and puts it into
+  another row or at the other edge (rows and edges are in `window/state`, `saveState`). Dragged along its row, Qt would
+  move the border between the bar and the one before it: the dragged bar shrinks and its buttons go into the overflow
+  menu while the bars after it stay (seen in this job's first screenshots). So `GripBar::event` keeps the sideways
+  moves to itself (it returns true for them and hands the events to Qt only once the mouse has left the row), and
+  `MainWindow::moveBarSideways` changes the **gap** of the bar before it in the row (`GripBar::setGap`: a spacer after
+  the last button, on the bar only while there is a gap; `window/barGaps`, read by `loadBarGaps`). The bars after it
+  move along, the row's last bar (which Qt stretches to the edge) gives the room, and a bar goes right only as far as
+  that room. This is what the writer called adjustable separators. Qt's own `moveToolBar` must stay unused: it sets
+  preferred sizes that would fight the gaps. Tests drag with mouse events told from screen positions (the bar moves
+  under the mouse between two events). `placeToolBars()` = the
+  standard places (two rows), run once after an older state was restored (`window/barPlaces0910`) and by the command
+  `resetToolbarPlaces` (which also closes every gap). **Two levels of switches**: `showToolbar` and `showFormatBar` switch a row's bars as before
+  (layouts, Composition Mode and their tests rely on them); each bar has a command `showBar<Key>` kept in
+  `AppSettings::toolbarHidden`; `applyBarVisibility()` shows a bar when both are on and disables a bar's switch while
+  its row is off. Never call `setVisible` on one of the seven bars elsewhere. `createPopupMenu()` is overridden
+  (Qt's own menu would switch bars past the switches); `fillBarsMenu` fills it and the bars' right-click menus.
+  Lists: `AppSettings::toolbarList(bar)` (members `toolbarMain`, `toolbarFormat`, `toolbarThemes` ...), settings keys
+  `toolbars/bar-<key>`, `toolbars/hidden`. The keys `toolbars/main` and `toolbars/format` of earlier versions are read
+  once (`toolbars/split0910`), split by `toolbars::splitFormer` (an item goes to the bar that has it in the standard
+  sets, an unknown one with the item before it, spaces dropped; a bar that gets nothing from an arranged list is
+  switched off) and never written again, so an older version started afterwards finds its toolbars. The one-time
+  additions of 0.60.4 and 0.90.2 run inside that step. An empty list means the standard set, so a bar left empty in
+  Customize Toolbars is switched off instead. Controls (`specials`) belong to the main toolbars or to the format
+  toolbars and exist once: `ToolbarDialog::addItem` moves one from the bar that has it. Tool buttons of writing tools
+  stand on the Tools bar (`placeToolButtonsOnce` on `toolbarTools`). A new bar needs: the enum, `allBars`, the names,
+  a standard set, a member in `AppSettings`, the menu line in `createMenus`, a German name.
+- **Theme buttons** (`ui/ThemePicker.*`): Bright and Dark show the theme assigned to them (`window/themeBright`,
+  `window/themeDark`; "light" and "dark" at first; right-click assigns), U1 and U2 are the own themes `user:User_1` and
+  `user:User_2` (`store`: `theme::currentLook()` saved under that id). `press` shows a theme as it is
+  (`themeui::useAsItIs`), after `keepOwnLook`: own colors and fonts on top (`themeui::ownChanges() > 0`) go into an
+  empty U button without a question, else the writer is asked (Save in U1, Save in U2, Switch Without Saving, Cancel;
+  `setAnswerForTests`). The list holds every theme and still runs `themeui::choose`. A fresh program has two own
+  colors (the standard paper, `standardOwnColors`), so the first click on Bright or Dark fills U1. The filter of
+  0.90.2 (`window/themeFilter`) is not read any more.
+- Tests: `qb_v0910_tests` (backups: what waited for a project's folder, titles with special characters; toolbars:
+  standard places, contents, a bar dragged along the row by its grip with mouse events (the bars after it make room,
+  the row's end is the limit, back to the left), the bottom edge, the window state, Reset, the switches, the popup
+  menu, Customize Toolbars); the theme buttons and the split of an arranged main
+  toolbar are in `qb_v0902_tests`; changed for the new behavior: v0700 and v0810 (backups by title), v0903, v021, ui,
+  v061, v0601, v0604, v017.
+- Not checked here: dragging a toolbar on Wayland (the checks run on X11); the Windows machine (its counted suites
+  ui... v0902 changed).
 
 ## Windows with what Linux 0.90.3 has, the setup programs (0.90.4 beta, 2026-11-13)
 
@@ -332,6 +400,7 @@ were this program's:
   SHA-1; never `QFile::copy`, `QFile::rename` or `safesave::copyFile` here: they write a temporary file beside the
   target or copy in ways a watcher sees as several files). The backup folder sees one `IN_MOVED_TO`, or `IN_CREATE` +
   one `IN_CLOSE_WRITE`. All of it runs in the worker thread.
+- (0.91.0: the backups are straight in the backup folder and told apart by title; see "Backups in one folder ...".)
 - **A backup that waits**: when the folder cannot be made or written, the whole backup stays in the work folder
   (`*waiting` true, `*outPath` there, the error text names both folders; return false); the next backup into that
   folder puts the waiting ones in place first, oldest first. Of those that wait, the newest `keep` stay. `Where::AsChosen`

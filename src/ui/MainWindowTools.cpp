@@ -89,13 +89,14 @@ void MainWindow::createToolActions()
         }
     }
     toolbars::setToolButtons(buttons);
-    // a main toolbar the writer arranged gets each tool button once (as the paragraph buttons in 0.60.4)
+    // a Tools bar the writer arranged gets each tool button once (as the paragraph buttons in 0.60.4; 0.91.0: the
+    // tool buttons stand on the Tools bar, where the main toolbar's right part went)
     AppSettings &s = AppSettings::instance();
     QSettings st;
     QStringList done = st.value(QStringLiteral("toolbars/toolButtonsPlaced")).toStringList();
     const QStringList before = done;
-    if (toolbars::placeToolButtonsOnce(s.toolbarMain, done))
-        st.setValue(QStringLiteral("toolbars/main"), s.toolbarMain);
+    if (toolbars::placeToolButtonsOnce(s.toolbarTools, done))
+        st.setValue(QLatin1String("toolbars/bar-") + toolbars::barKey(toolbars::Bar::Tools), s.toolbarTools);
     if (done != before)
         st.setValue(QStringLiteral("toolbars/toolButtonsPlaced"), done);
 }
@@ -116,7 +117,7 @@ void MainWindow::placeToolButtons()
         QAction *ac = a.value(pair.first);
         if (!ac || !pair.second)
             continue;
-        for (QToolBar *bar : {m_toolbar, m_formatBar})
+        for (QToolBar *bar : m_bars)
             if (bar)
                 if (auto *b = qobject_cast<QToolButton *>(bar->widgetForAction(ac))) {
                     b->setMenu(pair.second);
@@ -129,7 +130,7 @@ void MainWindow::placeToolButtons()
         QAction *ac = a.value(QStringLiteral("tool:") + it.key());
         if (!ac || !it.value())
             continue;
-        for (QToolBar *bar : {m_toolbar, m_formatBar})
+        for (QToolBar *bar : m_bars)
             if (bar)
                 if (auto *b = qobject_cast<QToolButton *>(bar->widgetForAction(ac))) {
                     b->setMenu(it.value());

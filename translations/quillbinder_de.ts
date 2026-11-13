@@ -3327,10 +3327,6 @@ Quelle: %1</translation>
             <translation>Unsichtbare Zeichen (Leerzeichen, Tabulatoren, Absatzenden)</translation>
         </message>
         <message>
-            <source>Themes (Bright, Dark, Both and the list)</source>
-            <translation>Designs (Hell, Dunkel, Beide und die Liste)</translation>
-        </message>
-        <message>
             <source>Cannot create the work folder for backups %1</source>
             <translation>Der Arbeitsordner für Sicherungen %1 kann nicht erstellt werden</translation>
         </message>
@@ -3357,6 +3353,38 @@ Sie liegt in %3, und die nächste Sicherung bringt sie an ihren Platz.</translat
         <message>
             <source>a file of this name is in the way and cannot be removed</source>
             <translation>eine Datei dieses Namens ist im Weg und kann nicht entfernt werden</translation>
+        </message>
+        <message>
+            <source>Main</source>
+            <translation>Hauptleiste</translation>
+        </message>
+        <message>
+            <source>Themes</source>
+            <translation>Designs</translation>
+        </message>
+        <message>
+            <source>Search</source>
+            <translation>Suche</translation>
+        </message>
+        <message>
+            <source>Tools</source>
+            <translation>Werkzeuge</translation>
+        </message>
+        <message>
+            <source>Style and Font</source>
+            <translation>Formatvorlage und Schrift</translation>
+        </message>
+        <message>
+            <source>Character and Alignment</source>
+            <translation>Zeichen und Ausrichtung</translation>
+        </message>
+        <message>
+            <source>Paragraph and Insert</source>
+            <translation>Absatz und Einfügen</translation>
+        </message>
+        <message>
+            <source>Themes (Bright, Dark, U1, U2 and the list)</source>
+            <translation>Designs (Hell, Dunkel, U1, U2 und die Liste)</translation>
         </message>
     </context>
     <context>
@@ -10283,10 +10311,6 @@ Das Projekt bleibt geöffnet.</translation>
             <translation>vollständig</translation>
         </message>
         <message>
-            <source> (made before 0.70: may belong to another project with the same title)</source>
-            <translation> (vor 0.70 erstellt: kann zu einem anderen Projekt mit demselben Titel gehören)</translation>
-        </message>
-        <message>
             <source>Restore and Open</source>
             <translation>Wiederherstellen und öffnen</translation>
         </message>
@@ -10823,10 +10847,6 @@ Wenn Sie das AppImage verschieben, wählen Sie diesen Menüeintrag erneut.</tran
             <translation>&amp;Hilfe</translation>
         </message>
         <message>
-            <source>Main Toolbar</source>
-            <translation>Hauptsymbolleiste</translation>
-        </message>
-        <message>
             <source>View</source>
             <translation>Ansicht</translation>
         </message>
@@ -10865,10 +10885,6 @@ Wenn Sie das AppImage verschieben, wählen Sie diesen Menüeintrag erneut.</tran
         <message>
             <source>Customize This Toolbar…</source>
             <translation>Diese Symbolleiste anpassen…</translation>
-        </message>
-        <message>
-            <source>Format Bar</source>
-            <translation>Formatleiste</translation>
         </message>
         <message>
             <source>Style of the paragraph or of the selected text</source>
@@ -12269,6 +12285,18 @@ Die Schriften sind sofort nutzbar. Sie bleiben im Ordner des Programms: Andere P
         <message>
             <source>and %1 earlier steps</source>
             <translation>und %1 frühere Schritte</translation>
+        </message>
+        <message>
+            <source>&amp;Reset Toolbar Places</source>
+            <translation>Plätze der Symbolleisten &amp;zurücksetzen</translation>
+        </message>
+        <message>
+            <source> (in the folder &quot;%1&quot;)</source>
+            <translation> (im Ordner „%1“)</translation>
+        </message>
+        <message>
+            <source>The toolbars are back in their standard places.</source>
+            <translation>Die Symbolleisten stehen wieder an ihren Standardplätzen.</translation>
         </message>
     </context>
     <context>
@@ -15706,10 +15734,6 @@ Fortfahren?</translation>
             <translation>Sicherungsordner</translation>
         </message>
         <message>
-            <source>Backups are ZIP files of the whole project folder with the date in their names. To restore one, unpack it and open the project inside.</source>
-            <translation>Sicherungen sind ZIP-Dateien des gesamten Projektordners mit dem Datum im Namen. Um eine wiederherzustellen, entpacken Sie sie und öffnen das darin enthaltene Projekt.</translation>
-        </message>
-        <message>
             <source>Enter ends editing a note (Shift+Enter: new line)</source>
             <translation>Die Eingabetaste beendet das Bearbeiten einer Notiz (Umschalt+Eingabetaste: neue Zeile)</translation>
         </message>
@@ -16018,6 +16042,10 @@ Ihre zuletzt verwendeten Projekte, eigene Designs, Layouts, Symbolleisten und Ta
         <message>
             <source>Word and character counts, targets and statistics with a separator between the thousands, as your system writes numbers (44,825 or 44.825); unticked 44825</source>
             <translation>Wort- und Zeichenzahlen, Ziele und Statistik mit Tausendertrennzeichen, wie Ihr System Zahlen schreibt (44,825 oder 44.825); ohne Haken 44825</translation>
+        </message>
+        <message>
+            <source>Backups are ZIP files of the whole project folder. The backups of all projects are in this folder, each named after its project with the date and time. To restore one, use File &gt; Back Up &gt; Restore From Backup, or unpack it and open the project inside.</source>
+            <translation>Sicherungen sind ZIP-Dateien des gesamten Projektordners. Die Sicherungen aller Projekte liegen in diesem Ordner, jede nach ihrem Projekt benannt, mit Datum und Uhrzeit. Zum Wiederherstellen verwenden Sie Datei &gt; Sichern &gt; Aus Sicherung wiederherstellen, oder Sie entpacken eine Sicherung und öffnen das darin enthaltene Projekt.</translation>
         </message>
     </context>
     <context>
@@ -18933,24 +18961,8 @@ Strg+Klick zum Öffnen</translation>
             <translation>Hell</translation>
         </message>
         <message>
-            <source>Show the bright themes</source>
-            <translation>Die hellen Designs zeigen</translation>
-        </message>
-        <message>
             <source>Dark</source>
             <translation>Dunkel</translation>
-        </message>
-        <message>
-            <source>Show the dark themes</source>
-            <translation>Die dunklen Designs zeigen</translation>
-        </message>
-        <message>
-            <source>Both</source>
-            <translation>Beide</translation>
-        </message>
-        <message>
-            <source>Show all themes</source>
-            <translation>Alle Designs zeigen</translation>
         </message>
         <message>
             <source>The theme of the open project and of new projects (as Window &gt; Themes)</source>
@@ -18961,16 +18973,104 @@ Strg+Klick zum Öffnen</translation>
             <translation>Design</translation>
         </message>
         <message>
-            <source>Choose a bright theme</source>
-            <translation>Ein helles Design wählen</translation>
-        </message>
-        <message>
-            <source>Choose a dark theme</source>
-            <translation>Ein dunkles Design wählen</translation>
-        </message>
-        <message>
             <source>Choose a theme</source>
             <translation>Ein Design wählen</translation>
+        </message>
+        <message>
+            <source>U1</source>
+            <translation>U1</translation>
+        </message>
+        <message>
+            <source>U2</source>
+            <translation>U2</translation>
+        </message>
+        <message>
+            <source>Themes</source>
+            <translation>Designs</translation>
+        </message>
+        <message>
+            <source>The look could not be saved in %1: %2</source>
+            <translation>Das Aussehen konnte nicht in %1 gespeichert werden: %2</translation>
+        </message>
+        <message>
+            <source>The look you had was saved in %1 first.</source>
+            <translation>Ihr bisheriges Aussehen wurde zuerst in %1 gespeichert.</translation>
+        </message>
+        <message>
+            <source>Change Theme</source>
+            <translation>Design wechseln</translation>
+        </message>
+        <message>
+            <source>The look you see has %1 of your own that are not saved in U1 or U2.</source>
+            <translation>Das Aussehen, das Sie sehen, enthält %1 von Ihnen, die weder in U1 noch in U2 gespeichert sind.</translation>
+        </message>
+        <message>
+            <source>color or font</source>
+            <translation>eine Farbe oder Schrift</translation>
+        </message>
+        <message>
+            <source>colors and fonts</source>
+            <translation>Farben und Schriften</translation>
+        </message>
+        <message>
+            <source>Save the look in U1 or U2 first (it replaces the look saved there), or switch without saving it?</source>
+            <translation>Das Aussehen zuerst in U1 oder U2 speichern (es ersetzt das dort gespeicherte Aussehen) oder wechseln, ohne es zu speichern?</translation>
+        </message>
+        <message>
+            <source>Save in U1</source>
+            <translation>In U1 speichern</translation>
+        </message>
+        <message>
+            <source>Save in U2</source>
+            <translation>In U2 speichern</translation>
+        </message>
+        <message>
+            <source>Switch Without Saving</source>
+            <translation>Ohne Speichern wechseln</translation>
+        </message>
+        <message>
+            <source>%1 already holds the look you see.</source>
+            <translation>%1 enthält bereits das Aussehen, das Sie sehen.</translation>
+        </message>
+        <message>
+            <source>%1 already holds a look. Replace it with the look you see now? The look saved there cannot be brought back.</source>
+            <translation>%1 enthält bereits ein Aussehen. Durch das Aussehen ersetzen, das Sie jetzt sehen? Das dort gespeicherte Aussehen lässt sich nicht zurückholen.</translation>
+        </message>
+        <message>
+            <source>Replace the Look in %1</source>
+            <translation>Aussehen in %1 ersetzen</translation>
+        </message>
+        <message>
+            <source>The look you see is saved in %1. A click on %1 brings it back.</source>
+            <translation>Das Aussehen, das Sie sehen, ist in %1 gespeichert. Ein Klick auf %1 holt es zurück.</translation>
+        </message>
+        <message>
+            <source>Save the Current Look Here</source>
+            <translation>Aktuelles Aussehen hier speichern</translation>
+        </message>
+        <message>
+            <source>Show This Look</source>
+            <translation>Dieses Aussehen zeigen</translation>
+        </message>
+        <message>
+            <source>Theme of the Button Bright</source>
+            <translation>Design der Schaltfläche Hell</translation>
+        </message>
+        <message>
+            <source>Theme of the Button Dark</source>
+            <translation>Design der Schaltfläche Dunkel</translation>
+        </message>
+        <message>
+            <source>Save the look you see now in %1 (the button is empty)</source>
+            <translation>Das Aussehen, das Sie jetzt sehen, in %1 speichern (die Schaltfläche ist leer)</translation>
+        </message>
+        <message>
+            <source>Show your look saved in %1 (right-click: save the look you see now here)</source>
+            <translation>Ihr in %1 gespeichertes Aussehen zeigen (Rechtsklick: das Aussehen, das Sie jetzt sehen, hier speichern)</translation>
+        </message>
+        <message>
+            <source>Show the theme “%1” (right-click: choose the theme of this button)</source>
+            <translation>Das Design „%1“ zeigen (Rechtsklick: das Design dieser Schaltfläche wählen)</translation>
         </message>
     </context>
     <context>
@@ -19039,14 +19139,6 @@ Strg+Klick zum Öffnen</translation>
             <translation>Symbolleiste:</translation>
         </message>
         <message>
-            <source>Main Toolbar</source>
-            <translation>Hauptsymbolleiste</translation>
-        </message>
-        <message>
-            <source>Format Bar</source>
-            <translation>Formatleiste</translation>
-        </message>
-        <message>
             <source>Available commands</source>
             <translation>Verfügbare Befehle</translation>
         </message>
@@ -19073,10 +19165,6 @@ Strg+Klick zum Öffnen</translation>
         <message>
             <source>Move to the right</source>
             <translation>Nach rechts verschieben</translation>
-        </message>
-        <message>
-            <source>Icons of the main toolbar:</source>
-            <translation>Symbole der Hauptsymbolleiste:</translation>
         </message>
         <message>
             <source>Small</source>
@@ -19109,6 +19197,10 @@ Strg+Klick zum Öffnen</translation>
         <message>
             <source>Put the buttons the program came with back into this toolbar</source>
             <translation>Die Schaltflächen, mit denen das Programm geliefert wurde, wieder in diese Symbolleiste setzen</translation>
+        </message>
+        <message>
+            <source>Icons of the main toolbars:</source>
+            <translation>Symbole der Hauptsymbolleisten:</translation>
         </message>
     </context>
     <context>

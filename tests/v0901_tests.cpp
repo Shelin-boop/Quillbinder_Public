@@ -35,6 +35,7 @@
 #include "ui/Theme.h"
 #include "ui/WindowCare.h"
 
+#include <QPointer>
 #include <QAbstractItemView>
 #include <QAbstractSlider>
 #include <QAbstractSpinBox>
@@ -711,14 +712,17 @@ static void usabilityChecks(MainWindow &w)
     if (QAction *ff = action("findFormat")) {
         ff->trigger();
         settle(200);
-        auto *win = w.findChild<QDialog *>(QStringLiteral("formatFindWindow"));
+        // (0.91.0: the window deletes itself when it closes; the check read it afterwards, which crashed this suite in
+        // about one run of twenty. A guarded pointer says "gone" instead.)
+        QPointer<QDialog> win = w.findChild<QDialog *>(QStringLiteral("formatFindWindow"));
         auto *close = win ? win->findChild<QPushButton *>(QStringLiteral("formatClose")) : nullptr;
+        const bool wasThere = win != nullptr;
         check(close && close->isVisible(), QStringLiteral("UR-16: Find by Formatting has a Close button"));
         if (close) {
             close->click();
             settle(100);
         }
-        check(win && !win->isVisible(), QStringLiteral("UR-16: Close closes Find by Formatting"));
+        check(wasThere && (!win || !win->isVisible()), QStringLiteral("UR-16: Close closes Find by Formatting"));
     }
     if (ed) {
         ed->setFocus();

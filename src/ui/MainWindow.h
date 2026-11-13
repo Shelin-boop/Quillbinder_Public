@@ -248,6 +248,22 @@ private:
     void createFormatBar();
     // menus, toolbars, layouts, shortcut lists (MainWindowBars.cpp)
     void rebuildToolBars();
+    // 0.91.0: the bars in their standard places (two rows at the top), and which of them are shown: a bar shows when
+    // its row's switch (Show Toolbar, Show Format Bar) and its own switch are on
+    void placeToolBars();
+    void applyBarVisibility();
+    void resetToolbarPlaces();
+    void fillBarsMenu(QMenu *menu, int bar);
+    // 0.91.0: a bar dragged sideways by its grip (GripBar): the free space after the bar before it in the row grows
+    // or shrinks by dx; returns how far the bar went. The gaps are kept in window/barGaps.
+    int moveBarSideways(QToolBar *bar, int dx);
+    void saveBarGaps();
+    void loadBarGaps();
+
+public:
+    QMenu *createPopupMenu() override;
+
+private:
     QAction *barItem(const QString &id) const;
     // Entry with a short text for a submenu ("Files…" under Import); acts as the command itself.
     QAction *menuAlias(QMenu *menu, const QString &key, const QString &text);
@@ -436,9 +452,13 @@ private:
     QHash<QString, QPointer<QMenu>> m_toolMenus;   // menus beside tool buttons, by command key (0.61)
 
     // toolbars
+    // 0.91.0: seven toolbars (the index is toolbars::Bar) and the icon bar, each to be switched off and moved by its
+    // grip; m_toolbar and m_formatBar are the bars Main and Format (the first of each row)
+    QToolBar *m_bars[7] = {};
     QToolBar *m_toolbar = nullptr;
     QToolBar *m_formatBar = nullptr;
     QToolBar *m_iconBar = nullptr;
+    bool m_applyingBars = false;
     ColorPickButton *m_textColorBtn = nullptr;
     ColorPickButton *m_highlightBtn = nullptr;
     QComboBox *m_styleCombo = nullptr;

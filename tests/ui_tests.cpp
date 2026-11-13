@@ -2000,14 +2000,21 @@ int main(int argc, char **argv)
             auto *quick = w.findChild<QLineEdit *>(QStringLiteral("quickSearch"));
             auto *styleCombo = w.findChild<QComboBox *>(QStringLiteral("styleCombo"));
             const QStringList standardKeys = barKeys(mainBar);
-            check(viewBtn && viewBtn->isVisible() && quick && quick->isVisible() && mainBar->actions().size() == 25 // 0.60.1: + Show Invisibles; 0.61: + Undo, Redo; 0.90.2: + the theme list and a space
+            // 0.91.0: the main toolbar's parts are toolbars of their own (Main, Themes, Search, Tools)
+            auto *searchBar = w.findChild<QToolBar *>(QStringLiteral("searchBar"));
+            auto *toolsBar = w.findChild<QToolBar *>(QStringLiteral("toolsBar"));
+            const QStringList searchKeys = searchBar ? barKeys(searchBar) : QStringList();
+            const QStringList toolsKeys = toolsBar ? barKeys(toolsBar) : QStringList();
+            check(viewBtn && viewBtn->isVisible() && quick && quick->isVisible() && mainBar->actions().size() == 7 // View, a separator, Add, New Folder, Trash, Undo, Redo
                       && mainBar->widgetForAction(mainBar->actions().first()) == viewBtn
-                      && standardKeys.contains(QStringLiteral("viewCork")) && standardKeys.last() == QLatin1String("showInspector")
+                      && searchKeys.contains(QStringLiteral("viewCork")) && toolsKeys.value(toolsKeys.size() - 1) == QLatin1String("showInspector")
+                      && toolsKeys.contains(QStringLiteral("compile")) && toolsKeys.contains(QStringLiteral("showInvisibles"))
                       && standardKeys.indexOf(QStringLiteral("undo")) == standardKeys.indexOf(QStringLiteral("trash")) + 1
                       && standardKeys.indexOf(QStringLiteral("redo")) == standardKeys.indexOf(QStringLiteral("trash")) + 2
-                      && viewBtn->x() < quick->x(),
-                  QStringLiteral("main toolbar: View on the left, search and view modes in the middle, inspector on the right"),
-                  standardKeys.join(QLatin1Char(' ')));
+                      && viewBtn->mapTo(&w, QPoint(0, 0)).x() < quick->mapTo(&w, QPoint(0, 0)).x(),
+                  QStringLiteral("toolbars of the first row: View on the left, search and view modes after it, the inspector's button at the end"),
+                  standardKeys.join(QLatin1Char(' ')) + QLatin1String(" / ") + searchKeys.join(QLatin1Char(' ')) + QLatin1String(" / ")
+                      + toolsKeys.join(QLatin1Char(' ')));
             QStringList viewEntries;
             if (viewBtn && viewBtn->menu())
                 for (QAction *a : viewBtn->menu()->actions())
@@ -2022,9 +2029,9 @@ int main(int argc, char **argv)
             auto *available = td.findChild<QListWidget *>(QStringLiteral("toolbarAvailable"));
             const int offered = available ? available->count() : 0;
             const QStringList start = td.items();
-            const bool noTwice = !td.addItem(QStringLiteral("compile")) && !td.addItem(QStringLiteral("styleCombo"))
+            const bool noTwice = !td.addItem(QStringLiteral("undo")) && !td.addItem(QStringLiteral("styleCombo"))
                                  && !td.addItem(QStringLiteral("style:Heading 1")) && td.items() == start;
-            const bool removed = td.removeItem(QStringLiteral("compile"));
+            const bool removed = td.removeItem(QStringLiteral("newFolder"));
             const bool added = td.addItem(QStringLiteral("snapshot"), 3) && td.addItem(QStringLiteral("|"), 3)
                                && td.addItem(QStringLiteral("layoutsButton"), 1);
             const bool moved = td.moveItem(4, 1) && td.items().value(4) == QLatin1String("snapshot") && td.items().value(5) == QLatin1String("|");
@@ -2043,14 +2050,17 @@ int main(int argc, char **argv)
             td.apply();
             settle(300);
             const QStringList now = barKeys(mainBar);
-            check(formatList && now.contains(QStringLiteral("snapshot")) && !now.contains(QStringLiteral("compile"))
+            check(formatList && now.contains(QStringLiteral("snapshot")) && !now.contains(QStringLiteral("newFolder"))
                       && now.indexOf(QStringLiteral("snapshot")) == 4 && mainBar->iconSize() == QSize(32, 32)
                       && mainBar->toolButtonStyle() == Qt::ToolButtonTextBesideIcon && viewBtn->iconSize() == QSize(32, 32)
                       && viewBtn->toolButtonStyle() == Qt::ToolButtonTextBesideIcon
                       && w.findChild<QToolButton *>(QStringLiteral("layoutsButton"))->isVisible(),
                   QStringLiteral("Apply rebuilds the main toolbar: new buttons, large icons, text beside them"), now.join(QLatin1Char(' ')));
+            // (0.91.0: with large icons and text beside them the first row is crowded at this width; the quick search
+            // may be behind its bar's arrow then, so it is asked for again after the icons are medium again)
             check(barKeys(formatBar).contains(QStringLiteral("superscript")) && fontCombo && !fontCombo->isVisible() && styleCombo
-                      && styleCombo->isVisible() && w.findChild<QLineEdit *>(QStringLiteral("quickSearch")) == quick && quick->isVisible()
+                      && styleCombo->isVisible() && w.findChild<QLineEdit *>(QStringLiteral("quickSearch")) == quick && quick
+                      && searchBar && searchBar->isAncestorOf(quick)
                       && as.toolbarMain.contains(QStringLiteral("snapshot")) && !as.toolbarFormat.contains(QStringLiteral("fontCombo")),
                   QStringLiteral("format bar without the font list; the other controls stay and the choice is stored"),
                   QStringLiteral("superscript %1, font list shown %2, style list shown %3, search shown %4, stored %5 %6, window %7 x %8")
@@ -2094,7 +2104,7 @@ int main(int argc, char **argv)
             td.accept();
             settle(300);
             check(hidden && mainBar->isVisible() && barKeys(mainBar) == standardKeys && as.toolbarMain.isEmpty() && as.toolbarFormat.isEmpty()
-                      && fontCombo->isVisible() && mainBar->iconSize() == QSize(22, 22),
+                      && fontCombo->isVisible() && mainBar->iconSize() == QSize(22, 22) && quick->isVisible(),
                   QStringLiteral("View > Toolbars hides the toolbar; Standard Set brings both bars back"));
         }
 

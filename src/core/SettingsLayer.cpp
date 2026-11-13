@@ -153,7 +153,8 @@ bool programOnly(const QString &key)
         QStringLiteral("appearance/theme"), QStringLiteral("appearance/editorWidth"), QStringLiteral("appearance/textBorder"),
         QStringLiteral("appearance/recentIcons"),
         // markers of one-time changes
-        QStringLiteral("toolbars/paraButtons0604"), QStringLiteral("toolbars/toolButtonsPlaced")};
+        QStringLiteral("toolbars/paraButtons0604"), QStringLiteral("toolbars/toolButtonsPlaced"),
+        QStringLiteral("toolbars/split0910")}; // 0.91.0: the two toolbars' lists split over the seven bars
     if (keys.contains(key))
         return true;
     // 0.64.1 (the external audit of 2026-11-09, X-2, D-2, D-4): an allow list. A project (its

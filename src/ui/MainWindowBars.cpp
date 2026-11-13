@@ -6,6 +6,8 @@
 #include "ui/MenuClear.h"
 #include "ui/LinkOpen.h"
 #include "ui/ProjectLook.h"
+#include <QSettings>
+#include <QStatusBar>
 #include <QMimeData>
 #include "ui/QuickRef.h"
 #include "ui/DragDrop.h"
@@ -28,6 +30,7 @@
 #include "ui/StyleList.h"
 #include "ui/TextEditor.h"
 #include "ui/ThemeDialogs.h"
+#include "ui/GripBar.h"
 #include "ui/ToolbarConfig.h"
 #include "ui/Windows.h"
 
@@ -301,7 +304,10 @@ void MainWindow::createMenus()
     add(layout, {"noSplit", "splitH", "splitV"});
     add(view, {"", "showBinder", "showCollections", "showInspector", ""});
     QMenu *bars = view->addMenu(tr("Tool&bars"));
-    add(bars, {"showToolbar", "showFormatBar", "showIconBar", "", "customizeToolbars", "customizeIconBar"});
+    // 0.91.0: the rows' switches, a switch per toolbar, the standard places
+    add(bars, {"showToolbar", "showFormatBar", "showIconBar", "", "showBarMain", "showBarThemes", "showBarSearch", "showBarTools",
+               "showBarStyle", "showBarCharacter", "showBarParagraph", "", "resetToolbarPlaces", "", "customizeToolbars",
+               "customizeIconBar"});
     QMenu *te = view->addMenu(tr("&Text Editing"));
     add(te, {"pageView", "pageSetup", "", "showRuler", "showInvisibles", "typewriter", "scrivTitles", "fixedWidth"});
     QMenu *cork = view->addMenu(tr("&Corkboard Options"));
@@ -658,10 +664,24 @@ QToolButton *barButton(const QString &name)
 
 void MainWindow::createToolBars()
 {
-    m_toolbar = addToolBar(tr("Main Toolbar"));
-    m_toolbar->setObjectName(QStringLiteral("mainToolbar"));
-    m_toolbar->setMovable(false);
-    connect(a[QStringLiteral("showToolbar")], &QAction::toggled, m_toolbar, &QWidget::setVisible);
+    // 0.91.0: seven toolbars in two rows (toolbars::Bar). Each has a grip at its front: dragged, the bar takes another
+    // place in its row, another row, or the bottom edge of the window; QMainWindow keeps the places (window/state).
+    for (toolbars::Bar b : toolbars::allBars()) {
+        auto *bar = new GripBar(toolbars::barName(b), this);
+        bar->setMover([this](GripBar *moved, int dx) { return moveBarSideways(moved, dx); });
+        bar->setDropped([this] { saveBarGaps(); });
+        bar->setObjectName(toolbars::barObjectName(b));
+        bar->setMovable(true);
+        bar->setFloatable(false);
+        bar->setAllowedAreas(Qt::TopToolBarArea | Qt::BottomToolBarArea);
+        if (toolbars::isFormatBar(b))
+            bar->setIconSize(QSize(18, 18));
+        m_bars[int(b)] = bar;
+    }
+    m_toolbar = m_bars[int(toolbars::Bar::Main)];
+    m_formatBar = m_bars[int(toolbars::Bar::Format)];
+    placeToolBars();
+    connect(a[QStringLiteral("showToolbar")], &QAction::toggled, this, [this] { applyBarVisibility(); });
 
     // The controls are made once and live in widget actions of the window, so
     // a bar can be rebuilt (or do without one of them) and they keep their state.
@@ -717,7 +737,7 @@ void MainWindow::createToolBars()
     m_quickSearch->setObjectName(QStringLiteral("quickSearch"));
     m_quickSearch->setPlaceholderText(tr("Quick search (titles, synopses, text)"));
     m_quickSearch->setClearButtonEnabled(true);
-    m_quickSearch->setMinimumWidth(260);
+    m_quickSearch->setMinimumWidth(240); // (0.91.0: 260 before; the Search bar is as wide as its controls)
     m_quickSearch->setMaximumWidth(380);
     wrap(QStringLiteral("search"), m_quickSearch);
 
@@ -773,23 +793,23 @@ void MainWindow::createToolBars()
 
     // the theme list with its filter (0.90.2)
     wrap(QStringLiteral("themePicker"), new ThemePicker);
-    // on a crowded toolbar (large icons, text beside them, a narrow window) it gives way to the quick search
-    ThemePicker::giveWay(m_toolbar, m_barItems.value(QStringLiteral("themePicker")), m_quickSearch);
+    // on a crowded toolbar (large icons, text beside them, a narrow window) it gives way to the quick search (only
+    // where the writer put both on one bar: since 0.91.0 they stand on bars of their own)
+    for (toolbars::Bar b : toolbars::allBars())
+        if (!toolbars::isFormatBar(b))
+            ThemePicker::giveWay(m_bars[int(b)], m_barItems.value(QStringLiteral("themePicker")), m_quickSearch);
 
-    // right-click on a bar: what is shown, and the editor for the buttons
-    auto barMenu = [this](QToolBar *bar, int which) {
+    // right-click on a bar: what is shown, the standard places, and the editor for the buttons
+    for (toolbars::Bar b : toolbars::allBars()) {
+        QToolBar *bar = m_bars[int(b)];
         bar->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(bar, &QWidget::customContextMenuRequested, this, [this, bar, which](const QPoint &pos) {
+        connect(bar, &QWidget::customContextMenuRequested, this, [this, bar, b](const QPoint &pos) {
             QMenu menu;
-            menu.addAction(a[QStringLiteral("showToolbar")]);
-            menu.addAction(a[QStringLiteral("showFormatBar")]);
-            menu.addSeparator();
-            menu.addAction(a[QStringLiteral("customizeToolbars")]->icon(), tr("Customize This Toolbar…"), this,
-                           [this, which] { customizeToolbars(which); });
+            menu.setObjectName(QStringLiteral("barsMenu"));
+            fillBarsMenu(&menu, int(b));
             menu.exec(bar->mapToGlobal(pos));
         });
-    };
-    barMenu(m_toolbar, 0);
+    }
 
     // quick search completer
     m_completerModel = new QStandardItemModel(this);
@@ -829,13 +849,8 @@ void MainWindow::createToolBars()
     createColorButtons();
 
     // ---- format bar
-    m_formatBar = addToolBar(tr("Format Bar"));
-    m_formatBar->setObjectName(QStringLiteral("formatBar"));
-    m_formatBar->setMovable(false);
-    m_formatBar->setIconSize(QSize(18, 18));
-    insertToolBarBreak(m_formatBar);
-    barMenu(m_formatBar, 1);
-    connect(a[QStringLiteral("showFormatBar")], &QAction::toggled, m_formatBar, &QWidget::setVisible);
+    // (0.91.0: the format toolbars are made with the others at the top of this function)
+    connect(a[QStringLiteral("showFormatBar")], &QAction::toggled, this, [this] { applyBarVisibility(); });
 
     auto *styleCombo = new StyleCombo;
     // the popup is the chosen style list with the style commands below it (0.40.3)
@@ -1025,15 +1040,20 @@ void MainWindow::rebuildToolBars()
     if (!m_toolbar || !m_formatBar)
         return;
     const AppSettings &s = AppSettings::instance();
-    const QStringList lists[2] = {toolbars::configured(toolbars::Bar::Main), toolbars::configured(toolbars::Bar::Format)};
-    const QString signature = lists[0].join(QLatin1Char(',')) + QLatin1Char('#') + lists[1].join(QLatin1Char(','))
-                              + QLatin1Char('#') + QString::number(s.toolbarIconSize) + s.toolbarStyle;
+    const QList<toolbars::Bar> all = toolbars::allBars();
+    QStringList lists[toolbars::BarCount];
+    QString signature;
+    for (toolbars::Bar b : all) {
+        lists[int(b)] = toolbars::configured(b);
+        signature += lists[int(b)].join(QLatin1Char(',')) + QLatin1Char('#');
+    }
+    signature += QString::number(s.toolbarIconSize) + s.toolbarStyle;
+    applyBarVisibility(); // (the editor for the buttons switches a bar off when it is left empty)
     if (signature == m_builtBars)
         return;
     m_builtBars = signature;
 
-    QToolBar *bars[2] = {m_toolbar, m_formatBar};
-    for (QToolBar *bar : bars)
+    for (QToolBar *bar : m_bars)
         bar->clear();
     // the theme list shows again; if the new bar is too crowded it gives way to the search once more (ThemePicker)
     if (QAction *tp = m_barItems.value(QStringLiteral("themePicker")))
@@ -1041,25 +1061,26 @@ void MainWindow::rebuildToolBars()
     qDeleteAll(m_barOwned);
     m_barOwned.clear();
     QSet<QString> placed; // a control exists once
-    for (int b = 0; b < 2; ++b) {
-        for (const QString &id : lists[b]) {
+    for (toolbars::Bar b : all) {
+        QToolBar *bar = m_bars[int(b)];
+        for (const QString &id : lists[int(b)]) {
             if (id == toolbars::Separator) {
                 auto *sep = new QAction(this);
                 sep->setSeparator(true);
                 m_barOwned << sep;
-                bars[b]->addAction(sep);
+                bar->addAction(sep);
             } else if (id == toolbars::Spacer) {
                 auto *space = new QWidget;
                 space->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
                 auto *wa = new QWidgetAction(this);
                 wa->setDefaultWidget(space);
                 m_barOwned << wa;
-                bars[b]->addAction(wa);
+                bar->addAction(wa);
             } else if (id == QLatin1String("viewModes")) {
                 if (placed.contains(id))
                     continue;
                 for (const char *k : {"viewText", "viewCork", "viewOutline"})
-                    bars[b]->addAction(a[QLatin1String(k)]);
+                    bar->addAction(a[QLatin1String(k)]);
                 placed.insert(id);
             } else if (QAction *ac = barItem(id)) {
                 if (m_barItems.contains(id)) {
@@ -1067,7 +1088,7 @@ void MainWindow::rebuildToolBars()
                         continue;
                     placed.insert(id);
                 }
-                bars[b]->addAction(ac);
+                bar->addAction(ac);
             }
         }
     }
@@ -1076,14 +1097,160 @@ void MainWindow::rebuildToolBars()
                                       : s.toolbarStyle == QLatin1String("under") ? Qt::ToolButtonTextUnderIcon
                                                                                  : Qt::ToolButtonIconOnly;
     const QSize size(s.toolbarIconSize, s.toolbarIconSize);
-    m_toolbar->setIconSize(size);
-    m_toolbar->setToolButtonStyle(style);
+    // the icon size and the text beside or under the icons are those of the main toolbars (the first row's)
+    for (toolbars::Bar b : all)
+        if (!toolbars::isFormatBar(b)) {
+            m_bars[int(b)]->setIconSize(size);
+            m_bars[int(b)]->setToolButtonStyle(style);
+        }
     for (QToolButton *b : m_barButtons) {
         b->setIconSize(size);
         b->setToolButtonStyle(style);
     }
     installToolbarDropTargets();
     placeToolButtons();
+}
+
+// 0.91.0: the standard places: Main, Themes, Search, Tools in the first row at the top; Style and Font, Character and
+// Alignment, Paragraph and Insert and the icon bar in the second. Also what View > Toolbars > Reset Toolbar Places does.
+void MainWindow::placeToolBars()
+{
+    QList<QToolBar *> all;
+    for (toolbars::Bar b : toolbars::allBars())
+        all << m_bars[int(b)];
+    all << m_iconBar;
+    // (the icon bar shows or not as it did: its switch is not set before the window's state was read)
+    const bool iconBarShown = m_iconBar && !m_iconBar->isHidden();
+    for (QToolBar *bar : std::as_const(all))
+        if (bar) {
+            removeToolBarBreak(bar);
+            removeToolBar(bar); // (hides it)
+        }
+    for (QToolBar *bar : std::as_const(all)) {
+        if (!bar)
+            continue;
+        if (bar == m_formatBar)
+            addToolBarBreak(Qt::TopToolBarArea);
+        addToolBar(Qt::TopToolBarArea, bar);
+    }
+    applyBarVisibility();
+    if (m_iconBar)
+        m_iconBar->setVisible(iconBarShown);
+}
+
+void MainWindow::resetToolbarPlaces()
+{
+    for (GripBar *bar : findChildren<GripBar *>(QString(), Qt::FindDirectChildrenOnly))
+        bar->setGap(0);
+    saveBarGaps();
+    placeToolBars();
+    statusBar()->showMessage(tr("The toolbars are back in their standard places."), 5000);
+}
+
+// A bar dragged sideways by its grip. A row is laid out from the left, each bar as wide as its buttons and its gap,
+// and Qt stretches the row's last bar to the window's edge. So the bar goes right when the bar before it gets a wider
+// gap, as far as the last bar has room to give; and left as far as that gap goes. The first bar of a row stays.
+int MainWindow::moveBarSideways(QToolBar *bar, int dx)
+{
+    if (!bar || dx == 0)
+        return 0;
+    const QPoint at = bar->mapTo(this, QPoint(0, 0));
+    GripBar *before = nullptr;
+    QToolBar *last = bar;
+    int beforeX = -1, lastX = at.x();
+    for (GripBar *other : findChildren<GripBar *>(QString(), Qt::FindDirectChildrenOnly)) {
+        if (other == bar || !other->isVisible() || toolBarArea(other) != toolBarArea(bar))
+            continue;
+        const QPoint p = other->mapTo(this, QPoint(0, 0));
+        if (p.y() != at.y())
+            continue; // another row
+        if (p.x() < at.x() && p.x() > beforeX) {
+            before = other;
+            beforeX = p.x();
+        }
+        if (p.x() > lastX) {
+            last = other;
+            lastX = p.x();
+        }
+    }
+    if (!before)
+        return 0;
+    if (dx > 0)
+        dx = qMin(dx, qMax(0, last->width() - last->sizeHint().width()));
+    else
+        dx = qMax(dx, -before->gap());
+    // (a very small gap is none, see GripBar::setGap: what the bar really moved is told back, so the rest of the
+    // mouse's way counts with its next step)
+    const int was = before->gap();
+    before->setGap(was + dx);
+    return before->gap() - was;
+}
+
+void MainWindow::saveBarGaps()
+{
+    QVariantMap gaps;
+    for (GripBar *bar : findChildren<GripBar *>(QString(), Qt::FindDirectChildrenOnly))
+        if (bar->gap() > 0)
+            gaps.insert(bar->objectName(), bar->gap());
+    QSettings().setValue(QStringLiteral("window/barGaps"), gaps);
+}
+
+void MainWindow::loadBarGaps()
+{
+    const QVariantMap gaps = QSettings().value(QStringLiteral("window/barGaps")).toMap();
+    for (GripBar *bar : findChildren<GripBar *>(QString(), Qt::FindDirectChildrenOnly))
+        bar->setGap(qBound(0, gaps.value(bar->objectName()).toInt(), 4000));
+}
+
+// A bar shows when its row is switched on (Show Toolbar for Main, Themes, Search and Tools; Show Format Bar for the
+// three format toolbars: layouts and Composition Mode use these two) and the bar itself is (AppSettings::toolbarHidden).
+void MainWindow::applyBarVisibility()
+{
+    if (!a.contains(QStringLiteral("showToolbar")) || !a.contains(QStringLiteral("showFormatBar")))
+        return;
+    const AppSettings &s = AppSettings::instance();
+    const bool mainRow = a[QStringLiteral("showToolbar")]->isChecked();
+    const bool formatRow = a[QStringLiteral("showFormatBar")]->isChecked();
+    m_applyingBars = true;
+    for (toolbars::Bar b : toolbars::allBars()) {
+        const bool row = toolbars::isFormatBar(b) ? formatRow : mainRow;
+        const bool own = !s.toolbarHidden.contains(toolbars::barKey(b));
+        if (QAction *one = a.value(toolbars::barCommand(b))) {
+            one->setChecked(own);
+            one->setEnabled(row); // a bar of a row that is switched off cannot show
+        }
+        if (QToolBar *bar = m_bars[int(b)])
+            bar->setVisible(row && own);
+    }
+    m_applyingBars = false;
+}
+
+// What a right-click on a toolbar (bar: its number) or on the free space beside the toolbars (bar < 0) offers.
+void MainWindow::fillBarsMenu(QMenu *menu, int bar)
+{
+    menu->addAction(a[QStringLiteral("showToolbar")]);
+    menu->addAction(a[QStringLiteral("showFormatBar")]);
+    menu->addAction(a[QStringLiteral("showIconBar")]);
+    menu->addSeparator();
+    for (toolbars::Bar b : toolbars::allBars())
+        menu->addAction(a[toolbars::barCommand(b)]);
+    menu->addSeparator();
+    menu->addAction(a[QStringLiteral("resetToolbarPlaces")]);
+    menu->addSeparator();
+    if (bar < 0)
+        menu->addAction(a[QStringLiteral("customizeToolbars")]);
+    else
+        menu->addAction(a[QStringLiteral("customizeToolbars")]->icon(), tr("Customize This Toolbar…"), this,
+                        [this, bar] { customizeToolbars(bar); });
+}
+
+QMenu *MainWindow::createPopupMenu()
+{
+    // (Qt's own menu would switch the bars past their switches)
+    auto *menu = new QMenu(this);
+    menu->setObjectName(QStringLiteral("barsMenu"));
+    fillBarsMenu(menu, -1);
+    return menu;
 }
 
 // Navigate > Go To: the commands that move the active editor, then the binder
@@ -1138,7 +1305,7 @@ void MainWindow::installToolbarDropTargets()
         return m_project && !BinderModel::itemsFromMime(md, m_project.get()).isEmpty();
     };
     QList<QWidget *> quickRefButtons;
-    for (QToolBar *bar : {m_toolbar, m_formatBar})
+    for (QToolBar *bar : m_bars)
         if (bar)
             if (QWidget *w = bar->widgetForAction(a[QStringLiteral("quickRef")]))
                 quickRefButtons << w;
@@ -1167,7 +1334,8 @@ void MainWindow::installToolbarDropTargets()
 
 void MainWindow::customizeToolbars(int bar)
 {
-    ToolbarDialog dlg(this, bar == 1 ? toolbars::Bar::Format : toolbars::Bar::Main);
+    // (the bar's number: toolbars::Bar)
+    ToolbarDialog dlg(this, bar >= 0 && bar < toolbars::BarCount ? toolbars::Bar(bar) : toolbars::Bar::Main);
     dlg.exec();
 }
 

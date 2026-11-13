@@ -375,8 +375,8 @@ static void invisiblesChecks(MainWindow &w, Project *p, BinderItem *doc, BinderI
           inv ? menuNeighbor(inv, -1) : QStringLiteral("no command"));
     if (!inv)
         return;
-    auto *bar = w.findChild<QToolBar *>(QStringLiteral("mainToolbar"));
-    check(toolbars::standard(toolbars::Bar::Main).contains(QStringLiteral("showInvisibles")) && bar && bar->widgetForAction(inv),
+    auto *bar = w.findChild<QToolBar *>(QStringLiteral("toolsBar")); // 0.91.0: on the Tools bar (the main toolbar before)
+    check(toolbars::standard(toolbars::Bar::Tools).contains(QStringLiteral("showInvisibles")) && bar && bar->widgetForAction(inv),
           QStringLiteral("the toolbar has a Show Invisibles button (part of the standard toolbar)"));
     // the icon: a pilcrow in the colors of the light and the dark icon set
     auto inkOf = [](const QIcon &ic) {

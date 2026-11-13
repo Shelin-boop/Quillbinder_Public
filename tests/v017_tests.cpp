@@ -402,7 +402,8 @@ int main(int argc, char **argv)
     {
         binder->select({d1}, true);
         settle(400);
-        auto *formatBar = w.findChild<QToolBar *>(QStringLiteral("formatBar"));
+        // (0.91.0: the color buttons stand on the toolbar Character and Alignment, a part of the format bar before)
+        auto *formatBar = w.findChild<QToolBar *>(QStringLiteral("characterBar"));
         auto *textBtn = formatBar ? formatBar->findChild<ColorPickButton *>(QStringLiteral("textColorButton")) : nullptr;
         auto *hiBtn = formatBar ? formatBar->findChild<ColorPickButton *>(QStringLiteral("highlightButton")) : nullptr;
         check(textBtn && hiBtn && textBtn->isVisible() && hiBtn->isVisible(),
