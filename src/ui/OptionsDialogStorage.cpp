@@ -8,6 +8,7 @@
 #include "ui/AlignButtons.h"
 #include "ui/KeyboardPage.h"
 #include "ui/OptionStorage.h"
+#include "ui/PortableSetup.h"
 #include "ui/ProjectLook.h"
 #include "ui/Theme.h"
 
@@ -175,6 +176,15 @@ void OptionsDialog::markStorage()
                 if (input && !part)
                     optstore::mark(w, QStringLiteral("tools/") + m_toolSectionIds.at(i) + QStringLiteral("/*"));
             }
+    // 0.90.4: General > This Computer (the portable program, Windows): the place of Scratch Pad notes and transcriptions
+    // is the program's own setting (a folder on this computer is never a project's). Found by v0901 on Windows.
+    if (m_portableSetup) {
+        for (const char *name : {"portNotesDocuments", "portNotesProgram", "portNotesOwn"})
+            if (auto *button = m_portableSetup->findChild<QWidget *>(QLatin1String(name)))
+                optstore::mark(button, QStringLiteral("app/notesPlace"));
+        if (auto *folder = m_portableSetup->findChild<QWidget *>(QStringLiteral("portNotesOwnFolder")))
+            optstore::mark(folder, QStringLiteral("app/notesOwn"));
+    }
 }
 
 void OptionsDialog::refreshStorage()

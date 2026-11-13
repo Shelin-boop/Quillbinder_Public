@@ -1,4 +1,6 @@
 #include "core/Platform.h"
+
+#include <QList>
 #include "AppInfo.h"
 
 #include <QFile>
@@ -65,6 +67,22 @@ QString packagePlatform()
 #else
     return QStringLiteral("linux-x86_64");
 #endif
+}
+
+QByteArray qpaWithAltGr(const QByteArray &current)
+{
+    if (current.isEmpty())
+        return QByteArrayLiteral("windows:altgr");
+    const int colon = current.indexOf(':');
+    const QByteArray name = colon < 0 ? current : current.left(colon);
+    if (name != "windows")
+        return QByteArray();
+    const QList<QByteArray> switches = colon < 0 ? QList<QByteArray>() : current.mid(colon + 1).split(',');
+    if (switches.contains("altgr"))
+        return QByteArray();
+    if (colon < 0 || current.endsWith(':'))
+        return name + ":altgr";
+    return current + ",altgr";
 }
 
 } // namespace platform

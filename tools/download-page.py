@@ -28,7 +28,9 @@ def pick(files):
     """The full version of each system ("" when the release has none)."""
     win = lambda f: "windows" in f.lower()
     linux = next((f for f in files if f.endswith(".AppImage") and "-full-" in f), "")
-    windows = next((f for f in files if f.endswith(".zip") and win(f) and "-full-" in f), "")
+    # Windows (0.90.4): the setup program first (it asks for a folder and unpacks into it), else the zip
+    windows = next((f for f in files if f.endswith("-setup.exe") and win(f) and "-full-" in f), "") \
+        or next((f for f in files if f.endswith(".zip") and win(f) and "-full-" in f), "")
     android = next((f for f in files if f.endswith(".apk")), "")
     return {"linux": linux, "windows": windows, "android": android}
 
@@ -45,9 +47,15 @@ def others(files):
         (first(lambda f: f == "media-all-formats.qbpkg"),
          "Audio and video add-ons", "sound and video in all common formats (File &gt; Install Update or Add-on)"),
     ]
+    has_setup = bool(first(lambda f: f.endswith("-setup.exe") and win(f) and "-full-" in f))
     windows = [
+        (first(lambda f: has_setup and f.endswith(".zip") and win(f) and "-full-" in f),
+         "The full version as a zip file", "the same files as the setup program unpacks; unpack it into a folder of your own"),
+        (first(lambda f: f.endswith("-setup.exe") and win(f) and "-full-" not in f),
+         "The program alone (setup program)", "without the add-ons; they can be installed later, one by one"),
         (first(lambda f: f.endswith(".zip") and win(f) and "-full-" not in f and "symbols" not in f),
-         "The program alone", "without the add-ons; they can be installed later, one by one"),
+         "The program alone as a zip file" if has_setup else "The program alone",
+         "without the add-ons; they can be installed later, one by one"),
         (first(lambda f: f.endswith("-update.qbpkg") and win(f)),
          "Program update", "for a Quillbinder you already have (File &gt; Install Update or Add-on)"),
         (first(lambda f: f.startswith("media-all-formats") and win(f) and f.endswith(".qbpkg")),
@@ -63,13 +71,23 @@ def page(files, tag):
     full = pick(files)
     more = others(files)
     url = lambda f: "%s/releases/download/%s/%s" % (home, tag, f)
+    if full["windows"].endswith("-setup.exe"):
+        # 0.90.4: the setup program only unpacks (no admin rights, nothing in the registry, no entry under Apps)
+        win_steps = ["Start the downloaded file. Windows may warn because it is not signed: "
+                     "&ldquo;More info&rdquo;, then &ldquo;Run anyway&rdquo;.",
+                     "Choose a folder of your own, for example "
+                     "<code>C:\\Users\\&lt;your name&gt;\\Quillbinder</code> (not Program Files). The setup program only "
+                     "unpacks Quillbinder into it: it needs no admin rights and changes nothing else on the computer.",
+                     "Start <b>quillbinder.exe</b> in that folder. A guide at the first start explains where the program "
+                     "keeps its files and offers a Start menu entry."]
+    else:
+        win_steps = ["Unpack the zip file completely into a folder of your own, for example "
+                     "<code>C:\\Users\\&lt;your name&gt;\\Quillbinder</code> (not into Program Files).",
+                     "Start <b>quillbinder.exe</b> in it. Windows may warn because the program is not signed: "
+                     "&ldquo;More info&rdquo;, then &ldquo;Run anyway&rdquo;.",
+                     "A guide at the first start explains where the program keeps its files."]
     systems = [
-        ("windows", "Windows 11", "64-bit",
-         ["Unpack the zip file completely into a folder of your own, for example "
-          "<code>C:\\Users\\&lt;your name&gt;\\Quillbinder</code> (not into Program Files).",
-          "Start <b>quillbinder.exe</b> in it. Windows may warn because the program is not signed: "
-          "&ldquo;More info&rdquo;, then &ldquo;Run anyway&rdquo;.",
-          "A guide at the first start explains where the program keeps its files."]),
+        ("windows", "Windows 11", "64-bit", win_steps),
         ("linux", "Linux", "x86_64, an AppImage",
          ["Make the file executable: right-click &gt; Properties &gt; Permissions &gt; <i>Is executable</i>.",
           "Double-click it. The add-ons are installed at the first start.",

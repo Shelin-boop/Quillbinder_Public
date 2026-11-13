@@ -287,8 +287,13 @@ static void invisiblesChecks(MainWindow &w, Project *p, BinderItem *doc)
     settle(300);
     check(near(ed->invisiblesColor(), QColor(230, 20, 20), 0), QStringLiteral("the editor draws the invisibles in the project's color"),
           ed->invisiblesColor().name());
-    QFile look(p->folderPath() + QStringLiteral("/settings/look.json"));
-    const bool kept = look.open(QIODevice::ReadOnly) && look.readAll().contains("\"invisibles\"");
+    // (read and closed at once: Windows refuses to replace a file that is still open, and the look is saved again below;
+    // 0.90.4, found by the first run of this suite on Windows)
+    bool kept = false;
+    {
+        QFile look(p->folderPath() + QStringLiteral("/settings/look.json"));
+        kept = look.open(QIODevice::ReadOnly) && look.readAll().contains("\"invisibles\"");
+    }
     check(kept, QStringLiteral("the color is kept in the project's look (settings/look.json)"));
     // the marks on the screen are red
     ed->setFocus();
@@ -306,10 +311,11 @@ static void invisiblesChecks(MainWindow &w, Project *p, BinderItem *doc)
     shot(pane, QStringLiteral("invisibles-red"));
     // back to the theme's
     v.colors.remove(QStringLiteral("invisibles"));
-    look::change(v, &err);
+    const bool changedBack = look::change(v, &err);
     settle(200);
-    check(near(ed->invisiblesColor(), theme::color(theme::Role::Invisibles), 0) && !near(ed->invisiblesColor(), QColor(230, 20, 20), 30),
-          QStringLiteral("taken away again: the theme's color"));
+    check(changedBack && near(ed->invisiblesColor(), theme::color(theme::Role::Invisibles), 0) && !near(ed->invisiblesColor(), QColor(230, 20, 20), 30),
+          QStringLiteral("taken away again: the theme's color"),
+          QStringLiteral("%1 editor %2, theme %3").arg(err, ed->invisiblesColor().name(), theme::color(theme::Role::Invisibles).name()));
     if (show && show->isChecked())
         show->trigger();
 }

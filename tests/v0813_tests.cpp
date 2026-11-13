@@ -15,6 +15,7 @@
 #include "core/BinderItem.h"
 #include "core/BinderModel.h"
 #include "core/DocumentStore.h"
+#include "core/Portable.h"
 #include "core/Project.h"
 #include "core/WebArchive.h"
 #include "import/FileImporter.h"
@@ -762,11 +763,17 @@ static void webView(Project *p, BinderItem *it, const QString &L, const QString 
     }
     opened.clear();
     QTest::mouseClick(saved, Qt::LeftButton);
-    const QString downloads = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation) + QLatin1String("/Quillbinder web pages/");
+    // (0.90.4: the portable program on Windows writes nothing into the writer's folders; its copy is in its folder for
+    // this run, see portable::sessionTemp)
+    const QString downloads = portable::active()
+                                  ? portable::sessionTemp() + QLatin1String("/saved web pages/")
+                                  : QStandardPaths::writableLocation(QStandardPaths::DownloadLocation) + QLatin1String("/Quillbinder web pages/");
     const QString file = opened.isEmpty() ? QString() : opened.first().toLocalFile();
     const QString html = QString::fromUtf8(readAll(file));
     check(opened.size() == 1 && file.startsWith(downloads) && file.contains(it->title) && html.contains(pageWord),
-          L + QStringLiteral("Open Saved Page in Browser opens a copy in the Downloads folder (a browser in a sandbox can read it)"),
+          L + (portable::active()
+                   ? QStringLiteral("Open Saved Page in Browser opens a copy in the program's folder for this run (nothing in Downloads)")
+                   : QStringLiteral("Open Saved Page in Browser opens a copy in the Downloads folder (a browser in a sandbox can read it)")),
           file + QLatin1String(" / ") + html.left(200));
     const QRegularExpression img(QStringLiteral("<img src=\"([^\"]+)\""));
     const QString pic = img.match(html).captured(1);

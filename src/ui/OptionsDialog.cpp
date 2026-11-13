@@ -738,7 +738,15 @@ QWidget *OptionsDialog::generalSection()
                           "that you can copy a citation from it into your text."),
                        cites));
         connect(choose, &QPushButton::clicked, this, [this] {
-            const QString file = QFileDialog::getOpenFileName(this, tr("Bibliography/Citations Manager"), QStringLiteral("/usr/bin"));
+#ifdef Q_OS_WIN
+            // 0.90.4 (Windows requirement W-07): where Windows keeps programs
+            QString programs = qEnvironmentVariable("ProgramFiles");
+            if (programs.isEmpty() || !QDir(programs).exists())
+                programs = QDir::rootPath();
+#else
+            const QString programs = QStringLiteral("/usr/bin");
+#endif
+            const QString file = QFileDialog::getOpenFileName(this, tr("Bibliography/Citations Manager"), programs);
             if (!file.isEmpty())
                 m_citations->setText(file);
         });

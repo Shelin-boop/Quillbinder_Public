@@ -7,6 +7,7 @@
 #include "core/Addons.h"
 #include "core/CrashGuard.h"
 #include "core/Launcher.h"
+#include "core/Platform.h"
 #include "core/Portable.h"
 #include "text/FontFaces.h"
 #include "ui/AppSettings.h"
@@ -142,6 +143,15 @@ int main(int argc, char **argv)
         const QString windir = qEnvironmentVariable("WINDIR");
         if (offscreen && qEnvironmentVariableIsEmpty("QT_QPA_FONTDIR") && !windir.isEmpty())
             qputenv("QT_QPA_FONTDIR", QDir::toNativeSeparators(windir + QStringLiteral("/Fonts")).toLocal8Bit());
+        // 0.90.4 (Windows requirement W-03): AltGr types its character and no longer runs the command on Ctrl+Alt
+        // plus that key (platform::qpaWithAltGr). A platform named on the command line is left alone.
+        bool named = false;
+        for (int i = 1; i < argc; ++i)
+            if (qstrcmp(argv[i], "-platform") == 0)
+                named = true;
+        const QByteArray withAltGr = named ? QByteArray() : qb::platform::qpaWithAltGr(qgetenv("QT_QPA_PLATFORM"));
+        if (!withAltGr.isEmpty())
+            qputenv("QT_QPA_PLATFORM", withAltGr);
     }
 #endif
 

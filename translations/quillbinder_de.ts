@@ -12443,6 +12443,10 @@ Die Schriften sind sofort nutzbar. Sie bleiben im Ordner des Programms: Andere P
             <source>%1 × %2 px</source>
             <translation>%1 × %2 px</translation>
         </message>
+        <message>
+            <source>Shows the page as it was saved, in your web browser. The copy made for that is removed when the program closes.</source>
+            <translation>Zeigt die Seite so, wie sie gespeichert wurde, in Ihrem Webbrowser. Die dafür angelegte Kopie wird entfernt, wenn das Programm beendet wird.</translation>
+        </message>
     </context>
     <context>
         <name>qb::MindMapController</name>

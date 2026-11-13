@@ -251,6 +251,68 @@ changed and what was checked. Preferences:
   visitor's system first. Needs, once, Settings > Pages > Source "GitHub Actions" in the public repository (the writer).
   The README's download part links it and is sorted by system too.
 
+## Windows with what Linux 0.90.3 has, the setup programs (0.90.4 beta, 2026-11-13)
+
+The writer's requirements: project document `claude/quillbinder-windows-requirements-0.90.4.md` (W-01 to W-12, S-01 to
+S-09, with the result of each). Linux 0.90.4 is a program update without a change in the writing work; Windows 0.90.4 is
+an experimental build from the same source (test switches on, packages unsigned).
+
+- **A folder for one run** (`portable::sessionTemp()`, `core/Portable.*`): `<temp>/quillbinder/run-<pid>`, made at the
+  first call, removed by a post routine when the program ends; folders of runs that are gone
+  (`platform::processAlive`) are removed at the first call of a later run. The portable program (Windows) puts there
+  what it needs only for the moment: the unpacked .mht of a web page shown (`MediaView::showWebPage`; Linux: the
+  system's cache folder) and the copy for the browser (`openSavedPage`; Linux: Downloads, for browsers in a sandbox).
+  New code that needs a place for short-lived files on Windows takes this folder, never `CacheLocation`, AppData or a
+  folder of the writer: `win-check.sh`'s `portable-nothing-outside` also looks at Downloads and at `run-*` folders left
+  in `%TEMP%`.
+- **AltGr** (`platform::qpaWithAltGr`, called in `main.cpp` before the application object, Windows only): Windows
+  reports AltGr as Ctrl+Alt, and Qt then ran the command on Ctrl+Alt+<key> instead of typing (German keyboard:
+  AltGr+7, 8, 9, 0, < for `{ [ ] } |`; about 30 commands use Ctrl+Alt). `QT_QPA_PLATFORM=windows:altgr` makes Qt's
+  Windows platform report AltGr as `Qt::GroupSwitchModifier` (the switch is in Qt 6.12's `qwindowsintegration.cpp`). A
+  platform named on the command line (`-platform offscreen`, the self-test) or another platform in the variable is
+  left alone. A test program that checks keys on Windows sets the variable the same way before its application object
+  (`tests/v0904_tests.cpp`, which presses real keys with `SendInput` on the German layout and leaves the check out with
+  a note when the test window does not get the keyboard).
+- **Character sets of saved web pages** (`core/WebArchive.cpp`, Windows only): when `QStringDecoder` does not know the
+  page's character set (Qt for Windows has no ICU), `windowsCodePage` + `MultiByteToWideChar` convert it
+  (windows-125x, ISO 8859-x, a few more); Latin-1 or UTF-8 only as the last resort.
+- **Unsigned updates**: `launcher::coreOrigin` refuses an unsigned program update in a build without test switches on
+  Windows too (it was left out there). The experimental Windows builds are test builds; a Windows release needs signed
+  packages.
+- **Setup programs** (step W4d): `packaging/windows/quillbinder-setup.iss` (Inno Setup: `PrivilegesRequired=lowest`,
+  `Uninstallable=no`, `CreateUninstallRegKey=no`, the folder page with `{%USERPROFILE}\Quillbinder`, English and
+  German, `data\` never part of it, `PrepareToInstall` refuses a folder that cannot be written, a question before
+  unpacking into a folder that is not empty and holds no Quillbinder) and `packaging/windows/win-setup.sh` (finds
+  `ISCC.exe` or installs Inno Setup with Chocolatey; gives the script a byte order mark, without which the compiler
+  reads the German texts in the machine's code page; `MSYS_NO_PATHCONV=1` for the compiler's and the setup's `/`
+  switches; then the checks: built, unpacks into a folder with letters outside ASCII, the same files as the zip's
+  folder by SHA-256, no uninstaller, the unpacked program's self-test, `data` kept by a second run, the full version
+  with its add-ons, a folder without write rights refused, nothing new in the registry, the Start menus or on the
+  desktops, the manifest "asInvoker"). `win-ci.sh` runs it after the full zip; its result counts for "result: ok".
+  Files: `Quillbinder-<v>-windows-x64-setup.exe`, `Quillbinder-<v>-full-windows-x64-setup.exe`.
+  `tools/download-page.py` puts the full setup on the Windows button when a release has it (the zips move to "Other
+  downloads"), `tools/release-notes.py` explains and lists the setups.
+- **Tests**: `qb_v0904_tests` (Linux with `QB_TEST_PORTABLE`, and Windows; 29 checks on Linux). `qb_v0903_tests` has a
+  folder watcher for Windows (`ReadDirectoryChangesW`; Windows tells a file moved in from another folder as "create",
+  perhaps with "written" after it: `arrivedOnce`); its full-drive checks need the Linux fault library and stay Linux
+  only (`QB_FAULT_SHIM` is not defined on Windows). `win-tests.sh` counts v0812, v0813, v0900, v0901, v0902, v0903 and
+  v0904 besides the 17 suites of W4c.
+- **The runs on the Windows machine**: run 1 (f1934fe, 66 minutes: a new branch starts without the caches of other
+  branches) built without one error of MSVC and passed the program, layout and setup checks; of the tests it failed
+  v0901 (the four This Computer controls without `optstore::mark`: fixed in `OptionsDialog::markStorage`; and the
+  screen-fit checks, which took 34 px for a frame where Windows' is 31 px: the test now takes the window's real frame)
+  and v0902 (the test held `settings/look.json` open while the look was saved again: Windows refuses to replace an
+  open file). Of the 27 older suites tried, nine passed unchanged and are counted since (m7, m8, m9, v018, v0212, v0402,
+  v0403, v0605, v0642); the others stay Linux only, each with its reason in `win-tests.sh`. Run 2 (b82f7a6, 21 minutes):
+  result ok, 33 suites, 1,972 checks, 0 failures; program checks 26, setup checks 11, layout checks 8. v0904 on the
+  machine, with real key presses on the German layout: with the switch AltGr+7 types "{"; in a child run without it
+  nothing is typed and the command on Ctrl+Alt+7 runs (Qt 6.12.0). Sitka's designs are families of their own there, each
+  with its bold and italic: `fontfaces::separate()` is not needed on Windows.
+- **Windows syntax check before a push** (saves runs on the Windows machine): MinGW-w64 (`g++-mingw-w64-x86-64-posix`)
+  with `-fsyntax-only` and the Linux build's flags from `ninja -C build -t compdb`, Qt's `qwindowdefs_win.h` (into a
+  folder `QtGui/`) and `qt_windows.h` from qtbase's source at the Qt version, zlib's and Hunspell's headers. In this
+  job it found a variable that shadowed a parameter in Windows-only code before the first run.
+
 ## Backups and sync programs (0.90.3 beta, 2026-11-13)
 
 Reported by the writer: a backup folder inside a synced folder filled with "<backup>-<computer>-safeBackup-000n.zip"

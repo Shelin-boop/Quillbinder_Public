@@ -338,10 +338,11 @@ bool coreOrigin(const QString &dir, const QString &binaryFile, const QByteArray 
         }
         return true;
     }
-#if !defined(QB_TEST_SWITCHES) && !defined(Q_OS_WIN)
+#if !defined(QB_TEST_SWITCHES)
     // an update installed without a signature (only possible with --allow-unsigned on the command line) runs only
-    // when QB_ALLOW_UNSIGNED_CORE is set (the end-to-end checks of development builds). Windows: its packages are
-    // not signed yet, so this waits for the Windows release.
+    // when QB_ALLOW_UNSIGNED_CORE is set (the end-to-end checks of development builds). 0.90.4: Windows too (requirement
+    // W-05). The experimental Windows builds are test builds (QB_TEST_SWITCHES) and their packages are unsigned; a
+    // Windows release build needs signed packages, as on Linux.
     if (!qEnvironmentVariableIsSet("QB_ALLOW_UNSIGNED_CORE")) {
         *why = QStringLiteral("is not signed by the project and was switched off. Install the update from the project's "
                               "release page.");

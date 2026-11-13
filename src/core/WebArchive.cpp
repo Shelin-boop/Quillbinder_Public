@@ -14,9 +14,57 @@
 #include <QUrl>
 #include <QUuid>
 
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#endif
+
 namespace qb::webarchive {
 
 namespace {
+
+#ifdef Q_OS_WIN
+// 0.90.4 (Windows requirement W-06): Qt's build for Windows carries no ICU, so QStringDecoder may know only the
+// Unicode encodings and Latin-1 there, and a page saved in windows-1252 would show its curved quotes and dashes as
+// control characters. Windows itself converts its code pages: the number for a character set's name, 0 = not known.
+int windowsCodePage(QByteArray name)
+{
+    name = name.trimmed().toLower();
+    if (name.startsWith("x-"))
+        name = name.mid(2);
+    bool ok = false;
+    if (name.startsWith("windows-125") || name.startsWith("cp125")) {
+        const int n = name.right(1).toInt(&ok);
+        return ok && n <= 8 ? 1250 + n : 0;
+    }
+    if (name.startsWith("iso-8859-") || name.startsWith("iso8859-")) {
+        const int n = name.mid(name.lastIndexOf('-') + 1).toInt(&ok);
+        return ok && ((n >= 1 && n <= 9) || n == 13 || n == 15) ? 28590 + n : 0;
+    }
+    static const struct {
+        const char *name;
+        int page;
+    } known[] = {{"latin1", 28591},    {"us-ascii", 20127}, {"ascii", 20127},  {"windows-874", 874}, {"tis-620", 874},
+                 {"shift_jis", 932},   {"shift-jis", 932},  {"sjis", 932},     {"gbk", 936},         {"gb2312", 936},
+                 {"gb18030", 54936},   {"euc-kr", 949},     {"big5", 950},     {"euc-jp", 20932},    {"koi8-r", 20866},
+                 {"koi8-u", 21866},    {"macintosh", 10000}, {"ibm850", 850},  {"cp850", 850},       {"ibm866", 866}};
+    for (const auto &k : known)
+        if (name == k.name)
+            return k.page;
+    return 0;
+}
+
+bool decodeWithWindows(const QByteArray &bytes, int page, QString *text)
+{
+    text->clear();
+    if (bytes.isEmpty())
+        return true;
+    const int n = MultiByteToWideChar(UINT(page), 0, bytes.constData(), int(bytes.size()), nullptr, 0);
+    if (n <= 0)
+        return false;
+    text->resize(n);
+    return MultiByteToWideChar(UINT(page), 0, bytes.constData(), int(bytes.size()), reinterpret_cast<wchar_t *>(text->data()), n) == n;
+}
+#endif
 
 QByteArray base64Lines(const QByteArray &data)
 {
@@ -314,7 +362,13 @@ bool unpack(const QByteArray &archive, const QString &outDir, QString *page, QSt
         dec = QStringDecoder(cs.startsWith("windows-125") || cs.startsWith("iso-8859") || cs.startsWith("cp125") ? QStringDecoder::Latin1
                                                                                                              : QStringDecoder::Utf8);
     }
-    QString html = dec.decode(list.at(main).body);
+    QString html;
+#ifdef Q_OS_WIN
+    // (W-06: without ICU, Windows' own conversion of the page's character set; Latin-1 or UTF-8 only as the last resort)
+    const int codePage = QStringDecoder(charset.isEmpty() ? "UTF-8" : charset.constData()).isValid() ? 0 : windowsCodePage(charset);
+    if (!codePage || !decodeWithWindows(list.at(main).body, codePage, &html))
+#endif
+        html = dec.decode(list.at(main).body);
     auto localFor = [&](const QString &ref) -> QString {
         const QString r = ref.trimmed();
         if (r.isEmpty() || r.startsWith(QLatin1Char('#')))

@@ -282,9 +282,17 @@ target_compile_definitions(qb_v0902_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CU
 # child runs with qbfaultshim) (xvfb-run -a ./qb_v0903_tests /tmp/shots)
 add_executable(qb_v0903_tests v0903_tests.cpp ${QB_RESOURCES_QRC} ${CMAKE_SOURCE_DIR}/translations/translations.qrc)
 target_link_libraries(qb_v0903_tests PRIVATE qbui Qt6::Test)
-target_compile_definitions(qb_v0903_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
-                           QB_FAULT_SHIM="$<TARGET_FILE:qbfaultshim>")
-add_dependencies(qb_v0903_tests qbfaultshim)
+target_compile_definitions(qb_v0903_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+if(NOT WIN32) # the fault library is an LD_PRELOAD library: the full-drive checks run on Linux only (0.90.4)
+  target_compile_definitions(qb_v0903_tests PRIVATE QB_FAULT_SHIM="$<TARGET_FILE:qbfaultshim>")
+  add_dependencies(qb_v0903_tests qbfaultshim)
+endif()
+# 0.90.4: the Windows requirements drawn from Linux 0.90.3 (the switch that tells AltGr from Ctrl+Alt, the portable
+# program's folder for one run and the web page copy in it, saved pages in older character sets, the download page and
+# the release text with the setup programs); on Linux with QB_TEST_PORTABLE (xvfb-run -a ./qb_v0904_tests /tmp/shots)
+add_executable(qb_v0904_tests v0904_tests.cpp ${QB_RESOURCES_QRC})
+target_link_libraries(qb_v0904_tests PRIVATE qbui Qt6::Test)
+target_compile_definitions(qb_v0904_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_definitions(qb_v0900_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
 # The readers against damaged input (0.80.0, the external audit of 2026-11-09, ST-5): fixed-seed damage of small
 # valid inputs of RTF, Markdown, XML, ZIP, DOCX, ODT, Word 97 and .scrivx, each read in this process

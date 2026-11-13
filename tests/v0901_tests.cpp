@@ -437,6 +437,13 @@ static void windowChecks(MainWindow &w)
 
     // UR-02: a 1366 x 768 screen less a 44 px panel; the windows shrink to it with their buttons in view
     const QRect small(0, 0, 1366, 768 - 44);
+    // with its title bar a window is no taller than the area: the frame the system gave it (0.90.4: Windows' is 31 px
+    // high, and fitInto works with the real one), else the 34 px that fitInto keeps free for a frame to come
+    auto fitsHeight = [](const QWidget *win, const QRect &area) {
+        const QRect fr = win->frameGeometry(), g = win->geometry();
+        const int frame = fr != g ? (g.top() - fr.top()) + (fr.bottom() - g.bottom()) : 34;
+        return win->height() + frame <= area.height();
+    };
     auto buttonsInView = [](QWidget *win, const QString &name) {
         for (QAbstractButton *b : win->findChildren<QAbstractButton *>())
             if (b->isVisible() && plain(b->text()) == name) {
@@ -452,7 +459,7 @@ static void windowChecks(MainWindow &w)
         settle(100);
         const bool fits = windowcare::fitInto(&d, small);
         settle(100);
-        check(fits && d.height() <= small.height() - 34 && buttonsInView(&d, QStringLiteral("OK")),
+        check(fits && fitsHeight(&d, small) && buttonsInView(&d, QStringLiteral("OK")),
               QStringLiteral("UR-02: Options fits a 1366 x 768 screen, OK in view"), QStringLiteral("%1 x %2").arg(d.width()).arg(d.height()));
         d.reject();
     }
@@ -463,7 +470,7 @@ static void windowChecks(MainWindow &w)
         settle(150);
         const bool fits = windowcare::fitInto(&d, small);
         settle(100);
-        check(fits && d.height() <= small.height() - 34, QStringLiteral("UR-02: Compile fits a 1366 x 768 screen"),
+        check(fits && fitsHeight(&d, small), QStringLiteral("UR-02: Compile fits a 1366 x 768 screen"),
               QStringLiteral("%1 x %2, least %3").arg(d.width()).arg(d.height()).arg(d.minimumSizeHint().height()));
         shot(&d, QStringLiteral("compile-small"));
         d.reject();
@@ -474,7 +481,7 @@ static void windowChecks(MainWindow &w)
     if (auto *lic = qobject_cast<QDialog *>(w.findChild<QDialog *>(QStringLiteral("licensesWindow")))) {
         const bool fits = windowcare::fitInto(lic, small);
         settle(100);
-        check(fits && lic->height() <= small.height() - 34, QStringLiteral("UR-02: Third-Party Licenses fits a 1366 x 768 screen"),
+        check(fits && fitsHeight(lic, small), QStringLiteral("UR-02: Third-Party Licenses fits a 1366 x 768 screen"),
               QStringLiteral("%1 x %2").arg(lic->width()).arg(lic->height()));
         lic->close();
     } else {
@@ -488,7 +495,7 @@ static void windowChecks(MainWindow &w)
         big.resize(area.width() + 300, area.height() + 300);
         big.show();
         settle(100);
-        check(big.height() + 34 <= area.height() + 1 && big.width() <= area.width(),
+        check(fitsHeight(&big, area.adjusted(0, 0, 0, 1)) && big.width() <= area.width(),
               QStringLiteral("UR-02: a dialog larger than the screen is made to fit when it is shown"),
               QStringLiteral("%1 x %2 on %3 x %4").arg(big.width()).arg(big.height()).arg(area.width()).arg(area.height()));
         big.reject();

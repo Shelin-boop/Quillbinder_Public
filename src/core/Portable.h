@@ -39,5 +39,12 @@ QString notesFolder(const QString &toolId, const Notes &n);
 // another drive letter); a tool's folder the writer changed in the tool itself is left alone.
 void followProgramFolder();
 
+// 0.90.4 (Windows requirements W-01, W-02, W-10): a folder for files that live only as long as this run
+// (<temp>/quillbinder/run-<pid>): made at the first call, removed when the program ends. Folders left by runs that
+// ended without their clean-up (a crash, the power) are removed at the first call of a later run. The portable
+// program keeps everything lasting in its own folder; what is only needed for the moment goes here, never into
+// AppData, Downloads or another folder of the writer.
+QString sessionTemp();
+
 } // namespace portable
 } // namespace qb

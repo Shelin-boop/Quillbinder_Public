@@ -5,6 +5,7 @@
 #include <QTimer>
 #include "core/BinderItem.h"
 #include "core/ItemIcons.h"
+#include "core/Portable.h"
 #include "core/Project.h"
 #include "media/MediaApi.h"
 #include "ui/AppSettings.h"
@@ -118,8 +119,11 @@ MediaView::MediaView(QWidget *parent) : QWidget(parent)
     bl->addWidget(m_webAddress, 1);
     m_webOpenSaved = new QPushButton(tr("Open Saved Page in Browser"), bar);
     m_webOpenSaved->setObjectName(QStringLiteral("webOpenSaved"));
-    m_webOpenSaved->setToolTip(tr("Shows the page as it was saved, in your web browser. A copy of it is put into your "
-                                  "Downloads folder for that."));
+    m_webOpenSaved->setToolTip(qb::portable::active()
+                                   ? tr("Shows the page as it was saved, in your web browser. The copy made for that is "
+                                        "removed when the program closes.")
+                                   : tr("Shows the page as it was saved, in your web browser. A copy of it is put into your "
+                                        "Downloads folder for that."));
     bl->addWidget(m_webOpenSaved);
     m_webOpenOriginal = new QPushButton(tr("Open Original Address"), bar);
     m_webOpenOriginal->setObjectName(QStringLiteral("webOpenOriginal"));
@@ -341,7 +345,10 @@ void MediaView::showWebPage(BinderItem *item, const QString &path)
     QString shown = path;
     if (isArchive(item)) {
         // unpacked into the cache to be shown here
-        const QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QLatin1String("/web pages/") + item->id;
+        // (the portable program, 0.90.4: its folder for this run, not the system's cache in AppData)
+        const QString dir = (qb::portable::active() ? qb::portable::sessionTemp()
+                                                    : QStandardPaths::writableLocation(QStandardPaths::CacheLocation))
+                            + QLatin1String("/web pages/") + item->id;
         QDir(dir).removeRecursively();
         QFile f(path);
         QString page, err;
@@ -378,8 +385,12 @@ QString MediaView::openSavedPage(QString *error)
     QString downloads = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
     if (downloads.isEmpty())
         downloads = QDir::homePath();
-    const QString dir = downloads + QLatin1Char('/') + tr("Quillbinder web pages") + QLatin1Char('/') + title + QStringLiteral(" (")
-                        + m_item->id.left(8) + QLatin1Char(')');
+    // The portable program (Windows, 0.90.4) writes nothing into the writer's folders: the copy goes into its folder
+    // for this run, which a browser on Windows can read. (Linux keeps Downloads: a browser in a sandbox reads
+    // neither hidden folders nor /tmp.)
+    const QString under = qb::portable::active() ? qb::portable::sessionTemp() + QLatin1String("/saved web pages")
+                                                 : downloads + QLatin1Char('/') + tr("Quillbinder web pages");
+    const QString dir = under + QLatin1Char('/') + title + QStringLiteral(" (") + m_item->id.left(8) + QLatin1Char(')');
     QDir(dir).removeRecursively();
     if (!QDir().mkpath(dir)) {
         if (error)

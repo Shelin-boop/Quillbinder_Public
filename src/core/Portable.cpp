@@ -2,6 +2,7 @@
 #include "core/Portable.h"
 #include "core/Launcher.h"
 #include "core/Paths.h"
+#include "core/Platform.h"
 #include "core/TestSwitches.h"
 
 #include <QCoreApplication>
@@ -189,6 +190,50 @@ void followProgramFolder()
             s.setValue(QStringLiteral("app/notesGiven/%1").arg(id), want);
         }
     }
+}
+
+namespace {
+QString &sessionTempPath()
+{
+    static QString path;
+    return path;
+}
+void removeSessionTemp()
+{
+    const QString path = sessionTempPath();
+    if (path.isEmpty())
+        return;
+    QDir(path).removeRecursively();
+    QDir().rmdir(QFileInfo(path).absolutePath()); // only when nothing else is in it (the tool link's markers)
+    sessionTempPath().clear();
+}
+} // namespace
+
+QString sessionTemp()
+{
+    QString &made = sessionTempPath();
+    if (!made.isEmpty() && QDir(made).exists())
+        return made;
+    const QString base = QDir::tempPath() + QStringLiteral("/" QB_APP_ID);
+    QDir().mkpath(base);
+    const qint64 own = QCoreApplication::applicationPid();
+    const QStringList old = QDir(base).entryList({QStringLiteral("run-*")}, QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &name : old) {
+        bool ok = false;
+        const qint64 pid = name.mid(4).toLongLong(&ok);
+        if (ok && pid != own && !platform::processAlive(pid))
+            QDir(base + QLatin1Char('/') + name).removeRecursively();
+    }
+    const bool first = made.isEmpty();
+    made = base + QStringLiteral("/run-%1").arg(own);
+    QDir(made).removeRecursively(); // a folder of an earlier program with this process number
+    QDir().mkpath(made);
+    static bool hooked = false;
+    if (first && !hooked) {
+        hooked = true;
+        qAddPostRoutine(removeSessionTemp);
+    }
+    return made;
 }
 
 } // namespace portable

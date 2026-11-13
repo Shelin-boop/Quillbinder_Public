@@ -3,6 +3,33 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.90.4 beta (2026-11-13)
+
+The first version built for Linux and Windows from one source. For Linux it is a program update for 0.90.3 (File >
+Install Update or Add-on; it fits 0.80.0 and later) that changes nothing in the writing work. For Windows 11 it is an
+experimental build, not published yet, with what Linux 0.90.3 has.
+
+- **One source for Linux and Windows**. On Linux this update changes nothing in the writing work. It carries the
+  number of the first Windows build made from the same source.
+- **Windows: what Linux 0.90.3 has**. The Scrivener format in full (0.81.2 to 0.90.0), the usability changes of
+  0.90.1, the theme list of 0.90.2 and the backups of 0.90.3, which are packed outside the backup folder and arrive
+  there as one finished file. Only Speech Transcription on the graphics card is missing on Windows (it uses the
+  processor there).
+- **Windows: a setup program**. It asks for a folder and unpacks Quillbinder into it. It needs no admin rights and
+  changes nothing else: no entry under Apps, nothing in the registry, no Start menu entry (the guide at the first start
+  offers those). The zip files hold the same folders.
+- **Windows: AltGr types its character**. Windows reports the AltGr key as Ctrl+Alt, so on a German keyboard AltGr+7,
+  8, 9, 0 and < would have run commands instead of typing `{ [ ] }` and `|`. The commands keep their keys (left Ctrl
+  and left Alt).
+- **Windows: nothing outside the program folder**. A saved web page is unpacked for viewing, and copied for the
+  browser, in a temporary folder that is removed when the program closes. Linux keeps the copy in Downloads, for
+  browsers that run in a sandbox.
+- **Windows: saved web pages in older character sets**. A page saved as windows-1252 or in a similar character set
+  keeps its curved quotes, dashes and the euro sign.
+- **Also**. File > Options offers Windows' program folder for the bibliography program; a Windows build without test
+  switches refuses an unsigned program update, as Linux does; the download page and the release text know the setup
+  programs.
+
 ## 0.90.3 beta (2026-11-13)
 
 A program update for 0.90.2 (File > Install Update or Add-on; it fits 0.80.0 and later). Backups and sync programs:

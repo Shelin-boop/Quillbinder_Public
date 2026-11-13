@@ -45,6 +45,9 @@
 #include <cstdlib>
 #include <cstring>
 
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#endif
 #ifdef Q_OS_LINUX
 #include <sys/inotify.h>
 #include <sys/stat.h>
@@ -153,8 +156,39 @@ static QStringList allFilesBelow(const QString &dir)
 // "written <name>" (closed after writing), "movedFrom <name>", "movedTo <name>", "deleted <name>", in order.
 struct Watch {
     int fd = -1;
+#ifdef Q_OS_WIN
+    // 0.90.4 (Windows requirement W-11): what Windows tells a program that watches the folder (ReadDirectoryChangesW,
+    // as the sync programs there use it). Windows has no "closed after writing": every change of a file's size or
+    // time is "written", told several times for one copy (the same line in a row is kept once), and a file moved in
+    // from another folder is "create" (Windows knows "moved" only for a rename inside the folder).
+    HANDLE dirHandle = INVALID_HANDLE_VALUE;
+    HANDLE signal = nullptr;
+    OVERLAPPED ov;
+    bool armed = false;
+    alignas(DWORD) char changes[65536];
+    void arm()
+    {
+        ResetEvent(signal);
+        ZeroMemory(&ov, sizeof ov);
+        ov.hEvent = signal;
+        armed = ReadDirectoryChangesW(dirHandle, changes, sizeof changes, FALSE,
+                                      FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_SIZE, nullptr, &ov, nullptr)
+                != 0;
+    }
+#endif
     explicit Watch(const QString &dir)
     {
+#ifdef Q_OS_WIN
+        dirHandle = CreateFileW(reinterpret_cast<const wchar_t *>(QDir::toNativeSeparators(dir).utf16()), FILE_LIST_DIRECTORY,
+                                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+                                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, nullptr);
+        signal = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        if (dirHandle != INVALID_HANDLE_VALUE && signal) {
+            arm();
+            if (armed)
+                fd = 1;
+        }
+#endif
 #ifdef Q_OS_LINUX
         fd = inotify_init1(IN_NONBLOCK);
         if (fd >= 0 && inotify_add_watch(fd, QFile::encodeName(dir).constData(), IN_CREATE | IN_CLOSE_WRITE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE) < 0) {
@@ -167,6 +201,14 @@ struct Watch {
     }
     ~Watch()
     {
+#ifdef Q_OS_WIN
+        if (dirHandle != INVALID_HANDLE_VALUE) {
+            CancelIo(dirHandle);
+            CloseHandle(dirHandle);
+        }
+        if (signal)
+            CloseHandle(signal);
+#endif
 #ifdef Q_OS_LINUX
         if (fd >= 0)
             ::close(fd);
@@ -176,6 +218,44 @@ struct Watch {
     QStringList take()
     {
         QStringList out;
+#ifdef Q_OS_WIN
+        // the changes arrive a moment after the call that made them: wait for each batch, until none comes for 300 ms
+        while (armed && WaitForSingleObject(signal, 300) == WAIT_OBJECT_0) {
+            DWORD n = 0;
+            if (!GetOverlappedResult(dirHandle, &ov, &n, FALSE))
+                break;
+            for (DWORD i = 0; n > 0;) {
+                const auto *e = reinterpret_cast<const FILE_NOTIFY_INFORMATION *>(changes + i);
+                const QString name = QString::fromWCharArray(e->FileName, int(e->FileNameLength / sizeof(WCHAR)));
+                QString line;
+                switch (e->Action) {
+                case FILE_ACTION_ADDED:
+                    line = QStringLiteral("create ") + name;
+                    break;
+                case FILE_ACTION_REMOVED:
+                    line = QStringLiteral("deleted ") + name;
+                    break;
+                case FILE_ACTION_MODIFIED:
+                    line = QStringLiteral("written ") + name;
+                    break;
+                case FILE_ACTION_RENAMED_OLD_NAME:
+                    line = QStringLiteral("movedFrom ") + name;
+                    break;
+                case FILE_ACTION_RENAMED_NEW_NAME:
+                    line = QStringLiteral("movedTo ") + name;
+                    break;
+                default:
+                    break;
+                }
+                if (!line.isEmpty() && (out.isEmpty() || out.last() != line))
+                    out << line;
+                if (!e->NextEntryOffset)
+                    break;
+                i += e->NextEntryOffset;
+            }
+            arm();
+        }
+#endif
 #ifdef Q_OS_LINUX
         alignas(inotify_event) char buf[32768];
         for (;;) {
@@ -202,6 +282,23 @@ struct Watch {
         return out;
     }
 };
+
+// Did the watcher see one finished file arrive by a move, and after it only what is listed in "then"? Linux:
+// "movedTo <name>". Windows (0.90.4) tells a file moved in from another folder as created, perhaps with a change of
+// its time after it; what counts is the same: one name, the final one, no temporary file and no rename.
+static bool arrivedOnce(const QStringList &seen, const QString &name, const QStringList &then = QStringList())
+{
+#ifdef Q_OS_WIN
+    if (seen.isEmpty() || seen.first() != QStringLiteral("create ") + name)
+        return false;
+    int i = 1;
+    while (i < seen.size() && seen.at(i) == QStringLiteral("written ") + name)
+        ++i;
+    return seen.mid(i) == then;
+#else
+    return seen == QStringList{QStringLiteral("movedTo ") + name} + then;
+#endif
+}
 
 static bool onTwoDrives(const QString &a, const QString &b)
 {
@@ -370,7 +467,7 @@ static void placeChecks(const QString &H)
         ok = backup::backupProject(p.get(), dir, 0, &out, &why);
         const QStringList seen = watch.take();
         if (watch.works())
-            check(ok && seen == QStringList{QStringLiteral("movedTo ") + QFileInfo(out).fileName()},
+            check(ok && arrivedOnce(seen, QFileInfo(out).fileName()),
                   QStringLiteral("a program that watches the backup folder sees one thing: the finished backup arriving under its final "
                                  "name (before: a \".zip.part\" file created, written and renamed there)"),
                   seen.join(QLatin1String(" | ")));
@@ -422,7 +519,7 @@ static void placeChecks(const QString &H)
         ok = backup::backupProject(p.get(), dir, 3, &out, &why);
         const QStringList seen = watch.take();
         if (watch.works())
-            check(ok && seen == QStringList{QStringLiteral("movedTo ") + QFileInfo(out).fileName(), QStringLiteral("deleted ") + QFileInfo(before.value(0)).fileName()},
+            check(ok && arrivedOnce(seen, QFileInfo(out).fileName(), {QStringLiteral("deleted ") + QFileInfo(before.value(0)).fileName()}),
                   QStringLiteral("with three kept, a fourth backup arrives and the oldest is deleted; the watcher sees just that"),
                   seen.join(QLatin1String(" | ")));
     }
@@ -440,7 +537,7 @@ static void placeChecks(const QString &H)
         QFile::remove(p->folderPath() + QStringLiteral("/Files/secret.bin"));
         check(ok && w.contains(QLatin1String("incomplete")) && QFileInfo(o).fileName().endsWith(QLatin1String(" (incomplete).zip"))
                   && backup::isOwnBackupName(QFileInfo(o).fileName()) && QFile::exists(o)
-                  && (!watch.works() || seen == QStringList{QStringLiteral("movedTo ") + QFileInfo(o).fileName()}),
+                  && (!watch.works() || arrivedOnce(seen, QFileInfo(o).fileName())),
               QStringLiteral("an incomplete backup arrives under its \"(incomplete)\" name in one step (before: put in place, then renamed)"),
               w.left(200) + QLatin1String(" | ") + seen.join(QLatin1String(" | ")));
     }

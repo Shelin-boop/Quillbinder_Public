@@ -98,6 +98,9 @@ def main(dist, test=False):
     win_full = [f for f in files if f.endswith(".zip") and is_win(f) and "-full-" in f]
     win_update = [f for f in pkgs if is_win(f) and f.endswith("-update.qbpkg")]
     win_symbols = [f for f in files if f.endswith(".zip") and is_win(f) and "symbols" in f]
+    # 0.90.4: the setup programs (they only unpack into a folder the writer picks)
+    win_setup = [f for f in files if f.endswith("-setup.exe") and is_win(f) and "-full-" not in f]
+    win_full_setup = [f for f in files if f.endswith("-setup.exe") and is_win(f) and "-full-" in f]
     # Android
     apk = [f for f in files if f.endswith(".apk")]
     # add-ons: for every system (no program code inside), for Linux, for Windows; the one-package media bundle first,
@@ -112,7 +115,7 @@ def main(dist, test=False):
     linux_addons = sorted((f for f in addons if systems[f] == "linux"), key=order)
     win_addons = sorted((f for f in addons if systems[f] == "windows"), key=order)
     has_linux = bool(appimage or full or update or linux_addons)
-    has_win = bool(win_zip or win_full or win_update or win_addons)
+    has_win = bool(win_zip or win_full or win_setup or win_full_setup or win_update or win_addons)
     has_android = bool(apk)
     names = [n for n, on in (("Linux (x86_64)", has_linux), ("Windows 11 (64-bit)", has_win), ("Android", has_android)) if on]
     out = []
@@ -169,16 +172,38 @@ def main(dist, test=False):
     if has_win:
         out.append("## Windows")
         out.append("")
-        first = (win_zip or win_full)[0] if (win_zip or win_full) else "the zip file"
-        out.append("1. Download **%s**%s." % (first, (", or **%s**: the full version, with all add-ons included" % win_full[0])
-                                              if win_zip and win_full else ""))
-        out.append("2. Unpack it completely into a folder of your own, for example C:\\Users\\<your name>\\Quillbinder "
-                   "(not into Program Files: the program keeps its settings in its own folder).")
-        out.append("3. Start **quillbinder.exe** in it. Windows may warn because the program is not signed "
-                   "(SmartScreen: \"More info\", then \"Run anyway\"). A guide at the first start explains the rest.")
+        if win_setup or win_full_setup:
+            first = (win_full_setup or win_setup)[0]
+            out.append("1. Download **%s**%s." % (first, (" (the full version, with all add-ons included), or **%s** (the "
+                                                          "program alone)" % win_setup[0])
+                                                  if win_setup and win_full_setup else ""))
+            out.append("2. Start it and choose a folder of your own, for example C:\\Users\\<your name>\\Quillbinder (not "
+                       "Program Files: the program keeps its settings in its own folder). The setup program only unpacks "
+                       "Quillbinder into that folder: it needs no admin rights and writes nothing else, no entry under "
+                       "Apps and nothing in the registry. Windows may warn because the file is not signed (SmartScreen: "
+                       "\"More info\", then \"Run anyway\").")
+            out.append("3. Start **quillbinder.exe** in that folder. A guide at the first start explains the rest and "
+                       "offers a Start menu entry. To remove Quillbinder, delete its folder.")
+            if win_zip or win_full:
+                out.append("")
+                out.append("The zip files hold the same folders: unpack one completely into a folder of your own.")
+        else:
+            first = (win_zip or win_full)[0] if (win_zip or win_full) else "the zip file"
+            out.append("1. Download **%s**%s." % (first, (", or **%s**: the full version, with all add-ons included" % win_full[0])
+                                                  if win_zip and win_full else ""))
+            out.append("2. Unpack it completely into a folder of your own, for example C:\\Users\\<your name>\\Quillbinder "
+                       "(not into Program Files: the program keeps its settings in its own folder).")
+            out.append("3. Start **quillbinder.exe** in it. Windows may warn because the program is not signed "
+                       "(SmartScreen: \"More info\", then \"Run anyway\"). A guide at the first start explains the rest.")
         out.append("")
         out.append("| File | What it is |")
         out.append("|------|------------|")
+        for f in win_full_setup:
+            out.append("| %s | **The full version** for Windows 11 (64-bit) as a setup program: the program with every "
+                       "add-on, unpacked into a folder you choose |" % f)
+        for f in win_setup:
+            out.append("| %s | The program alone as a setup program: unpacked into a folder you choose; spelling "
+                       "dictionaries for English and German included |" % f)
         for f in win_zip:
             out.append("| %s | The program for Windows 11 (64-bit): unpack and start; spelling dictionaries for English and "
                        "German included |" % f)

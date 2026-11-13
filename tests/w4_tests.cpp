@@ -17,6 +17,7 @@
 #include "ui/FirstStartDialog.h"
 #include "ui/FontInstall.h"
 #include "ui/MainWindow.h"
+#include "ui/OptionStorage.h"
 #include "ui/OptionsDialog.h"
 #include "ui/PortableSetup.h"
 #include "ui/ProjectLook.h"
@@ -458,7 +459,18 @@ static void windowChecks(const QString &W)
     // File > Options > General > This Computer, and Backup's empty folder
     QString whereText, placeholder;
     bool optSetup = false;
+    // 0.90.4: the place of notes and transcriptions tells where it is kept, as every option does since 0.90.1
+    // (v0901 found these four controls without it in its first run on Windows, where this page is always there)
+    QStringList notesUnmarked;
+    int notesControls = 0;
     whenModal([&](QWidget *m) {
+        for (const char *name : {"portNotesDocuments", "portNotesProgram", "portNotesOwn", "portNotesOwnFolder"})
+            if (auto *c = m->findChild<QWidget *>(QLatin1String(name))) {
+                ++notesControls;
+                const QString tip = c->toolTip();
+                if (optstore::keyOf(c).isEmpty() || !(tip.contains(QLatin1String("Fixed:")) || tip.contains(QLatin1String("Depends on the setting:"))))
+                    notesUnmarked << QLatin1String(name) + QLatin1String(" [") + optstore::keyOf(c) + QLatin1String("] ") + tip.right(120);
+            }
         if (auto *l = m->findChild<QLabel *>(QStringLiteral("optThisComputerWhere")))
             whereText = plain(l->text());
         optSetup = m->findChild<PortableSetup *>() != nullptr;
@@ -470,6 +482,9 @@ static void windowChecks(const QString &W)
     });
     OptionsDialog::run(&w, [](OptionsDialog &dlg) { dlg.showSection(OptionsDialog::SGeneral, QStringLiteral("This Computer")); });
     settle(200);
+    check(notesControls == 4 && notesUnmarked.isEmpty(),
+          QStringLiteral("Options > This Computer: the place of notes and transcriptions tells where it is kept (the program's own setting)"),
+          QStringLiteral("%1 controls; %2").arg(notesControls).arg(notesUnmarked.join(QLatin1String(" | "))));
     check(optSetup && whereText.contains(QDir::toNativeSeparators(dataDir())) && !placeholder.isEmpty(),
           QStringLiteral("File > Options > General > This Computer, and the backup folder's note on the page Backup"), whereText);
 
