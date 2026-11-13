@@ -30,6 +30,12 @@ bool open(QWidget *parent, const QString &href);
 // a program file is refused. True when it was opened.
 bool openFile(QWidget *parent, const QString &path);
 
+// 0.90.1 (UR-05): the question before a file or folder on this computer opens: its kind, its whole name and its
+// folder, which wrap anywhere (zero-width spaces), so a long name's ending can be read
+QString fileQuestion(const QString &path);
+// s with a zero-width space after each separator and after every 24 characters without one
+QString breakable(const QString &s);
+
 // Tests: called instead of the desktop's URL handler.
 void setOpenerForTests(std::function<void(const QUrl &)> fn);
 

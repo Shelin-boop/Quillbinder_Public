@@ -3,6 +3,57 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.90.1 beta (2026-11-13)
+
+A program update for 0.90.0 (File > Install Update or Add-on; it fits 0.80.0 and later). Memory during long writing
+sessions, and the findings of the usability review of 0.90.0 the writer chose (UR-01, 02, 05, 07, 08, 10, 12, 13, 14,
+16, 18, 19).
+
+- **Menus that grew at every opening**. Navigate > Go To and Open Quick Reference (the binder as nested menus),
+  Documents > Change Icon, Format > Style (Edit Style, Delete Style), the mind map's menus and the script settings' menu
+  are filled anew each time they open; the old submenus stayed in memory with all their entries. In the system test's
+  writing day the program held 296 MB after 10 minutes, about 70 % of it these menus; now 83 MB (measured with
+  heaptrack). With a large project each opening of Go To kept a copy of the whole binder.
+- Measured, not changed: left open with a project, the program's memory stays the same (30 minutes, 110 MB); no memory
+  is lost in the sense of a leak (under 0.4 MB at the end of the writing day). What remains is the texts shown in a
+  session and their layout, which stay in memory until the project closes (documents are not unloaded yet).
+- **Where an option is kept** (UR-10, UR-03). In File > Options a small circle stands before every option: green "P",
+  kept in the open project; blue "A", kept by the program for all projects. Its tool tip says whether that place is
+  fixed (the language, the backup folder ...) or depends on "Settings for" (and, for colors, fonts and widths of the
+  look, on "Show and change the look of").
+- **Dialogs on small screens** (UR-02). No window of the program is larger than the screen without the desktop's
+  panels: Options scroll, Compile and the license list get smaller; OK, Cancel and Apply stay in view (before, a
+  1366 x 768 laptop could hide them below the edge).
+- **The keyboard comes back** (UR-01). When a dialog closes and no window of the program has the keyboard (seen on a
+  desktop without a window manager; KDE usually gives it back itself), the window the dialog came from gets it again,
+  in the control that had it: words typed after closing Options with Esc reach the text.
+- **Undo and Redo name their step** (UR-12): "Undo Typing", "Undo Paste", "Undo Bold", "Redo Delete" (the step names
+  of every menu command, of typing, deleting and pasting). They act in the field that has the keyboard and are off
+  elsewhere, so after Empty Trash an enabled Undo no longer suggests it could bring the documents back. The arrow beside
+  the toolbar's Undo and Redo lists the steps; choosing one takes back that step and every later one. Each Format
+  command is one step now (Bold made two, so Undo had to be pressed twice).
+- **Shortcuts** (UR-07): Navigate > Inspect > Go to Synopsis (Ctrl+Alt+Y) and Go to Document Notes (Ctrl+Alt+N) put
+  the keyboard there; Back Up Now is Ctrl+Shift+B; Ctrl+Alt+4 to 9 apply the next six styles of the style list (after
+  No Style and Heading 1 to 3, which keep Ctrl+Alt+0 to 3). [Not checked: whether a desktop takes one of these for
+  itself; File > Options > Keyboard changes them.]
+- **Right-click on the binder's empty space** (UR-14) offers only New Text, New Folder, New From Template and
+  Appearance (before: every command of the selected document, such as Move to Trash and Merge).
+- **Close buttons** (UR-16) in Find by Formatting and in Print Preview (Qt's preview had none).
+- **Project Statistics** (UR-08) shows the busy pointer while it counts (2.7 s on the system test's large project).
+- **The question before a link to a file opens** (UR-05, self-descriptiveness as ISO 9241-110 asks) names the kind of
+  file ("plain text document (.txt)"), the whole name and the folder. A long name wraps anywhere, so its ending can be
+  read, and a file that is not there is said to be missing.
+- **Large numbers** (UR-18): written as the program's language writes them, 44,825 in English and 44.825 in German
+  (before: as the system's setting said, often 44825). File > Options > General > Startup, "Group the digits of large
+  numbers", switches it off. With English the decimal point in the program's numbers is now a point also on a German
+  desktop.
+- **Hint texts readable** (UR-13): the grey text in empty fields (the synopsis' "Synopsis: a short summary ...", Quick
+  search) has a contrast of 4.5:1 or more, in light and dark looks (before about 3:1).
+- **Compile window** (UR-19): the Formats column is at least as wide as its longest name at any scale (at scale 2
+  "Default (Editor Formatting)" touched the edge); the widths of the three columns set by hand are kept; the arrow of
+  "All categories" no longer covers its text.
+- The German texts of all of this.
+
 ## 0.90.0 beta (2026-11-12)
 
 A new AppImage on the runtime of 0.80.0 (`u2404-qt6.12-r1`, the same libraries: the add-ons of 0.80.0 fit, and 0.80.0

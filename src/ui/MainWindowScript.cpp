@@ -1,5 +1,6 @@
 // Format > Scriptwriting: script mode, the elements, the script format.
 #include "ui/MainWindow.h"
+#include "ui/UndoNames.h"
 
 #include "core/BinderModel.h"
 #include "core/DocumentStore.h"
@@ -32,6 +33,7 @@ void MainWindow::createScriptActions()
         ac->setIconText(plain);
         if (!ks.isEmpty())
             ac->setShortcut(ks);
+        undonames::nameStepsOf(ac); // 0.90.1 (UR-12): the undo step it makes is named after it
         a.insert(key, ac);
         addAction(ac);
         return ac;

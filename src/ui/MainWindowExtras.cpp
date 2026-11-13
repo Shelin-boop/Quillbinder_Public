@@ -1,6 +1,7 @@
 // Additions of 0.17 to the main window: Navigate > Fonts, Documents > Change
 // Icon (the whole icon set, recent icons, Icon from Text, Manage Icons), the
 // icon bar, the two color buttons of the format bar, Help > Developer Guide.
+#include "ui/MenuClear.h"
 #include "ui/ObjectsUi.h"
 #include "AppInfo.h"
 #include "core/IconCatalog.h"
@@ -15,6 +16,7 @@
 #include "ui/FontInstall.h"
 #include "ui/IconDialogs.h"
 #include "ui/MainWindow.h"
+#include "ui/UndoNames.h"
 #include "ui/TextEditor.h"
 
 #include <QAction>
@@ -51,6 +53,7 @@ void MainWindow::createExtraActions()
         ac->setIconText(plain);
         if (!icon.isEmpty())
             ac->setIcon(icons::action(icon));
+        undonames::nameStepsOf(ac); // 0.90.1 (UR-12): the undo step it makes is named after it
         a.insert(key, ac);
         addAction(ac);
         return ac;
@@ -181,7 +184,7 @@ void MainWindow::rememberIcon(const QString &icon)
 
 void MainWindow::fillIconMenu(QMenu *menu)
 {
-    menu->clear();
+    clearMenu(menu);
     const Project *p = m_project.get();
     menu->addAction(a[QStringLiteral("resetIcon")]);
     menu->addAction(a[QStringLiteral("iconFromText")]);

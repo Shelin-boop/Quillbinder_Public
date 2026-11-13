@@ -17,6 +17,13 @@ QString configured();                    // what the settings (or QB_LANGUAGE) a
 QString active();                        // what install() put in place
 // Installs the translator of the configured language (call once, right after the QApplication is made).
 void install();
+// 0.90.1 (the usability review of 0.90.0, UR-18): numbers are written as the program's language writes them, with
+// the digits grouped (English 44,825; German 44.825) unless the writer turned that off (File > Options > General >
+// Startup, app/groupDigits). Sets Qt's default locale, which every count of the program goes through; before, an
+// English program followed the system's setting (no separators at all under "C", German dots on a German desktop).
+void applyNumbers(bool groupDigits);
+// how 44825 looks now
+QString numberExample();
 
 } // namespace language
 } // namespace qb

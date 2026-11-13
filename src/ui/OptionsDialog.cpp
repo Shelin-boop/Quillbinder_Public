@@ -1,4 +1,5 @@
 #include "ui/OptionsDialog.h"
+#include "ui/OptionStorage.h"
 #include "core/TestSwitches.h"
 #include "ui/HintLabel.h"
 #include "ui/Language.h"
@@ -337,7 +338,14 @@ OptionsDialog::OptionsDialog(QWidget *parent, int page) : QDialog(parent)
         m_toolSectionIds << t->id();
     }
     m_pages->setMinimumWidth(cell.width() * m_pages->count() + 4);
-    lay->addWidget(m_stack, 1);
+    // 0.90.1 (the usability review of 0.90.0, UR-02): on a screen lower than the window (a 1366 x 768 laptop) the pages
+    // scroll; before, OK and Cancel could lie under the desktop's panel
+    auto *stackScroll = new QScrollArea(this);
+    stackScroll->setObjectName(QStringLiteral("optionsScroll"));
+    stackScroll->setFrameShape(QFrame::NoFrame);
+    stackScroll->setWidgetResizable(true);
+    stackScroll->setWidget(m_stack);
+    lay->addWidget(stackScroll, 1);
     // number fields and lists as wide as their contents (a form would stretch them over the page)
     for (QWidget *w : m_stack->findChildren<QWidget *>()) {
         if (m_keyboard->isAncestorOf(w) || w->objectName() == QLatin1String("themeCombo"))
@@ -377,6 +385,7 @@ OptionsDialog::OptionsDialog(QWidget *parent, int page) : QDialog(parent)
     const int map[] = {SGeneral, SAppearance, SEditing, SBehaviors, SKeyboard, SBackup, SExtras};
     const int section = map[qBound(0, page, 6)];
     showSection(section, page == Plugins ? tr("Add-ons and Plugins") : QString());
+    markStorage();
     updateScopeInfo();
 }
 
@@ -390,6 +399,7 @@ OptionsDialog::~OptionsDialog()
 
 void OptionsDialog::updateScopeInfo()
 {
+    refreshStorage(); // 0.90.1: the badges follow what the project keeps
     if (!m_scopeInfo)
         return;
     const int n = projectValueCount();
@@ -566,6 +576,15 @@ QWidget *OptionsDialog::generalSection()
     f->addRow(hint(tr("The language of menus, windows and messages; it changes at the next start of the program. The "
                       "manual and the welcome project stay in English."),
                    startup));
+    // 0.90.1 (UR-18): large numbers with their digits grouped, as the language writes them
+    m_groupDigits = new QCheckBox(tr("Group the digits of large numbers (%1)")
+                                       .arg(language::active() == QLatin1String("de") ? QLocale(QLocale::German, QLocale::Germany).toString(44825)
+                                                                                      : QLocale(QLocale::English, QLocale::UnitedStates).toString(44825)), startup);
+    m_groupDigits->setObjectName(QStringLiteral("optGroupDigits"));
+    m_groupDigits->setChecked(s.groupDigits);
+    m_groupDigits->setToolTip(tr("Word and character counts, targets and statistics: 44,825 in English and 44.825 in German; "
+                                 "unticked 44825"));
+    f->addRow(m_groupDigits);
     pages.append({tr("Startup"), startup});
 
     // Saving
@@ -1342,6 +1361,7 @@ QWidget *OptionsDialog::appearanceSection()
         storeScope();
         m_scope = i;
         loadScope();
+        refreshStorage();
     });
     connect(m_theme, qOverload<int>(&QComboBox::currentIndexChanged), this, [this] { refreshLook(); });
     connect(m_resetLook, &QPushButton::clicked, this, &OptionsDialog::resetLook);
@@ -1649,7 +1669,7 @@ void OptionsDialog::refreshLook()
         const bool own = m_ownColors.contains(key);
         const QColor c = m_shown.value(ri.role);
         setButtonColor(b, c);
-        b->setToolTip(own ? tr("%1 (your own color)").arg(c.name())
+        optstore::setToolTip(b, own ? tr("%1 (your own color)").arg(c.name())
                           : t.colors.contains(ri.role) ? tr("%1 (from the theme)").arg(c.name())
                                                        : tr("%1 (automatic: follows the other colors)").arg(c.name()));
         m_colorResets.value(key)->setEnabled(own);
@@ -2482,6 +2502,7 @@ void OptionsDialog::apply()
     AppSettings &s = AppSettings::instance();
     // General
     s.openLastProject = m_openLast->isChecked();
+    s.groupDigits = m_groupDigits->isChecked();
     s.useDesktopPortal = m_portal->isChecked();
     s.recentCount = m_recentCount->value();
     while (s.recentProjects.size() > s.recentCount)

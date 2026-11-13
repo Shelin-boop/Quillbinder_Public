@@ -47,6 +47,10 @@ public:
     void setEditor(TextEditor *editor);
     BinderItem *item() const { return m_item; }
     void showTab(Tab t);
+    // 0.90.1 (the usability review of 0.90.0, UR-07): the keyboard into the synopsis or the document notes (Navigate >
+    // Inspect > Go to Synopsis / Go to Document Notes); false when there is nothing to write in (no document)
+    bool focusSynopsis();
+    bool focusNotes();
     int currentTab() const;
     // Tabs of writing tools (tool interface 1.1, 0.61): their buttons sit at the left end
     // of the row; their numbers follow Objects in the order they were added.

@@ -62,6 +62,7 @@
 #include <QGraphicsScene>
 #include <QLabel>
 #include <QLineEdit>
+#include <QLocale>
 #include <QListWidget>
 #include <QMenu>
 #include <QMessageBox>
@@ -357,6 +358,25 @@ static void optionsChecks()
                   && d.findChild<QLineEdit *>(QStringLiteral("optSepMergeCustom"))->isEnabled(),
               QStringLiteral("... and the window shows them when opened again"));
     }
+    // 0.90.1 (UR-18): General > Startup, Group the digits of large numbers (app/groupDigits), on by default
+    {
+        OptionsDialog d(&w, 0);
+        auto *g = d.findChild<QCheckBox *>(QStringLiteral("optGroupDigits"));
+        check(g && g->isChecked() && as.groupDigits, QStringLiteral("Group the digits of large numbers: there, ticked by default"));
+        if (g)
+            g->setChecked(false);
+        d.accept();
+    }
+    {
+        OptionsDialog d(&w, 0);
+        auto *g = d.findChild<QCheckBox *>(QStringLiteral("optGroupDigits"));
+        check(!as.groupDigits && QLocale().toString(12345) == QLatin1String("12345") && g && !g->isChecked(),
+              QStringLiteral("... unticked with OK: kept, and numbers are written 12345"));
+        if (g)
+            g->setChecked(true);
+        d.accept();
+    }
+    check(as.groupDigits && QLocale().toString(12345) == QLatin1String("12,345"), QStringLiteral("... ticked again: 12,345"));
 
     // Manage > Save Options to File, Load Options from File; Defaults
     const QString optFile = dir.filePath(QStringLiteral("my.qboptions"));

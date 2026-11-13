@@ -1,4 +1,5 @@
 #include "ui/ScriptDialogs.h"
+#include "ui/MenuClear.h"
 
 #include "text/DirectFormat.h"
 #include "text/DisplayFormat.h"
@@ -637,7 +638,7 @@ void ScriptSettingsDialog::updatePreview()
 void ScriptSettingsDialog::fillManageMenu()
 {
     QMenu *m = m_manage->menu();
-    m->clear();
+    clearMenu(m);
     QMenu *use = m->addMenu(tr("Start From"));
     use->setObjectName(QStringLiteral("startFromMenu"));
     script::Kind last = script::Kind::BuiltIn;

@@ -1,4 +1,5 @@
 #include "ui/AppSettings.h"
+#include "ui/Language.h"
 #include "core/SettingsLayer.h"
 #include "core/SyncSafety.h"
 #include "core/Backup.h"
@@ -48,6 +49,7 @@ AppSettings &AppSettings::instance()
 // compile libraries do not know the window side): handed over after load and save.
 void AppSettings::pushToModules()
 {
+    language::applyNumbers(groupDigits);
     text::setRevisionColors(revisionColors);
     compile::setAuthorContact({{QStringLiteral("street"), street}, {QStringLiteral("city"), city}, {QStringLiteral("state"), state},
                                {QStringLiteral("zip"), zip}, {QStringLiteral("country"), country}, {QStringLiteral("phone"), phone},
@@ -88,6 +90,7 @@ void AppSettings::load()
     autosaveSeconds = s.value(QStringLiteral("autosave"), 2).toInt();
     openLastProject = s.value(QStringLiteral("openLast"), true).toBool();
     language = s.value(QStringLiteral("language"), QStringLiteral("en")).toString() == QLatin1String("de") ? QStringLiteral("de") : QStringLiteral("en");
+    groupDigits = s.value(QStringLiteral("groupDigits"), true).toBool();
     recentProjects = s.value(QStringLiteral("recent")).toStringList();
     welcomeFolder = s.value(QStringLiteral("welcomeFolder")).toString();
     welcomeShown = s.value(QStringLiteral("welcomeShown"), false).toBool();
@@ -400,6 +403,7 @@ void AppSettings::save()
     s.setValue(QStringLiteral("autosave"), autosaveSeconds);
     s.setValue(QStringLiteral("openLast"), openLastProject);
     s.setValue(QStringLiteral("language"), language);
+    s.setValue(QStringLiteral("groupDigits"), groupDigits);
     s.setValue(QStringLiteral("recent"), recentProjects);
     s.setValue(QStringLiteral("welcomeFolder"), welcomeFolder);
     s.setValue(QStringLiteral("welcomeShown"), welcomeShown);

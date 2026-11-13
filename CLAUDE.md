@@ -175,6 +175,12 @@ changed and what was checked. Preferences:
   written anew; changes made here (freeform corkboard, bookmarks, targets, history, saved searches, card picture, compile
   author) written and read back; the project file in English and German. `QB_SCRIV_REAL=<folder.scriv>` adds a real
   project (counts only of what it holds; never named); `QB_V0900_KEEP=<file>`).
+- `qb_v0901_tests` (0.90.1 beta: menus opened 30 times keep no old submenus; File > Options: every option control
+  marked with its place (P/A badge, tool tip; also in "This project" scope), the pages scroll; the keyboard back in the
+  text after Options, Project Targets, Take Snapshot, Project Settings, Compile; dialogs fitted to a 1366 x 768 screen;
+  placeholder contrast (light and dark); Compile's Formats column also at scale 2 (a child run with `QT_SCALE_FACTOR=2`);
+  Undo names and lists; the binder's empty space; Close in Find by Formatting and Print Preview; the busy pointer of
+  Project Statistics; the new shortcuts and no shortcut given twice; digit grouping; the link question of a long name).
 - `qb_audit1_tests` (0.64.1, the fixes of the external audit of 2026-11-09: ids of a project file and names in archives
   (`core/PathSafety.*`), damaged ZIP entries, a Word 97 file with a looping sector chain (compiles the plugin's `Cfb.cpp`),
   XML nested 20,000 deep, the keys a project may hold and the question of Load Options, the code warning of packages,
@@ -233,6 +239,36 @@ changed and what was checked. Preferences:
   public repository, https://shelin-boop.github.io/Quillbinder_Public/): a button per system for the full version, the
   visitor's system first. Needs, once, Settings > Pages > Source "GitHub Actions" in the public repository (the writer).
   The README's download part links it and is sorted by system too.
+
+## Memory and the usability review (0.90.1 beta, 2026-11-13)
+
+- **Menus filled in `aboutToShow`** are emptied with `qb::clearMenu` (`ui/MenuClear.h`): `QMenu::clear()` keeps the
+  submenus made by `addMenu()` (children of the menu, their entries owned by them); heaptrack found them as about 70 % of
+  the memory after the system test's writing day. Use `clearMenu` for every menu built anew when it opens.
+- **Where an option is kept** (`ui/OptionStorage.*`, `optstore::mark(control, key)` in `OptionsDialogStorage.cpp`,
+  `refreshStorage()` from `updateScopeInfo` and the look scope): a badge ("storageBadge", green P / blue A, property
+  `qbPlace`) before each control (moved into a "storageHolder"), the tool tip's last paragraph says fixed or depending.
+  Keys: the settings key ("group/key"), "group/*" for a group (zoomDefault, tools/<id>), "look" for the look. A **new
+  option needs a mark** there: `qb_v0901_tests` fails on any input of File > Options without one (list of non-options
+  in `notAnOption`). Tool tips set later go through `optstore::setToolTip` (keeps the place sentence).
+- **`ui/WindowCare.*`** (one application event filter, `windowcare::install()` from the MainWindow constructor): dialogs
+  fitted to `usableArea` at Show (`fitInto`, title bar room 34 px), the keyboard given back to the owner's former focus
+  widget after a dialog hides (at 0 ms and again at 250 ms: without a window manager X takes the focus away later),
+  placeholder colors at 4.5:1 (`readablePlaceholder`), `addCloseButton` for Qt's print previews.
+- **Undo names** (`ui/UndoNames.*`, `MainWindowUndo.cpp`): a "book" (child object of each QTextDocument) maps Qt's raw
+  undo count (`availableUndoSteps` counts single changes, an edit block several; Qt 6.12's `availableRedoSteps` is one
+  short) to named steps; names come from `nameStepsOf` (every `act()` helper connects it before the command's slot),
+  `TextEditor::keyPressEvent` (Typing, Delete, Paste, Cut) or the change itself. Undo/Redo act on the focus widget
+  only and are disabled where nothing can be undone; the toolbar buttons "undoButton"/"redoButton" get the lists
+  "undoList"/"redoList" in `placeToolButtons`. Format commands run in one edit block (one step).
+- **Numbers**: `language::applyNumbers(groupDigits)` sets `QLocale::setDefault` from the program's language (en_US or
+  de_DE), with `OmitGroupSeparator` when `app/groupDigits` is off; `text::plural` uses it. Under English the default
+  locale is en_US now (before: the system's).
+- Also: `MainWindow::showBinderBackgroundMenu` (signal `BinderPanel::backgroundMenuRequested`), `Inspector::focusSynopsis
+  / focusNotes` (commands `goSynopsis` Ctrl+Alt+Y, `goNotes` Ctrl+Alt+N), Ctrl+Alt+4..9 for the first six styles of
+  `stylelist::all` without a shortcut, `backupNow` Ctrl+Shift+B, `links::fileQuestion` / `breakable`, Compile's
+  `fitFormatsColumn` and `window/compileSplit`. New German texts: lupdate on a copy, then the new messages put into
+  `translations/quillbinder_de.ts` in its own layout (Qt 6.12's lupdate rewrites the whole file).
 
 ## Scrivener format, part 3: the rest of a project (0.90.0 beta, 2026-11-12)
 

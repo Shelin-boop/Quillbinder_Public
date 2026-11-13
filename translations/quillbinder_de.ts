@@ -4004,6 +4004,10 @@ Quelle: %1</translation>
             <source>Speech</source>
             <translation>Sprache</translation>
         </message>
+        <message>
+            <source>Cannot load %1: %2</source>
+            <translation>%1 kann nicht geladen werden: %2</translation>
+        </message>
     </context>
     <context>
         <name>TextStatisticsTool</name>
@@ -7662,6 +7666,10 @@ In die Ordner von Windows und in die Registrierung wird nichts geschrieben, auß
         <message>
             <source>Any Style</source>
             <translation>Beliebige Formatvorlage</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>Schließen</translation>
         </message>
     </context>
     <context>
@@ -12182,6 +12190,62 @@ The fonts can be used at once. They stay in the program&apos;s folder: other pro
 
 Die Schriften sind sofort nutzbar. Sie bleiben im Ordner des Programms: Andere Programme sehen sie nicht (um sie auch dort zu nutzen, installieren Sie sie mit Windows: Rechtsklick auf die Schriftdatei &gt; Installieren).</translation>
         </message>
+        <message>
+            <source>Go to S&amp;ynopsis</source>
+            <translation>Zur S&amp;ynopse</translation>
+        </message>
+        <message>
+            <source>Go to Document &amp;Notes</source>
+            <translation>Zu den Dokument&amp;notizen</translation>
+        </message>
+        <message>
+            <source>Typing</source>
+            <translation>Tippen</translation>
+        </message>
+        <message>
+            <source>&amp;Undo %1</source>
+            <translation>&amp;Rückgängig: %1</translation>
+        </message>
+        <message>
+            <source>&amp;Redo %1</source>
+            <translation>&amp;Wiederherstellen: %1</translation>
+        </message>
+        <message>
+            <source>Undo</source>
+            <translation>Rückgängig</translation>
+        </message>
+        <message>
+            <source>Redo</source>
+            <translation>Wiederherstellen</translation>
+        </message>
+        <message>
+            <source>Undo %1</source>
+            <translation>Rückgängig: %1</translation>
+        </message>
+        <message>
+            <source>Nothing to undo in the field that has the keyboard</source>
+            <translation>Im Feld mit der Tastatur gibt es nichts rückgängig zu machen</translation>
+        </message>
+        <message>
+            <source>Redo %1</source>
+            <translation>Wiederherstellen: %1</translation>
+        </message>
+        <message>
+            <source>Nothing to redo in the field that has the keyboard</source>
+            <translation>Im Feld mit der Tastatur gibt es nichts wiederherzustellen</translation>
+        </message>
+        <message>
+            <source>Nothing to undo</source>
+            <translation>Nichts rückgängig zu machen</translation>
+        </message>
+        <message>
+            <source>Nothing to redo</source>
+            <translation>Nichts wiederherzustellen</translation>
+        </message>
+        <message>
+            <source>and %1 earlier steps</source>
+            <translation>und %1 frühere Schritte</translation>
+        </message>
     </context>
     <context>
         <name>qb::ManageIconsDialog</name>
@@ -15919,6 +15983,14 @@ Ihre zuletzt verwendeten Projekte, eigene Designs, Layouts, Symbolleisten und Ta
             <source>No folder chosen: no automatic backups</source>
             <translation>Kein Ordner gewählt: keine automatischen Sicherungen</translation>
         </message>
+        <message>
+            <source>Group the digits of large numbers (%1)</source>
+            <translation>Große Zahlen mit Tausendertrennzeichen schreiben (%1)</translation>
+        </message>
+        <message>
+            <source>Word and character counts, targets and statistics: 44,825 in English and 44.825 in German; unticked 44825</source>
+            <translation>Wort- und Zeichenzahlen, Ziele und Statistik: 44,825 auf Englisch und 44.825 auf Deutsch; ohne Haken 44825</translation>
+        </message>
     </context>
     <context>
         <name>qb::Outliner</name>
@@ -18698,6 +18770,22 @@ Strg+Klick zum Öffnen</translation>
             <source>Original Size</source>
             <translation>Originalgröße</translation>
         </message>
+        <message>
+            <source>Paste</source>
+            <translation>Einfügen</translation>
+        </message>
+        <message>
+            <source>Cut</source>
+            <translation>Ausschneiden</translation>
+        </message>
+        <message>
+            <source>Delete</source>
+            <translation>Löschen</translation>
+        </message>
+        <message>
+            <source>Typing</source>
+            <translation>Tippen</translation>
+        </message>
     </context>
     <context>
         <name>qb::ThemeManagerDialog</name>
@@ -19342,18 +19430,6 @@ Such files are not opened from a link. If you trust it, open it yourself from yo
 Solche Dateien werden nicht über einen Link geöffnet. Wenn Sie ihr vertrauen, öffnen Sie sie selbst über Ihren Dateimanager.</translation>
         </message>
         <message>
-            <source>This link points to a file or folder on this computer:
-
-%1
-
-Open it?</source>
-            <translation>Dieser Link verweist auf eine Datei oder einen Ordner auf diesem Computer:
-
-%1
-
-Öffnen?</translation>
-        </message>
-        <message>
             <source>This link points to a file on another computer of the network:
 
 %1
@@ -19392,6 +19468,42 @@ It is not opened from here. If you trust it, open it yourself from your file man
 %1
 
 Sie wird von hier aus nicht geöffnet. Wenn Sie ihr vertrauen, öffnen Sie sie selbst über Ihren Dateimanager.</translation>
+        </message>
+        <message>
+            <source>a folder</source>
+            <translation>einen Ordner</translation>
+        </message>
+        <message>
+            <source>a file of unknown kind</source>
+            <translation>eine Datei unbekannter Art</translation>
+        </message>
+        <message>
+            <source>This link points to %1 on this computer.</source>
+            <translation>Dieser Link zeigt auf %1 auf diesem Computer.</translation>
+        </message>
+        <message>
+            <source>a file</source>
+            <translation>eine Datei</translation>
+        </message>
+        <message>
+            <source>Kind: %1</source>
+            <translation>Art: %1</translation>
+        </message>
+        <message>
+            <source>Name: %1</source>
+            <translation>Name: %1</translation>
+        </message>
+        <message>
+            <source>Folder: %1</source>
+            <translation>Ordner: %1</translation>
+        </message>
+        <message>
+            <source>It is not there now (moved, renamed, or on a drive that is not connected).</source>
+            <translation>Sie ist zurzeit nicht da (verschoben, umbenannt oder auf einem Laufwerk, das nicht angeschlossen ist).</translation>
+        </message>
+        <message>
+            <source>Open it?</source>
+            <translation>Öffnen?</translation>
         </message>
     </context>
     <context>
@@ -19435,6 +19547,57 @@ Sie wird von hier aus nicht geöffnet. Wenn Sie ihr vertrauen, öffnen Sie sie s
         <message>
             <source>Cannot write %1</source>
             <translation>%1 kann nicht geschrieben werden</translation>
+        </message>
+    </context>
+    <context>
+        <name>qb::optstore</name>
+        <message>
+            <source>Part of the look: kept by the program as the look for new projects (A). An open project keeps a look of its own (P).</source>
+            <translation>Teil des Aussehens: vom Programm als Aussehen für neue Projekte gespeichert (A). Ein geöffnetes Projekt hat ein eigenes Aussehen (P).</translation>
+        </message>
+        <message>
+            <source>Part of the look: kept with this project (P), as chosen in &quot;Show and change the look of&quot; above.</source>
+            <translation>Teil des Aussehens: mit diesem Projekt gespeichert (P), wie oben bei „Aussehen anzeigen und ändern für“ gewählt.</translation>
+        </message>
+        <message>
+            <source>Part of the look: kept by the program as the look for new projects (A), as chosen in &quot;Show and change the look of&quot; above.</source>
+            <translation>Teil des Aussehens: vom Programm als Aussehen für neue Projekte gespeichert (A), wie oben bei „Aussehen anzeigen und ändern für“ gewählt.</translation>
+        </message>
+        <message>
+            <source>Fixed: kept by the program for all projects (A). A project cannot keep a value of its own here.</source>
+            <translation>Fest: vom Programm für alle Projekte gespeichert (A). Ein Projekt kann hier keinen eigenen Wert haben.</translation>
+        </message>
+        <message>
+            <source>Depends on the setting: kept by the program for all projects (A). An open project can keep a value of its own (P): &quot;Settings for: This project&quot;.</source>
+            <translation>Hängt von der Einstellung ab: vom Programm für alle Projekte gespeichert (A). Ein geöffnetes Projekt kann einen eigenen Wert haben (P): „Einstellungen für: Dieses Projekt“.</translation>
+        </message>
+        <message>
+            <source>Depends on the setting: kept by the program for all projects (A). Projects&apos; own values are not used now (General &gt; Which settings come first).</source>
+            <translation>Hängt von der Einstellung ab: vom Programm für alle Projekte gespeichert (A). Eigene Werte von Projekten werden zurzeit nicht verwendet (Allgemein &gt; Welche Einstellungen Vorrang haben).</translation>
+        </message>
+        <message>
+            <source>Depends on the setting: this project keeps a value of its own (P), used while it is open.</source>
+            <translation>Hängt von der Einstellung ab: dieses Projekt hat einen eigenen Wert (P), der gilt, solange es geöffnet ist.</translation>
+        </message>
+        <message>
+            <source>Depends on the setting: this project uses the value for all projects (A). Change it here and press OK to keep a value of its own (P).</source>
+            <translation>Hängt von der Einstellung ab: dieses Projekt verwendet den Wert für alle Projekte (A). Hier ändern und mit OK bestätigen, um einen eigenen Wert zu speichern (P).</translation>
+        </message>
+        <message>
+            <source>Depends on the setting: here you change the value for all projects (A). This project keeps a value of its own (P), which it uses while it is open.</source>
+            <translation>Hängt von der Einstellung ab: hier ändern Sie den Wert für alle Projekte (A). Dieses Projekt hat einen eigenen Wert (P), der gilt, solange es geöffnet ist.</translation>
+        </message>
+        <message>
+            <source>Depends on the setting: kept by the program for all projects (A). A project can keep a value of its own (P): &quot;Settings for: This project&quot;.</source>
+            <translation>Hängt von der Einstellung ab: vom Programm für alle Projekte gespeichert (A). Ein Projekt kann einen eigenen Wert haben (P): „Einstellungen für: Dieses Projekt“.</translation>
+        </message>
+        <message>
+            <source>Kept in this project</source>
+            <translation>In diesem Projekt gespeichert</translation>
+        </message>
+        <message>
+            <source>Kept by the program for all projects</source>
+            <translation>Vom Programm für alle Projekte gespeichert</translation>
         </message>
     </context>
     <context>
@@ -19492,6 +19655,25 @@ Sie wird von hier aus nicht geöffnet. Wenn Sie ihr vertrauen, öffnen Sie sie s
         <message>
             <source>That window has no project open any more.</source>
             <translation>Dieses Fenster hat kein Projekt mehr geöffnet.</translation>
+        </message>
+    </context>
+    <context>
+        <name>qb::undonames</name>
+        <message>
+            <source>Change</source>
+            <translation>Änderung</translation>
+        </message>
+        <message>
+            <source>Formatting</source>
+            <translation>Formatierung</translation>
+        </message>
+        <message>
+            <source>Typing</source>
+            <translation>Tippen</translation>
+        </message>
+        <message>
+            <source>Delete</source>
+            <translation>Löschen</translation>
         </message>
     </context>
     <context>

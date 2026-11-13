@@ -267,6 +267,11 @@ target_compile_definitions(qb_v0813_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CU
 # real project (xvfb-run -a ./qb_v0900_tests /tmp/shots)
 add_executable(qb_v0900_tests v0900_tests.cpp ${QB_RESOURCES_QRC} ${CMAKE_SOURCE_DIR}/translations/translations.qrc)
 target_link_libraries(qb_v0900_tests PRIVATE qbui Qt6::Test)
+
+# 0.90.1: menus filled again each time they open keep no copies of their old submenus (heaptrack, the system test's
+# writing day) (xvfb-run -a ./qb_v0901_tests /tmp/shots)
+add_executable(qb_v0901_tests v0901_tests.cpp ${QB_RESOURCES_QRC} ${CMAKE_SOURCE_DIR}/translations/translations.qrc)
+target_link_libraries(qb_v0901_tests PRIVATE qbui Qt6::Test)
 target_compile_definitions(qb_v0900_tests PRIVATE QB_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" QB_TEST_BUILD_DIR="${CMAKE_BINARY_DIR}")
 # The readers against damaged input (0.80.0, the external audit of 2026-11-09, ST-5): fixed-seed damage of small
 # valid inputs of RTF, Markdown, XML, ZIP, DOCX, ODT, Word 97 and .scrivx, each read in this process

@@ -174,6 +174,7 @@ public:
 signals:
     void selectionChanged(const QList<qb::BinderItem *> &items);
     void contextMenuRequested(const QPoint &globalPos);
+    void backgroundMenuRequested(const QPoint &globalPos); // empty space of the binder (0.90.1)
     void newDocumentRequested();
     void newFolderRequested();
     void trashRequested();

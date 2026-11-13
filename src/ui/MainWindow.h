@@ -23,6 +23,7 @@ class QFontComboBox;
 class QDoubleSpinBox;
 class QLineEdit;
 class QMenu;
+class QTimer;
 class QSplitter;
 class QToolBar;
 class QToolButton;
@@ -358,6 +359,13 @@ private:
     void fillItemMenu(QMenu *menu);
     // lookPart: lookmenu::Part of what was clicked (binder, corkboard, outliner), -1: none
     void showItemContextMenu(const QPoint &globalPos, int lookPart = -1);
+    void showBinderBackgroundMenu(const QPoint &globalPos);
+    // 0.90.1 (the usability review of 0.90.0, UR-12): Undo and Redo name their step and act only where they can;
+    // the toolbar's Undo and Redo have a list of the steps (MainWindowUndo.cpp)
+    void setupUndoNames();
+    void watchUndoTarget();
+    void updateUndoNames();
+    void fillUndoList(QMenu *menu, bool undo);
     void showHeaderMenu(EditorPane *pane, const QPoint &globalPos);
     void enterComposition();
     void showPageSetup();
@@ -389,6 +397,10 @@ private:
     // and their shortcuts act on it while the keyboard is on the format bar itself (the
     // size field takes the keyboard when clicked) or in a menu.
     QPointer<QTextEdit> m_lastTextField;
+    QMenu *m_undoMenu = nullptr;
+    QMenu *m_redoMenu = nullptr;
+    QTimer *m_undoNamesTimer = nullptr;
+    QList<QMetaObject::Connection> m_undoWatch;
     // a long text field of the Objects sheet with the cursor (0.21.1): bold, italic,
     // underline, strikethrough, text color and highlight act on it
     ObjectTextEdit *objectTextTarget() const;

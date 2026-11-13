@@ -3,6 +3,8 @@
 #include "ui/Ask.h"
 #include "ui/LinkOpen.h"
 #include "ui/MainWindow.h"
+#include "ui/UndoNames.h"
+#include "ui/WindowCare.h"
 #include "core/SettingsLayer.h"
 #include "ui/LookMenu.h"
 #include "ui/ProjectLook.h"
@@ -316,6 +318,7 @@ MainWindow::MainWindow()
     connect(m_binder, &BinderPanel::searchChanged, this, &MainWindow::applySearchHighlights);
     connect(m_binder, &BinderPanel::contextMenuRequested, this,
             [this](const QPoint &pos) { showItemContextMenu(pos, int(lookmenu::Part::Binder)); });
+    connect(m_binder, &BinderPanel::backgroundMenuRequested, this, &MainWindow::showBinderBackgroundMenu);
     connect(m_binder, &BinderPanel::newDocumentRequested, this, [this] { a[QStringLiteral("newText")]->trigger(); });
     connect(m_binder, &BinderPanel::newFolderRequested, this, [this] { a[QStringLiteral("newFolder")]->trigger(); });
     connect(m_binder, &BinderPanel::trashRequested, this, [this] { a[QStringLiteral("trash")]->trigger(); });
@@ -444,6 +447,8 @@ MainWindow::MainWindow()
     // File > Options > General > Automatic Quit (0.21): every key and mouse input counts
     m_lastInput = QDateTime::currentDateTime();
     qApp->installEventFilter(new InputWatch(this));
+    windowcare::install(); // 0.90.1: dialogs fit the screen, the keyboard comes back, readable placeholders
+    setupUndoNames();      // 0.90.1: Undo and Redo name their step (UR-12)
     noUiAnimations();
     m_autoQuitTimer = new QTimer(this);
     m_autoQuitTimer->setInterval(20000);
@@ -842,6 +847,7 @@ void MainWindow::createActions()
             ac->setIcon(icons::action(icon));
         if (!ks.isEmpty())
             ac->setShortcut(ks);
+        undonames::nameStepsOf(ac); // 0.90.1 (UR-12): the undo step it makes is named after it
         a.insert(key, ac);
         addAction(ac);
         return ac;
@@ -914,7 +920,10 @@ void MainWindow::createActions()
         else
             QMessageBox::warning(this, tr("Save as Template"), err);
     }));
-    connect(act(QStringLiteral("backupNow"), tr("Back Up &Now"), QStringLiteral("document-save-all")), &QAction::triggered,
+    // 0.90.1 (UR-07): Ctrl+Shift+B
+    connect(act(QStringLiteral("backupNow"), tr("Back Up &Now"), QStringLiteral("document-save-all"),
+                QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_B)),
+            &QAction::triggered,
             this, withProject([this] { backupNow(false); }));
     connect(act(QStringLiteral("backupTo"), tr("Back Up &To…")), &QAction::triggered, this,
             withProject([this] { backupNow(true); }));
@@ -1312,7 +1321,12 @@ void MainWindow::createActions()
             }));
     connect(act(QStringLiteral("statistics"), tr("Project S&tatistics…"), QStringLiteral("view-statistics")),
             &QAction::triggered, this, withProject([this] {
+                // 0.90.1 (the usability review of 0.90.0, UR-08): the counting took almost 3 s on a large project
+                // without a sign; the busy cursor shows that it runs
+                QApplication::setOverrideCursor(Qt::WaitCursor);
+                QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
                 StatisticsDialog d(m_project.get(), this);
+                QApplication::restoreOverrideCursor();
                 d.exec();
             }));
     connect(act(QStringLiteral("history"), tr("&Writing History…"), QStringLiteral("view-calendar")), &QAction::triggered,
@@ -1511,7 +1525,11 @@ void MainWindow::createActions()
             if (QWidget *f = QApplication::focusWidget(); f && qobject_cast<ObjectsWindow *>(f->window()))
                 return;
             if (TextEditor *e = editor()) {
+                // 0.90.1 (UR-12): one command, one undo step (Bold made two: Undo had to be pressed twice)
+                QTextCursor block(e->document());
+                block.beginEditBlock();
                 fn(e);
+                block.endEditBlock();
                 updateFormatBar();
             }
         });
@@ -1912,6 +1930,17 @@ void MainWindow::createActions()
             });
         }
     }
+    // 0.90.1 (the usability review of 0.90.0, UR-07): the synopsis and the notes from the keyboard
+    connect(act(QStringLiteral("goSynopsis"), tr("Go to S&ynopsis"), QString(), QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Y)),
+            &QAction::triggered, this, [this] {
+                a[QStringLiteral("showInspector")]->setChecked(true);
+                m_inspector->focusSynopsis();
+            });
+    connect(act(QStringLiteral("goNotes"), tr("Go to Document &Notes"), QString(), QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_N)),
+            &QAction::triggered, this, [this] {
+                a[QStringLiteral("showInspector")]->setChecked(true);
+                m_inspector->focusNotes();
+            });
 
     // ---- window: layouts, quick reference windows
     connect(act(QStringLiteral("layoutSave"), tr("&Save Current Layout…"), QStringLiteral("document-save-as")),
@@ -2087,6 +2116,9 @@ void MainWindow::updateActions()
         if (top->menu() && top->menu()->property("qbNeedsProject").toBool())
             top->setEnabled(has);
     a[QStringLiteral("citations")]->setEnabled(has && !AppSettings::instance().citationsApp.trimmed().isEmpty());
+    // the synopsis and notes of the document the inspector shows (0.90.1)
+    a[QStringLiteral("goSynopsis")]->setEnabled(has && m_inspector->item());
+    a[QStringLiteral("goNotes")]->setEnabled(has && m_inspector->item());
     {
         const bool scriv = has && !m_project->scrivenerPath.isEmpty();
         a[QStringLiteral("formatQuillbinder")]->setChecked(has && !scriv);
@@ -2661,6 +2693,16 @@ void MainWindow::refreshInspector()
 {
     if (!m_project || !m_active)
         return;
+    // Go to Synopsis / Go to Document Notes follow the inspector's document (0.90.1)
+    struct Follow {
+        MainWindow *w;
+        ~Follow()
+        {
+            const bool item = w->m_inspector->item() != nullptr;
+            w->a[QStringLiteral("goSynopsis")]->setEnabled(item);
+            w->a[QStringLiteral("goNotes")]->setEnabled(item);
+        }
+    } follow{this};
     // the binder marks the document of the active editor while another one is selected
     {
         const QList<BinderItem *> shown = m_active->items();
@@ -4032,6 +4074,21 @@ void MainWindow::showItemContextMenu(const QPoint &globalPos, int lookPart)
     menu.exec(globalPos);
 }
 
+// 0.90.1 (the usability review of 0.90.0, UR-14): a right-click on the binder's empty space offered every command of
+// the selected document (Rename, Move to Trash, Merge ...), which act on a document the writer may not have in mind
+// after clicking below the list; now only what makes something new, and the binder's look
+void MainWindow::showBinderBackgroundMenu(const QPoint &globalPos)
+{
+    updateActions();
+    QMenu menu(this);
+    menu.setObjectName(QStringLiteral("binderBackgroundMenu"));
+    menu.addAction(a[QStringLiteral("newText")]);
+    menu.addAction(a[QStringLiteral("newFolder")]);
+    menu.addMenu(m_templateMenu);
+    lookmenu::add(&menu, lookmenu::Part::Binder, this);
+    menu.exec(globalPos);
+}
+
 void MainWindow::showHeaderMenu(EditorPane *pane, const QPoint &globalPos)
 {
     setActivePane(pane);
@@ -4446,6 +4503,7 @@ void MainWindow::printPreview(const PrintSettings *settings)
         QApplication::restoreOverrideCursor();
     });
     dlg.resize(qMin(1100, width() - 40), qMin(900, height() - 20));
+    windowcare::addCloseButton(&dlg); // 0.90.1 (UR-16): Qt's preview has no Close button
     dlg.exec();
 }
 

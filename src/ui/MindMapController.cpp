@@ -1,4 +1,5 @@
 #include "ui/MindMapController.h"
+#include "ui/WindowCare.h"
 #include "ui/Ask.h"
 #include "core/SafeSave.h"
 #include "ui/LinkOpen.h"
@@ -2762,6 +2763,7 @@ void MindMapController::printPreview()
     QPrintPreviewDialog dlg(&m_printer, m_owner);
     dlg.setWindowTitle(tr("Print Preview"));
     connect(&dlg, &QPrintPreviewDialog::paintRequested, this, [this](QPrinter *pr) { printBoard(pr); });
+    windowcare::addCloseButton(&dlg); // 0.90.1 (UR-16)
     dlg.exec();
 }
 

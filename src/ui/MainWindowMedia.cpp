@@ -1,5 +1,6 @@
 // Audio and video: Navigate > Media, Insert > Media Timestamp (MediaPlayback.h).
 #include "ui/MainWindow.h"
+#include "ui/UndoNames.h"
 
 #include "core/ItemIcons.h"
 #include "media/MediaApi.h"
@@ -29,6 +30,7 @@ void MainWindow::createMediaActions()
             ac->setIcon(icons::action(icon));
         if (!ks.isEmpty())
             ac->setShortcut(ks);
+        undonames::nameStepsOf(ac); // 0.90.1 (UR-12): the undo step it makes is named after it
         a.insert(key, ac);
         addAction(ac);
         m_mediaActions << ac;

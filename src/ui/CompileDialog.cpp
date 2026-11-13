@@ -44,7 +44,9 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QSettings>
 #include <QSplitter>
+#include <QStyle>
 #include <QStandardPaths>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -208,7 +210,19 @@ CompileDialog::CompileDialog(Project *p, QWidget *parent) : QDialog(parent), m_p
     split->setStretchFactor(0, 2);
     split->setStretchFactor(1, 3);
     split->setStretchFactor(2, 4);
+    split->setObjectName(QStringLiteral("compileSplit"));
     lay->addWidget(split, 1);
+    // 0.90.1 (UR-19): the widths of the three columns as the writer left them (the program's, not a project's)
+    {
+        QSettings st;
+        const QByteArray state = st.value(QStringLiteral("window/compileSplit")).toByteArray();
+        if (!state.isEmpty())
+            split->restoreState(state);
+        connect(split, &QSplitter::splitterMoved, this, [split] {
+            QSettings st;
+            st.setValue(QStringLiteral("window/compileSplit"), split->saveState());
+        });
+    }
 
     auto *bb = new QDialogButtonBox(this);
     auto *previewBtn = bb->addButton(tr("Preview"), QDialogButtonBox::HelpRole);
@@ -391,10 +405,9 @@ QWidget *CompileDialog::buildContentsTab()
         m_objectSheets->setToolTip(tr("The characters, locations and other objects of the Objects sheet, after the back "
                                       "matter: a heading per category, a section per object with its fields"));
         m_objectSheets->setChecked(m_settings.objectSheets);
-        m_objectCategories = new QToolButton(cw);
+        // 0.90.1 (UR-19): a push button with its menu (the tool button drew its arrow over the end of its text)
+        m_objectCategories = new QPushButton(cw);
         m_objectCategories->setObjectName(QStringLiteral("compileObjectCategories"));
-        m_objectCategories->setPopupMode(QToolButton::InstantPopup);
-        m_objectCategories->setToolButtonStyle(Qt::ToolButtonTextOnly);
         auto *menu = new QMenu(m_objectCategories);
         auto refreshText = [this, menu] {
             QStringList on;
@@ -428,7 +441,8 @@ QWidget *CompileDialog::buildContentsTab()
         refreshText();
         m_objectCategories->setEnabled(m_objectSheets->isChecked());
         row->addWidget(m_objectSheets);
-        row->addWidget(m_objectCategories, 1);
+        row->addStretch(1);
+        row->addWidget(m_objectCategories);
         cl->addLayout(row);
         connect(m_objectSheets, &QCheckBox::toggled, this, [this](bool on) {
             m_settings.objectSheets = on;
@@ -649,8 +663,26 @@ void CompileDialog::loadFormats(const QString &select)
     }
     m_formats->setCurrentRow(selRow >= 0 ? selRow : firstRow);
     m_settings.formatName = currentFormat().name;
+    fitFormatsColumn();
     refreshAssignments();
     refreshContents();
+}
+
+// 0.90.1 (the usability review of 0.90.0, UR-19): the Formats column is at least as wide as its longest name (at any
+// scale; "Default (Editor Formatting)" touched the edge at scale 2 and a sideways scroll bar came); wider by hand stays
+void CompileDialog::fitFormatsColumn()
+{
+    if (!m_formats)
+        return;
+    m_formats->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    int widest = 0;
+    for (int r = 0; r < m_formats->count(); ++r)
+        widest = qMax(widest, m_formats->sizeHintForIndex(m_formats->model()->index(r, 0)).width());
+    const int scroll = m_formats->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, m_formats);
+    const int least = widest + 2 * m_formats->frameWidth() + scroll + m_formats->spacing() * 2 + 8;
+    m_formats->setMinimumWidth(least);
+    if (QWidget *column = m_formats->parentWidget())
+        column->setMinimumWidth(qMax(least, column->minimumSizeHint().width()));
 }
 
 Format CompileDialog::currentFormat() const

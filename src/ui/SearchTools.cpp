@@ -619,10 +619,16 @@ FormatFindWindow::FormatFindWindow(Project *project, QWidget *parent) : QDialog(
     prev->setObjectName(QStringLiteral("formatPrevious"));
     next->setObjectName(QStringLiteral("formatNext"));
     next->setDefault(true);
+    // 0.90.1 (the usability review of 0.90.0, UR-16): a Close button (Esc closed the window, but nothing said so)
+    auto *close = new QPushButton(tr("Close"), this);
+    close->setObjectName(QStringLiteral("formatClose"));
+    close->setAutoDefault(false);
+    buttons->addWidget(close);
     buttons->addStretch(1);
     buttons->addWidget(prev);
     buttons->addWidget(next);
     vl->addLayout(buttons);
+    connect(close, &QPushButton::clicked, this, &QDialog::reject);
 
     connect(m_kind, &QComboBox::currentIndexChanged, this, &FormatFindWindow::kindChanged);
     connect(m_colorButton, &QToolButton::clicked, this, [this] {

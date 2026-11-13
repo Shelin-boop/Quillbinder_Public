@@ -3,6 +3,7 @@
 
 #include <QColor>
 #include <QList>
+#include <QLocale>
 #include <QString>
 #include <QTextCharFormat>
 
@@ -15,7 +16,7 @@ namespace text {
 // "1 theme" / "3 themes" (the interface is English only, so no translation files)
 inline QString plural(int n, const QString &one, const QString &many)
 {
-    return QString::number(n) + QLatin1Char(' ') + (n == 1 ? one : many);
+    return QLocale().toString(n) + QLatin1Char(' ') + (n == 1 ? one : many); // 0.90.1: digits grouped (UR-18)
 }
 
 // Visual + semantic format for a note run.

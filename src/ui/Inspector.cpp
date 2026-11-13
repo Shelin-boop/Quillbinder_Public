@@ -1904,6 +1904,27 @@ void Inspector::applyLabelTint()
     m_notes->viewport()->update();
 }
 
+bool Inspector::focusSynopsis()
+{
+    showTab(Notes);
+    QWidget *target = m_synopsis && m_synopsis->isVisible() ? static_cast<QWidget *>(m_synopsis) : m_cardTitle;
+    if (!target || !target->isEnabled() || !m_item)
+        return false;
+    window()->activateWindow();
+    target->setFocus(Qt::ShortcutFocusReason);
+    return true;
+}
+
+bool Inspector::focusNotes()
+{
+    showTab(Notes);
+    if (!m_notes || !m_notes->isEnabled() || !m_item)
+        return false;
+    window()->activateWindow();
+    m_notes->setFocus(Qt::ShortcutFocusReason);
+    return true;
+}
+
 void Inspector::showTab(Tab t)
 {
     if (int(t) < 0 || int(t) >= m_stack->count())

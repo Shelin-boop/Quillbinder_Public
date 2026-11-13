@@ -14,6 +14,7 @@ class QLabel;
 class QStackedWidget;
 class QTabWidget;
 class QTextBrowser;
+class QPushButton;
 class QToolButton;
 
 namespace qb {
@@ -40,6 +41,7 @@ public:
     void showTab(Tab t);
 
 private:
+    void fitFormatsColumn();
     void loadFormats(const QString &select);
     void refreshAssignments();
     void refreshContents();
@@ -73,7 +75,7 @@ private:
     QTextBrowser *m_layoutPreview = nullptr;
     QComboBox *m_group, *m_front, *m_back;
     QCheckBox *m_frontOn = nullptr, *m_backOn = nullptr, *m_objectSheets = nullptr;
-    QToolButton *m_objectCategories = nullptr;
+    QPushButton *m_objectCategories = nullptr;
     QCheckBox *m_groupText;
     QTreeWidget *m_contents;
     QTabWidget *m_tabs = nullptr;

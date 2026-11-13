@@ -2,6 +2,7 @@
 // styles (menus, format bar list, Styles Panel, creating and changing styles).
 
 #include "ui/MainWindow.h"
+#include "ui/MenuClear.h"
 #include "ui/Ask.h"
 
 #include "AppInfo.h"
@@ -57,7 +58,7 @@ void formatsAt(TextEditor *e, QTextBlockFormat *bf, QTextCharFormat *cf)
 
 void MainWindow::fillStyleMenu(QMenu *menu, TextEditor *target, bool full)
 {
-    menu->clear();
+    clearMenu(menu);
     const Formatting f = m_project ? m_project->formatting : Formatting();
     TextEditor *shown = target ? target : editor();
     const QString curPara = shown ? shown->paragraphStyleAtCursor() : QString();

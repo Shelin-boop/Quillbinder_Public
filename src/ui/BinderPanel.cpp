@@ -676,8 +676,13 @@ BinderPanel::BinderPanel(QWidget *parent) : QWidget(parent)
     connect(m_tree, &BinderTree::enterPressed, this, &BinderPanel::newDocumentRequested);
     connect(m_tree, &BinderTree::deletePressed, this, &BinderPanel::trashRequested);
     connect(m_tree, &BinderTree::spacePressed, this, &BinderPanel::quickReferenceRequested);
-    connect(m_tree, &QWidget::customContextMenuRequested, this,
-            [this](const QPoint &p) { emit contextMenuRequested(m_tree->viewport()->mapToGlobal(p)); });
+    // 0.90.1 (the usability review of 0.90.0, UR-14): empty space below the items offers what makes something new
+    connect(m_tree, &QWidget::customContextMenuRequested, this, [this](const QPoint &p) {
+        if (m_tree->indexAt(p).isValid())
+            emit contextMenuRequested(m_tree->viewport()->mapToGlobal(p));
+        else
+            emit backgroundMenuRequested(m_tree->viewport()->mapToGlobal(p));
+    });
     connect(m_results, &QWidget::customContextMenuRequested, this,
             [this](const QPoint &p) { emit contextMenuRequested(m_results->viewport()->mapToGlobal(p)); });
     connect(m_tree, &BinderTree::selectionChangedByUser, this, [this] {

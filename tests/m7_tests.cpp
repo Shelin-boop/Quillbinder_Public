@@ -439,12 +439,24 @@ int main(int argc, char **argv)
             settle(200);
             mouseDrag(icon0, center(icon0), header1, center(header1));
             const bool shown = pane1->items() == QList<BinderItem *>({ships}) && pane0->items() == QList<BinderItem *>({ships});
-            // ... and onto a folder in the binder: it moves there
-            mouseDrag(icon0, center(icon0), tree->viewport(), rowCenter(chapter2));
+            // ... and onto a folder in the binder: it moves there. 0.90.1: the folder's row in the middle of the binder and
+            // the binder's own scrolling off during the drag (the release workflow's runner dropped elsewhere twice:
+            // a row near the edge scrolls the binder while the mouse rests there)
+            tree->scrollTo(m->indexFor(chapter2), QAbstractItemView::PositionAtCenter);
+            settle(150);
+            const bool autoScroll = tree->hasAutoScroll();
+            tree->setAutoScroll(false);
+            const QRect row = tree->visualRect(m->indexFor(chapter2));
+            const QModelIndex under = tree->indexAt(row.center());
+            const QString underTitle = under.isValid() && m->itemFor(under) ? m->itemFor(under)->title : QStringLiteral("nothing");
+            mouseDrag(icon0, center(icon0), tree->viewport(), row.center());
+            tree->setAutoScroll(autoScroll);
             const bool moved = ships->parent == chapter2;
             check(shown && moved,
                   QStringLiteral("dragging the header icon with the mouse: onto the other editor's header bar shows the document there, onto a folder in the binder moves it"),
-                  QStringLiteral("shown %1 moved %2 (parent %3)").arg(shown).arg(moved).arg(ships->parent->title));
+                  QStringLiteral("shown %1 moved %2 (parent %3; the row %4,%5 %6x%7 in a viewport of %8x%9 holds %10)")
+                      .arg(shown).arg(moved).arg(ships->parent->title).arg(row.x()).arg(row.y()).arg(row.width()).arg(row.height())
+                      .arg(tree->viewport()->width()).arg(tree->viewport()->height()).arg(underTitle));
             m->moveItems({ships}, chapter, 0);
             emit pane0->splitButtonClicked(pane0, false); // close the split
             settle(300);

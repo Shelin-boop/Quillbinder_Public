@@ -124,7 +124,9 @@ if command -v pactl > /dev/null && ! pactl info > /dev/null 2>&1; then
         pulseaudio -n -D --exit-idle-time=-1 --system=false --log-target=stderr \
         --load="module-null-sink sink_name=qbnull" --load="module-native-protocol-unix" > "$OUT/pulseaudio.log" 2>&1 \
         || pulseaudio -D --exit-idle-time=-1 --system=false >> "$OUT/pulseaudio.log" 2>&1 || true
-    sleep 2
+    # 0.90.1: wait for its socket (up to 10 s; 2 s were not always enough, and an old socket of a server that is gone
+    # was taken instead: the microphone checks of v061 found "Connection refused")
+    for _ in $(seq 1 20); do [ -S "$PULSE_DIR/pulse/native" ] && break; sleep 0.5; done
 fi
 PS=$(ls -d ${PULSE_DIR:+"$PULSE_DIR"/pulse/native} /tmp/pulse-*/native "${XDG_RUNTIME_DIR:-/nonexistent}"/pulse/native 2>/dev/null | head -1)
 [ -n "$PS" ] && export PULSE_SERVER=unix:$PS
@@ -215,6 +217,7 @@ runx v0811 $B/tests/qb_v0811_tests $B/tests/qb_v0811_tests "$OUT/shots-v0811"
 runx v0812 $B/tests/qb_v0812_tests $B/tests/qb_v0812_tests "$OUT/shots-v0812"
 runx v0813 $B/tests/qb_v0813_tests $B/tests/qb_v0813_tests "$OUT/shots-v0813"
 runx v0900 $B/tests/qb_v0900_tests $B/tests/qb_v0900_tests "$OUT/shots-v0900"
+runx v0901 $B/tests/qb_v0901_tests $B/tests/qb_v0901_tests "$OUT/shots-v0901"
 runx audit1 $B/tests/qb_audit1_tests $B/tests/qb_audit1_tests "$OUT/shots-audit1"
 runx fuzz $B/tests/qb_fuzz_tests $B/tests/qb_fuzz_tests "$OUT/shots-fuzz"
 runx w2 $B/tests/qb_w2_tests $B/tests/qb_w2_tests "$OUT/shots-w2"

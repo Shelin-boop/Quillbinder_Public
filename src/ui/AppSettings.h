@@ -41,6 +41,7 @@ public:
     int autosaveSeconds = 2;
     bool openLastProject = true;
     QString language = QStringLiteral("en"); // 0.70.0: "en" or "de"; takes effect at the next start (ui/Language.h)
+    bool groupDigits = true;                 // 0.90.1 (UR-18): 44,825 rather than 44825 (app/groupDigits)
     QStringList recentProjects;
     QString lastProjectDir;
     bool useDesktopPortal = true;

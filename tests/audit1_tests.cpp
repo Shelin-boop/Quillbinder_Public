@@ -615,7 +615,10 @@ int main(int argc, char **argv)
         QString text, name;
         answerBox(300, QMessageBox::Cancel, &text, &name);
         const bool o1 = links::open(nullptr, QUrl::fromLocalFile(pdf).toString());
-        check(!o1 && opened.isEmpty() && name == QLatin1String("linkQuestion") && text.contains(pdf),
+        // (0.90.1, UR-05: the name and the folder on lines of their own, with places to wrap, zero-width spaces)
+        const QString flat = QString(text).remove(QChar(0x200B));
+        check(!o1 && opened.isEmpty() && name == QLatin1String("linkQuestion") && flat.contains(QFileInfo(pdf).fileName())
+                  && flat.contains(QDir::toNativeSeparators(QFileInfo(pdf).absolutePath())),
               QStringLiteral("X-4: a link to a file shows the whole target and is not opened on Cancel"), name + QLatin1Char(' ') + text);
         answerBox(300, QMessageBox::Open, &text, &name);
         const bool o2 = links::open(nullptr, QStringLiteral("smb://server/share/doc.docx"));

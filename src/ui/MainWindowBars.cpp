@@ -1,6 +1,8 @@
 // Menus, toolbars, window layouts and the lists of commands that change
 // with the project (styles) or the data folder (layouts).
 #include "ui/MainWindow.h"
+#include "ui/UndoNames.h"
+#include "ui/MenuClear.h"
 #include "ui/LinkOpen.h"
 #include "ui/ProjectLook.h"
 #include <QMimeData>
@@ -230,6 +232,7 @@ void MainWindow::createMenus()
     // ---- Edit
     QMenu *edit = mb->addMenu(tr("&Edit"));
     add(edit, {"undo", "redo", "", "cut", "copy", "paste", "pastePlain", "pasteKeep", "", "selectAll"});
+    connect(edit, &QMenu::aboutToShow, this, &MainWindow::updateUndoNames); // 0.90.1: the names of the steps (UR-12)
     QMenu *select = edit->addMenu(tr("&Select"));
     add(select, {"selectAnnotation"});
     edit->addSeparator();
@@ -356,7 +359,7 @@ void MainWindow::createMenus()
     openQr->setObjectName(QStringLiteral("openQuickRefMenu"));
     openQr->addAction(QString()); // placeholder so the empty menu can open
     connect(openQr, &QMenu::aboutToShow, this, [this, openQr] {
-        openQr->clear();
+        clearMenu(openQr);
         if (!m_project) {
             openQr->addAction(tr("No project is open"))->setEnabled(false);
             return;
@@ -395,7 +398,12 @@ void MainWindow::createMenus()
     for (QAction *ac : m_affectsGroup->actions())
         affects->addAction(ac);
     QMenu *inspect = nav->addMenu(tr("&Inspect"));
-    add(inspect, {"inspect0", "inspect1", "inspect5", "inspect6", "inspect2", "inspect3", "inspect4"});
+    add(inspect, {"goSynopsis", "goNotes", "", "inspect0", "inspect1", "inspect5", "inspect6", "inspect2", "inspect3", "inspect4"});
+    connect(inspect, &QMenu::aboutToShow, this, [this] {
+        const bool item = m_project && m_inspector->item();
+        a[QStringLiteral("goSynopsis")]->setEnabled(item);
+        a[QStringLiteral("goNotes")]->setEnabled(item);
+    });
     add(nav, {"", "focusBinder", ""});
     createFontMenu(nav);
 
@@ -1073,7 +1081,7 @@ void MainWindow::rebuildToolBars()
 // as nested menus (a click loads the document into the active editor).
 void MainWindow::fillGoToMenu(QMenu *menu)
 {
-    menu->clear();
+    clearMenu(menu);
     menu->addAction(a[QStringLiteral("prevDoc")]);
     menu->addAction(a[QStringLiteral("nextDoc")]);
     menu->addAction(a[QStringLiteral("enclosingGroup")]);
@@ -1170,6 +1178,7 @@ void MainWindow::rebuildStyleActions()
         ac->setObjectName(QStringLiteral("style:") + name);
         ac->setData(name);
         ac->setShortcut(standard);
+        undonames::nameStepsOf(ac);
         connect(ac, &QAction::triggered, this, [this, name] {
             if (TextEditor *e = editor()) {
                 e->applyStyle(name);
@@ -1181,8 +1190,22 @@ void MainWindow::rebuildStyleActions()
         commands::add(ac, tr("Styles"), QString(), true);
     };
     make(QString(), tr("No Style"), QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_0));
+    // 0.90.1 (the usability review of 0.90.0, UR-07): Ctrl+Alt+4 ... 9 for the first six styles of the style list
+    // (Format > Style > Customize Style List) that have no shortcut of their own (No Style 0, the headings 1 to 3)
+    QMap<QString, QKeySequence> listKeys;
+    {
+        int key = 4;
+        for (const stylelist::Entry &e : stylelist::all(m_project.get())) {
+            if (key > 9)
+                break;
+            if (!e.shown || e.name.isEmpty() || e.name == QLatin1String("Heading 1") || e.name == QLatin1String("Heading 2")
+                || e.name == QLatin1String("Heading 3"))
+                continue;
+            listKeys.insert(e.name, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key(Qt::Key_0 + key++)));
+        }
+    }
     for (const Style &s : styles::sheet(f).styles) {
-        QKeySequence standard;
+        QKeySequence standard = listKeys.value(s.name);
         for (int level = 1; level <= 3; ++level)
             if (s.name == QStringLiteral("Heading %1").arg(level))
                 standard = QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key(Qt::Key_0 + level));

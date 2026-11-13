@@ -122,6 +122,8 @@ The **toolbar** at the top holds, from left to right: the **View** button (binde
 
 The **format bar** below it holds the style, font, size, line spacing, default text formatting, the fonts window, bold, italic, underline, strikethrough, highlight, text color, alignment, lists, the space before and after the paragraph, the indent of the first line and of the whole paragraph, comments, footnotes, inline annotations, and images. Show or hide the two bars with **View > Toolbars**.
 
+**Dialogs.** A window the program opens (Options, Compile, Project Targets ...) is never larger than the screen without the desktop's panels: on a small laptop screen its contents scroll or get smaller, and its buttons stay in view. When it closes, the keyboard goes back to where it was, usually the text, so you can type on at once.
+
 **Where am I?** Double-click the space beside the text (the paper beside the column or the area around it): the binder selects the document beside the click, opens the folders above it, and lets its row blink twice in orange. The editor keeps what it shows. **Navigate > Reveal in Binder** (**Ctrl+Shift+R**) does the same for the document at the cursor.
 
 The **footer** of each editor shows the word and character count (select text to count only the selection) and the target for the document. Click the count for details. When the editor shows a folder (or a document with subdocuments), the footer also shows the **total** of the folder: the words of its own text and of everything inside it, for example "Folder: 12,345 words". The corkboard and the outliner show the same total in the middle of their footer; with several items shown, it is the total of all of them. A click on a total shows its details (words, characters, characters without spaces, paragraphs, and pages), as the count of a text does. The inspector shows it under **Total** in the metadata of a folder, and resting the mouse on a folder in the binder shows it too (with the folder's own words when it has text of its own).
@@ -204,6 +206,8 @@ Every project has three special folders:
 - **Split and merge**: **Documents > Split > at Selection** (**Ctrl+K**) cuts the document at the cursor into two; it does not work inside a table or a picture's caption (put the cursor before or after it). **Documents > Merge** (**Ctrl+Shift+M**) joins the selected documents into the first one, with their synopses, keywords, and notes; the others go to the Trash.
 - **Change the icon**: right-click > **Change Icon** (or **Documents > Change Icon**), or the icon bar (section 2). See "Icons" below.
 
+**Right-click.** On a document, the right-click menu has the commands for the selected documents (rename, duplicate, move to the Trash, snapshots, label, status, and more). On the empty space below the documents it offers only what makes something new: **New Text**, **New Folder**, **New From Template**, and the binder's **Appearance**.
+
 A document can have subdocuments, just like a folder. Folders and documents behave the same way; folders simply look different and open as a corkboard by default.
 
 A click in the binder loads the document into the editor. After **Back**, a document link, or with a locked editor, the editor can show another document than the one selected in the binder: a **gray bar** then marks the editor's document in the binder. **Navigate > Reveal in Binder** (**Ctrl+Shift+R**) selects it.
@@ -264,7 +268,7 @@ Collections are extra lists of documents, for example "Needs research" or "Scene
 | Show or hide the ruler | Ctrl+Alt+R |
 | Paste without formatting | Ctrl+Shift+V |
 | Paste with formatting (from other programs) | Ctrl+Alt+Shift+V |
-| Undo / redo | Ctrl+Z / Ctrl+Shift+Z |
+| Undo / redo | Ctrl+Z / Ctrl+Shift+Z (see "Undo and redo" below) |
 
 Bold, italic, superscript and the like work on the selection. Without a selection, inside a word they change the whole word; at the end of a word (or with nothing around the cursor) they change what you type next: type "H", press Ctrl+=, type "2", press Ctrl+= again and type "O" for H₂O.
 
@@ -279,6 +283,8 @@ Bold, italic, superscript and the like work on the selection. Without a selectio
 **Revision mode** (**Format > Revision Mode**): everything you type is colored with one of five revision colors, so you can see what changed in an edit round. Choose **Off** to stop.
 
 **Spacing and indents in the format bar.** Four buttons after the list buttons set the paragraphs that hold the cursor or the selection: the **space before** and the **space after** the paragraph (0, 3, 6, 9, 12, or 18 pt), the **indent of the first line**, and the **indent of the whole paragraph** (in centimeters or inches, as the ruler shows them). The value of the paragraph at the cursor is ticked; **Other...** asks for any value. **Edit > Undo** takes a change back. A format bar you arranged yourself gets the four buttons once, after the list buttons; **View > Toolbars > Customize Toolbars** moves or removes them.
+
+**Undo and redo.** **Edit > Undo** and **Edit > Redo** work in the text field that has the keyboard (the editor, the synopsis, the notes, a title) and say what they will take back: "Undo Typing", "Undo Paste", "Undo Bold", "Redo Delete". With the keyboard elsewhere, for example in the binder, they are grayed out: moving documents to the Trash, emptying the Trash, and deleting snapshots cannot be undone this way (a document in the Trash comes back by dragging it out; see section 11 for snapshots). The arrow beside the **Undo** and **Redo** buttons of the toolbar lists the steps, the next one first; choosing one takes back (or brings back) that step and every step before it in the list. Each command of the Format menu is one step.
 
 **Text color and highlight in the format bar.** The two buttons with a colored bar (a pen for highlighting, a letter *T* for the text color) work like those of Scrivener and Word: a click applies the color shown in the bar to the selected text, or, without a selection, to what you type next. Rest the mouse on a button for a moment and a small window with **red, blue, yellow, green, white, and black** opens below it, plus **No Highlight** (or **Automatic** for the text color) and **…** for any other color. A click on a color applies it and makes it the color of the button, which keeps it for the next click (also after a restart).
 
@@ -410,7 +416,7 @@ A click on commented text opens the inspector with that comment. **Alt+click** o
 - **Insert > Image From File…** puts a picture into the text; you can also drag a picture into the text or paste one. Right-click the picture and choose **Image Size…** to change how large it appears.
 - **Edit > Link to Document…** (**Ctrl+L**) links the selected text to another document in the project. Clicking the link opens that document (in the other editor, the same editor, its copyholder, or a Quick Reference panel; see **File > Options > Behaviors**).
 - **Edit > Insert Web Link…** links to a web page.
-- Web and mail links (*http*, *https*, *mailto*) open at once. Any other target of a link, in a text, a mind map, a bookmark or an imported web page (a file, a folder, a network address, another program's kind of link), is shown in full first and opened only when you click **Open**; such links can come with a project, a web page or a Word file of someone else. Links to programs, scripts, shortcuts and installers are never opened; open those yourself from your file manager if you trust them.
+- Web and mail links (*http*, *https*, *mailto*) open at once. Any other target of a link, in a text, a mind map, a bookmark or an imported web page (a file, a folder, a network address, another program's kind of link), is shown in full first and opened only when you click **Open**; such links can come with a project, a web page or a Word file of someone else. For a file or folder on your computer the question names its kind (for example "plain text document (.txt)"), its whole name and its folder; a long name wraps, so its ending can be read, and a file that is not there is said to be missing. Links to programs, scripts, shortcuts and installers are never opened; open those yourself from your file manager if you trust them.
 
 ### Tables
 
@@ -698,7 +704,7 @@ Since 0.80.0 the player always decodes with its own FFmpeg: the Qt that {{APP}} 
 
 The buttons at the top of the inspector switch between:
 
-- **Synopsis and notes**: the synopsis is a short summary that appears on the index card. You can use a picture instead of text: click the picture button of the card and drop an image file or a picture from the binder on the gray area (or double-click the area to choose a file; right-click to remove the picture). Below it are the **document notes** (or, switched with the small menu, the **project notes**, shared by the whole project).
+- **Synopsis and notes**: the synopsis is a short summary that appears on the index card. You can use a picture instead of text: click the picture button of the card and drop an image file or a picture from the binder on the gray area (or double-click the area to choose a file; right-click to remove the picture). Below it are the **document notes** (or, switched with the small menu, the **project notes**, shared by the whole project). **Navigate > Inspect > Go to Synopsis** (**Ctrl+Alt+Y**) and **Go to Document Notes** (**Ctrl+Alt+N**) put the keyboard there from the text; **Alt+2** goes back to the editor.
 - **Bookmarks**: the bookmarks of the document and those of the project. A click on a bookmark of a document of the project shows its text below the lists. You can write and format there as in an editor (the format bar, the Format menu and their shortcuts act on it while the cursor is in it): everything goes into the document and its file at once, and an editor that shows the same document shows the change at once. The text there has a zoom of its own.
 - **Mind Map**: a board of notes for the document or folder (see "Mind maps" below).
 - **Objects**: the characters, locations, environments, points of interest, weather, and other things of your story, each with a sheet of its own and links between them (see "Objects" below).
@@ -902,7 +908,7 @@ Formatting stays as it is: the new text takes over the formatting of the text it
 | Style | text with a paragraph or character style | which style |
 | Images | pictures in the text | |
 
-**Containing text** narrows the search to places that contain a word (for comments and footnotes, the note's own text counts too). **Next** and **Previous** select the next place. With **Search in: All Documents**, the search continues in the following documents of the binder and opens them; with **The Current Editor Only** it stays where you are. **Ctrl+G** and **Ctrl+Shift+G** repeat the search without the window.
+**Containing text** narrows the search to places that contain a word (for comments and footnotes, the note's own text counts too). **Next** and **Previous** select the next place. With **Search in: All Documents**, the search continues in the following documents of the binder and opens them; with **The Current Editor Only** it stays where you are. **Ctrl+G** and **Ctrl+Shift+G** repeat the search without the window. **Close** (or **Esc**) closes the window.
 
 ---
 
@@ -910,7 +916,7 @@ Formatting stays as it is: the new text takes over the formatting of the text it
 
 - **Project > Project Targets** (**Ctrl+Shift+T**): set a word or character target for the Draft and for each writing session, and optionally a deadline and your writing days. {{APP}} can then calculate how much you need to write each session. The two thin bars under the quick-search box show your progress (blue: Draft; orange: session).
 - **Document targets**: click the target in the editor footer.
-- **Project > Project Statistics**: words and characters in the Draft, in the compiled text, and in the whole project, plus an estimate of the page count.
+- **Project > Project Statistics**: words and characters in the Draft, in the compiled text, and in the whole project, plus an estimate of the page count. In a large project the counting takes a moment; the busy pointer shows it.
 - **Project > Writing History**: how many words you wrote on each day.
 
 The writing tools below are add-ons (section 17): **Name Generator**, **Scratch Pad** and **Text Statistics** (they came with update 0.11 as one package) and **Speech Transcription** (0.61); each can be switched off or removed in **Help > Add-on Manager**. Without them, **Edit > Writing Tools** says so and leads to the Add-on Manager.
@@ -1015,7 +1021,7 @@ The colors of text, paper, and background come from the theme. To change them, f
 
 ### The compile window
 
-The compile window has **Compile For** at the top, the formats on the left, the section layouts in the middle, and the contents, metadata, options, and replacements on the right (four tabs with icons; hold the mouse over a tab for its name).
+The compile window has **Compile For** at the top, the formats on the left, the section layouts in the middle, and the contents, metadata, options, and replacements on the right (four tabs with icons; hold the mouse over a tab for its name). The Formats column is at least as wide as its longest name; drag the lines between the three columns to make one wider, and the window keeps the widths for next time.
 
 1. **Compile For**: the output format. Built in, with no other program needed: **Word Document (.docx)**, **PDF (.pdf)**, **E-book (.epub)**, and for scripts **Fountain** and **Final Draft**. PDF and OpenDocument through LibreOffice, EPUB through Pandoc, and Markdown appear as well if the matching plugin and program are installed (see below). Beside it: how many documents and about how many words will be compiled.
 2. **Formats** (left), under **My Formats** and **Built-in Formats**: the compile format decides how the manuscript looks: fonts, line spacing, page size, margins, headers and footers, how chapters and scenes look, how styles, notes, and quotes come out. The built-in formats (*Manuscript (Times)*, *Manuscript (Courier)*, *Modern*, *Paperback (6 x 9 in)*, *E-book*, *Default (Editor Formatting)*, and *Outline (Synopses)*) cannot be changed. The buttons below the list: **+** (duplicate the selected format to make your own version and edit it), the pencil (edit your own format), **-** (delete it), **Import...** and **Export...** (a *.qbformat* file to use on another computer or to give away; an imported format whose name is taken gets a number).
@@ -1267,7 +1273,7 @@ Limits: new paragraphs take the look of the paragraph next to them. Text in tabl
 
 The print window chooses the printer, the pages, and the number of copies. **Selection** prints only the selected text, or only the selected index cards or outliner rows. To save the printout as a PDF file instead, choose **Print to File (PDF)** as the printer.
 
-**File > Print Preview…** shows the pages first; the printer button of the preview prints them.
+**File > Print Preview…** shows the pages first; the printer button of the preview prints them, **Close** (or **Esc**) closes the preview.
 
 **File > Print Settings…** decides how things go on paper. The window opens at the tab for what the editor shows; **Preview…** shows the result before you click **OK**. The settings belong to the project; tick **Use these settings for new projects as well** to make them the standard for new projects.
 
@@ -1302,9 +1308,11 @@ A backup is written under a temporary name (*… .zip.part*), checked, and only 
 
 **File > Options** (**Ctrl+,**) has a row of icons at the top for the sections, a list of pages (or tabs) on the left, the options on the right. Nothing changes until you click **OK** or **Apply**. At the bottom left, **Manage** saves all options into a file and loads them again (**Save Options to File...**, **Load Options from File...**, for example to take your settings to another computer; recent projects and window places are not in the file), saves the current look as a theme file, and lists the themes; **Defaults** sets every option back to the standard (your recent projects, your own themes, layouts, toolbars, and shortcuts stay).
 
+**Where each option is kept.** A small circle stands before every option: a green **P** means the value is kept in the open project, a blue **A** means the program keeps it for all projects. Its tool tip (also on the option itself) says whether that place is **fixed** (a setting only the program can hold, such as the language) or **depends on the setting** **Settings for** at the top (and, on the Appearance page, **Show and change the look of**). A value changed for **This project** shows its **P** once you click **OK** or **Apply**. On a small screen the pages scroll, so OK, Cancel, and Apply stay in view.
+
 Since 0.70 the window opens for **All projects** (the program's settings); choose **This project** at the top to set something for the open project only. A project's own settings can make saving safer but never less safe: the shorter autosave delay counts, a backup the program makes stays on, the larger number of backups is kept, and the automatic quit is the program's alone. The latest save comes 10 seconds after a change at most, whatever the autosave delay.
 
-- **General**: **Startup** (reopen the last project, the desktop's file dialogs, the **Language**: English or Deutsch, from the next start; the manual and the welcome project stay in English); **Saving** (autosave interval, the number of recent projects, snapshots with each File > Save); **Author Information** (your name, address, phone, and email for title pages, used by the placeholders `<$author>`, `<$street>`, `<$city>`, `<$state>`, `<$zip>`, `<$country>`, `<$phone>`, `<$email>`, `<$address>`); the options of the writing tools (**Scratch Pad**); **Shared Templates** (a further folder of project templates, for example one synchronized between your computers; its templates appear in File > New Project); **Citations** (the program **Format > Bibliography/Citations...** starts, for example Zotero or JabRef); **Separators** (what goes between merged documents and between scratch pad notes added to a document: a single return, an empty line, a page break, nothing, or your own text); **Automatic Quit** (save and close after a number of minutes without key or mouse input); **Warnings** (**Show Internal Log Console** shows the program's messages of this session, **Reset All Warnings** asks again the questions answered with "Don't ask again").
+- **General**: **Startup** (reopen the last project, the desktop's file dialogs, the **Language**: English or Deutsch, from the next start; the manual and the welcome project stay in English; **Group the digits of large numbers**: word counts, targets, and statistics as 44,825 in English and 44.825 in German, or 44825 when unticked); **Saving** (autosave interval, the number of recent projects, snapshots with each File > Save); **Author Information** (your name, address, phone, and email for title pages, used by the placeholders `<$author>`, `<$street>`, `<$city>`, `<$state>`, `<$zip>`, `<$country>`, `<$phone>`, `<$email>`, `<$address>`); the options of the writing tools (**Scratch Pad**); **Shared Templates** (a further folder of project templates, for example one synchronized between your computers; its templates appear in File > New Project); **Citations** (the program **Format > Bibliography/Citations...** starts, for example Zotero or JabRef); **Separators** (what goes between merged documents and between scratch pad notes added to a document: a single return, an empty line, a page break, nothing, or your own text); **Automatic Quit** (save and close after a number of minutes without key or mouse input); **Warnings** (**Show Internal Log Console** shows the program's messages of this session, **Reset All Warnings** asks again the questions answered with "Don't ask again").
 - **Editing**: **Options** (reload the editors' last zoom, the default text zoom of each area, centimeters or inches and the step of the ruler, the Insert key for overtype, a date format of your own for Insert > Current Date, what the live count shows, inline annotations without color, comments and footnotes that stop before punctuation, a block insertion point); **Formatting** (the formatting and styles of new projects); **Revisions** (the five colors of Format > Revision Mode, from the shared palette).
 - **Behaviors**: **Composition Mode** (screen, main window out of the way, Esc); **Document Links** (where document links open, back-links); **Double-Clicking** (a double-click on the corkboard makes a card); **Dragging & Dropping** (documents dropped onto text documents, the format of text dragged to other programs); **Folders & Files** (folders open as a corkboard; a text with subdocuments opens like a folder); **Playback** of audio and video (section 6); **Quick Reference** (panels reopen with their project); **Return Key** (Return ends editing a synopsis; Return makes a new card or row); **Snapshots** (a message when snapshots are taken).
 - **Appearance**: the theme, and twelve parts of the window (General Interface, Binder, Composition Mode, Corkboard, Index Cards, Inspector & Notes, Main Editor, Outliner, Page View, Combined Text, Target Progress Bars, Textual Marks), each with its options, fonts, and colors. See "Themes, colors, and fonts" below. **General Interface** also has the full path of the project in the title bar and the size of the toolbar icons.
@@ -1529,6 +1537,9 @@ Shortcuts of styles belong to the name of the style: "Block Quote" has its short
 | Copy formatting / paste formatting | Ctrl+Alt+C / Ctrl+Alt+V |
 | Paste with formatting / paste and match style | Ctrl+Alt+Shift+V / Ctrl+Shift+V |
 | No Style / Heading 1 / Heading 2 / Heading 3 | Ctrl+Alt+0 / Ctrl+Alt+1 / Ctrl+Alt+2 / Ctrl+Alt+3 |
+| The next six styles of the style list (Format > Style > Customize Style List) | Ctrl+Alt+4 ... Ctrl+Alt+9 |
+| Go to the synopsis / go to the document notes (Navigate > Inspect) | Ctrl+Alt+Y / Ctrl+Alt+N |
+| Back up now | Ctrl+Shift+B |
 | Script mode / list of script elements | Ctrl+8 / Ctrl+\\ |
 | In a script: next element / change element | Enter / Tab (see section 4, Scriptwriting) |
 | Zoom in / zoom out / reset zoom | Ctrl++ / Ctrl+- / Ctrl+0 |

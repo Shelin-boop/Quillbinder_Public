@@ -211,10 +211,14 @@ private:
     bool m_suspendedLayer = false;
     QCheckBox *m_projectFirst = nullptr;
     QComboBox *m_language = nullptr;
+    QCheckBox *m_groupDigits = nullptr;
     QComboBox *m_scopeCombo = nullptr;
     QLabel *m_scopeInfo = nullptr;
     QPushButton *m_scopeReset = nullptr;
     void updateScopeInfo();
+    // 0.90.1: where each option is kept (OptionsDialogStorage.cpp, ui/OptionStorage.*)
+    void markStorage();
+    void refreshStorage();
     void showProjectValues();
     look::Values m_scopeLooks[2];
     bool m_hasProject = false;

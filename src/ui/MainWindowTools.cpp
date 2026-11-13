@@ -111,6 +111,19 @@ QIcon MainWindow::toolIcon(const QString &icon)
 
 void MainWindow::placeToolButtons()
 {
+    // 0.90.1 (UR-12): the arrow beside Undo and Redo lists the steps
+    for (const auto &pair : {qMakePair(QStringLiteral("undo"), m_undoMenu), qMakePair(QStringLiteral("redo"), m_redoMenu)}) {
+        QAction *ac = a.value(pair.first);
+        if (!ac || !pair.second)
+            continue;
+        for (QToolBar *bar : {m_toolbar, m_formatBar})
+            if (bar)
+                if (auto *b = qobject_cast<QToolButton *>(bar->widgetForAction(ac))) {
+                    b->setMenu(pair.second);
+                    b->setPopupMode(QToolButton::MenuButtonPopup);
+                    b->setObjectName(pair.first + QStringLiteral("Button"));
+                }
+    }
     // a tool command with a menu: the arrow beside its buttons opens it (the button itself runs the command)
     for (auto it = m_toolMenus.cbegin(); it != m_toolMenus.cend(); ++it) {
         QAction *ac = a.value(QStringLiteral("tool:") + it.key());

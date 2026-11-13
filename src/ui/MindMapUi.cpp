@@ -1,4 +1,5 @@
 #include "ui/MindMapUi.h"
+#include "ui/MenuClear.h"
 #include "ui/ColorPalette.h"
 #include "core/ItemIcons.h"
 #include "core/Project.h"
@@ -803,7 +804,7 @@ void MindMapPanel::rebuild()
     auto addMenu = [&](const QString &title, std::function<void(QMenu *)> fill) {
         QMenu *m = menu->addMenu(title);
         connect(m, &QMenu::aboutToShow, m, [m, fill, ctl] {
-            m->clear();
+            clearMenu(m);
             ctl->updateActions();
             fill(m);
         });

@@ -1877,7 +1877,8 @@ int main(int argc, char **argv)
                       && kp->shown(QStringLiteral("merge")) == free
                       && kp->assign(QStringLiteral("stylesPanel"), QKeySequence(QStringLiteral("F9")), false) == KeyboardPage::Result::Done,
                   QStringLiteral("letters without Ctrl, Alt or Meta are refused; function keys are fine"));
-            check(kp->assign(QStringLiteral("style:Block Quote"), QKeySequence(QStringLiteral("Ctrl+Alt+9")), false) == KeyboardPage::Result::Done
+            // (0.90.1: Ctrl+Alt+4 ... 9 are the standard of the first styles of the style list, Block Quote's is Ctrl+Alt+9)
+            check(kp->assign(QStringLiteral("style:Block Quote"), QKeySequence(QStringLiteral("Ctrl+Alt+Q")), false) == KeyboardPage::Result::Done
                       && kp->assign(QStringLiteral("layout:editor-only"), QKeySequence(QStringLiteral("Ctrl+Alt+F9")), false)
                              == KeyboardPage::Result::Done,
                   QStringLiteral("styles and layouts take shortcuts"));
@@ -1906,7 +1907,7 @@ int main(int argc, char **argv)
             settle(200);
             check(byKey(&w, QStringLiteral("merge"))->shortcut() == free && byKey(&w, QStringLiteral("duplicate"))->shortcut() == ctrlK
                       && byKey(&w, QStringLiteral("split"))->shortcut().isEmpty()
-                      && commands::shortcutOf(QStringLiteral("style:Block Quote")) == QKeySequence(QStringLiteral("Ctrl+Alt+9"))
+                      && commands::shortcutOf(QStringLiteral("style:Block Quote")) == QKeySequence(QStringLiteral("Ctrl+Alt+Q"))
                       && commands::custom().size() == 6,
                   QStringLiteral("OK puts the shortcuts on the commands and stores them"), QString::number(commands::custom().size()));
             QAction *splitAlias = menuPath(&w, {QStringLiteral("Documents"), QStringLiteral("Split"), QStringLiteral("at Selection")});
@@ -1938,7 +1939,7 @@ int main(int argc, char **argv)
             settle(100);
             QAction *quote2 = byKey(&w, QStringLiteral("style:Block Quote"));
             check(styled && ed->paragraphStyleAtCursor().isEmpty() && quote2
-                      && quote2->shortcut() == QKeySequence(QStringLiteral("Ctrl+Alt+9")),
+                      && quote2->shortcut() == QKeySequence(QStringLiteral("Ctrl+Alt+Q")),
                   QStringLiteral("style commands apply their style and keep their shortcut when the styles change"));
 
             // a key press reaches the command

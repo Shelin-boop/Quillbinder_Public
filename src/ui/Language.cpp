@@ -37,16 +37,37 @@ QString configured()
 
 QString active() { return activeCode(); }
 
+namespace {
+bool &grouped()
+{
+    static bool g = true;
+    return g;
+}
+} // namespace
+
+void applyNumbers(bool groupDigits)
+{
+    grouped() = groupDigits;
+    const bool german = activeCode() == QLatin1String("de");
+    QLocale loc(german ? QLocale::German : QLocale::English, german ? QLocale::Germany : QLocale::UnitedStates);
+    loc.setNumberOptions(groupDigits ? QLocale::DefaultNumberOptions : QLocale::OmitGroupSeparator);
+    QLocale::setDefault(loc);
+}
+
+QString numberExample() { return QLocale().toString(44825); }
+
 void install()
 {
     const QString code = configured();
-    if (code == QLatin1String("en"))
+    if (code == QLatin1String("en")) {
+        applyNumbers(grouped());
         return;
+    }
     auto *t = new QTranslator(QCoreApplication::instance());
     if (t->load(QStringLiteral(":/translations/quillbinder_%1.qm").arg(code))) {
         QCoreApplication::installTranslator(t);
         activeCode() = code;
-        QLocale::setDefault(QLocale(code == QLatin1String("de") ? QLocale::German : QLocale::English));
+        applyNumbers(grouped());
         // the texts of Qt's own buttons and dialogs that the program shows (translations/qt_de.ts)
         auto *q = new QTranslator(QCoreApplication::instance());
         if (q->load(QStringLiteral(":/translations/qt_%1.qm").arg(code)))

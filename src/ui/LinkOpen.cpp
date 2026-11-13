@@ -4,7 +4,9 @@
 #include <QCoreApplication>
 #include <QDesktopServices>
 #include <QFile>
+#include <QDir>
 #include <QFileInfo>
+#include <QMimeDatabase>
 #include <QMessageBox>
 #include <QSet>
 #include <QWidget>
@@ -51,6 +53,53 @@ void refuse(QWidget *parent, const QString &text)
 }
 
 } // namespace
+
+QString breakable(const QString &s)
+{
+    // a zero-width space after each separator, and after every 24 characters without one, so a long name wraps
+    // wherever it must instead of running past the window's edge
+    QString out;
+    out.reserve(s.size() + s.size() / 8);
+    int run = 0;
+    for (const QChar c : s) {
+        out += c;
+        ++run;
+        if (c == QLatin1Char('/') || c == QLatin1Char('\\') || c == QLatin1Char('-') || c == QLatin1Char('_')
+            || c == QLatin1Char('.') || c == QLatin1Char(' ')) {
+            if (c != QLatin1Char(' '))
+                out += QChar(0x200B);
+            run = 0;
+        } else if (run >= 24) {
+            out += QChar(0x200B);
+            run = 0;
+        }
+    }
+    return out;
+}
+
+// 0.90.1 (the usability review of 0.90.0, UR-05; ISO 9241-110, self-descriptiveness): the whole target can be read
+// before it opens, however long (the name wraps anywhere, its ending stays in view), and the question says what kind
+// of file it is
+QString fileQuestion(const QString &path)
+{
+    const QFileInfo fi(path);
+    QString kind;
+    if (fi.isDir()) {
+        kind = tr("a folder");
+    } else {
+        const QMimeType mt = QMimeDatabase().mimeTypeForFile(fi, fi.exists() ? QMimeDatabase::MatchDefault : QMimeDatabase::MatchExtension);
+        const QString suffix = fi.suffix().isEmpty() ? QString() : QStringLiteral(" (.") + fi.suffix() + QLatin1Char(')');
+        kind = (mt.isValid() && !mt.isDefault() ? mt.comment() : tr("a file of unknown kind")) + suffix;
+    }
+    QString text = tr("This link points to %1 on this computer.").arg(fi.isDir() ? tr("a folder") : tr("a file"));
+    text += QStringLiteral("\n\n") + tr("Kind: %1").arg(kind);
+    text += QStringLiteral("\n") + tr("Name: %1").arg(breakable(fi.fileName()));
+    text += QStringLiteral("\n") + tr("Folder: %1").arg(breakable(QDir::toNativeSeparators(fi.absolutePath())));
+    if (!fi.exists())
+        text += QStringLiteral("\n\n") + tr("It is not there now (moved, renamed, or on a drive that is not connected).");
+    text += QStringLiteral("\n\n") + tr("Open it?");
+    return text;
+}
 
 QUrl urlOf(const QString &href)
 {
@@ -135,7 +184,7 @@ bool open(QWidget *parent, const QString &href)
     }
     QString text;
     if (url.isLocalFile() && url.host().isEmpty())
-        text = tr("This link points to a file or folder on this computer:\n\n%1\n\nOpen it?").arg(url.toLocalFile());
+        text = fileQuestion(url.toLocalFile());
     else if (url.isLocalFile())
         text = tr("This link points to a file on another computer of the network:\n\n%1\n\nOpening it connects to that "
                   "computer, which may then learn your user name. Open it?")

@@ -1,4 +1,5 @@
 #include "ui/TextEditor.h"
+#include "ui/UndoNames.h"
 #include "ui/Commands.h"
 #include "ui/Zoom.h"
 #include "core/Replace.h"
@@ -691,6 +692,17 @@ bool TextEditor::makeDocumentLink()
 void TextEditor::keyPressEvent(QKeyEvent *e)
 {
     const bool noMods = !(e->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier));
+    // 0.90.1 (the usability review of 0.90.0, UR-12): the undo step a key makes is named after it
+    if (e->matches(QKeySequence::Paste))
+        undonames::setPending(document(), tr("Paste"));
+    else if (e->matches(QKeySequence::Cut))
+        undonames::setPending(document(), tr("Cut"));
+    else if (e->key() == Qt::Key_Backspace || e->key() == Qt::Key_Delete || e->matches(QKeySequence::DeleteStartOfWord)
+             || e->matches(QKeySequence::DeleteEndOfWord))
+        undonames::setPending(document(), tr("Delete"));
+    else if (!e->text().isEmpty() && (e->text().at(0).isPrint() || e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter
+                                      || e->key() == Qt::Key_Tab))
+        undonames::setPending(document(), tr("Typing"));
     // File > Options > Editing: the Insert key switches overtype on and off (0.21)
     if (e->key() == Qt::Key_Insert && noMods && !(e->modifiers() & Qt::ShiftModifier) && AppSettings::instance().overtypeKey) {
         setOverwriteMode(!overwriteMode());
