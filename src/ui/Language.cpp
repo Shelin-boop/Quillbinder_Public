@@ -48,13 +48,21 @@ bool &grouped()
 void applyNumbers(bool groupDigits)
 {
     grouped() = groupDigits;
-    const bool german = activeCode() == QLatin1String("de");
-    QLocale loc(german ? QLocale::German : QLocale::English, german ? QLocale::Germany : QLocale::UnitedStates);
+    // the locale as before 0.90.1 (German for the German program, else the system's: units, paper sizes, the decimal
+    // mark and dates follow it as they always did); only the grouping of digits is set here. The first release run of
+    // 0.90.1 had en_US for English, which turned "as in the system settings" into inches and US Letter on a German
+    // desktop (m6, v0212 on GitHub's machine)
+    QLocale loc = activeCode() == QLatin1String("de") ? QLocale(QLocale::German) : QLocale::system();
     loc.setNumberOptions(groupDigits ? QLocale::DefaultNumberOptions : QLocale::OmitGroupSeparator);
     QLocale::setDefault(loc);
 }
 
-QString numberExample() { return QLocale().toString(44825); }
+QString numberExample()
+{
+    QLocale loc = QLocale();
+    loc.setNumberOptions(QLocale::DefaultNumberOptions);
+    return loc.toString(44825);
+}
 
 void install()
 {

@@ -628,9 +628,12 @@ static void settingsChecks(MainWindow &w, bool freshWasStandard, const QString &
         od.showSection(OptionsDialog::SEditing, QStringLiteral("Formatting"));
         od.show();
         settle(300);
+        // by name (0.90.1: the place badges of the options move each field into a holder, so the order of the
+        // children is no longer the order of the rows)
         QList<QDoubleSpinBox *> spins;
-        if (auto *box = od.findChild<QGroupBox *>(QStringLiteral("newFormatting")))
-            spins = box->findChildren<QDoubleSpinBox *>();
+        for (const char *n : {"optNewSize", "optNewSpacing", "optNewIndent", "optNewParaSpacing"})
+            if (auto *sp = od.findChild<QDoubleSpinBox *>(QLatin1String(n)))
+                spins << sp;
         QStringList shown;
         for (QDoubleSpinBox *sp : spins)
             shown << sp->text();

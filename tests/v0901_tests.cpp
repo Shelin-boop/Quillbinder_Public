@@ -13,6 +13,7 @@
 #include "core/BinderModel.h"
 #include "core/DocumentStore.h"
 #include "core/Project.h"
+#include "core/PageSetup.h"
 #include "core/ProjectTemplates.h"
 #include "core/SettingsLayer.h"
 #include "ui/AppSettings.h"
@@ -842,6 +843,16 @@ static void usabilityChecks(MainWindow &w)
         }
         d.reject();
         check(as.groupDigits && QLocale().toString(44825) == QLatin1String("44,825"), QStringLiteral("UR-18: ticked again: 44,825"));
+        // only the digits change: units "as in the system settings" and the paper of new projects follow the system as
+        // before (the first release run of 0.90.1 set en_US: inches and US Letter on a German desktop; m6, v0212)
+        const bool systemMetric = QLocale::system().measurementSystem() == QLocale::MetricSystem;
+        const QString savedUnit = as.rulerUnit;
+        as.rulerUnit = QString(); // as in the system settings
+        check(units::metric() == systemMetric && (PageSetup::forLocale().paper == QLatin1String("US Letter")) == !systemMetric
+                  && QLocale().decimalPoint() == QLocale::system().decimalPoint(),
+              QStringLiteral("UR-18: units, the paper of new projects and the decimal mark still follow the system"),
+              QStringLiteral("system metric %1, units metric %2, paper %3").arg(systemMetric).arg(units::metric()).arg(PageSetup::forLocale().paper));
+        as.rulerUnit = savedUnit;
     }
 
     // ---- UR-05: the question before a link to a file opens

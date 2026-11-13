@@ -577,13 +577,11 @@ QWidget *OptionsDialog::generalSection()
                       "manual and the welcome project stay in English."),
                    startup));
     // 0.90.1 (UR-18): large numbers with their digits grouped, as the language writes them
-    m_groupDigits = new QCheckBox(tr("Group the digits of large numbers (%1)")
-                                       .arg(language::active() == QLatin1String("de") ? QLocale(QLocale::German, QLocale::Germany).toString(44825)
-                                                                                      : QLocale(QLocale::English, QLocale::UnitedStates).toString(44825)), startup);
+    m_groupDigits = new QCheckBox(tr("Group the digits of large numbers (%1)").arg(language::numberExample()), startup);
     m_groupDigits->setObjectName(QStringLiteral("optGroupDigits"));
     m_groupDigits->setChecked(s.groupDigits);
-    m_groupDigits->setToolTip(tr("Word and character counts, targets and statistics: 44,825 in English and 44.825 in German; "
-                                 "unticked 44825"));
+    m_groupDigits->setToolTip(tr("Word and character counts, targets and statistics with a separator between the thousands, "
+                                 "as your system writes numbers (44,825 or 44.825); unticked 44825"));
     f->addRow(m_groupDigits);
     pages.append({tr("Startup"), startup});
 
@@ -959,21 +957,25 @@ QWidget *OptionsDialog::editingSection()
         m_newFont->setEnabled(!s.newFontFamily.isEmpty());
         connect(m_newAutoFont, &QCheckBox::toggled, m_newFont, &QWidget::setDisabled);
         m_newSize = new QDoubleSpinBox(box);
+        m_newSize->setObjectName(QStringLiteral("optNewSize"));
         m_newSize->setRange(6, 48);
         m_newSize->setDecimals(1);
         m_newSize->setSuffix(tr(" pt"));
         m_newSize->setValue(s.newFontSize);
         m_newSpacing = new QDoubleSpinBox(box);
+        m_newSpacing->setObjectName(QStringLiteral("optNewSpacing"));
         m_newSpacing->setRange(0.8, 3.0);
         m_newSpacing->setSingleStep(0.1);
         m_newSpacing->setValue(s.newLineSpacing);
         m_newIndent = new QDoubleSpinBox(box);
+        m_newIndent->setObjectName(QStringLiteral("optNewIndent"));
         m_newIndent->setDecimals(2);
         m_newIndent->setRange(0, units::fromPx(400));
         m_newIndent->setSingleStep(units::metric() ? 0.25 : 0.125);
         m_newIndent->setSuffix(units::suffix());
         m_newIndent->setValue(units::fromPx(s.newFirstLineIndent));
         m_newParaSpacing = new QDoubleSpinBox(box);
+        m_newParaSpacing->setObjectName(QStringLiteral("optNewParaSpacing"));
         m_newParaSpacing->setDecimals(1);
         m_newParaSpacing->setRange(0, 72);
         m_newParaSpacing->setSuffix(tr(" pt"));

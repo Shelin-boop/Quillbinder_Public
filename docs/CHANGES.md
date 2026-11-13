@@ -43,10 +43,10 @@ sessions, and the findings of the usability review of 0.90.0 the writer chose (U
 - **The question before a link to a file opens** (UR-05, self-descriptiveness as ISO 9241-110 asks) names the kind of
   file ("plain text document (.txt)"), the whole name and the folder. A long name wraps anywhere, so its ending can be
   read, and a file that is not there is said to be missing.
-- **Large numbers** (UR-18): written as the program's language writes them, 44,825 in English and 44.825 in German
-  (before: as the system's setting said, often 44825). File > Options > General > Startup, "Group the digits of large
-  numbers", switches it off. With English the decimal point in the program's numbers is now a point also on a German
-  desktop.
+- **Large numbers** (UR-18): always with a separator between the thousands, as the system writes numbers (44,825 in
+  English, 44.825 on a German desktop or in the German program); before, a system set to plain "C" (such as the test
+  machines) wrote 44825. File > Options > General > Startup, "Group the digits of large numbers", switches it off.
+  Units, paper sizes and the decimal mark follow the system as before.
 - **Hint texts readable** (UR-13): the grey text in empty fields (the synopsis' "Synopsis: a short summary ...", Quick
   search) has a contrast of 4.5:1 or more, in light and dark looks (before about 3:1).
 - **Compile window** (UR-19): the Formats column is at least as wide as its longest name at any scale (at scale 2

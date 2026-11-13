@@ -261,9 +261,11 @@ changed and what was checked. Preferences:
   `TextEditor::keyPressEvent` (Typing, Delete, Paste, Cut) or the change itself. Undo/Redo act on the focus widget
   only and are disabled where nothing can be undone; the toolbar buttons "undoButton"/"redoButton" get the lists
   "undoList"/"redoList" in `placeToolButtons`. Format commands run in one edit block (one step).
-- **Numbers**: `language::applyNumbers(groupDigits)` sets `QLocale::setDefault` from the program's language (en_US or
-  de_DE), with `OmitGroupSeparator` when `app/groupDigits` is off; `text::plural` uses it. Under English the default
-  locale is en_US now (before: the system's).
+- **Numbers**: `language::applyNumbers(groupDigits)` sets `QLocale::setDefault` to the locale as before (German for the
+  German program, else `QLocale::system()`) with only the number options changed (`OmitGroupSeparator` when
+  `app/groupDigits` is off); `text::plural` uses it. Never set en_US as the default: `units::metric()` ("as in the system
+  settings") and `PageSetup::forLocale()` read the default locale's measurement system (inches and US Letter on a German
+  desktop: the first release run of 0.90.1 failed in m6 and v0212 for it).
 - Also: `MainWindow::showBinderBackgroundMenu` (signal `BinderPanel::backgroundMenuRequested`), `Inspector::focusSynopsis
   / focusNotes` (commands `goSynopsis` Ctrl+Alt+Y, `goNotes` Ctrl+Alt+N), Ctrl+Alt+4..9 for the first six styles of
   `stylelist::all` without a shortcut, `backupNow` Ctrl+Shift+B, `links::fileQuestion` / `breakable`, Compile's

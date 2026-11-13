@@ -15988,8 +15988,8 @@ Ihre zuletzt verwendeten Projekte, eigene Designs, Layouts, Symbolleisten und Ta
             <translation>Große Zahlen mit Tausendertrennzeichen schreiben (%1)</translation>
         </message>
         <message>
-            <source>Word and character counts, targets and statistics: 44,825 in English and 44.825 in German; unticked 44825</source>
-            <translation>Wort- und Zeichenzahlen, Ziele und Statistik: 44,825 auf Englisch und 44.825 auf Deutsch; ohne Haken 44825</translation>
+            <source>Word and character counts, targets and statistics with a separator between the thousands, as your system writes numbers (44,825 or 44.825); unticked 44825</source>
+            <translation>Wort- und Zeichenzahlen, Ziele und Statistik mit Tausendertrennzeichen, wie Ihr System Zahlen schreibt (44,825 oder 44.825); ohne Haken 44825</translation>
         </message>
     </context>
     <context>
