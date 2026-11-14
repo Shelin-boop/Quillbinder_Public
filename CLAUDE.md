@@ -192,6 +192,8 @@ changed and what was checked. Preferences:
   that waits for its folder and is put in place later, a cut-off copy replaced, a same-named whole backup kept; Cancel;
   old `.part` files of the work folder; a full drive under the backup folder and under the work folder (child runs with
   `qbfaultshim`); the window's messages).
+- `qb_v0911_tests` (0.91.1 beta: toolbars rearranged freely by their grips, the row that got stuck; see "Toolbars
+  rearranged freely").
 - `qb_v0910_tests` (0.91.0 beta: backups straight in the backup folder, the seven toolbars and the icon bar; see
   "Backups in one folder, eight toolbars, theme buttons").
 - `qb_audit1_tests` (0.64.1, the fixes of the external audit of 2026-11-09: ids of a project file and names in archives
@@ -252,6 +254,57 @@ changed and what was checked. Preferences:
   public repository, https://shelin-boop.github.io/Quillbinder_Public/): a button per system for the full version, the
   visitor's system first. Needs, once, Settings > Pages > Source "GitHub Actions" in the public repository (the writer).
   The README's download part links it and is sorted by system too.
+
+## Toolbars rearranged freely (0.91.1 beta, 2026-11-13)
+
+The writer's report on 0.91.0 (Kubuntu, Wayland): no order change, no way from one row into the other ("Nothing
+moves"), and a row "got stuck" with Search pulled to the far right. This section replaces what the 0.91.0 section
+below says about the drag, the gaps and `window/state`.
+
+- **Causes.** (1) 0.91.0 had no change of order at all. (2) A way into another row was Qt's own toolbar drag, and on
+  Wayland Qt runs it as a desktop drag and drop (`QMainWindowLayout::needsPlatformDrag`, `QDrag::exec` in
+  `performPlatformWidgetDrag`); on the writer's desktop nothing moved (which step fails there: not known, no Wayland
+  in the workspace). (3) Stuck: `moveBarSideways` took room only from the row's last bar (`last->width() -
+  sizeHint`), never from the gap after the dragged bar; with Search at the far right no bar before it could move.
+- **`ui/BarPlaces.*`** (no widgets, the rules): `Places` = rows of `Slot{name, lead}` at the top and bottom edge, as
+  they show from the top down; `lead` = free space in front of a bar (none for a row's first). `toText`/`fromText`
+  (one line per row, `top|mainToolbar:0 themesBar:0 searchBar:120`), `normalized` (every bar once, unknown dropped,
+  a missing bar behind its standard neighbor, no empty row), `moved` (a bar to a `Target`: row + `before`, or a new
+  row; the bars after its old place close up, its lead goes to the next bar that shows, it arrives with lead 0),
+  `fitted` (leads shrink in proportion in a row that is too narrow), `shifted` (a bar along its row: left to the end
+  of the bar before it, right until the bars after it stand together at the row's end; the others keep their places
+  until it reaches them).
+- **`ui/BarDock.*`** (a child of the window, `findChild<BarDock *>()`): keeps the places in **`window/barRows`**
+  (`load` at the start after `restoreState`; without the key, after 0.91.0: `placesOfWindow()` + `window/barGaps`),
+  `arrange()` adds every bar anew in the places' order (`addToolBar` moves a bar that is already there without hiding
+  it; a break between rows; the bottom edge's rows from the window's edge upward, as Qt counts them), `refit()` shows
+  the leads as gaps (`GripBar::setGap` of the bar on the left) and runs after a resize, a bar's show or hide and a
+  layout request. It still writes `window/barGaps` for 0.91.0. `placesOfWindow()` reads the rows from the window's
+  layout (`layout()->itemAt`, `toolBarArea`, `toolBarBreak`); the tests compare it with `places()` and with what shows.
+- **The drag** (`pressed`/`movedTo`/`released` from `GripBar`'s signals): `GripBar::event` keeps every press, move and
+  release on the grip to itself, so **Qt's toolbar drag can never start** (do not hand events on the grip back to
+  `QToolBar`). Positions are the bar's own, mapped to the window: no screen coordinates, no window of its own, no
+  mouse grab. Two modes, decided per mouse move from the row's geometry as the drag began (`Drag::bands`):
+  **Shift** (the mouse in the bar's own row, between the middles of its neighbors, or still pushing the next bar
+  ahead): the gaps change at once; **Place** (past a neighbor's middle, another row, the strip of `kZone` px under
+  the top rows or over the bottom edge, the status bar): nothing changes while the button is down, the marker
+  (`barMarker`, a 3 px line in the highlight color) shows the place, `moved()` + `arrange()` at the release. A place
+  that changes nothing is none (forbidden pointer). Esc (application event filter while a drag runs), the window's
+  deactivation or the bar's hiding end a drag without a change. The first mode needs the gaps of the row as it shows
+  (read from the bars' positions at the drag's start); at its end those are what the places keep.
+- `MainWindow`: `m_barDock` is made after `restoreState` (the icon bar exists by then); `resetToolbarPlaces` =
+  `BarDock::reset`. `placeToolBars()` is only the first placing and the one-time step for states older than 0.91.0.
+  `moveBarSideways`, `saveBarGaps`, `loadBarGaps` are gone. The rows' switches still go by the bar, not by the row
+  it stands in.
+- Tests: `qb_v0911_tests` (the rules; Qt's drag out of the game; the stuck row; order; rows; a new row; the bottom
+  edge; Esc; a drop on nothing; kept and found again; the step from 0.91.0; Reset; a hidden bar; a narrow window; 60
+  random drags, then every bar still movable). With the room rule of 0.91.0 put back into `shifted`, the checks named
+  "THE REPORT" fail (tried in this job). `qb_v0910_tests`: its drag checks follow the new drag.
+- Test drags: tell every mouse step from the window's coordinates (`bar->mapFrom(&w, p)`), as the bar may move. A
+  drag far to the left or right of a neighbor's middle is a change of order now, not a shift.
+- Not checked here: the drag on Wayland (the workspace has X11 only); a real mouse release outside the window; the
+  Windows machine (a new suite goes into `EXPLORE` of `win-tests.sh` first; not done in this job, PR #65 touches
+  that file).
 
 ## Backups in one folder, eight toolbars, theme buttons (0.91.0 beta, 2026-11-13)
 

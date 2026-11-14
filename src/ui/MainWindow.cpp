@@ -3,6 +3,8 @@
 #include "ui/Ask.h"
 #include "ui/LinkOpen.h"
 #include "ui/MainWindow.h"
+#include "ui/BarDock.h"
+#include "ui/GripBar.h"
 #include "ui/ToolbarConfig.h"
 #include "ui/UndoNames.h"
 #include "ui/WindowCare.h"
@@ -499,7 +501,23 @@ MainWindow::MainWindow()
         placeToolBars();
         s.setValue(QStringLiteral("window/barPlaces0910"), true);
     }
-    loadBarGaps(); // the free space the writer left between toolbars
+    // 0.91.1: the toolbars' rows, order and free space (window/barRows; after 0.91.0: what the state above brought and
+    // window/barGaps). Every toolbar is put into the window anew, so nothing of Qt's own toolbar sizes is left over.
+    {
+        QList<GripBar *> gripBars;
+        QStringList rowOne, rowTwo;
+        for (toolbars::Bar b : toolbars::allBars())
+            if (auto *bar = qobject_cast<GripBar *>(m_bars[int(b)])) {
+                gripBars << bar;
+                (toolbars::isFormatBar(b) ? rowTwo : rowOne) << bar->objectName();
+            }
+        if (auto *bar = qobject_cast<GripBar *>(m_iconBar)) {
+            gripBars << bar;
+            rowTwo << bar->objectName();
+        }
+        m_barDock = new BarDock(this, gripBars, {rowOne, rowTwo});
+        m_barDock->load();
+    }
     const QVariantList sizes = s.value(QStringLiteral("window/mainSplit")).toList();
     if (sizes.size() == 3)
         m_mainSplit->setSizes({sizes[0].toInt(), sizes[1].toInt(), sizes[2].toInt()});

@@ -30,6 +30,7 @@
 #include "ui/StyleList.h"
 #include "ui/TextEditor.h"
 #include "ui/ThemeDialogs.h"
+#include "ui/BarDock.h"
 #include "ui/GripBar.h"
 #include "ui/ToolbarConfig.h"
 #include "ui/Windows.h"
@@ -665,11 +666,10 @@ QToolButton *barButton(const QString &name)
 void MainWindow::createToolBars()
 {
     // 0.91.0: seven toolbars in two rows (toolbars::Bar). Each has a grip at its front: dragged, the bar takes another
-    // place in its row, another row, or the bottom edge of the window; QMainWindow keeps the places (window/state).
+    // place in its row, another row, or the bottom edge of the window. 0.91.1: the places and the drag are BarDock's
+    // (ui/BarDock.*; settings window/barRows), made in the constructor once the icon bar exists.
     for (toolbars::Bar b : toolbars::allBars()) {
         auto *bar = new GripBar(toolbars::barName(b), this);
-        bar->setMover([this](GripBar *moved, int dx) { return moveBarSideways(moved, dx); });
-        bar->setDropped([this] { saveBarGaps(); });
         bar->setObjectName(toolbars::barObjectName(b));
         bar->setMovable(true);
         bar->setFloatable(false);
@@ -1140,66 +1140,11 @@ void MainWindow::placeToolBars()
 
 void MainWindow::resetToolbarPlaces()
 {
-    for (GripBar *bar : findChildren<GripBar *>(QString(), Qt::FindDirectChildrenOnly))
-        bar->setGap(0);
-    saveBarGaps();
-    placeToolBars();
-    statusBar()->showMessage(tr("The toolbars are back in their standard places."), 5000);
-}
-
-// A bar dragged sideways by its grip. A row is laid out from the left, each bar as wide as its buttons and its gap,
-// and Qt stretches the row's last bar to the window's edge. So the bar goes right when the bar before it gets a wider
-// gap, as far as the last bar has room to give; and left as far as that gap goes. The first bar of a row stays.
-int MainWindow::moveBarSideways(QToolBar *bar, int dx)
-{
-    if (!bar || dx == 0)
-        return 0;
-    const QPoint at = bar->mapTo(this, QPoint(0, 0));
-    GripBar *before = nullptr;
-    QToolBar *last = bar;
-    int beforeX = -1, lastX = at.x();
-    for (GripBar *other : findChildren<GripBar *>(QString(), Qt::FindDirectChildrenOnly)) {
-        if (other == bar || !other->isVisible() || toolBarArea(other) != toolBarArea(bar))
-            continue;
-        const QPoint p = other->mapTo(this, QPoint(0, 0));
-        if (p.y() != at.y())
-            continue; // another row
-        if (p.x() < at.x() && p.x() > beforeX) {
-            before = other;
-            beforeX = p.x();
-        }
-        if (p.x() > lastX) {
-            last = other;
-            lastX = p.x();
-        }
-    }
-    if (!before)
-        return 0;
-    if (dx > 0)
-        dx = qMin(dx, qMax(0, last->width() - last->sizeHint().width()));
+    if (m_barDock)
+        m_barDock->reset(); // the standard rows and order, no free space between the toolbars
     else
-        dx = qMax(dx, -before->gap());
-    // (a very small gap is none, see GripBar::setGap: what the bar really moved is told back, so the rest of the
-    // mouse's way counts with its next step)
-    const int was = before->gap();
-    before->setGap(was + dx);
-    return before->gap() - was;
-}
-
-void MainWindow::saveBarGaps()
-{
-    QVariantMap gaps;
-    for (GripBar *bar : findChildren<GripBar *>(QString(), Qt::FindDirectChildrenOnly))
-        if (bar->gap() > 0)
-            gaps.insert(bar->objectName(), bar->gap());
-    QSettings().setValue(QStringLiteral("window/barGaps"), gaps);
-}
-
-void MainWindow::loadBarGaps()
-{
-    const QVariantMap gaps = QSettings().value(QStringLiteral("window/barGaps")).toMap();
-    for (GripBar *bar : findChildren<GripBar *>(QString(), Qt::FindDirectChildrenOnly))
-        bar->setGap(qBound(0, gaps.value(bar->objectName()).toInt(), 4000));
+        placeToolBars();
+    statusBar()->showMessage(tr("The toolbars are back in their standard places."), 5000);
 }
 
 // A bar shows when its row is switched on (Show Toolbar for Main, Themes, Search and Tools; Show Format Bar for the

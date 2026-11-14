@@ -4790,6 +4790,13 @@ Verschieben Sie den ganzen Quillbinder-Ordner an einen eigenen Ort, zum Beispiel
         </message>
     </context>
     <context>
+        <name>qb::BarDock</name>
+        <message>
+            <source>Release the mouse button to put the toolbar at the marked place. Esc leaves it where it is.</source>
+            <translation>Maustaste loslassen, um die Symbolleiste an die markierte Stelle zu setzen. Esc lässt sie, wo sie ist.</translation>
+        </message>
+    </context>
+    <context>
         <name>qb::BinderModel</name>
         <message>
             <source>word</source>

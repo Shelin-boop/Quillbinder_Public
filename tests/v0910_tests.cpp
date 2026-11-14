@@ -2,8 +2,9 @@
 //  - backups straight in the backup folder: what waited for a project's own folder of 0.70.0 to 0.90.4 is put into the
 //    backup folder, titles with special characters (the rest is in v0700, v0810 and v0903);
 //  - seven toolbars and the icon bar: their standard places and contents, the grip, a place along the row changed by
-//    dragging, the bottom edge, the window state, Reset Toolbar Places, a switch per bar and per row, the right-click
-//    menu, Customize Toolbars with all bars.
+//    dragging, the bottom edge, what the program keeps, Reset Toolbar Places, a switch per bar and per row, the
+//    right-click menu, Customize Toolbars with all bars. (0.91.1: the drag is the program's own; order, rows and the
+//    row that got stuck are in v0911.)
 // The theme buttons Bright, Dark, U1 and U2 are checked in v0902 (where the theme list was).
 //
 //   xvfb-run -a ./qb_v0910_tests /tmp/shots
@@ -16,6 +17,8 @@
 #include "core/ProjectTemplates.h"
 #include "core/Zip.h"
 #include "ui/AppSettings.h"
+#include "ui/BarDock.h"
+#include "ui/BarPlaces.h"
 #include "ui/GripBar.h"
 #include "ui/MainWindow.h"
 #include "ui/Theme.h"
@@ -318,20 +321,35 @@ static void toolbarChecks(MainWindow &w)
           QStringLiteral("Tools x %1 w %2 (needs %3), window %4").arg(placeOf(w, toolsBar).x()).arg(toolsBar->width())
               .arg(toolsBar->sizeHint().width()).arg(w.width()));
     shot(&w, QStringLiteral("toolbars-tools-right"));
-    // and back to the left: as far as the space goes
-    drag(toolsBar, -3000);
-    drag(searchBar, -400);
-    check(themesGrip->gap() == 0 && searchGrip->gap() == 0 && placeOf(w, searchBar).x() == searchX && placeOf(w, toolsBar).x() == toolsX
+    // and back to the left: as far as the space goes (0.91.1: the mouse stays right of the middle of the bar before it;
+    // further left it would ask for another order, see v0911)
+    drag(toolsBar, -(searchGrip->gap() + 20));
+    drag(searchBar, -(themesGrip->gap() + 20));
+    // (0.91.1: a bar stays where it stands when the bar before it moves away to the left; it is dragged up to it)
+    const bool toolsStayed = placeOf(w, toolsBar).x() == toolsX + moved && searchGrip->gap() == moved;
+    drag(toolsBar, -(searchGrip->gap() + 20));
+    check(toolsStayed && themesGrip->gap() == 0 && searchGrip->gap() == 0 && placeOf(w, searchBar).x() == searchX && placeOf(w, toolsBar).x() == toolsX
               && QSettings().value(QStringLiteral("window/barGaps")).toMap().isEmpty(),
-          QStringLiteral("dragged to the left, the bars close up again and stop where the bar before them ends"), places());
+          QStringLiteral("dragged to the left one after the other, the bars close up again and stop where the bar before them "
+                         "ends; a bar keeps its place while the bar before it moves away from it"),
+          places() + QStringLiteral(" gaps %1 %2, Search x %3 (was %4), Tools x %5 (was %6), kept gaps %7").arg(themesGrip->gap())
+              .arg(searchGrip->gap()).arg(placeOf(w, searchBar).x()).arg(searchX).arg(placeOf(w, toolsBar).x()).arg(toolsX)
+              .arg(QSettings().value(QStringLiteral("window/barGaps")).toMap().keys().join(QLatin1Char(','))));
     drag(searchBar, 160);
     const int againX = placeOf(w, searchBar).x();
-    // a bar at the bottom edge (where a drag can put it), kept by the window's state
-    w.addToolBar(Qt::BottomToolBarArea, paragraphBar);
+    // a bar at the bottom edge (where a drag can put it), kept by the program (0.91.1: window/barRows, ui/BarDock.*)
+    auto *dock = w.findChild<BarDock *>();
+    if (dock) {
+        barplaces::Target bottomEdge;
+        bottomEdge.valid = true;
+        bottomEdge.bottom = true;
+        bottomEdge.newRow = true;
+        dock->setPlaces(barplaces::moved(dock->places(), QStringLiteral("paragraphBar"), bottomEdge));
+    }
     settle(300);
     const bool atBottom = w.toolBarArea(paragraphBar) == Qt::BottomToolBarArea && placeOf(w, paragraphBar).y() > w.height() / 2 && paragraphBar->isVisible();
     shot(&w, QStringLiteral("toolbars-paragraph-bottom"));
-    const QByteArray state = w.saveState();
+    const QStringList keptRows = QSettings().value(QStringLiteral("window/barRows")).toStringList();
     // Reset Toolbar Places
     QAction *reset = w.findChild<QAction *>(QStringLiteral("resetToolbarPlaces"));
     if (reset)
@@ -344,16 +362,21 @@ static void toolbarChecks(MainWindow &w)
           QStringLiteral("a bar can stand at the bottom edge; View > Toolbars > Reset Toolbar Places puts all bars back and closes "
                          "the spaces"),
           places());
-    // the rows and edges come back from the window's state (what the program keeps when it closes)
-    const bool restored = w.restoreState(state);
+    // the rows and edges are kept by the program (what it finds again at its next start)
+    if (dock) {
+        dock->setPlaces(barplaces::fromText(keptRows));
+        w.addToolBar(Qt::TopToolBarArea, paragraphBar); // (thrown about with the window's own means)
+        dock->load();
+    }
     settle(400);
-    check(restored && w.toolBarArea(paragraphBar) == Qt::BottomToolBarArea,
-          QStringLiteral("the window's state keeps the rows and edges: the bar at the bottom is there again"), places());
+    check(dock && keptRows.contains(QStringLiteral("bottom|paragraphBar:0")) && w.toolBarArea(paragraphBar) == Qt::BottomToolBarArea,
+          QStringLiteral("the program keeps the rows and edges: the bar at the bottom is there again"), places());
     if (reset)
         reset->trigger();
     settle(300);
 
-    // ---- dragged out of its row by the grip: Qt takes the bar to another row (here: from the second row up into the first)
+    // ---- dragged out of its row by the grip into another row (here: from the second row up into the first). 0.91.1:
+    // the drag is the program's own; the bar is never lifted out of the window as Qt would do it
     {
         const int rowOne = placeOf(w, mainBar).y(), rowTwo = placeOf(w, characterBar).y();
         const QPoint grip = qobject_cast<GripBar *>(characterBar)->gripRect().center();
@@ -364,15 +387,16 @@ static void toolbarChecks(MainWindow &w)
             QTest::mouseMove(characterBar, characterBar->mapFromGlobal(start + QPoint(0, -4 * k)), 2);
         }
         settle(300);
-        const bool lifted = characterBar->isWindow(); // (Qt lifts the bar out of the window while it is dragged)
+        const bool lifted = characterBar->isWindow();
+        const bool marked = dock && !dock->markerRect().isEmpty();
         QTest::mouseRelease(characterBar, Qt::LeftButton, Qt::NoModifier, characterBar->mapFromGlobal(start + QPoint(0, -36)));
         settle(500);
-        check(lifted && !characterBar->isWindow() && placeOf(w, characterBar).y() == rowOne && placeOf(w, paragraphBar).y() == rowTwo
+        check(!lifted && marked && !characterBar->isWindow() && placeOf(w, characterBar).y() == rowOne && placeOf(w, paragraphBar).y() == rowTwo
                   && placeOf(w, styleBar).y() == rowTwo && characterBar->isVisible() && has(characterBar, "bold"),
               QStringLiteral("dragged up out of its row by the grip, Character and Alignment stands in the first row; the others "
                              "of its row stay"),
-              QStringLiteral("lifted %1, now %2 (rows at %3 and %4), window %5")
-                  .arg(lifted).arg(places()).arg(rowOne).arg(rowTwo).arg(characterBar->isWindow()));
+              QStringLiteral("lifted %1, marker %2, now %3 (rows at %4 and %5), window %6")
+                  .arg(lifted).arg(marked).arg(places()).arg(rowOne).arg(rowTwo).arg(characterBar->isWindow()));
         shot(&w, QStringLiteral("toolbars-character-dragged-up"));
         if (reset)
             reset->trigger();

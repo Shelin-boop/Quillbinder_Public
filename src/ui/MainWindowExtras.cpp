@@ -245,8 +245,6 @@ QStringList MainWindow::iconBarIcons() const
 void MainWindow::createIconBar()
 {
     auto *iconBar = new GripBar(tr("Icon Bar"), this);
-    iconBar->setMover([this](GripBar *moved, int dx) { return moveBarSideways(moved, dx); });
-    iconBar->setDropped([this] { saveBarGaps(); });
     m_iconBar = iconBar;
     m_iconBar->setObjectName(QStringLiteral("iconBar"));
     // 0.91.0: movable by its grip like the seven toolbars (top or bottom edge)

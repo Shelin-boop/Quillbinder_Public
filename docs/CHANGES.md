@@ -3,6 +3,25 @@
 What each version of Quillbinder brought, in short. The user manual (`docs/manual.md`, Help > User
 Manual in the program) describes every function.
 
+## 0.91.1 beta (2026-11-13)
+
+A program update for Linux after the writer's first hours with the toolbars of 0.91.0: they could not change their
+order, a toolbar could not go from one row into the other, and a row could get stuck.
+
+- **Toolbars can be put in any order and into either row**. Drag a toolbar by its grip onto another toolbar or into
+  another row: a line in the highlight color shows where it will stand, and it goes there when you release the mouse
+  button. A main toolbar can stand in the format row and a format toolbar in the first row. Dropped just under the
+  toolbar rows, a toolbar gets a row of its own; dropped on the bottom edge of the window, it stands there. Esc leaves
+  everything as it was. In 0.91.0 the order could not be changed, and on KDE with Wayland a toolbar could not leave
+  its row: the program now moves the toolbars itself instead of leaving that to the desktop.
+- **A toolbar row no longer gets stuck**. With a toolbar pulled to the far right of its row, the toolbars before it
+  could not be moved anymore. A toolbar dragged along its row now takes the free space after it first and pushes the
+  toolbars after it only when it reaches them, as far as they can stand together at the row's end.
+- **Free space stays with the toolbar it stands in front of**. The space you leave in front of a toolbar is kept when
+  other toolbars change their places or are switched off. In a window too narrow for it the space shrinks before a
+  toolbar loses buttons, and it is back when the window is wide again. The rows, the order and the spaces of 0.91.0
+  are taken over.
+
 ## 0.91.0 beta (2026-11-13)
 
 A new AppImage for Linux with three requests of the writer: all backups straight in the backup folder, toolbars that

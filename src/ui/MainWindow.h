@@ -38,6 +38,7 @@ struct Format;
 }
 
 
+class BarDock;
 class BinderPanel;
 class StylesPanel;
 class FormatFindWindow;
@@ -254,11 +255,6 @@ private:
     void applyBarVisibility();
     void resetToolbarPlaces();
     void fillBarsMenu(QMenu *menu, int bar);
-    // 0.91.0: a bar dragged sideways by its grip (GripBar): the free space after the bar before it in the row grows
-    // or shrinks by dx; returns how far the bar went. The gaps are kept in window/barGaps.
-    int moveBarSideways(QToolBar *bar, int dx);
-    void saveBarGaps();
-    void loadBarGaps();
 
 public:
     QMenu *createPopupMenu() override;
@@ -459,6 +455,7 @@ private:
     QToolBar *m_formatBar = nullptr;
     QToolBar *m_iconBar = nullptr;
     bool m_applyingBars = false;
+    BarDock *m_barDock = nullptr; // 0.91.1: the toolbars' places and the drag by their grips (ui/BarDock.*)
     ColorPickButton *m_textColorBtn = nullptr;
     ColorPickButton *m_highlightBtn = nullptr;
     QComboBox *m_styleCombo = nullptr;

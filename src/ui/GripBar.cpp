@@ -32,11 +32,20 @@ QRect GripBar::gripRect() const
     return style()->subElementRect(QStyle::SE_ToolBarHandle, &opt, this);
 }
 
+int GripBar::smallestGap() const { return qMax(0, style()->pixelMetric(QStyle::PM_ToolBarItemSpacing, nullptr, this)); }
+
+int GripBar::naturalWidth() const
+{
+    // (with a gap, the bar's size hint counts the layout's space before the gap widget and the widget: m_gap in all)
+    const bool there = m_gap > 0 && actions().contains(m_gapAction);
+    return sizeHint().width() - (there ? m_gap : 0);
+}
+
 void GripBar::setGap(int px)
 {
     // The gap is a widget after the last button, and the bar's layout puts its usual space between the two: the
     // widget is that much narrower, and a gap no wider than that space is no gap.
-    const int spacing = qMax(0, style()->pixelMetric(QStyle::PM_ToolBarItemSpacing, nullptr, this));
+    const int spacing = smallestGap();
     px = px <= spacing ? 0 : px;
     if (px == m_gap)
         return;
@@ -72,6 +81,8 @@ void GripBar::keepGapLast()
 void GripBar::actionEvent(QActionEvent *e)
 {
     QToolBar::actionEvent(e);
+    if (!m_fixing && e->action() != m_gapAction && (e->type() == QEvent::ActionAdded || e->type() == QEvent::ActionRemoved))
+        emit contentsChanged();
     // a button added or the bar filled anew: the gap goes behind the last button again
     if (!m_fixing && e->action() != m_gapAction && m_gap > 0 && !m_queued
         && (e->type() == QEvent::ActionAdded || e->type() == QEvent::ActionRemoved)) {
@@ -83,39 +94,30 @@ void GripBar::actionEvent(QActionEvent *e)
 bool GripBar::event(QEvent *e)
 {
     switch (e->type()) {
-    case QEvent::MouseButtonPress: {
+    // The grip is this class's own: Qt's toolbar never sees a press on it, so its own drag (see GripBar.h) cannot begin.
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseButtonDblClick: {
         auto *me = static_cast<QMouseEvent *>(e);
-        m_sideways = false;
-        m_qtDrag = false;
-        m_onGrip = me->button() == Qt::LeftButton && gripRect().contains(me->position().toPoint());
-        m_lastX = me->globalPosition().toPoint().x();
-        break; // Qt notes the press too: it moves the bar once the mouse leaves the row
-    }
-    case QEvent::MouseMove: {
-        auto *me = static_cast<QMouseEvent *>(e);
-        if (!m_onGrip || m_qtDrag)
-            break;
-        const QPoint at = me->position().toPoint();
-        if (at.y() < 0 || at.y() >= height()) {
-            m_qtDrag = true; // out of the row: another row or the other edge, which is Qt's part
-            break;
-        }
-        // in the row: the bar follows the mouse sideways (Qt would shrink this bar instead, see GripBar.h)
-        const int x = me->globalPosition().toPoint().x();
-        if (!m_sideways && qAbs(x - m_lastX) < QApplication::startDragDistance())
+        if (me->button() == Qt::LeftButton && gripRect().contains(me->position().toPoint())) {
+            m_onGrip = true;
+            update(gripRect()); // (the grip shows that it is held)
+            emit gripPressed(me->position().toPoint());
             return true;
-        m_sideways = true;
-        if (m_mover)
-            m_lastX += m_mover(this, x - m_lastX);
-        return true;
+        }
+        break;
     }
-    case QEvent::MouseButtonRelease:
+    case QEvent::MouseMove:
         if (m_onGrip) {
-            const bool moved = m_sideways && !m_qtDrag;
+            emit gripMoved(static_cast<QMouseEvent *>(e)->position().toPoint());
+            return true;
+        }
+        break;
+    case QEvent::MouseButtonRelease:
+        if (m_onGrip && static_cast<QMouseEvent *>(e)->button() == Qt::LeftButton) {
             m_onGrip = false;
-            m_sideways = false;
-            if (moved && m_dropped)
-                m_dropped();
+            update(gripRect());
+            emit gripReleased(static_cast<QMouseEvent *>(e)->position().toPoint());
+            return true;
         }
         break;
     case QEvent::HoverMove: {
@@ -144,8 +146,8 @@ void GripBar::paintEvent(QPaintEvent *e)
     if (!r.isValid() || r.height() < 12)
         return;
     QPainter p(this);
-    QColor dot = palette().color(QPalette::WindowText);
-    dot.setAlpha(150);
+    QColor dot = palette().color(m_onGrip ? QPalette::Highlight : QPalette::WindowText);
+    dot.setAlpha(m_onGrip ? 255 : 150);
     const int x = r.center().x() - 2;
     for (int y = r.top() + 6; y + 2 <= r.bottom() - 5; y += 4) {
         p.fillRect(QRect(x, y, 2, 2), dot);
