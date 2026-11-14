@@ -5,13 +5,6 @@
 docs/status.md
 tools/put-asset.sh
 .github/workflows/windows.yml
-packaging/windows/win-ci.sh
-packaging/windows/win-addons.sh
-packaging/windows/win-check.sh
-packaging/windows/win-tests.sh
-packaging/windows/win-check-layout.sh
-packaging/windows/win-dictionaries.sh
-packaging/windows/win-dictionaries.sha256
 .github/workflows/qt-linux.yml
 .github/workflows/test-release.yml
 tools/test-release.sh

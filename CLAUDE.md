@@ -308,7 +308,8 @@ below says about the drag, the gaps and `window/state`.
 
 ## Backups in one folder, eight toolbars, theme buttons (0.91.0 beta, 2026-11-13)
 
-Three requests of the writer in one job (a new AppImage; Linux first, the Windows machine has not run this version).
+Three requests of the writer in one job (a new AppImage; Linux published as `v0.91.0-beta`, Windows built afterwards
+as an experimental test build).
 
 - **Backups straight in the backup folder** (`core/Backup.*`; the writer: "that's why i chose a backup folder, that
   all the backups go in there"). `Where::BackupFolder` (was `ProjectFolder`) writes into the folder itself; a project's
@@ -369,8 +370,9 @@ Three requests of the writer in one job (a new AppImage; Linux first, the Window
   menu, Customize Toolbars); the theme buttons and the split of an arranged main
   toolbar are in `qb_v0902_tests`; changed for the new behavior: v0700 and v0810 (backups by title), v0903, v021, ui,
   v061, v0601, v0604, v017.
-- Not checked here: dragging a toolbar on Wayland (the checks run on X11); the Windows machine (its counted suites
-  ui... v0902 changed).
+- Not checked here: dragging a toolbar on Wayland (the checks run on X11). The Windows machine (run of 1614366, the
+  first of the branch `win/0.91.0`, 48 min): no compiler error, program 26, setup 11, layout 8 checks ok, 34 suites
+  with 0 failures; v0910 passed at its first run there (32 checks, the drags included) and is counted since.
 
 ## Windows with what Linux 0.90.3 has, the setup programs (0.90.4 beta, 2026-11-13)
 
@@ -1342,3 +1344,31 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
 - The view of several documents as one text is called **Combined Text** (`ViewMode::Combined`); the settings keys
   of older versions (`scriveningsTitles`, font `scriveningsTitle`) are still read. Do not use the word
   "Scrivenings" in the program or its texts; "Scrivener" only where the file format or the import is meant.
+
+## Public Windows files (0.91.1, 2026-11-14)
+
+- Working rules, section 9: Linux leads; the Windows files are added to the Linux release of the same number by a
+  workflow of their own, `.github/workflows/release-windows.yml` (public repository only, started by hand:
+  `gh api -X POST repos/Shelin-boop/Quillbinder_Public/actions/workflows/release-windows.yml/dispatches -f ref=main`).
+  It never changes `release.yml`, the Linux files or `SHA256SUMS.txt`.
+- Jobs: `version` (the Linux release of this version must exist) -> `build` (Windows, `QB_WIN_STAGE=release` of
+  `packaging/windows/win-ci.sh`: no test switches, no tests, everything unsigned in `results/stage`) ->
+  `sign-packages` (Ubuntu, the key) -> `assemble` (Windows, `packaging/windows/win-release.sh`: zips, setup programs,
+  checks with the program as released) and `sources` (Ubuntu) -> `sign-checksums` (Ubuntu, the key:
+  `SHA256SUMS-windows.txt`) -> `publish` (uploads with `--clobber`, one paragraph in the release text) ->
+  `download-page`.
+- File names carry "experimental" (`QB_WIN_NAME` in the job `assemble`; the writer's choice of 2026-11-14). The .exe
+  files have no code-signing certificate (the writer's choice): SmartScreen warns, Smart App Control blocks.
+- Tests as for Linux (the writer, 2026-11-14: "we will make this like the linux one"): the job `tests` is a second
+  build with the test switches and runs `win-ci.sh` as the private Windows workflow does (program, setup and layout
+  checks, the suites of `win-tests.sh`); `publish` waits for it. Its fonts come from the job `test-fonts` (Ubuntu
+  24.04's packages, handed over as `QB_TEST_FONTS_ZIP`; the private workflow still takes its archive from `assets`).
+  Run the private Windows workflow on the same source first all the same.
+- `tools/public-exclude.txt` no longer keeps the Windows build and test scripts private (`win-ci.sh`, `win-addons.sh`,
+  `win-dictionaries.*`, `win-check.sh`, `win-check-layout.sh`, `win-tests.sh`: the public workflow needs them); the
+  private workflow `windows.yml` stays private.
+- Sources only the Windows build needs go to `third-party-sources` under the names of
+  `resources/licenses-windows/index.json`: `hunspell-<v>.tar.gz`, `libreoffice-dictionaries-<v>-de.tar`, and
+  `ffmpeg-<v>.tar.xz` (the version of the add-on's `ffmpeg-build.txt`).
+- Left for a Linux job (shared files a Windows job must not change): the manual still calls the Windows version
+  "in preparation, not published yet" (`docs/manual.md`).

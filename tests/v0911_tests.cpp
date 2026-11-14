@@ -514,7 +514,14 @@ static void windowChecks(MainWindow &w)
         QTemporaryDir copyDir;
         const QString copy = copyDir.path() + QStringLiteral("/settings.conf");
         const bool copied = QFile::copy(QSettings().fileName(), copy);
-        const QStringList fromFile = QSettings(copy, QSettings::NativeFormat).value(QStringLiteral("window/barRows")).toStringList();
+#ifdef Q_OS_WIN
+        // Windows: the program's settings are an INI file there, and NativeFormat with a file name would be a place in
+        // the registry (found by the first run of this suite on the Windows machine, 2026-11-14)
+        const QSettings::Format copyFormat = QSettings::IniFormat;
+#else
+        const QSettings::Format copyFormat = QSettings::NativeFormat;
+#endif
+        const QStringList fromFile = QSettings(copy, copyFormat).value(QStringLiteral("window/barRows")).toStringList();
         check(copied && fromText(fromFile) == kept && kept.bottom.size() == 2 && kept.top.size() == 3,
               QStringLiteral("the settings file holds the rows of both edges, and they read back the same from the file"),
               fromFile.join(QLatin1String(" ; ")));

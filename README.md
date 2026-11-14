@@ -55,7 +55,23 @@ Add-ons are installed with **File > Install Update or Add-on**.
 
 ### Windows
 
-The Windows 11 version (64-bit, a folder to unpack, no installation) is being prepared and not published yet.
+**Quillbinder 0.91.1 for Windows 11 (64-bit), experimental:** the same version as for Linux.
+
+- **[Quillbinder-0.91.1-full-experimental-windows-x64-setup.exe](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.91.1-beta/Quillbinder-0.91.1-full-experimental-windows-x64-setup.exe)**:
+  **the full version** (the program with all add-ons) as a setup program. It asks for a folder (for example
+  `C:\Users\<your name>\Quillbinder`, not Program Files) and only unpacks into it: no admin rights, no installation,
+  nothing in the registry. The same files as a zip:
+  [Quillbinder-0.91.1-full-experimental-windows-x64.zip](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.91.1-beta/Quillbinder-0.91.1-full-experimental-windows-x64.zip).
+- The program alone: [setup program](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.91.1-beta/Quillbinder-0.91.1-experimental-windows-x64-setup.exe),
+  [zip](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.91.1-beta/Quillbinder-0.91.1-experimental-windows-x64.zip). For a Quillbinder you already have:
+  [quillbinder-0.91.1-experimental-windows-update.qbpkg](https://github.com/Shelin-boop/Quillbinder_Public/releases/download/v0.91.1-beta/quillbinder-0.91.1-experimental-windows-update.qbpkg)
+  (**File > Install Update or Add-on**).
+
+The files carry no code-signing certificate: Windows SmartScreen warns (**More info > Run anyway**), and a PC with
+Smart App Control switched on blocks them. The packages are signed with the project's key, as on Linux; the checksums of
+the Windows files are in `SHA256SUMS-windows.txt` (signed, `SHA256SUMS-windows.txt.sig`). Everything the program keeps
+stays in its own folder. Not in the Windows version yet: Speech Transcription on graphics cards (it uses the
+processor). A later version for Linux can be out before its Windows files are.
 
 ### Android
 
