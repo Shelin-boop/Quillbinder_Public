@@ -1371,4 +1371,8 @@ versions keep working with the project; see `docs/developer-guide.md` section 11
   `resources/licenses-windows/index.json`: `hunspell-<v>.tar.gz`, `libreoffice-dictionaries-<v>-de.tar`, and
   `ffmpeg-<v>.tar.xz` (the version of the add-on's `ffmpeg-build.txt`).
 - Left for a Linux job (shared files a Windows job must not change): the manual still calls the Windows version
-  "in preparation, not published yet" (`docs/manual.md`).
+  "in preparation, not published yet" (`docs/manual.md`). And `tools/publish-release.sh` uploads only `*.src.tar` to
+  `third-party-sources`, so Qt's source archive `qt-everywhere-src-6.12.0.tar.xz`, which the Linux releases 0.80.0 to
+  0.91.1 name there, was never uploaded (found by the first public Windows run, 2026-11-14). The Windows workflow's
+  job `sources` fetches the archive from the Qt Project when it is missing and `publish` adds it; the Linux script
+  still needs its fix, or a later Qt version will be missing again.

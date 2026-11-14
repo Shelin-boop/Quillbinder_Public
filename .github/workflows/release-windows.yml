@@ -333,7 +333,7 @@ jobs:
   sources:
     # the source code of the third-party parts that only the Windows build carries, under the file names its
     # license list (Help > Third-Party Licenses, resources/licenses-windows/index.json) and its add-ons name.
-    # Qt's own source (qt-everywhere-src-<version>.tar.xz) is in "third-party-sources" since the Linux release 0.80.0.
+    # Qt's own source (qt-everywhere-src-<version>.tar.xz) is the same file the Linux release names; fetched when missing.
     needs: [version, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -362,8 +362,27 @@ jobs:
           names=$(grep -o 'third-party-sources, file [^ ;)(]*' resources/licenses-windows/index.json | awk '{print $3}' | sort -u)
           echo "the license list names: $names"
           have=$(gh release view third-party-sources --json assets --jq '.assets[].name')
+          # Qt's own source release. The Linux release's list names the same file, but tools/publish-release.sh has
+          # never uploaded it (it takes only *.src.tar; found 2026-11-14): when it is missing, it is fetched here from
+          # the Qt Project, as tools/collect-sources.py does for Linux, and "publish" adds it.
           qt=$(echo "$names" | grep '^qt-everywhere-src-')
-          echo "$have" | grep -qx "$qt" || { echo "::error title=Qt source missing::$qt is not in the release third-party-sources"; exit 1; }
+          if echo "$have" | grep -qxF "$qt"; then
+            echo "there already: $qt"
+          else
+            qv=${qt#qt-everywhere-src-}; qv=${qv%.tar.xz}
+            url="https://download.qt.io/official_releases/qt/${qv%.*}/$qv/single/$qt"
+            curl -fsSL --retry 10 --retry-delay 15 --retry-all-errors -o "sources/$qt" "$url"
+            want=$(curl -fsSL --retry 5 "$url.sha256" | awk '{print $1}' | head -1 || true)
+            if [ -n "$want" ]; then
+              echo "$want  sources/$qt" | sha256sum -c --quiet
+              echo "checked against the SHA-256 the Qt Project publishes: $qt"
+            else
+              echo "::warning::the Qt Project publishes no SHA-256 beside $qt: not checked"
+            fi
+            size=$(stat -c %s "sources/$qt")
+            echo "$qt: $size bytes"
+            [ "$size" -lt 2147483648 ] || { echo "::error::$qt is larger than a release file may be (2 GiB)"; exit 1; }
+          fi
           # Hunspell, the version vcpkg builds (the archive of its tag)
           hs=$(echo "$names" | grep '^hunspell-')
           hv=${hs#hunspell-}; hv=${hv%.tar.gz}
